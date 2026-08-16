@@ -10,6 +10,10 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@citxr/blockly-cit": "workspace:*",
+    "@citxr/project-format": "workspace:*",
+    "@citxr/student-runtime-web": "workspace:*",
+    "blockly": "13.2.1",
     "react": "19.2.8",
     "react-dom": "19.2.8"
   },

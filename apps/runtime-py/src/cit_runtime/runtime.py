@@ -202,7 +202,21 @@ class Runtime:
             at=now,
             context={"sessionId": session_id, "state": state.value, "reason": reason},
         )
-        return self.sessions.save(session)
+        saved = self.sessions.save(session)
+
+        if saved.is_terminal:
+            # A finished session must hand its devices back. Without this the
+            # first lesson of the day holds every robot until the runtime
+            # restarts, and the next class finds nothing it can bind.
+            for device_id in self.registry.release_session(session_id):
+                self.supervisor.disarm(device_id)
+                self.audit.record(
+                    AuditAction.DEVICE_RELEASED,
+                    actor_id=saved.user_id,
+                    at=now,
+                    context={"deviceId": device_id, "sessionId": session_id},
+                )
+        return saved
 
     def advance_to_ready(self, session_id: str) -> ProgramSession:
         """The ordinary happy path: created -> validating -> ready."""

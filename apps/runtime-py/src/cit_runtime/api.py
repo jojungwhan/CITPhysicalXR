@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 from .registry import DeviceAssignmentError
 from .runtime import Runtime
 from .sessions import AuthoringMode, ExecutionMode, SessionState, SessionTransitionError
+from .student_bridge import StudentBridge, StudentBridgeError
 from .supervisor import WatchdogKind
 
 LOOPBACK_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
@@ -74,6 +75,18 @@ class StopRequest(BaseModel):
     actor_id: str = Field(min_length=1, max_length=128)
     reason: str = Field(default="manual stop", min_length=1, max_length=200)
     device_id: str | None = None
+
+
+class StudentRpcRequest(BaseModel):
+    """One call from a student program, relayed by the Studio's worker host."""
+
+    session_id: str
+    method: Literal["command", "read_sensor", "log", "device_info", "sleep"]
+    payload: dict[str, Any] = Field(default_factory=dict)
+    source: Literal["student_blocks", "student_python"] = "student_python"
+    aliases: dict[str, str] = Field(default_factory=dict)
+    deadman_active: bool = False
+    input_confidence: float | None = Field(default=None, ge=0, le=1)
 
 
 class TransitionRequest(BaseModel):
@@ -393,6 +406,33 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
                 for event in active.router.history(device_id=device_id)
             ]
         }
+
+    @app.post("/api/student/rpc")
+    async def student_rpc(request: StudentRpcRequest) -> Mapping[str, Any]:
+        """The only route a student program can cause (FR-013).
+
+        The method is checked against the bridge's allowlist, the session is
+        checked here, and everything past this point is the ordinary pipeline
+        with the safety supervisor still in front of it.
+        """
+
+        try:
+            active.sessions.get(request.session_id)
+        except KeyError as error:
+            raise HTTPException(status_code=404, detail=str(error)) from error
+
+        bridge = StudentBridge(
+            active,
+            session_id=request.session_id,
+            source=request.source,
+            aliases=request.aliases,
+        )
+        bridge.deadman_active = request.deadman_active
+        bridge.input_confidence = request.input_confidence
+        try:
+            return await bridge.call(request.method, request.payload)
+        except StudentBridgeError as error:
+            raise HTTPException(status_code=400, detail=str(error)) from error
 
     @app.websocket("/ws/events")
     async def events_socket(websocket: WebSocket) -> None:

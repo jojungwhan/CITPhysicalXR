@@ -13,6 +13,7 @@ members = [
     "cit-protocol",
     "cit-runtime",
     "cit-safety-core",
+    "cit-student-sdk",
     "cit-test-harness",
 ]
 
@@ -192,6 +193,7 @@ dependencies = [
     { name = "cit-protocol" },
     { name = "cit-runtime" },
     { name = "cit-safety-core" },
+    { name = "cit-student-sdk" },
     { name = "cit-test-harness" },
 ]
 
@@ -218,6 +220,7 @@ requires-dist = [
     { name = "cit-protocol", editable = "packages/protocol-py" },
     { name = "cit-runtime", editable = "apps/runtime-py" },
     { name = "cit-safety-core", editable = "packages/safety-core" },
+    { name = "cit-student-sdk", editable = "packages/student-sdk-py" },
     { name = "cit-test-harness", editable = "packages/test-harness" },
 ]
 
@@ -290,6 +293,11 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "cit-protocol", editable = "packages/protocol-py" }]
+
+[[package]]
+name = "cit-student-sdk"
+version = "0.0.0"
+source = { editable = "packages/student-sdk-py" }
 
 [[package]]
 name = "cit-test-harness"

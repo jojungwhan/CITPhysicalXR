@@ -177,6 +177,30 @@ export class RuntimeClient {
     return payload.events;
   }
 
+  /** FR-013. The single route a student program can cause. */
+  studentRpc(request: {
+    sessionId: string;
+    method: string;
+    payload: Record<string, unknown>;
+    source: "student_blocks" | "student_python";
+    aliases: Record<string, string>;
+    deadmanActive?: boolean;
+    inputConfidence?: number;
+  }): Promise<unknown> {
+    return this.request("/api/student/rpc", {
+      method: "POST",
+      body: {
+        session_id: request.sessionId,
+        method: request.method,
+        payload: request.payload,
+        source: request.source,
+        aliases: request.aliases,
+        deadman_active: request.deadmanActive ?? false,
+        input_confidence: request.inputConfidence ?? null,
+      },
+    });
+  }
+
   discover(): Promise<{ discovered: string[]; connected: string[] }> {
     return this.request("/api/devices/discover", { method: "POST" });
   }
@@ -205,6 +229,19 @@ export class RuntimeClient {
       method: "POST",
       body: { device_ids: deviceIds },
     });
+  }
+
+  transition(sessionId: string, state: string): Promise<SessionView> {
+    return this.request<SessionView>(`/api/sessions/${sessionId}/state`, {
+      method: "POST",
+      body: { state },
+    });
+  }
+
+  /** Ends a session so it hands its devices back to the next class. */
+  async endSession(sessionId: string): Promise<void> {
+    await this.transition(sessionId, "stopping");
+    await this.transition(sessionId, "stopped");
   }
 
   validate(sessionId: string): Promise<SessionView> {

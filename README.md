@@ -1,8 +1,16 @@
 # CIT Physical XR Studio
 
-This repository is at **Milestone 1: Runtime Core and Simulation**. On top of the Milestone 0 foundation (versioned protocol models, validation and configuration contracts, fail-closed safety primitives, four in-memory adapter fakes, cross-platform CI) it adds a working local runtime and a Studio console that drives it: program sessions, a device registry, an independent safety supervisor, a single command pipeline, event routing, record and replay, and a loopback-only HTTP/WebSocket API.
+This repository is at **Milestone 3: Blocks and Student Python**. On top of the Milestone 0 foundation (versioned protocol models, validation and configuration contracts, fail-closed safety primitives, four in-memory adapter fakes, cross-platform CI) it adds a working local runtime and a Studio console that drives it: program sessions, a device registry, an independent safety supervisor, a single command pipeline, event routing, record and replay, and a loopback-only HTTP/WebSocket API.
 
-It does not provide a student programming environment (M3), any hardware adapter (M2 for RoboMaster S1 and Leap, M4 for LEGO, M5 for Quest), a production Quest application, or physical-device control. Every device it drives today is a fake.
+On top of that runtime it adds the authoring half: a versioned project format, a
+capability-driven Blockly toolbox, a deterministic blocks-to-readable-Python
+generator with source maps, the `citxr` student API shared by generated and
+handwritten code, and a Pyodide Web Worker that runs student programs behind a
+five-call bridge.
+
+It does not provide any hardware adapter (M2 for RoboMaster S1 and Leap, M4 for
+LEGO, M5 for Quest), a production Quest application, or physical-device control.
+Every device it drives today is a fake.
 
 ## Development setup
 
@@ -78,4 +86,4 @@ Platform paths are stored separately and never translated between Windows and Li
 - Agent CLI Mesh and the audited RoboMaster repositories have no owner licence at their inspected top level; none of their original code is copied here.
 - A clean Ubuntu 24.04 Docker verification passes on this host. The GitHub Actions matrix is defined but cannot report an external run until the repository is pushed.
 
-See `docs/MILESTONE_1_REPORT.md` for what this milestone verified and what it deliberately leaves out, `docs/IMPLEMENTATION_PLAN.md` for requirement traceability and `docs/DECISIONS.md` for architecture decisions. The repository is licensed under Apache-2.0; dependency and external-source status is in `THIRD_PARTY_NOTICES.md` and `docs/LICENSING.md`.
+See `docs/MILESTONE_3_REPORT.md` and `docs/MILESTONE_1_REPORT.md` for what each milestone verified and what it deliberately leaves out, `docs/IMPLEMENTATION_PLAN.md` for requirement traceability and `docs/DECISIONS.md` for architecture decisions. The repository is licensed under Apache-2.0; dependency and external-source status is in `THIRD_PARTY_NOTICES.md` and `docs/LICENSING.md`.

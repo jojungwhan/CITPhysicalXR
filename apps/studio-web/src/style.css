@@ -232,3 +232,56 @@ code {
     padding: 36px 0 72px;
   }
 }
+
+.blockly {
+  height: 420px;
+  margin-top: 4px;
+  border: 1px solid #c9d3cb;
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.blockly.snapshot {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+
+.code {
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid #c9d3cb;
+  border-radius: 12px;
+  background: #f8faf8;
+  padding: 14px 16px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.code-edit {
+  width: 100%;
+  min-height: 260px;
+  box-sizing: border-box;
+  border: 1px solid #c9d3cb;
+  border-radius: 12px;
+  background: #f8faf8;
+  padding: 14px 16px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.85rem;
+  line-height: 1.55;
+  resize: vertical;
+}
+
+.warnings {
+  margin: 12px 0 0;
+  padding: 12px 16px 12px 32px;
+  border: 1px solid #d8b46d;
+  border-radius: 12px;
+  background: #fff7e6;
+  color: #685934;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}

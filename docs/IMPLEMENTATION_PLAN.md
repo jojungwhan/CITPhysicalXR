@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- Status: Milestone 0 complete; Milestone 1 complete (simulation only, no hardware adapter)
+- Status: Milestones 0, 1, and 3 complete (simulation only, no hardware adapter). M2 is deferred until hardware is available.
 - Authoritative product specification: `docs/PRD.md` version 1.0, 2026-08-16
 
 ## Delivery rule

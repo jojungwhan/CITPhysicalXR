@@ -1,0 +1,18 @@
+{
+  "name": "@citxr/student-runtime-web",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The constrained browser student runtime: a Pyodide worker and the host that gates it.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  }
+}

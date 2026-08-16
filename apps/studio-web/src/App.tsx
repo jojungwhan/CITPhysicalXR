@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { ProgramView } from "./ProgramView.js";
 import {
   RuntimeClient,
   RuntimeUnreachableError,
@@ -95,8 +96,15 @@ export function App() {
     session.state === "ready" &&
     selected.state === "connected";
 
+  const TERMINAL = ["stopped", "completed", "failed", "emergency_stopped"];
+
   const startSession = () =>
     run(async () => {
+      // End the previous session first. A session holds its devices until it
+      // finishes, so without this the second lesson finds every robot taken.
+      if (session !== null && !TERMINAL.includes(session.state)) {
+        await client.endSession(session.sessionId);
+      }
       const created = await client.createSession({
         projectId: "studio-lesson",
         userId: "student-1",
@@ -329,6 +337,13 @@ export function App() {
           </div>
         )}
       </section>
+
+      <ProgramView
+        client={client}
+        session={session}
+        devices={devices}
+        locale="en"
+      />
 
       <section aria-labelledby="events-heading">
         <h2 id="events-heading">Events</h2>

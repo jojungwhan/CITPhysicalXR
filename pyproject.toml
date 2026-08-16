@@ -9,6 +9,7 @@ dependencies = [
   "cit-runtime",
   "cit-protocol",
   "cit-safety-core",
+  "cit-student-sdk",
   "cit-test-harness",
 ]
 
@@ -38,6 +39,7 @@ members = [
   "packages/device-simulator",
   "packages/protocol-py",
   "packages/safety-core",
+  "packages/student-sdk-py",
   "packages/test-harness",
 ]
 
@@ -46,6 +48,7 @@ cit-device-simulator = { workspace = true }
 cit-runtime = { workspace = true }
 cit-protocol = { workspace = true }
 cit-safety-core = { workspace = true }
+cit-student-sdk = { workspace = true }
 cit-test-harness = { workspace = true }
 
 [tool.pytest.ini_options]

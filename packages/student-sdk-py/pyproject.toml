@@ -1,0 +1,14 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-student-sdk"
+version = "0.0.0"
+description = "The CIT Physical XR student Python API, shared by generated and handwritten code"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = []
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/citxr"]

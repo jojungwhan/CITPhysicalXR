@@ -16,21 +16,25 @@ The current resolved dependency graph contains software under `Apache-2.0`, `MIT
 | TypeScript                          | Type generation and compilation  | `Apache-2.0`                            |
 | ESLint, typescript-eslint, Prettier | Static analysis and formatting   | `MIT` / `Apache-2.0` transitive helpers |
 | Vitest                              | TypeScript tests                 | `MIT`                                   |
+| Blockly                             | Block editor                     | `Apache-2.0`                            |
+| Pyodide                             | Browser student Python runtime   | `MPL-2.0`                               |
 | json-schema-to-typescript           | Protocol model generation        | `MIT`                                   |
 | yaml                                | Configuration validation tooling | `ISC`                                   |
 
 ## Direct Python dependencies
 
-| Component group           | Purpose                          | Licence              |
-| ------------------------- | -------------------------------- | -------------------- |
-| Pydantic                  | Generated protocol models        | `MIT`                |
-| jsonschema                | Runtime/configuration validation | `MIT`                |
-| PyYAML                    | Safe YAML loading                | `MIT`                |
-| datamodel-code-generator  | Python protocol generation       | `MIT`                |
-| pytest and pytest-asyncio | Contract and safety tests        | `MIT` / `Apache-2.0` |
-| Ruff                      | Lint and format checks           | `MIT`                |
-| mypy and types-PyYAML     | Type checking                    | `MIT` / `Apache-2.0` |
-| Hatchling and build       | Python package builds            | `MIT`                |
+| Component group           | Purpose                          | Licence                |
+| ------------------------- | -------------------------------- | ---------------------- |
+| Pydantic                  | Generated protocol models        | `MIT`                  |
+| jsonschema                | Runtime/configuration validation | `MIT`                  |
+| PyYAML                    | Safe YAML loading                | `MIT`                  |
+| datamodel-code-generator  | Python protocol generation       | `MIT`                  |
+| pytest and pytest-asyncio | Contract and safety tests        | `MIT` / `Apache-2.0`   |
+| Ruff                      | Lint and format checks           | `MIT`                  |
+| mypy and types-PyYAML     | Type checking                    | `MIT` / `Apache-2.0`   |
+| Hatchling and build       | Python package builds            | `MIT`                  |
+| FastAPI and Starlette     | Local runtime API                | `MIT` / `BSD-3-Clause` |
+| uvicorn and websockets    | Local runtime transport          | `BSD-3-Clause`         |
 
 ## Generated files
 

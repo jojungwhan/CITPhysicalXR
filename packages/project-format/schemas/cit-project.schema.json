@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://citxr.dev/schema/project/v1/cit-project.schema.json",
+  "title": "CIT Physical XR Project V1",
+  "description": "A student project. Storing a project does not authorize physical execution.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "projectId",
+    "name",
+    "authoringMode",
+    "blocksState",
+    "generatedPython",
+    "pythonSource",
+    "targetProfile",
+    "deviceBindings",
+    "questScene",
+    "safetyPreset",
+    "assets",
+    "createdAt",
+    "updatedAt"
+  ],
+  "properties": {
+    "schemaVersion": { "const": 1, "type": "integer" },
+    "projectId": { "type": "string", "format": "uuid" },
+    "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "authoringMode": { "type": "string", "enum": ["blocks", "python"] },
+    "blocksState": { "$ref": "#/$defs/BlocksState" },
+    "generatedPython": { "type": "string", "maxLength": 500000 },
+    "pythonSource": { "type": "string", "maxLength": 500000 },
+    "lastBlocksSnapshot": {
+      "description": "FR-003. Retained when a project converts to Python mode.",
+      "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/BlocksState" }]
+    },
+    "targetProfile": { "$ref": "#/$defs/Identifier" },
+    "deviceBindings": {
+      "type": "array",
+      "maxItems": 32,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/DeviceBinding" }
+    },
+    "questScene": { "type": "object", "additionalProperties": true },
+    "safetyPreset": { "$ref": "#/$defs/Identifier" },
+    "executionMode": { "type": "string", "enum": ["simulation", "physical"] },
+    "assets": {
+      "type": "array",
+      "maxItems": 256,
+      "items": { "$ref": "#/$defs/Asset" }
+    },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "Identifier": {
+      "title": "Identifier",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
+    "BlocksState": {
+      "title": "BlocksState",
+      "description": "Serialized Blockly workspace. Authoritative in block mode.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blocks"],
+      "properties": {
+        "blocks": {
+          "type": "array",
+          "maxItems": 2048,
+          "items": { "$ref": "#/$defs/BlockNode" }
+        },
+        "variables": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "name"],
+            "properties": {
+              "id": { "$ref": "#/$defs/Identifier" },
+              "name": { "type": "string", "minLength": 1, "maxLength": 64 }
+            }
+          }
+        }
+      }
+    },
+    "BlockNode": {
+      "title": "BlockNode",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "type"],
+      "properties": {
+        "id": { "$ref": "#/$defs/Identifier" },
+        "type": { "$ref": "#/$defs/Identifier" },
+        "fields": { "type": "object", "additionalProperties": true },
+        "children": {
+          "type": "array",
+          "maxItems": 512,
+          "items": { "$ref": "#/$defs/BlockNode" }
+        },
+        "disabled": { "type": "boolean", "default": false },
+        "comment": { "type": "string", "maxLength": 500 }
+      }
+    },
+    "DeviceBinding": {
+      "title": "DeviceBinding",
+      "description": "FR-019. A binding names an exact deviceId, never a family.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["alias", "deviceId"],
+      "properties": {
+        "alias": {
+          "description": "The name the student's code uses.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "deviceId": { "$ref": "#/$defs/Identifier" },
+        "required": { "type": "boolean", "default": true }
+      }
+    },
+    "Asset": {
+      "title": "Asset",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId", "kind", "name"],
+      "properties": {
+        "assetId": { "$ref": "#/$defs/Identifier" },
+        "kind": {
+          "type": "string",
+          "enum": ["image", "audio", "model", "data"]
+        },
+        "name": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "bytes": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

@@ -386,3 +386,30 @@ async def test_simulation_runtime_refuses_a_physical_session() -> None:
         simulation_only.create_session(
             project_id="p", user_id="u", execution_mode=ExecutionMode.PHYSICAL
         )
+
+
+async def test_a_finished_session_hands_its_devices_back(runtime: Runtime) -> None:
+    """Otherwise the first lesson of the day holds every robot until restart."""
+
+    first = await ready_session(runtime, execution_mode=ExecutionMode.SIMULATION)
+    runtime.arm(session_id=first, device_id="fake-s1-main", instructor_id="instructor-1")
+    assert runtime.registry.get("fake-s1-main").assigned_session_id == first
+
+    runtime.transition(first, SessionState.STOPPING)
+    runtime.transition(first, SessionState.COMPLETED)
+
+    assert runtime.registry.get("fake-s1-main").assigned_session_id is None
+    assert not runtime.supervisor.is_armed("fake-s1-main")
+
+    # The next class can now bind the same robot.
+    second = runtime.create_session(
+        project_id="lesson-2", user_id="student-2", execution_mode=ExecutionMode.SIMULATION
+    )
+    bound = runtime.bind_devices(second.session_id, ["fake-s1-main"])
+    assert bound.device_bindings == ("fake-s1-main",)
+
+
+async def test_an_emergency_stopped_session_also_releases(runtime: Runtime) -> None:
+    session_id = await ready_session(runtime, execution_mode=ExecutionMode.SIMULATION)
+    runtime.transition(session_id, SessionState.EMERGENCY_STOPPED, reason="e-stop")
+    assert runtime.registry.get("fake-s1-main").assigned_session_id is None
