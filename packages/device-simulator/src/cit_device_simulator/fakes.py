@@ -20,6 +20,10 @@ class FakeDeviceAdapter:
     model: str
     adapter_id: str
     capabilities: tuple[str, ...]
+    # A fake never touches hardware. This flag only changes what the adapter
+    # *claims*, so the runtime's physical-only gates (arm, dead-man, bounds) can
+    # be exercised without a robot. It is not evidence of hardware support.
+    physical: bool = False
     available: bool = True
     connected: bool = field(default=False, init=False)
     _sequence: int = field(default=0, init=False, repr=False)
@@ -40,9 +44,9 @@ class FakeDeviceAdapter:
                 "model": self.model,
                 "adapterId": self.adapter_id,
                 "adapterVersion": "0.0.0",
-                "physical": False,
+                "physical": self.physical,
                 "capabilities": list(self.capabilities),
-                "safetyProfile": "simulation-only",
+                "safetyProfile": "physical-stand-in" if self.physical else "simulation-only",
             }
         )
 

@@ -14,9 +14,11 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+  "anyio==4.14.2",
   "build==1.5.0",
   "datamodel-code-generator==0.73.0",
   "hatchling==1.32.0",
+  "httpx2==2.10.0",
   "jsonschema[format-nongpl]==4.26.0",
   "mypy==2.3.1",
   "pytest==9.1.1",

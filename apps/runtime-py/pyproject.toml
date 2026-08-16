@@ -9,13 +9,21 @@ description = "Non-dispatching local-runtime foundation for CIT Physical XR"
 requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
 dependencies = [
+  "cit-device-simulator",
   "cit-protocol",
   "cit-safety-core",
+  "fastapi==0.141.1",
   "jsonschema[format-nongpl]==4.26.0",
   "pyyaml==6.0.3",
+  # uvicorn without the "standard" extra: websockets is the only extra the
+  # runtime needs, and uvloop/httptools/watchfiles add licence and build
+  # surface for no local-first benefit.
+  "uvicorn==0.52.3",
+  "websockets==17.0.1",
 ]
 
 [tool.uv.sources]
+cit-device-simulator = { workspace = true }
 cit-protocol = { workspace = true }
 cit-safety-core = { workspace = true }
 

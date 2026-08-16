@@ -1,6 +1,8 @@
 # CIT Physical XR Studio
 
-This repository is at **Milestone 0: Discovery, Reuse Audit, and Foundation**. It contains versioned protocol models, validation/configuration contracts, fail-closed safety primitives, four in-memory adapter fakes, buildable application scaffolds, and cross-platform CI. It does not yet provide a local runtime API, student programming environment, browser simulator, production Quest application, or physical-device control.
+This repository is at **Milestone 1: Runtime Core and Simulation**. On top of the Milestone 0 foundation (versioned protocol models, validation and configuration contracts, fail-closed safety primitives, four in-memory adapter fakes, cross-platform CI) it adds a working local runtime and a Studio console that drives it: program sessions, a device registry, an independent safety supervisor, a single command pipeline, event routing, record and replay, and a loopback-only HTTP/WebSocket API.
+
+It does not provide a student programming environment (M3), any hardware adapter (M2 for RoboMaster S1 and Leap, M4 for LEGO, M5 for Quest), a production Quest application, or physical-device control. Every device it drives today is a fake.
 
 ## Development setup
 
@@ -29,7 +31,23 @@ pnpm license:check
 pnpm sbom
 ```
 
-The Studio scaffold can be built with `pnpm --filter @citxr/studio-web build`. It displays foundation status only and has no runtime connection.
+## Running the runtime
+
+```bash
+pnpm --filter @citxr/studio-web build
+uv run python -m cit_runtime
+```
+
+Open <http://127.0.0.1:8791>. The runtime serves the built Studio at `/`, so that
+one URL is both the console and the API. From it you can create a session, bind a
+fake device, validate, drive it, watch device events stream in, and stop
+everything.
+
+The runtime binds the loopback interface and refuses to bind a routable one
+without an explicit override. Its CORS allowlist contains no remote origin, so a
+Studio copy served from another host resolves the API to its own origin, finds
+nothing there, and reports the runtime unreachable. That is deliberate: a page on
+a public website must not be able to drive a robot on someone's desk.
 
 ## Configuration
 
@@ -43,16 +61,16 @@ Platform paths are stored separately and never translated between Windows and Li
 - `packages/safety-core`: command ledger, expiry, leases, and foundation denial policy
 - `packages/device-simulator`: non-hardware adapter contract and fake S1, Leap, LEGO, and Quest devices
 - `packages/test-harness`: reusable adapter shape assertion
-- `apps/runtime-py`: validated configuration helpers only
-- `apps/studio-web`: buildable React status scaffold only
+- `apps/runtime-py`: the local runtime -- sessions, device registry, safety supervisor, command pipeline, event router, record/replay, audit, and the loopback API
+- `apps/studio-web`: the Studio console -- device cards, session controls, drive controls, and a live event stream
 - `apps/agent-mesh-bridge`: optional bridge policy only; no transport
 - `apps/quest-godot`: text-only Godot scene scaffold; no OpenXR or export setup
 - `docs/REUSE_AUDIT.md`: exact external checkout evidence and reuse decisions
 
 ## Current limitations
 
-- No hardware was contacted or modified.
-- No network listener, local runtime API, arbitrary shell, subprocess bridge, or public endpoint exists.
+- No hardware was contacted or modified. Every adapter is a fake.
+- The runtime listens on loopback only. There is no arbitrary shell, subprocess bridge, eval endpoint, or public endpoint.
 - Fake-device tests are contract evidence only; they are not Milestone 1 simulation or hardware evidence.
 - The working DJI Python environment was found, but the expected built Leap bridge DLL, Leap runtime/service, and owner-designated integrated checkout were not found.
 - Linux paths for the audited external repositories remain unresolved.
@@ -60,4 +78,4 @@ Platform paths are stored separately and never translated between Windows and Li
 - Agent CLI Mesh and the audited RoboMaster repositories have no owner licence at their inspected top level; none of their original code is copied here.
 - A clean Ubuntu 24.04 Docker verification passes on this host. The GitHub Actions matrix is defined but cannot report an external run until the repository is pushed.
 
-See `docs/IMPLEMENTATION_PLAN.md` for requirement traceability and `docs/DECISIONS.md` for architecture decisions. The repository is licensed under Apache-2.0; dependency and external-source status is in `THIRD_PARTY_NOTICES.md` and `docs/LICENSING.md`.
+See `docs/MILESTONE_1_REPORT.md` for what this milestone verified and what it deliberately leaves out, `docs/IMPLEMENTATION_PLAN.md` for requirement traceability and `docs/DECISIONS.md` for architecture decisions. The repository is licensed under Apache-2.0; dependency and external-source status is in `THIRD_PARTY_NOTICES.md` and `docs/LICENSING.md`.

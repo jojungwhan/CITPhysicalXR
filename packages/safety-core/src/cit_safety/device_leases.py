@@ -51,12 +51,20 @@ class InMemoryDeviceLeaseRegistry:
             lease_id: lease for lease_id, lease in self._leases.items() if lease.expires_at > now
         }
         if mode is LeaseMode.WRITE:
-            for lease in self._leases.values():
-                if lease.device_id == device_id and lease.mode is LeaseMode.WRITE:
-                    raise DeviceLeaseConflict(
-                        device_id=device_id,
-                        holder_session_id=lease.session_id,
-                    )
+            for lease_id, lease in list(self._leases.items()):
+                if lease.device_id != device_id or lease.mode is not LeaseMode.WRITE:
+                    continue
+                if lease.session_id == session_id:
+                    # The holder renewing its own lease is not a conflict. Every
+                    # command in a session takes a lease, so treating renewal as
+                    # contention would let a session send exactly one command
+                    # and then lock itself out until the TTL ran down.
+                    del self._leases[lease_id]
+                    continue
+                raise DeviceLeaseConflict(
+                    device_id=device_id,
+                    holder_session_id=lease.session_id,
+                )
 
         lease = DeviceLease(
             lease_id=uuid4(),
