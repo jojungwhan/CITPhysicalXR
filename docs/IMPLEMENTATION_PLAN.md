@@ -1,24 +1,24 @@
 # Implementation Plan
 
-- Status: Milestones 0, 1, 3, and 4 complete. Every device so far is simulated: M4 built the LEGO adapter, hub agent, and protocol, but no hub was connected (no Bluetooth adapter on the development host). M2 is deferred until hardware is available.
+- Status: Milestones 0, 1, 3, 4, and 6 complete. Every device so far is simulated: M4 built the LEGO adapter, hub agent, and protocol, but no hub was connected (no Bluetooth adapter on the development host). M6 added roles, the instructor console, projects on disk, replay, and a Korean/English interface, and tightened two rules that were previously self-declared by the caller (ADR-027, ADR-028). M2 and M5 are deferred until hardware is available.
 - Authoritative product specification: `docs/PRD.md` version 1.0, 2026-08-16
 
 ## Delivery rule
 
 Only one milestone is implemented at a time. Each milestone ends with a runnable repository, documented evidence, and owner review. This plan does not authorize later milestones, hardware connections, firmware changes, or edits to the existing S1/Leap and Agent CLI Mesh repositories.
 
-| Milestone | Scope                                   | Primary planned areas                                                                                                               | Exit evidence                                                                            |
-| --------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| M0        | Discovery, reuse audit, foundation      | `docs`, `packages/protocol-*`, `packages/device-simulator`, `packages/test-harness`, `packages/safety-core`, `config`, CI scaffolds | Clean install, generation, validation, build, lint, type checks, tests on Windows/Ubuntu |
-| M1        | Runtime core and simulation             | `apps/runtime-py`, `apps/studio-web`, safety/session/device services, simulator/replay                                              | Fake multi-device program and complete M1 fault suite                                    |
-| M2        | Existing S1 and Leap adapters           | `adapters/robomaster-s1`, `adapters/leap-motion`, sanitized fixtures                                                                | Owner hardware regression and tracking-loss stop                                         |
-| M3        | Blockly and student Python              | `packages/blockly-cit`, `student-sdk-py`, `student-runtime-web`, Studio editor                                                      | Blocks-to-readable-Python simulation and armed S1 flow                                   |
-| M4        | LEGO                                    | `adapters/lego-pybricks`, `firmware/lego-hub-agent`                                                                                 | Built and simulated; S1/LEGO coordinated **hardware** program still outstanding          |
-| M5        | Quest                                   | `apps/quest-godot`, `adapters/quest-gateway`                                                                                        | One APK on Quest 2/3 and dead-man stop evidence                                          |
-| M6        | Unified projects and instructor console | Studio instructor UI, roles, assignment, replay, i18n                                                                               | Multi-client classroom isolation and stop-all                                            |
-| M7        | Agent Mesh and existing glasses         | `apps/agent-mesh-bridge` plus changes in separately reviewed Agent Mesh repository                                                  | Status in Quest/G2/Meta; wearable stop but no movement                                   |
-| M8        | Advanced Python and optional EV3        | controlled worker, `adapters/mindstorms-ev3`                                                                                        | Approved CPython example through unchanged safety boundary                               |
-| M9        | Hardening and release                   | installers, operations, security/licence review, SBOM/recovery/performance                                                          | Owner hardware release checklist and public-repo readiness                               |
+| Milestone | Scope                                   | Primary planned areas                                                                                                               | Exit evidence                                                                               |
+| --------- | --------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| M0        | Discovery, reuse audit, foundation      | `docs`, `packages/protocol-*`, `packages/device-simulator`, `packages/test-harness`, `packages/safety-core`, `config`, CI scaffolds | Clean install, generation, validation, build, lint, type checks, tests on Windows/Ubuntu    |
+| M1        | Runtime core and simulation             | `apps/runtime-py`, `apps/studio-web`, safety/session/device services, simulator/replay                                              | Fake multi-device program and complete M1 fault suite                                       |
+| M2        | Existing S1 and Leap adapters           | `adapters/robomaster-s1`, `adapters/leap-motion`, sanitized fixtures                                                                | Owner hardware regression and tracking-loss stop                                            |
+| M3        | Blockly and student Python              | `packages/blockly-cit`, `student-sdk-py`, `student-runtime-web`, Studio editor                                                      | Blocks-to-readable-Python simulation and armed S1 flow                                      |
+| M4        | LEGO                                    | `adapters/lego-pybricks`, `firmware/lego-hub-agent`                                                                                 | Built and simulated; S1/LEGO coordinated **hardware** program still outstanding             |
+| M5        | Quest                                   | `apps/quest-godot`, `adapters/quest-gateway`                                                                                        | One APK on Quest 2/3 and dead-man stop evidence                                             |
+| M6        | Unified projects and instructor console | Studio instructor UI, roles, assignment, replay, i18n                                                                               | Two students and an instructor in one runtime; isolation and stop-all observed in a browser |
+| M7        | Agent Mesh and existing glasses         | `apps/agent-mesh-bridge` plus changes in separately reviewed Agent Mesh repository                                                  | Status in Quest/G2/Meta; wearable stop but no movement                                      |
+| M8        | Advanced Python and optional EV3        | controlled worker, `adapters/mindstorms-ev3`                                                                                        | Approved CPython example through unchanged safety boundary                                  |
+| M9        | Hardening and release                   | installers, operations, security/licence review, SBOM/recovery/performance                                                          | Owner hardware release checklist and public-repo readiness                                  |
 
 ## Product goals
 
@@ -197,7 +197,7 @@ Only one milestone is implemented at a time. Each milestone ends with a runnable
 | 11 blocks control armed S1            | M3                              | hardware checklist after instructor arm                                    |
 | 12 blocks control LEGO                | M4                              | Blocks reach a simulated hub in a browser; **hardware record outstanding** |
 | 13 one program coordinates S1/LEGO    | M4                              | Exact-routing integration test passes; **hardware test outstanding**       |
-| 14 unsupported blocks hidden/rejected | M3, M6                          | dynamic toolbox/API tests                                                  |
+| 14 unsupported blocks hidden/rejected | M3, M6                          | dynamic toolbox/API tests; observed in a browser at M4                     |
 | 15 Quest 2 runtime                    | M5                              | signed test record                                                         |
 | 16 same runtime on Quest 3            | M5                              | same artifact hash/package record                                          |
 | 17 Quest S1/LEGO telemetry            | M5                              | integration/hardware capture                                               |
@@ -206,8 +206,8 @@ Only one milestone is implemented at a time. Each milestone ends with a runnable
 | 20 Quest disconnect stops             | M5                              | Wi-Fi-loss fault test                                                      |
 | 21 no safety bypass                   | Every milestone                 | architecture/import/API negative tests and review                          |
 | 22 no expired replay                  | M0, M1, hardware milestones     | ledger/reconnect/fault tests                                               |
-| 23 exclusive physical lease           | M0, M1                          | concurrency and persistence tests                                          |
-| 24 instructor stop-all                | M1, M6                          | adapter failure-injection suite                                            |
+| 23 exclusive physical lease           | M0, M1                          | concurrency and persistence tests; revoke path added at M6                 |
+| 24 instructor stop-all                | M1, M6                          | adapter failure-injection suite; instructor-only and observed at M6        |
 | 25 no default S1 blaster              | M2, M3                          | capability/toolbox/API search and tests                                    |
 | 26 works without Agent Mesh           | M1 onward                       | offline CI/e2e profile                                                     |
 | 27 Agent Mesh status display          | M7                              | bridge/UI integration test                                                 |

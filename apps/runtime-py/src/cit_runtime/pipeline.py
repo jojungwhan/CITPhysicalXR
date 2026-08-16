@@ -32,7 +32,8 @@ from .audit import AuditAction, AuditLog, StructuredLogger
 from .clock import Clock
 from .events import EventRouter
 from .registry import DeviceConnectionState, DeviceRegistry
-from .sessions import ExecutionMode, SessionRepository, SessionState
+from .sessions import ExecutionMode, FailurePolicy, ProgramSession, SessionRepository, SessionState
+from .status import DeviceStatusProjection
 from .supervisor import (
     CommandPriority,
     SafetySupervisor,
@@ -116,6 +117,7 @@ class CommandPipeline:
         router: EventRouter,
         audit: AuditLog,
         logger: StructuredLogger | None = None,
+        status: DeviceStatusProjection | None = None,
         lease_ttl: timedelta = timedelta(seconds=30),
     ) -> None:
         self._clock = clock
@@ -125,6 +127,7 @@ class CommandPipeline:
         self._router = router
         self._audit = audit
         self._logger = logger or StructuredLogger()
+        self._status = status or DeviceStatusProjection()
         self._ledger = InMemoryCommandLedger()
         self._leases = InMemoryDeviceLeaseRegistry()
         self._lease_ttl = lease_ttl
@@ -233,7 +236,7 @@ class CommandPipeline:
         if verdict.clamped_fields:
             self._audit.record(
                 AuditAction.COMMAND_CLAMPED,
-                actor_id=command.source,
+                actor_id=session.user_id,
                 at=now,
                 context={
                     "commandId": str(command.commandId),
@@ -247,10 +250,27 @@ class CommandPipeline:
         result = await adapter.execute(bounded, now=now)
         events = adapter.drain_events()
         self._router.publish_all(events)
+        self._status.note_command(
+            device_id=command.deviceId,
+            capability=command.capability,
+            action=command.action,
+            result=result.status,
+            at=now,
+        )
+
+        accepted = result.status in {"accepted", "completed"}
+        if not accepted:
+            # FR-058. The exact failed device is already named in the result;
+            # what the policy decides is what happens to the rest of the group.
+            await self._apply_failure_policy(session, failed_device_id=command.deviceId, now=now)
 
         self._audit.record(
             AuditAction.COMMAND_ACCEPTED,
-            actor_id=command.source,
+            # The person, not the mechanism. `student_blocks` in this column
+            # told an instructor reading the log that a block had moved a robot
+            # and not which child's block it was (FR-083); the mechanism is
+            # still recorded, one field along.
+            actor_id=session.user_id,
             at=now,
             context={
                 "commandId": str(command.commandId),
@@ -258,6 +278,7 @@ class CommandPipeline:
                 "sessionId": command.sessionId,
                 "capability": command.capability,
                 "action": command.action,
+                "source": command.source,
                 "priority": int(verdict.priority),
                 "result": result.status,
                 "executionMode": session.execution_mode.value,
@@ -271,12 +292,61 @@ class CommandPipeline:
         )
 
         return Dispatch(
-            accepted=result.status in {"accepted", "completed"},
+            accepted=accepted,
             priority=verdict.priority,
             result=result,
             clamped_fields=verdict.clamped_fields,
             events=events,
         )
+
+    async def _apply_failure_policy(
+        self,
+        session: ProgramSession,
+        *,
+        failed_device_id: str,
+        now: datetime,
+    ) -> tuple[str, ...]:
+        """FR-058. Stop the rest of a coordinated physical group, or don't.
+
+        Only physical sessions coordinate anything a failure can hurt, so a
+        simulation is left alone: stopping four fake robots because one refused
+        a command would teach a student that failure is contagious.
+        """
+
+        if session.execution_mode is not ExecutionMode.PHYSICAL:
+            return ()
+        if session.failure_policy is not FailurePolicy.STOP_COORDINATED:
+            return ()
+
+        stopped: list[str] = []
+        for device_id in session.device_bindings:
+            if device_id == failed_device_id:
+                continue
+            try:
+                device = self._registry.get(device_id)
+            except KeyError:
+                continue
+            if not device.physical:
+                continue
+            await self.stop_device(
+                device_id,
+                reason=f"failure policy: {failed_device_id} failed",
+                actor_id="system",
+            )
+            stopped.append(device_id)
+
+        self._audit.record(
+            AuditAction.FAILURE_POLICY_APPLIED,
+            actor_id="system",
+            at=now,
+            context={
+                "sessionId": session.session_id,
+                "deviceId": failed_device_id,
+                "failurePolicy": session.failure_policy.value,
+                "result": ",".join(stopped),
+            },
+        )
+        return tuple(stopped)
 
     # ------------------------------------------------------- emergency controls
 
@@ -317,6 +387,43 @@ class CommandPipeline:
         )
         self._logger.warning("stop-all issued", reason=reason, actorId=actor_id)
         return tuple(stopped)
+
+    async def revoke_lease(self, device_id: str, *, actor_id: str) -> int:
+        """FR-067. Take a device back from a session that will not let go.
+
+        The device is stopped first. Handing a robot to the next student while
+        it is still driving would be a strange way to recover from a stuck
+        session, so revoking is stop-then-release and never release alone.
+        """
+
+        await self.stop_device(device_id, reason="lease revoked", actor_id=actor_id)
+        revoked = self._leases.revoke(device_id)
+        self._registry.release(device_id)
+        self._audit.record(
+            AuditAction.LEASE_REVOKED,
+            actor_id=actor_id,
+            at=self._clock.now(),
+            context={"deviceId": device_id, "count": len(revoked)},
+        )
+        return len(revoked)
+
+    def lease_holder(self, device_id: str) -> str | None:
+        """Which session currently holds the write lease, if any (FR-065)."""
+
+        lease = self._leases.holder(device_id, now=self._clock.now())
+        return None if lease is None else lease.session_id
+
+    def clear_queue(self, *, device_id: str | None, actor_id: str) -> int:
+        """FR-067. Discard queued work without stopping anything else."""
+
+        cleared = self.queue.clear(device_id=device_id)
+        self._audit.record(
+            AuditAction.QUEUE_CLEARED,
+            actor_id=actor_id,
+            at=self._clock.now(),
+            context={"deviceId": device_id, "count": cleared},
+        )
+        return cleared
 
     async def enforce_watchdogs(self) -> tuple[WatchdogExpiry, ...]:
         """FR-070. A fired watchdog stops or disarms without asking anyone."""
@@ -367,6 +474,16 @@ class CommandPipeline:
 
     # ------------------------------------------------------------------ helpers
 
+    def _actor_for(self, command: DeviceCommandIntent) -> str:
+        """Who issued this, when the session is still known (FR-083)."""
+
+        try:
+            return self._sessions.get(command.sessionId).user_id
+        except KeyError:
+            # A command naming a session that does not exist is exactly the case
+            # where there is nobody to name. The source is what is left.
+            return command.source
+
     def _reject(
         self,
         command: DeviceCommandIntent,
@@ -389,12 +506,13 @@ class CommandPipeline:
         )
         self._audit.record(
             AuditAction.COMMAND_DENIED,
-            actor_id=command.source,
+            actor_id=self._actor_for(command),
             at=now,
             context={
                 "commandId": str(command.commandId),
                 "deviceId": command.deviceId,
                 "sessionId": command.sessionId,
+                "source": command.source,
                 "code": code,
                 "reason": message,
                 "capability": command.capability,

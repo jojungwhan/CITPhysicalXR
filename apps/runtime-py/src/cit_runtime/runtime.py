@@ -7,9 +7,11 @@ with the four fake adapters and no physical device.
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+import os
+from collections.abc import Iterable, Mapping, Sequence
+from dataclasses import dataclass, replace
 from datetime import timedelta
+from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
@@ -26,15 +28,20 @@ from .audit import AuditAction, AuditLog, StructuredLogger
 from .clock import Clock, SystemClock
 from .events import EventRouter
 from .pipeline import CommandPipeline, Dispatch
-from .recorder import Recorder, Recording
+from .projects import ProjectStore
+from .recorder import Recorder, Recording, Replayer
 from .registry import ConfiguredDiscoveryProvider, DeviceRegistry, DiscoveryProvider
+from .retention import RecordingStore, RetentionPolicy
+from .roles import Authority
 from .sessions import (
     AuthoringMode,
     ExecutionMode,
+    FailurePolicy,
     ProgramSession,
     SessionRepository,
     SessionState,
 )
+from .status import DeviceStatusProjection, derive_warnings
 from .supervisor import ArmState, SafetyPolicy, SafetySupervisor, WatchdogKind
 
 
@@ -47,6 +54,20 @@ def default_simulation_adapters() -> tuple[DeviceAdapter, ...]:
         create_fake_leap_adapter(),
         create_fake_quest_adapter(),
     )
+
+
+def default_data_dir() -> Path:
+    """Where projects and recordings live when nobody says otherwise.
+
+    Local-first means the classroom's work is on the classroom's machine, in a
+    place an instructor can find, back up, and delete. ``CITXR_DATA_DIR``
+    overrides it, which is what the tests use so a run never touches a real one.
+    """
+
+    override = os.environ.get("CITXR_DATA_DIR")
+    if override:
+        return Path(override)
+    return Path.home() / ".citxr"
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +90,9 @@ class Runtime:
         policies: Iterable[SafetyPolicy] = (),
         runtime_id: str = "cit-runtime-local",
         physical_enabled: bool = False,
+        data_dir: Path | None = None,
+        instructor_passcode: str | None = None,
+        retention: RetentionPolicy | None = None,
     ) -> None:
         self.clock: Clock = clock or SystemClock()
         self.runtime_id = runtime_id
@@ -78,7 +102,12 @@ class Runtime:
         self.router = EventRouter()
         self.audit = AuditLog()
         self.logger = StructuredLogger()
+        self.authority = Authority(instructor_passcode=instructor_passcode)
         self.supervisor = SafetySupervisor(clock=self.clock, policies=policies)
+        self.status = DeviceStatusProjection()
+        # FR-065 is fed by the event stream rather than by polling adapters, so
+        # the console shows what a device actually reported and nothing else.
+        self.router.subscribe("device-status", self.status.observe)
         self.pipeline = CommandPipeline(
             clock=self.clock,
             registry=self.registry,
@@ -87,6 +116,12 @@ class Runtime:
             router=self.router,
             audit=self.audit,
             logger=self.logger,
+            status=self.status,
+        )
+        self.data_dir = data_dir if data_dir is not None else default_data_dir()
+        self.projects = ProjectStore(self.data_dir / "projects")
+        self.recording_store = RecordingStore(
+            self.data_dir / "recordings", policy=retention or RetentionPolicy()
         )
         # The fake fleet is always present (FR-062 simulation-first). A hardware
         # provider is added beside it, never instead of it, so a class whose hub
@@ -173,6 +208,7 @@ class Runtime:
         instructor_id: str | None = None,
         safety_policy_id: str = "simulation-only",
         session_id: str | None = None,
+        failure_policy: FailurePolicy = FailurePolicy.STOP_COORDINATED,
     ) -> ProgramSession:
         if execution_mode is ExecutionMode.PHYSICAL and not self.physical_enabled:
             raise PermissionError(
@@ -189,6 +225,7 @@ class Runtime:
             safety_policy_id=safety_policy_id,
             started_at=now,
             last_activity_at=now,
+            failure_policy=failure_policy,
         )
         self.sessions.add(session)
         self.audit.record(
@@ -298,6 +335,40 @@ class Runtime:
     def heartbeat(self, *, device_id: str, kind: WatchdogKind) -> None:
         self.supervisor.heartbeat(device_id=device_id, kind=kind)
 
+    def set_input_enabled(self, source: str, *, enabled: bool, actor_id: str) -> None:
+        """FR-067. Disable Leap input, or disconnect Quest control, by name."""
+
+        self.supervisor.set_source_enabled(source, enabled=enabled)
+        self.audit.record(
+            AuditAction.INPUT_SOURCE_CHANGED,
+            actor_id=actor_id,
+            at=self.clock.now(),
+            context={"source": source, "state": "enabled" if enabled else "disabled"},
+        )
+
+    async def revoke_lease(self, device_id: str, *, actor_id: str) -> int:
+        """FR-067. Stop the device, drop its lease, and free it for reassignment."""
+
+        revoked = await self.pipeline.revoke_lease(device_id, actor_id=actor_id)
+        self.supervisor.disarm(device_id)
+        return revoked
+
+    def clear_queue(self, *, device_id: str | None, actor_id: str) -> int:
+        return self.pipeline.clear_queue(device_id=device_id, actor_id=actor_id)
+
+    async def disconnect_device(self, device_id: str, *, reason: str, actor_id: str) -> None:
+        """FR-067. Take one device off the floor without stopping the class."""
+
+        await self.pipeline.stop_device(device_id, reason=reason, actor_id=actor_id)
+        await self.registry.disconnect(device_id, at=self.clock.now())
+        await self.pipeline.handle_disconnect(device_id, reason=reason)
+
+    def set_failure_policy(self, session_id: str, policy: FailurePolicy) -> ProgramSession:
+        """FR-058. Instructor-owned: what the group does when one device fails."""
+
+        session = self.sessions.get(session_id)
+        return self.sessions.save(replace(session, failure_policy=policy))
+
     async def submit(self, command: DeviceCommandIntent) -> Dispatch:
         return await self.pipeline.submit(command)
 
@@ -327,7 +398,7 @@ class Runtime:
 
     # --------------------------------------------------------------- recording
 
-    def start_recording(self, session_id: str) -> str:
+    def start_recording(self, session_id: str, *, actor_id: str = "system") -> str:
         recording_id = f"rec-{uuid4().hex[:12]}"
         recorder = Recorder(
             recording_id=recording_id,
@@ -336,17 +407,163 @@ class Runtime:
         )
         recorder.attach(self.router, subscriber_id=f"recorder:{recording_id}")
         self._recorders[recording_id] = recorder
+        self.audit.record(
+            AuditAction.RECORDING_STARTED,
+            actor_id=actor_id,
+            at=self.clock.now(),
+            context={"recordingId": recording_id, "sessionId": session_id},
+        )
         return recording_id
 
-    def stop_recording(self, recording_id: str) -> Recording:
+    def stop_recording(self, recording_id: str, *, actor_id: str = "system") -> Recording:
         recorder = self._recorders.pop(recording_id)
         self.router.unsubscribe(f"recorder:{recording_id}")
         recording = recorder.finish()
         self._recordings[recording_id] = recording
+        now = self.clock.now()
+        # Persisting here is what makes a recording survive the tab that made
+        # it (FR-064), and the store prunes to the retention policy as it
+        # writes (FR-084).
+        pruned: tuple[str, ...] = ()
+        try:
+            self.recording_store.save(recording, now=now)
+            pruned = self.recording_store.prune(now=now)
+        except OSError as error:
+            self.logger.warning(
+                "recording not persisted", recordingId=recording_id, reason=str(error)
+            )
+        self.audit.record(
+            AuditAction.RECORDING_STOPPED,
+            actor_id=actor_id,
+            at=now,
+            context={
+                "recordingId": recording_id,
+                "sessionId": recording.session_id,
+                "count": len(recording.events),
+            },
+        )
+        if pruned:
+            self.audit.record(
+                AuditAction.RETENTION_PRUNED,
+                actor_id="system",
+                at=now,
+                context={"count": len(pruned), "result": ",".join(pruned)},
+            )
         return recording
 
     def recording(self, recording_id: str) -> Recording:
-        return self._recordings[recording_id]
+        """In-memory first, then disk: a recording outlives the runtime that made it."""
+
+        found = self._recordings.get(recording_id)
+        if found is not None:
+            return found
+        return self.recording_store.get(recording_id)
 
     def recordings(self) -> tuple[str, ...]:
-        return tuple(sorted(self._recordings))
+        stored = {item.recording_id for item in self.recording_store.list()}
+        return tuple(sorted(stored | set(self._recordings)))
+
+    def replay(self, recording_id: str, *, actor_id: str) -> int:
+        """FR-064. Publish a recording to subscribers. Reaches no adapter, ever.
+
+        ``Replayer`` holds no registry and no pipeline, so this cannot move a
+        robot even if someone later wants it to. Every event it publishes is
+        marked historical.
+        """
+
+        delivered = Replayer(self.recording(recording_id)).replay_to(self.router)
+        self.audit.record(
+            AuditAction.REPLAY_STARTED,
+            actor_id=actor_id,
+            at=self.clock.now(),
+            context={"recordingId": recording_id, "count": delivered},
+        )
+        return delivered
+
+    # ----------------------------------------------------------------- console
+
+    def device_overview(self) -> tuple[Mapping[str, Any], ...]:
+        """FR-065 and UI 11.3: everything one device card shows, observed."""
+
+        now = self.clock.now()
+        cards: list[Mapping[str, Any]] = []
+        for device in self.registry.list():
+            device_id = device.device_id
+            arm = self.supervisor.arm_state(device_id)
+            arm_remaining = (arm.expires_at - now).total_seconds() if arm is not None else None
+            session = None
+            if device.assigned_session_id is not None:
+                try:
+                    session = self.sessions.get(device.assigned_session_id)
+                except KeyError:
+                    session = None
+            observed = self.status.get(device_id)
+            ages = self.supervisor.heartbeat_ages(device_id)
+            stale = {
+                kind.value: age for kind, age in ages.items() if age > self.supervisor.timeout(kind)
+            }
+            cards.append(
+                {
+                    "deviceId": device_id,
+                    "displayName": device.descriptor.displayName,
+                    "deviceType": device.descriptor.deviceType,
+                    "model": device.descriptor.model,
+                    "adapterId": device.descriptor.adapterId,
+                    "adapterVersion": device.descriptor.adapterVersion,
+                    "firmware": observed.firmware,
+                    "physical": device.physical,
+                    "state": device.state.value,
+                    "capabilities": list(device.descriptor.capabilities),
+                    "batteryPercent": observed.battery_percent,
+                    "activeStudentId": session.user_id if session is not None else None,
+                    "activeSessionId": device.assigned_session_id,
+                    "safetyPolicyId": session.safety_policy_id if session is not None else None,
+                    "armed": arm is not None,
+                    "armedBy": arm.armed_by if arm is not None else None,
+                    "armExpiresAt": arm.expires_at.isoformat() if arm is not None else None,
+                    "leaseSessionId": self.pipeline.lease_holder(device_id),
+                    "lastCommand": (
+                        None
+                        if observed.last_command_capability is None
+                        else {
+                            "capability": observed.last_command_capability,
+                            "action": observed.last_command_action,
+                            "result": observed.last_command_result,
+                            "at": (
+                                observed.last_command_at.isoformat()
+                                if observed.last_command_at is not None
+                                else None
+                            ),
+                            "ageMs": (
+                                (now - observed.last_command_at).total_seconds() * 1000
+                                if observed.last_command_at is not None
+                                else None
+                            ),
+                        }
+                    ),
+                    "lastTelemetry": (
+                        None
+                        if observed.last_telemetry_name is None
+                        else {
+                            "name": observed.last_telemetry_name,
+                            "at": (
+                                observed.last_telemetry_at.isoformat()
+                                if observed.last_telemetry_at is not None
+                                else None
+                            ),
+                        }
+                    ),
+                    "heartbeatAges": {kind.value: age for kind, age in ages.items()},
+                    "failureReason": device.failure_reason,
+                    "warnings": list(
+                        derive_warnings(
+                            observed,
+                            device_state=device.state.value,
+                            failure_reason=device.failure_reason,
+                            arm_seconds_remaining=arm_remaining,
+                            stale_watchdogs=stale,
+                        )
+                    ),
+                }
+            )
+        return tuple(cards)

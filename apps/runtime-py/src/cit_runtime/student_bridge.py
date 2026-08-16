@@ -56,7 +56,6 @@ class StudentBridge:
         self._source = source
         self._aliases = dict(aliases or {})
         self._command_ttl = command_ttl
-        self.deadman_active = False
         self.input_confidence: float | None = None
 
     def bind_alias(self, alias: str, device_id: str) -> None:
@@ -113,7 +112,9 @@ class StudentBridge:
                     "safetyContext": {
                         "policyId": session.safety_policy_id,
                         "armed": self._runtime.supervisor.is_armed(device_id),
-                        "deadmanActive": self.deadman_active,
+                        # ADR-028. Observed from the heartbeat table, never
+                        # asserted by the program that wants to move something.
+                        "deadmanActive": self._runtime.supervisor.deadman_attested(device_id),
                         "inputConfidence": self.input_confidence,
                     },
                 }

@@ -19,7 +19,7 @@ from cit_runtime import (
     SessionState,
     WatchdogKind,
 )
-from conftest import make_command
+from conftest import hold_deadman, make_command
 
 pytestmark = pytest.mark.asyncio
 
@@ -95,6 +95,7 @@ async def test_physical_command_needs_an_arm(runtime: Runtime) -> None:
 async def test_armed_physical_command_reaches_the_adapter(runtime: Runtime) -> None:
     session_id = await ready_session(runtime)
     runtime.arm(session_id=session_id, device_id="fake-s1-main", instructor_id="instructor-1")
+    hold_deadman(runtime, "fake-s1-main")
     dispatch = await runtime.submit(
         make_command(
             session_id=session_id,
@@ -316,6 +317,7 @@ async def test_stop_device_clears_only_that_devices_queue(runtime: Runtime) -> N
 async def test_speed_is_clamped_before_the_adapter_sees_it(runtime: Runtime) -> None:
     session_id = await ready_session(runtime)
     runtime.arm(session_id=session_id, device_id="fake-s1-main", instructor_id="instructor-1")
+    hold_deadman(runtime, "fake-s1-main")
 
     dispatch = await runtime.submit(
         make_command(

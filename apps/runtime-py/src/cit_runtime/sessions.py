@@ -44,6 +44,20 @@ class ExecutionMode(StrEnum):
     PHYSICAL = "physical"
 
 
+class FailurePolicy(StrEnum):
+    """FR-058. What the other devices do when one of them fails.
+
+    The PRD names stopping coordinated movement as the physical default, and it
+    is the right default for a reason a simulation does not have: two robots
+    driving a shared route are only safe together while both are still under
+    control. ``CONTINUE`` exists because a lesson where one hub is flat should
+    not have to stop the rest of the room, and an instructor may say so.
+    """
+
+    STOP_COORDINATED = "stop_coordinated"
+    CONTINUE = "continue"
+
+
 TERMINAL_STATES: frozenset[SessionState] = frozenset(
     {
         SessionState.STOPPED,
@@ -117,6 +131,7 @@ class ProgramSession:
     device_bindings: tuple[str, ...] = field(default=())
     ended_at: datetime | None = None
     failure_reason: str | None = None
+    failure_policy: FailurePolicy = FailurePolicy.STOP_COORDINATED
 
     @property
     def is_terminal(self) -> bool:

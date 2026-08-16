@@ -76,3 +76,33 @@ class InMemoryDeviceLeaseRegistry:
         )
         self._leases[lease.lease_id] = lease
         return lease
+
+    def holder(self, device_id: str, *, now: datetime) -> DeviceLease | None:
+        """The live write lease on a device, if one is held (FR-065)."""
+
+        for lease in self._leases.values():
+            if (
+                lease.device_id == device_id
+                and lease.mode is LeaseMode.WRITE
+                and lease.expires_at > now
+            ):
+                return lease
+        return None
+
+    def revoke(self, device_id: str) -> tuple[UUID, ...]:
+        """FR-067. Drop every lease on a device so another session may take it.
+
+        Revoking does not stop the device. The caller is expected to stop it
+        first: handing the robot to the next student while it is still moving
+        would be a strange way to recover from a stuck session.
+        """
+
+        doomed = tuple(
+            lease_id for lease_id, lease in self._leases.items() if lease.device_id == device_id
+        )
+        for lease_id in doomed:
+            del self._leases[lease_id]
+        return doomed
+
+    def leases(self, *, now: datetime) -> tuple[DeviceLease, ...]:
+        return tuple(lease for lease in self._leases.values() if lease.expires_at > now)

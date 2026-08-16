@@ -34,7 +34,7 @@ from cit_runtime.physical_devices import (
 )
 from cit_runtime.sessions import ExecutionMode
 from cit_runtime.supervisor import MotionBounds, WatchdogKind
-from conftest import make_command
+from conftest import hold_deadman, make_command
 
 PORTS = {
     "A": PortKind.MOTOR,
@@ -132,6 +132,7 @@ async def test_an_armed_hub_moves_and_the_frame_is_clamped_by_the_policy(
 ) -> None:
     session_id = await ready_session(lego_runtime, "lego-spike-01")
     lego_runtime.arm(session_id=session_id, device_id="lego-spike-01", instructor_id="teacher-1")
+    hold_deadman(lego_runtime, "lego-spike-01")
 
     dispatch = await lego_runtime.submit(
         motor_command(
@@ -153,6 +154,7 @@ async def test_an_armed_hub_moves_and_the_frame_is_clamped_by_the_policy(
 async def test_stop_all_reaches_the_hub(lego_runtime: Runtime, transport: FakeHubTransport) -> None:
     session_id = await ready_session(lego_runtime, "lego-spike-01")
     lego_runtime.arm(session_id=session_id, device_id="lego-spike-01", instructor_id="teacher-1")
+    hold_deadman(lego_runtime, "lego-spike-01")
     await lego_runtime.submit(motor_command(session_id, armed=True))
 
     stopped = await lego_runtime.stop_all(actor_id="teacher-1")
@@ -170,6 +172,7 @@ async def test_the_lego_watchdog_stops_the_hub_after_its_own_timeout(
 
     session_id = await ready_session(lego_runtime, "lego-spike-01")
     lego_runtime.arm(session_id=session_id, device_id="lego-spike-01", instructor_id="teacher-1")
+    hold_deadman(lego_runtime, "lego-spike-01")
     await lego_runtime.submit(motor_command(session_id, armed=True))
     lego_runtime.heartbeat(device_id="lego-spike-01", kind=WatchdogKind.LEGO_CONTINUOUS_MOTION)
 
@@ -206,6 +209,7 @@ async def test_one_program_drives_the_hub_and_the_s1_without_crossing_them(
     session_id = await ready_session(lego_runtime, "lego-spike-01", "fake-s1-main")
     for device_id in ("lego-spike-01", "fake-s1-main"):
         lego_runtime.arm(session_id=session_id, device_id=device_id, instructor_id="teacher-1")
+        hold_deadman(lego_runtime, device_id)
 
     lego = await lego_runtime.submit(motor_command(session_id, armed=True))
     s1 = await lego_runtime.submit(
@@ -370,8 +374,11 @@ async def test_a_device_refusal_reaches_the_student_with_its_reason(
 
     session_id = await ready_session(lego_runtime, "lego-spike-01")
     lego_runtime.arm(session_id=session_id, device_id="lego-spike-01", instructor_id="teacher-1")
+    hold_deadman(lego_runtime, "lego-spike-01")
     bridge = StudentBridge(lego_runtime, session_id=session_id, source="student_blocks")
-    bridge.deadman_active = True
+    # ADR-028: the dead-man is attested by a heartbeat, so the test sends one
+    # rather than setting a flag the runtime no longer believes.
+    lego_runtime.heartbeat(device_id="lego-spike-01", kind=WatchdogKind.QUEST_DEADMAN_HEARTBEAT)
 
     answer = await bridge.call(
         "command",

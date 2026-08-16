@@ -83,13 +83,20 @@ class EventRouter:
     def publish(self, event: DeviceEvent) -> int:
         """Deliver to every matching subscriber. Returns the delivery count."""
 
-        key = str(event.eventId)
-        if key in self._seen:
-            self._dropped_duplicates += 1
-            return 0
-        self._seen[key] = None
-        while len(self._seen) > self._dedupe_window:
-            self._seen.popitem(last=False)
+        # A replayed event keeps the identity it had when it was recorded, so
+        # the dedupe window would drop the whole recording as a retry of itself
+        # (FR-064). Dedupe exists to stop an adapter's retry causing a second
+        # physical action, and a historical event causes none: it is marked as
+        # history, it reaches subscribers only, and no code path leads from it
+        # to a device.
+        if not event.historical:
+            key = str(event.eventId)
+            if key in self._seen:
+                self._dropped_duplicates += 1
+                return 0
+            self._seen[key] = None
+            while len(self._seen) > self._dedupe_window:
+                self._seen.popitem(last=False)
 
         self._history.append(event)
         delivered = 0

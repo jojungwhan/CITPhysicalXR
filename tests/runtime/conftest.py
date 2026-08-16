@@ -16,7 +16,7 @@ from cit_device_simulator import (
 )
 from cit_protocol import DeviceCommandIntent
 from cit_runtime import ManualClock, Runtime, SafetyPolicy
-from cit_runtime.supervisor import MotionBounds
+from cit_runtime.supervisor import MotionBounds, WatchdogKind
 
 
 @pytest.fixture
@@ -66,6 +66,17 @@ def runtime(
         policies=(physical_policy,),
         physical_enabled=True,
     )
+
+
+def hold_deadman(runtime: Runtime, device_id: str) -> None:
+    """ADR-028. Stand in for a student holding the dead-man control.
+
+    Arming deliberately does not do this. An instructor saying a robot may move
+    is not the same event as somebody holding the control that lets it, and
+    collapsing the two would put the bypass back.
+    """
+
+    runtime.heartbeat(device_id=device_id, kind=WatchdogKind.QUEST_DEADMAN_HEARTBEAT)
 
 
 def make_command(

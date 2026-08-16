@@ -4,10 +4,17 @@
  * The Studio holds no safety rules of its own. It disables a control when the
  * runtime says a device is not ready, but the runtime is what actually refuses
  * -- a disabled button is a courtesy, never a guarantee.
+ *
+ * Since Milestone 6 every call but `health` carries the token this client was
+ * given when somebody signed in. The token is held in memory only: a classroom
+ * machine is shared, and a token in local storage would outlive the lesson and
+ * the person.
  */
 
 export type DeviceState =
   "discovered" | "connecting" | "connected" | "disconnected" | "failed";
+
+export type Role = "student" | "instructor";
 
 export interface DeviceView {
   deviceId: string;
@@ -23,6 +30,39 @@ export interface DeviceView {
   failureReason: string | null;
 }
 
+/** FR-065. Everything one instructor device card shows. */
+export interface DeviceOverview {
+  deviceId: string;
+  displayName: string;
+  deviceType: string;
+  model: string;
+  adapterId: string;
+  adapterVersion: string;
+  firmware: string | null;
+  physical: boolean;
+  state: DeviceState;
+  capabilities: string[];
+  batteryPercent: number | null;
+  activeStudentId: string | null;
+  activeSessionId: string | null;
+  safetyPolicyId: string | null;
+  armed: boolean;
+  armedBy: string | null;
+  armExpiresAt: string | null;
+  leaseSessionId: string | null;
+  lastCommand: {
+    capability: string;
+    action: string;
+    result: string;
+    at: string | null;
+    ageMs: number | null;
+  } | null;
+  lastTelemetry: { name: string; at: string | null } | null;
+  heartbeatAges: Record<string, number>;
+  failureReason: string | null;
+  warnings: string[];
+}
+
 export interface SessionView {
   sessionId: string;
   projectId: string;
@@ -32,6 +72,7 @@ export interface SessionView {
   userId: string;
   instructorId: string | null;
   safetyPolicyId: string;
+  failurePolicy: string;
   deviceBindings: string[];
   startedAt: string;
   lastActivityAt: string;
@@ -56,6 +97,58 @@ export interface DeviceEventView {
   historical?: boolean;
 }
 
+export interface AuditEntryView {
+  sequence: number;
+  recordedAt: string;
+  action: string;
+  actorId: string;
+  context: Record<string, unknown>;
+}
+
+export interface PersonView {
+  actorId: string;
+  role: Role;
+  displayName: string;
+  expiresAt: string;
+}
+
+export interface ClassroomView {
+  people: PersonView[];
+  sessions: SessionView[];
+  devices: DeviceOverview[];
+  disabledSources: string[];
+  queueDepth: number;
+}
+
+export interface ProjectSummaryView {
+  projectId: string;
+  name: string;
+  authoringMode: string;
+  updatedAt: string;
+  ownerId: string | null;
+}
+
+export interface RecordingView {
+  recordingId: string;
+  sessionId: string;
+  startedAt: string;
+  eventCount: number;
+  durationSeconds: number;
+}
+
+export interface RetentionView {
+  maxRecordings: number;
+  retentionDays: number;
+}
+
+export interface Identity {
+  token: string;
+  actorId: string;
+  role: Role;
+  displayName: string;
+  expiresAt: string;
+}
+
 export interface CommandOutcome {
   accepted: boolean;
   status?: string;
@@ -72,8 +165,7 @@ export interface CommandRequest {
   capability: string;
   action: string;
   arguments?: Record<string, unknown>;
-  source?: string;
-  deadmanActive?: boolean;
+  source?: "student_blocks" | "student_python" | "instructor";
   inputConfidence?: number;
 }
 
@@ -118,24 +210,52 @@ export class RuntimeUnreachableError extends Error {
   }
 }
 
+/** A refusal the runtime made on purpose, with its own reason (UI 11.6). */
+export class RuntimeRefusedError extends Error {
+  readonly status: number;
+
+  constructor(status: number, detail: string) {
+    super(detail);
+    this.name = "RuntimeRefusedError";
+    this.status = status;
+  }
+
+  /** 401 means the token is gone: the Studio has to sign in again. */
+  get needsSignIn(): boolean {
+    return this.status === 401;
+  }
+}
+
 export class RuntimeClient {
   readonly baseUrl: string;
+  private token: string | null = null;
 
   constructor(baseUrl: string = DEFAULT_RUNTIME_URL) {
     this.baseUrl = baseUrl.replace(/\/$/, "");
   }
 
+  setToken(token: string | null): void {
+    this.token = token;
+  }
+
+  hasToken(): boolean {
+    return this.token !== null;
+  }
+
   private async request<T>(
     path: string,
-    init?: { method?: string; body?: unknown },
+    init?: { method?: string; body?: unknown; text?: boolean },
   ): Promise<T> {
     // Built conditionally: with exactOptionalPropertyTypes, an explicit
     // `undefined` is not the same as an absent property.
     const request: RequestInit = { method: init?.method ?? "GET" };
+    const headers: Record<string, string> = {};
+    if (this.token !== null) headers["authorization"] = `Bearer ${this.token}`;
     if (init?.body !== undefined) {
-      request.headers = { "content-type": "application/json" };
+      headers["content-type"] = "application/json";
       request.body = JSON.stringify(init.body);
     }
+    request.headers = headers;
 
     let response: Response;
     try {
@@ -145,11 +265,45 @@ export class RuntimeClient {
     }
 
     if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`${response.status} ${response.statusText}: ${detail}`);
+      const raw = await response.text();
+      throw new RuntimeRefusedError(response.status, detailOf(raw));
     }
+    if (init?.text === true) return (await response.text()) as T;
     return (await response.json()) as T;
   }
+
+  // ------------------------------------------------------------------- auth
+
+  /** Sign in. The instructor role needs the passcode from the runtime log. */
+  async join(options: {
+    actorId: string;
+    role: Role;
+    displayName?: string;
+    passcode?: string;
+  }): Promise<Identity> {
+    const identity = await this.request<Identity>("/api/auth/join", {
+      method: "POST",
+      body: {
+        actor_id: options.actorId,
+        role: options.role,
+        display_name: options.displayName ?? null,
+        passcode: options.passcode ?? null,
+      },
+    });
+    this.token = identity.token;
+    return identity;
+  }
+
+  async leave(): Promise<void> {
+    if (this.token === null) return;
+    try {
+      await this.request("/api/auth/leave", { method: "POST" });
+    } finally {
+      this.token = null;
+    }
+  }
+
+  // ---------------------------------------------------------------- runtime
 
   health(): Promise<HealthView> {
     return this.request<HealthView>("/api/health");
@@ -162,6 +316,30 @@ export class RuntimeClient {
     return payload.devices;
   }
 
+  async deviceOverview(): Promise<DeviceOverview[]> {
+    const payload = await this.request<{ devices: DeviceOverview[] }>(
+      "/api/devices/overview",
+    );
+    return payload.devices;
+  }
+
+  classroom(): Promise<ClassroomView> {
+    return this.request<ClassroomView>("/api/classroom");
+  }
+
+  discover(): Promise<{ discovered: string[]; connected: string[] }> {
+    return this.request("/api/devices/discover", { method: "POST" });
+  }
+
+  disconnectDevice(deviceId: string, reason: string): Promise<DeviceView> {
+    return this.request("/api/devices/disconnect", {
+      method: "POST",
+      body: { device_id: deviceId, reason },
+    });
+  }
+
+  // --------------------------------------------------------------- sessions
+
   async sessions(): Promise<SessionView[]> {
     const payload = await this.request<{ sessions: SessionView[] }>(
       "/api/sessions",
@@ -169,45 +347,8 @@ export class RuntimeClient {
     return payload.sessions;
   }
 
-  /** Events already recorded before this page attached to the stream. */
-  async recentEvents(): Promise<DeviceEventView[]> {
-    const payload = await this.request<{ events: DeviceEventView[] }>(
-      "/api/events",
-    );
-    return payload.events;
-  }
-
-  /** FR-013. The single route a student program can cause. */
-  studentRpc(request: {
-    sessionId: string;
-    method: string;
-    payload: Record<string, unknown>;
-    source: "student_blocks" | "student_python";
-    aliases: Record<string, string>;
-    deadmanActive?: boolean;
-    inputConfidence?: number;
-  }): Promise<unknown> {
-    return this.request("/api/student/rpc", {
-      method: "POST",
-      body: {
-        session_id: request.sessionId,
-        method: request.method,
-        payload: request.payload,
-        source: request.source,
-        aliases: request.aliases,
-        deadman_active: request.deadmanActive ?? false,
-        input_confidence: request.inputConfidence ?? null,
-      },
-    });
-  }
-
-  discover(): Promise<{ discovered: string[]; connected: string[] }> {
-    return this.request("/api/devices/discover", { method: "POST" });
-  }
-
   createSession(options: {
     projectId: string;
-    userId: string;
     instructorId?: string;
     executionMode?: "simulation" | "physical";
     safetyPolicyId?: string;
@@ -216,7 +357,6 @@ export class RuntimeClient {
       method: "POST",
       body: {
         project_id: options.projectId,
-        user_id: options.userId,
         instructor_id: options.instructorId ?? null,
         execution_mode: options.executionMode ?? "simulation",
         safety_policy_id: options.safetyPolicyId ?? "simulation-only",
@@ -250,10 +390,21 @@ export class RuntimeClient {
     });
   }
 
+  setFailurePolicy(
+    sessionId: string,
+    policy: "stop_coordinated" | "continue",
+  ): Promise<SessionView> {
+    return this.request(`/api/sessions/${sessionId}/failure-policy`, {
+      method: "POST",
+      body: { policy },
+    });
+  }
+
+  // ----------------------------------------------------------------- safety
+
   arm(options: {
     sessionId: string;
     deviceId: string;
-    instructorId: string;
     ttlSeconds?: number;
   }): Promise<{ deviceId: string; expiresAt: string }> {
     return this.request("/api/safety/arm", {
@@ -261,23 +412,29 @@ export class RuntimeClient {
       body: {
         session_id: options.sessionId,
         device_id: options.deviceId,
-        instructor_id: options.instructorId,
         ttl_seconds: options.ttlSeconds ?? null,
       },
     });
   }
 
-  disarm(
-    deviceId: string | null,
-    actorId: string,
-  ): Promise<{ disarmed: string[] }> {
+  disarm(deviceId: string | null): Promise<{ disarmed: string[] }> {
     return this.request("/api/safety/disarm", {
       method: "POST",
-      body: { device_id: deviceId, actor_id: actorId },
+      body: { device_id: deviceId },
     });
   }
 
-  heartbeat(deviceId: string, kind: string): Promise<unknown> {
+  /**
+   * ADR-028. One beat of a held dead-man control.
+   *
+   * The runtime believes this and not a flag in a command, so a page that stops
+   * calling it -- because it was closed, frozen, or the control was released --
+   * stops being able to move anything within one watchdog period.
+   */
+  heartbeat(
+    deviceId: string,
+    kind = "quest_deadman_heartbeat",
+  ): Promise<unknown> {
     return this.request("/api/safety/heartbeat", {
       method: "POST",
       body: { device_id: deviceId, kind },
@@ -286,18 +443,46 @@ export class RuntimeClient {
 
   stop(options: {
     deviceId?: string | null;
-    actorId: string;
     reason?: string;
   }): Promise<{ stopped: string[]; scope: string }> {
     return this.request("/api/safety/stop", {
       method: "POST",
       body: {
         device_id: options.deviceId ?? null,
-        actor_id: options.actorId,
         reason: options.reason ?? "studio stop",
       },
     });
   }
+
+  revokeLease(deviceId: string): Promise<{ revoked: number }> {
+    return this.request("/api/safety/revoke-lease", {
+      method: "POST",
+      body: { device_id: deviceId },
+    });
+  }
+
+  clearQueue(deviceId: string | null): Promise<{ clearedCommands: number }> {
+    return this.request("/api/safety/clear-queue", {
+      method: "POST",
+      body: { device_id: deviceId },
+    });
+  }
+
+  setInputEnabled(
+    source: string,
+    enabled: boolean,
+  ): Promise<{ disabledSources: string[] }> {
+    return this.request("/api/safety/inputs", {
+      method: "POST",
+      body: { source, enabled },
+    });
+  }
+
+  inputs(): Promise<{ disabledSources: string[] }> {
+    return this.request("/api/safety/inputs");
+  }
+
+  // --------------------------------------------------------------- commands
 
   send(request: CommandRequest): Promise<CommandOutcome> {
     return this.request<CommandOutcome>("/api/commands", {
@@ -308,16 +493,140 @@ export class RuntimeClient {
         capability: request.capability,
         action: request.action,
         arguments: request.arguments ?? {},
-        source: request.source ?? "student_blocks",
-        deadman_active: request.deadmanActive ?? false,
+        source: request.source ?? null,
         input_confidence: request.inputConfidence ?? null,
       },
     });
   }
 
+  /** FR-013. The single route a student program can cause. */
+  studentRpc(request: {
+    sessionId: string;
+    method: string;
+    payload: Record<string, unknown>;
+    aliases: Record<string, string>;
+    inputConfidence?: number;
+  }): Promise<unknown> {
+    return this.request("/api/student/rpc", {
+      method: "POST",
+      body: {
+        session_id: request.sessionId,
+        method: request.method,
+        payload: request.payload,
+        aliases: request.aliases,
+        input_confidence: request.inputConfidence ?? null,
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------- history
+
+  async audit(): Promise<AuditEntryView[]> {
+    const payload = await this.request<{ entries: AuditEntryView[] }>(
+      "/api/audit",
+    );
+    return payload.entries;
+  }
+
+  auditExport(): Promise<string> {
+    return this.request<string>("/api/audit/export", { text: true });
+  }
+
+  /** Events already recorded before this page attached to the stream. */
+  async recentEvents(): Promise<DeviceEventView[]> {
+    const payload = await this.request<{ events: DeviceEventView[] }>(
+      "/api/events",
+    );
+    return payload.events;
+  }
+
+  // ------------------------------------------------------------- recordings
+
+  async recordings(): Promise<{
+    recordings: RecordingView[];
+    policy: RetentionView;
+  }> {
+    return this.request("/api/recordings");
+  }
+
+  startRecording(sessionId: string): Promise<{ recordingId: string }> {
+    return this.request("/api/recordings/start", {
+      method: "POST",
+      body: { session_id: sessionId },
+    });
+  }
+
+  stopRecording(recordingId: string): Promise<RecordingView> {
+    return this.request(`/api/recordings/${recordingId}/stop`, {
+      method: "POST",
+    });
+  }
+
+  replay(
+    recordingId: string,
+  ): Promise<{ delivered: number; physicalOutput: boolean }> {
+    return this.request(`/api/recordings/${recordingId}/replay`, {
+      method: "POST",
+    });
+  }
+
+  exportRecording(recordingId: string): Promise<string> {
+    return this.request(`/api/recordings/${recordingId}/export`, {
+      text: true,
+    });
+  }
+
+  deleteRecording(recordingId: string): Promise<{ deleted: boolean }> {
+    return this.request(`/api/recordings/${recordingId}`, {
+      method: "DELETE",
+    });
+  }
+
+  setRetention(policy: RetentionView): Promise<RetentionView> {
+    return this.request("/api/retention", {
+      method: "POST",
+      body: {
+        max_recordings: policy.maxRecordings,
+        retention_days: policy.retentionDays,
+      },
+    });
+  }
+
+  // --------------------------------------------------------------- projects
+
+  async projects(): Promise<ProjectSummaryView[]> {
+    const payload = await this.request<{ projects: ProjectSummaryView[] }>(
+      "/api/projects",
+    );
+    return payload.projects;
+  }
+
+  project(projectId: string): Promise<Record<string, unknown>> {
+    return this.request(`/api/projects/${projectId}`);
+  }
+
+  saveProject(
+    projectId: string,
+    project: Record<string, unknown>,
+  ): Promise<Record<string, unknown>> {
+    return this.request(`/api/projects/${projectId}`, {
+      method: "PUT",
+      body: { project },
+    });
+  }
+
+  deleteProject(projectId: string): Promise<{ deleted: boolean }> {
+    return this.request(`/api/projects/${projectId}`, { method: "DELETE" });
+  }
+
+  // ------------------------------------------------------------------ stream
+
   /** Opens the event stream. Returns a function that closes it. */
   streamEvents(onEvent: (event: DeviceEventView) => void): () => void {
-    const url = `${this.baseUrl.replace(/^http/, "ws")}/ws/events`;
+    if (this.token === null) return () => undefined;
+    const url =
+      `${this.baseUrl.replace(/^http/, "ws")}/ws/events` +
+      `?token=${encodeURIComponent(this.token)}`;
     const socket = new WebSocket(url);
     socket.addEventListener("message", (message) => {
       try {
@@ -334,4 +643,22 @@ export class RuntimeClient {
     });
     return () => socket.close();
   }
+}
+
+/** FastAPI reports refusals as `{"detail": "..."}`. Show the sentence, not the JSON. */
+function detailOf(raw: string): string {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      "detail" in parsed &&
+      typeof (parsed as { detail: unknown }).detail === "string"
+    ) {
+      return (parsed as { detail: string }).detail;
+    }
+  } catch {
+    // Not JSON. The raw body is the best message available.
+  }
+  return raw;
 }

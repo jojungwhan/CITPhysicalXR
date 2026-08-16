@@ -197,6 +197,28 @@ Status: Accepted (Milestone 4)
 
 The LEGO hub stops on its own after 500 ms of silence (FR-049), so something has to speak to it several times a second. That heartbeat is emitted from `Runtime.tick()`, the same loop that drives the safety watchdogs, and never from a background task owned by the adapter. A task of its own would keep feeding a hub after the loop that was supposed to supervise it had died -- the exact failure the watchdog exists to prevent.
 
+## ADR-027 — A role is a token the runtime issued, never a field in the request
+
+Status: Accepted (Milestone 6)
+
+Before Milestone 6 the runtime believed whatever a request body said about who was asking. `POST /api/commands` took its `source` from the body, so a student page could send `source: "instructor"` and receive `INSTRUCTOR_STOP_ALL` priority; `POST /api/safety/arm` took `instructor_id` from the body, so any caller could name themselves the instructor who armed a robot. FR-068 is a list of things a student cannot do, and none of it can be enforced while identity is self-declared.
+
+Every mutating route now requires a token the runtime issued. `POST /api/auth/join` returns one; the instructor role additionally requires a passcode, which the runtime generates at startup and prints once to its own log. Tokens are held as SHA-256 digests, so the runtime cannot leak a working token from memory or a crash dump, and they expire.
+
+The passcode is deliberately weak security and strong enough for what it defends. The runtime already refuses to bind anything but loopback (ADR-002 and the M1 report), so the attacker this stops is the other browser tab on the same machine, not the network. A password store would be a bigger promise than a classroom runtime can keep.
+
+Authorization is a runtime concern, not an HTTP concern: `cit_runtime.roles` names each privileged action and answers yes or no, and `api.py` only maps the refusal to a 403. A test can therefore prove that a student cannot arm a device without going through a web server.
+
+## ADR-028 — A dead-man control is attested by a heartbeat, not asserted by a caller
+
+Status: Accepted (Milestone 6)
+
+FR-068 says a student cannot bypass the dead-man control, and until now `deadmanActive` was a boolean in the request body that the student's own page filled in. The Studio filled it with `true` unconditionally. The rule was therefore enforced against nobody.
+
+The supervisor now derives it: a device's dead-man is active only if a heartbeat for that device arrived within its watchdog timeout (FR-070, 300 ms). The request field is gone from the physical path. Holding the control in the Studio starts that heartbeat and releasing it stops it, so letting go and losing the browser look identical to the runtime -- which is the property the control exists to have.
+
+This tightens physical mode only. Simulation never required a dead-man and still does not, because FR-062 has to work with nobody in the room.
+
 ## Deviations from the PRD
 
 None at Milestone 0 start. The local workspace directory is named `CITPhysicalXR`, while the Git product/repository identity remains `cit-physical-xr`; this is a host path detail, not an architecture deviation.

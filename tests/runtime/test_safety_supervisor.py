@@ -34,6 +34,14 @@ def arm(supervisor: SafetySupervisor, *, session_id: str = "session-1") -> None:
         policy_id="classroom-physical",
         program_validated=True,
     )
+    # ADR-028. The physical policy requires a dead-man, and since M6 the
+    # supervisor believes a heartbeat rather than the caller. A test that wants
+    # to reach the bounds has to hold the control like a student would.
+    hold_deadman(supervisor)
+
+
+def hold_deadman(supervisor: SafetySupervisor, *, device_id: str = "fake-s1-main") -> None:
+    supervisor.heartbeat(device_id=device_id, kind=WatchdogKind.QUEST_DEADMAN_HEARTBEAT)
 
 
 # --------------------------------------------------------------------- arming
@@ -147,21 +155,79 @@ def test_agent_mesh_may_still_stop_a_device(supervisor: SafetySupervisor) -> Non
 # --------------------------------------------------------------- dead-man etc.
 
 
-def test_movement_without_deadman_is_denied(supervisor: SafetySupervisor) -> None:
-    arm(supervisor)
+def test_movement_without_a_held_deadman_is_denied(supervisor: SafetySupervisor) -> None:
+    """Nobody is holding the control, so nothing may move."""
+
+    supervisor.arm(
+        device_id="fake-s1-main",
+        session_id="session-1",
+        instructor_id="instructor-1",
+        policy_id="classroom-physical",
+        program_validated=True,
+    )
     verdict = supervisor.evaluate(
         make_command(
             session_id="session-1",
             device_id="fake-s1-main",
             policy_id="classroom-physical",
             armed=True,
-            deadman_active=False,
         ),
         session_device_ids=DEVICES,
         physical=True,
     )
     assert not verdict.allowed
-    assert "dead-man" in (verdict.reason or "")
+    assert "dead-man heartbeat" in (verdict.reason or "")
+
+
+def test_claiming_a_deadman_that_was_never_held_is_denied(supervisor: SafetySupervisor) -> None:
+    """FR-068 and ADR-028: the claim in the command body buys nothing.
+
+    This is the bypass the rule exists to stop. The command says the dead-man is
+    active, and it is refused anyway, because no heartbeat ever arrived.
+    """
+
+    supervisor.arm(
+        device_id="fake-s1-main",
+        session_id="session-1",
+        instructor_id="instructor-1",
+        policy_id="classroom-physical",
+        program_validated=True,
+    )
+    verdict = supervisor.evaluate(
+        make_command(
+            session_id="session-1",
+            device_id="fake-s1-main",
+            policy_id="classroom-physical",
+            armed=True,
+            deadman_active=True,
+        ),
+        session_device_ids=DEVICES,
+        physical=True,
+    )
+    assert not verdict.allowed
+    assert "dead-man heartbeat" in (verdict.reason or "")
+
+
+def test_a_released_deadman_stops_permitting_movement(
+    supervisor: SafetySupervisor, clock: ManualClock
+) -> None:
+    """Letting go and losing the browser look identical from here."""
+
+    arm(supervisor)
+    clock.advance(DEFAULT_WATCHDOG_TIMEOUTS[WatchdogKind.QUEST_DEADMAN_HEARTBEAT] + 0.05)
+
+    verdict = supervisor.evaluate(
+        make_command(
+            session_id="session-1",
+            device_id="fake-s1-main",
+            policy_id="classroom-physical",
+            armed=True,
+        ),
+        session_device_ids=DEVICES,
+        physical=True,
+    )
+    assert not verdict.allowed
+    assert "dead-man heartbeat" in (verdict.reason or "")
 
 
 def test_low_confidence_input_is_denied(supervisor: SafetySupervisor) -> None:
@@ -313,6 +379,35 @@ def test_instructor_stop_outranks_a_student_command() -> None:
 def test_ai_proposal_is_the_lowest_priority() -> None:
     proposal = make_command(session_id="s", device_id="d", source="agent_mesh")
     assert classify_priority(proposal) is CommandPriority.AI_OR_WEARABLE_PROPOSAL
+
+
+def test_an_instructors_stop_outranks_the_runtimes_own_stop() -> None:
+    """FR-072 ranks the instructor's stop-all second, above a runtime stop."""
+
+    instructor_stop = make_command(
+        session_id="s", device_id="d", action="stop_all", source="instructor"
+    )
+    runtime_stop = make_command(session_id="s", device_id="d", action="stop", source="system")
+    assert classify_priority(instructor_stop) is CommandPriority.INSTRUCTOR_STOP_ALL
+    assert classify_priority(instructor_stop) < classify_priority(runtime_stop)
+
+
+def test_an_instructor_driving_is_not_a_stop_all() -> None:
+    """FR-072 ranks the instructor's *stop-all* second, not everything they send.
+
+    Ranking an ordinary instructor command at stop-all priority would let it
+    preempt the runtime's own safety stop -- the thing that exists to interrupt
+    it. This became reachable in Milestone 6, when instructors gained the
+    ability to issue commands at all.
+    """
+
+    driving = make_command(
+        session_id="s", device_id="d", capability="drive.velocity", source="instructor"
+    )
+    runtime_stop = make_command(session_id="s", device_id="d", action="stop", source="system")
+
+    assert classify_priority(driving) is CommandPriority.STUDENT_COMMAND
+    assert classify_priority(runtime_stop) < classify_priority(driving)
 
 
 # ------------------------------------------------------------ FR-070 watchdogs

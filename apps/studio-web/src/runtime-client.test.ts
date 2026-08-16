@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   LOOPBACK_RUNTIME_URL,
   RuntimeClient,
+  RuntimeRefusedError,
   RuntimeUnreachableError,
   resolveRuntimeUrl,
 } from "./runtime-client.js";
@@ -67,7 +68,6 @@ describe("RuntimeClient", () => {
       capability: "drive.velocity",
       action: "set",
       arguments: { speed: 0.2 },
-      deadmanActive: true,
     });
 
     const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
@@ -77,10 +77,56 @@ describe("RuntimeClient", () => {
       capability: "drive.velocity",
       action: "set",
       arguments: { speed: 0.2 },
-      source: "student_blocks",
-      deadman_active: true,
+      // ADR-027: the runtime decides the source from the token, so the client
+      // sends nothing rather than a claim. ADR-028: there is no dead-man field
+      // to send at all.
+      source: null,
       input_confidence: null,
     });
+  });
+
+  it("sends no dead-man claim, because the runtime does not accept one", async () => {
+    const fetchMock = mockFetch({ accepted: true });
+    await new RuntimeClient().send({
+      sessionId: "session-1",
+      deviceId: "fake-s1-main",
+      capability: "drive.velocity",
+      action: "set",
+    });
+
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(String(call[1].body)).not.toContain("deadman");
+  });
+
+  it("carries the token once somebody has signed in", async () => {
+    const fetchMock = mockFetch({
+      token: "issued-token",
+      actorId: "student-1",
+      role: "student",
+      displayName: "student-1",
+      expiresAt: "2026-01-01T00:00:00+00:00",
+    });
+    const client = new RuntimeClient();
+    await client.join({ actorId: "student-1", role: "student" });
+    await client.devices();
+
+    const call = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    expect((call[1].headers as Record<string, string>)["authorization"]).toBe(
+      "Bearer issued-token",
+    );
+  });
+
+  it("sends no authorization header before anybody has signed in", async () => {
+    const fetchMock = mockFetch({ status: "ok" });
+    await new RuntimeClient().health();
+
+    const call = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(call[1].headers).not.toHaveProperty("authorization");
+  });
+
+  it("opens no event socket without a token", () => {
+    const close = new RuntimeClient().streamEvents(() => undefined);
+    expect(close).toBeTypeOf("function");
   });
 
   it("explains how to start the runtime when it is unreachable", async () => {
@@ -93,9 +139,30 @@ describe("RuntimeClient", () => {
     );
   });
 
-  it("surfaces an HTTP error rather than pretending it succeeded", async () => {
-    mockFetch({ detail: "nope" }, true, 409);
-    await expect(new RuntimeClient().devices()).rejects.toThrow(/409/);
+  it("shows the runtime's own sentence, not the JSON around it", async () => {
+    mockFetch(
+      { detail: "Device is already assigned to another session" },
+      true,
+      409,
+    );
+    await expect(new RuntimeClient().devices()).rejects.toThrow(
+      /already assigned/,
+    );
+  });
+
+  it("knows that a 401 means signing in again, and a 403 does not", async () => {
+    mockFetch({ detail: "expired" }, true, 401);
+    const expired = await new RuntimeClient()
+      .devices()
+      .catch((error: unknown) => error);
+    expect(expired).toBeInstanceOf(RuntimeRefusedError);
+    expect((expired as RuntimeRefusedError).needsSignIn).toBe(true);
+
+    mockFetch({ detail: "instructor action" }, true, 403);
+    const refused = await new RuntimeClient()
+      .devices()
+      .catch((error: unknown) => error);
+    expect((refused as RuntimeRefusedError).needsSignIn).toBe(false);
   });
 
   it("unwraps the devices envelope", async () => {

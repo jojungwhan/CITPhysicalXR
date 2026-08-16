@@ -27,16 +27,21 @@ ALLOWED_CONTEXT_KEYS: frozenset[str] = frozenset(
         "clampedFields",
         "code",
         "commandId",
+        "count",
         "deviceId",
         "durationMs",
         "elapsedSeconds",
         "eventId",
         "executionMode",
+        "failurePolicy",
         "kind",
         "policyId",
         "priority",
+        "projectId",
         "reason",
+        "recordingId",
         "result",
+        "role",
         "sequence",
         "sessionId",
         "source",
@@ -51,6 +56,7 @@ _FORBIDDEN_SUBSTRINGS: tuple[str, ...] = (
     "biometric",
     "credential",
     "frame",
+    "passcode",
     "handmesh",
     "image",
     "password",
@@ -93,7 +99,19 @@ class AuditAction(StrEnum):
     STOP_ALL = "safety.stop_all"
     WATCHDOG_FIRED = "safety.watchdog_fired"
     QUEUE_CLEARED = "safety.queue_cleared"
+    LEASE_REVOKED = "safety.lease_revoked"
+    INPUT_SOURCE_CHANGED = "safety.input_source_changed"
+    FAILURE_POLICY_APPLIED = "safety.failure_policy_applied"
     REPLAY_STARTED = "replay.started"
+    RECORDING_STARTED = "recording.started"
+    RECORDING_STOPPED = "recording.stopped"
+    RECORDING_DELETED = "recording.deleted"
+    RECORDING_EXPORTED = "recording.exported"
+    RETENTION_PRUNED = "retention.pruned"
+    PRINCIPAL_JOINED = "auth.joined"
+    AUTHORIZATION_DENIED = "auth.denied"
+    PROJECT_SAVED = "project.saved"
+    PROJECT_DELETED = "project.deleted"
 
 
 @dataclass(frozen=True, slots=True)

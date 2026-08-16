@@ -285,3 +285,231 @@ code {
   font-size: 0.9rem;
   line-height: 1.5;
 }
+
+/* --------------------------------------------------- Milestone 6: the shell */
+
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 24px;
+  border-bottom: 1px solid #c9d3cb;
+}
+
+.tab {
+  padding: 10px 14px;
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
+  color: #526158;
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-decoration: none;
+}
+
+.tab:hover {
+  color: #17221d;
+  background: #f2f6f2;
+}
+
+.tab.current {
+  border-color: #c9d3cb;
+  background: #fff;
+  color: #17221d;
+  margin-bottom: -1px;
+}
+
+/*
+ * UI 11.4. The four safety states have to be unmistakable, and colour alone is
+ * not enough: each one carries a word, a symbol, and a sentence. The physical
+ * states are also the loudest thing on the page, because they are the two where
+ * something on the desk can move.
+ */
+.safety {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+  border: 2px solid;
+  border-radius: 14px;
+  padding: 14px 18px;
+}
+
+.safety-symbol {
+  font-size: 1.2rem;
+  line-height: 1;
+}
+
+.safety-label {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.safety-meaning {
+  color: #3c4a42;
+  font-size: 0.9rem;
+}
+
+.safety.simulation {
+  border-color: #9fb3a6;
+  background: #f2f6f3;
+}
+
+.safety.physicalDisarmed {
+  border-color: #c79a3d;
+  background: #fff6e2;
+}
+
+.safety.physicalArmed {
+  border-color: #b4453a;
+  background: #fdeae7;
+}
+
+.safety.emergencyStopped {
+  border-color: #17221d;
+  background: #17221d;
+}
+
+.safety.emergencyStopped .safety-label,
+.safety.emergencyStopped .safety-meaning,
+.safety.emergencyStopped .safety-symbol {
+  color: #fdeae7;
+}
+
+/*
+ * The dead-man control (ADR-028). It is deliberately large and deliberately
+ * not a toggle: it does something only while it is held.
+ */
+button.deadman {
+  min-width: 260px;
+  padding: 16px 20px;
+  border-color: #c79a3d;
+  background: #fff6e2;
+  touch-action: none;
+  user-select: none;
+}
+
+button.deadman.held {
+  border-color: #1c5a3c;
+  background: #d9f0e2;
+  color: #10402b;
+}
+
+.card.static {
+  border: 1px solid #c9d3cb;
+  background: #f8faf8;
+}
+
+.cards.wide {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.facts.tight {
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 6px;
+  width: 100%;
+}
+
+.facts.tight div {
+  padding: 8px 10px;
+}
+
+.notice.warn {
+  border-color: #d8b46d;
+  background: #fff7e6;
+}
+
+.notice ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: 420px;
+  margin-top: 16px;
+}
+
+.stack label,
+.row label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+input[type="text"],
+input[type="number"],
+.stack input,
+.row input:not([type="radio"]) {
+  border: 1px solid #b7c4ba;
+  border-radius: 10px;
+  background: #fff;
+  padding: 10px 12px;
+  font: inherit;
+}
+
+fieldset {
+  border: 1px solid #c9d3cb;
+  border-radius: 12px;
+  padding: 12px 16px;
+}
+
+legend {
+  padding: 0 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.choice {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+button.chip {
+  padding: 6px 12px;
+  font-size: 0.85rem;
+}
+
+button.chip.current {
+  border-color: #246b4a;
+  background: #d9f0e2;
+}
+
+.scroll {
+  overflow-x: auto;
+  border: 1px solid #c9d3cb;
+  border-radius: 12px;
+  background: #f8faf8;
+}
+
+table.log {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+table.log th,
+table.log td {
+  padding: 8px 12px;
+  text-align: left;
+  border-bottom: 1px solid #e3e9e4;
+  white-space: nowrap;
+}
+
+table.log td.muted {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+h3 {
+  margin: 28px 0 10px;
+  font-size: 0.95rem;
+  letter-spacing: -0.01em;
+}

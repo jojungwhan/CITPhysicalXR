@@ -25,26 +25,53 @@ import {
   readWorkspace,
   registerBlocks,
   toolboxDefinition,
-  type Locale,
 } from "./blockly-workspace.js";
+import type { Locale, Translate } from "./i18n.js";
 import type {
+  CommandOutcome,
   DeviceView,
+  Identity,
   RuntimeClient,
   SessionView,
 } from "./runtime-client.js";
+import { useDeadman } from "./useDeadman.js";
+
+const DRIVE_STEPS = [
+  {
+    key: "drive.forward",
+    args: { speed: 0.3, heading: 0, durationSeconds: 1 },
+  },
+  { key: "drive.back", args: { speed: -0.3, heading: 0, durationSeconds: 1 } },
+  { key: "drive.left", args: { speed: 0.3, heading: -90, durationSeconds: 1 } },
+  { key: "drive.right", args: { speed: 0.3, heading: 90, durationSeconds: 1 } },
+] as const;
+
+const TERMINAL = ["stopped", "completed", "failed", "emergency_stopped"];
 
 interface ProgramViewProps {
   client: RuntimeClient;
+  identity: Identity;
   session: SessionView | null;
+  setSession: (session: SessionView | null) => void;
   devices: DeviceView[];
   locale: Locale;
+  t: Translate;
+  run: (work: () => Promise<void>) => Promise<void>;
+  busy: boolean;
+  refresh: () => Promise<void>;
 }
 
 export function ProgramView({
   client,
+  identity,
   session,
+  setSession,
   devices,
   locale,
+  t,
+  run,
+  busy,
+  refresh,
 }: ProgramViewProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const workspaceRef = useRef<Blockly.WorkspaceSvg | null>(null);
@@ -60,12 +87,23 @@ export function ProgramView({
       now: new Date().toISOString(),
     }),
   );
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string | null>(null);
   const [sourceMap, setSourceMap] = useState<SourceMapEntry[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [console, setConsole] = useState<string[]>([]);
   const [failure, setFailure] = useState<ProgramError | null>(null);
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const [outcome, setOutcome] = useState<CommandOutcome | null>(null);
+  // FR-062. Simulation unless an instructor deliberately chooses otherwise, and
+  // a student has no control that changes it.
+  const [mode, setMode] = useState<"simulation" | "physical">("simulation");
+  const [policyId, setPolicyId] = useState("simulation-only");
+  const isInstructor = identity.role === "instructor";
+
+  const selected =
+    devices.find((device) => device.deviceId === selectedDeviceId) ?? null;
+  const deadman = useDeadman(client, selected?.deviceId ?? null);
 
   const bound = useMemo(
     () =>
@@ -178,6 +216,27 @@ export function ProgramView({
     regenerate(workspace);
   }, [bound, locale, regenerate]);
 
+  // FR-001. Open whatever the Projects view asked for.
+  useEffect(() => {
+    const wanted = window.localStorage.getItem("citxr.openProject");
+    if (wanted === null) return;
+    window.localStorage.removeItem("citxr.openProject");
+    void run(async () => {
+      const stored = (await client.project(wanted)) as unknown as CitProject;
+      setProject(stored);
+      setNotice(null);
+    });
+  }, [client, run]);
+
+  const save = () =>
+    run(async () => {
+      await client.saveProject(
+        project.projectId,
+        project as unknown as Record<string, unknown>,
+      );
+      setNotice(t("projects.saved"));
+    });
+
   const ensureRunner = useCallback((): StudentRuntimeHost => {
     if (runnerRef.current !== null) return runnerRef.current;
     const worker = new Worker(new URL("./student-worker.js", import.meta.url), {
@@ -185,8 +244,7 @@ export function ProgramView({
     });
     const host = new StudentRuntimeHost(worker, {
       call: async (method, payload) => {
-        if (session === null)
-          throw new Error("Start a session before running.");
+        if (session === null) throw new Error(t("program.needsSession"));
         if (method === "log") {
           // `log()` is the student's own output. It is also recorded by the
           // runtime, but it has to appear in their console or the block looks
@@ -199,10 +257,6 @@ export function ProgramView({
           sessionId: session.sessionId,
           method,
           payload,
-          source:
-            project.authoringMode === "blocks"
-              ? "student_blocks"
-              : "student_python",
           aliases: Object.fromEntries(
             bindings.map((binding) => [binding.alias, binding.deviceId]),
           ),
@@ -211,11 +265,86 @@ export function ProgramView({
     });
     runnerRef.current = host;
     return host;
-  }, [bindings, client, project.authoringMode, session]);
+  }, [bindings, client, session, t]);
 
-  const run = () => {
+  // ------------------------------------------------------------------ session
+
+  const startSession = () =>
+    run(async () => {
+      // End the previous session first. A session holds its devices until it
+      // finishes, so without this the second lesson finds every robot taken.
+      if (session !== null && !TERMINAL.includes(session.state)) {
+        await client.endSession(session.sessionId);
+      }
+      setSession(
+        await client.createSession({
+          projectId: project.projectId,
+          executionMode: mode,
+          safetyPolicyId: policyId,
+        }),
+      );
+      setOutcome(null);
+      await refresh();
+    });
+
+  const bindSelected = () =>
+    run(async () => {
+      if (session === null || selected === null) return;
+      setSession(
+        await client.bindDevices(session.sessionId, [selected.deviceId]),
+      );
+      await refresh();
+    });
+
+  const validate = () =>
+    run(async () => {
+      if (session === null) return;
+      setSession(await client.validate(session.sessionId));
+    });
+
+  // FR-066 step 4. The instructor's own action, and the only one that grants
+  // physical movement. The runtime refuses it for anyone else regardless of
+  // whether this button is rendered.
+  const armSelected = () =>
+    run(async () => {
+      if (session === null || selected === null) return;
+      await client.arm({
+        sessionId: session.sessionId,
+        deviceId: selected.deviceId,
+      });
+      await refresh();
+    });
+
+  // -------------------------------------------------------------------- drive
+
+  const canDrive =
+    session !== null &&
+    selected !== null &&
+    bound.some((device) => device.deviceId === selected.deviceId) &&
+    session.state === "ready" &&
+    selected.state === "connected";
+
+  const drive = (args: Record<string, unknown>) =>
+    run(async () => {
+      if (session === null || selected === null) return;
+      setOutcome(
+        await client.send({
+          sessionId: session.sessionId,
+          deviceId: selected.deviceId,
+          capability: "drive.velocity",
+          action: "set",
+          arguments: args,
+          inputConfidence: 1,
+        }),
+      );
+      await refresh();
+    });
+
+  // ------------------------------------------------------------------ program
+
+  const runProgram = () => {
     if (session === null) {
-      setNotice("Start a session and bind a device first.");
+      setNotice(t("program.needsSession"));
       return;
     }
     setConsole([]);
@@ -239,7 +368,7 @@ export function ProgramView({
     });
   };
 
-  const stop = () => {
+  const stopProgram = () => {
     runnerRef.current?.stop();
     setRunning(false);
   };
@@ -255,9 +384,7 @@ export function ProgramView({
       setProject((current) =>
         convertToPythonMode(current, new Date().toISOString()),
       );
-      setNotice(
-        "This project is Python now. The blocks are kept as a snapshot, but the change is one way.",
-      );
+      setNotice(t("program.converted"));
     } catch (error) {
       setNotice(error instanceof Error ? error.message : String(error));
     }
@@ -282,7 +409,7 @@ export function ProgramView({
     const text = exportProject(project);
     setConsole((current) => [
       ...current,
-      `Exported ${text.length} bytes of project JSON.`,
+      `Exported ${text.length} bytes of project JSON.\n`,
     ]);
   };
 
@@ -290,53 +417,225 @@ export function ProgramView({
 
   return (
     <>
+      <section aria-labelledby="session-heading">
+        <h2 id="session-heading">{t("session.heading")}</h2>
+        <div className="row">
+          <button type="button" onClick={startSession} disabled={busy}>
+            {t("session.new")}
+          </button>
+          <button
+            type="button"
+            onClick={bindSelected}
+            disabled={busy || session === null || selected === null}
+          >
+            {t("session.bind")}
+          </button>
+          <button
+            type="button"
+            onClick={validate}
+            disabled={busy || session === null || bound.length === 0}
+          >
+            {t("session.validate")}
+          </button>
+          {isInstructor && (
+            <button
+              type="button"
+              onClick={armSelected}
+              disabled={
+                busy ||
+                session === null ||
+                selected === null ||
+                session.state !== "ready"
+              }
+            >
+              {t("devices.arm")}
+            </button>
+          )}
+        </div>
+
+        {isInstructor ? (
+          <div className="row">
+            <label>
+              <span>{t("session.mode")}</span>
+              <select
+                value={mode}
+                onChange={(event) => {
+                  const chosen = event.target.value as
+                    "simulation" | "physical";
+                  setMode(chosen);
+                  setPolicyId(
+                    chosen === "physical"
+                      ? "classroom-physical"
+                      : "simulation-only",
+                  );
+                }}
+              >
+                <option value="simulation">{t("session.simulation")}</option>
+                <option value="physical">{t("session.physical")}</option>
+              </select>
+            </label>
+            <label>
+              <span>{t("session.safetyProfile")}</span>
+              <input
+                value={policyId}
+                onChange={(event) => setPolicyId(event.target.value)}
+                maxLength={128}
+              />
+            </label>
+          </div>
+        ) : (
+          <p className="muted">{t("session.instructorOnly")}</p>
+        )}
+        {session === null ? (
+          <p className="muted">{t("session.none")}</p>
+        ) : (
+          <p className="muted">
+            <code>{session.sessionId}</code> · {t("session.state")}{" "}
+            <strong>{session.state}</strong> · {session.executionMode} ·{" "}
+            {t("session.bound")}:{" "}
+            {bound.length > 0
+              ? bound.map((device) => device.deviceId).join(", ")
+              : t("session.nothingBound")}
+          </p>
+        )}
+      </section>
+
+      <section aria-labelledby="pick-heading">
+        <h2 id="pick-heading">{t("devices.heading")}</h2>
+        <div className="cards">
+          {devices.map((device) => (
+            <button
+              key={device.deviceId}
+              type="button"
+              className={`card ${device.deviceId === selectedDeviceId ? "selected" : ""}`}
+              onClick={() => setSelectedDeviceId(device.deviceId)}
+              aria-pressed={device.deviceId === selectedDeviceId}
+            >
+              <span className="card-title">{device.displayName}</span>
+              <span
+                className={`pill ${device.state === "connected" ? "ok" : "warn"}`}
+              >
+                {device.state}
+              </span>
+              <span className="muted">{device.model}</span>
+              <span className="muted">
+                {device.physical
+                  ? t("devices.physical")
+                  : t("devices.simulated")}
+                {device.armed ? ` · ${t("devices.armed")}` : ""}
+              </span>
+            </button>
+          ))}
+          {devices.length === 0 && <p className="muted">{t("devices.none")}</p>}
+        </div>
+      </section>
+
+      <section aria-labelledby="drive-heading">
+        <h2 id="drive-heading">{t("drive.heading")}</h2>
+        {!canDrive && <p className="muted">{t("drive.blocked")}</p>}
+
+        <div className="row">
+          <button
+            type="button"
+            className={deadman.held ? "deadman held" : "deadman"}
+            onPointerDown={deadman.hold}
+            onPointerUp={deadman.release}
+            onPointerLeave={deadman.release}
+            onPointerCancel={deadman.release}
+            onBlur={deadman.release}
+            disabled={selected === null}
+          >
+            {deadman.held ? t("drive.deadmanHeld") : t("drive.holdDeadman")}
+          </button>
+        </div>
+        <p className="muted">{t("drive.deadmanExplain")}</p>
+
+        <div className="row">
+          {DRIVE_STEPS.map((step) => (
+            <button
+              key={step.key}
+              type="button"
+              onClick={() => drive(step.args)}
+              disabled={busy || !canDrive}
+            >
+              {t(step.key)}
+            </button>
+          ))}
+          <button
+            type="button"
+            onClick={() => drive({ speed: 9.9, durationSeconds: 30 })}
+            disabled={busy || !canDrive}
+          >
+            {t("drive.overspeed")}
+          </button>
+        </div>
+
+        {outcome !== null && (
+          <div className={`notice ${outcome.accepted ? "ok" : "bad"}`}>
+            {outcome.accepted ? (
+              <>
+                {t("drive.accepted")} · {outcome.status}
+                {outcome.clampedFields && outcome.clampedFields.length > 0 && (
+                  <>
+                    {" "}
+                    · {t("drive.clamped")}: {outcome.clampedFields.join(", ")}
+                  </>
+                )}
+              </>
+            ) : (
+              <>
+                {t("drive.refused")} · {outcome.code} — {outcome.message}
+                {outcome.recovery && (
+                  <div className="muted">{outcome.recovery}</div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+      </section>
+
       <section aria-labelledby="program-heading">
         <div className="bar">
-          <h2 id="program-heading">Program</h2>
+          <h2 id="program-heading">{t("program.heading")}</h2>
           <div className="row">
             <button
               type="button"
-              onClick={run}
+              onClick={runProgram}
               disabled={running || session === null}
             >
-              Run
+              {t("program.run")}
             </button>
-            <button type="button" onClick={stop} disabled={!running}>
-              Stop program
+            <button type="button" onClick={stopProgram} disabled={!running}>
+              {t("program.stop")}
             </button>
             <button type="button" onClick={convert} disabled={pythonMode}>
-              Convert to Python
+              {t("program.convert")}
+            </button>
+            <button type="button" onClick={save} disabled={busy}>
+              {t("projects.save")}
             </button>
             <button type="button" onClick={download}>
-              Export
+              {t("program.export")}
             </button>
           </div>
         </div>
 
         {notice !== null && <div className="notice">{notice}</div>}
         {session === null && (
-          <p className="muted">
-            A program needs a session and at least one bound device before it
-            can run.
-          </p>
+          <p className="muted">{t("program.needsSession")}</p>
         )}
 
         <div
           ref={hostRef}
           className={`blockly ${pythonMode ? "snapshot" : ""}`}
-          aria-label="Block editor"
+          aria-label={t("program.blockEditor")}
         />
-        {pythonMode && (
-          <p className="muted">
-            The blocks above are a retained snapshot. The Python below is what
-            runs.
-          </p>
-        )}
+        {pythonMode && <p className="muted">{t("program.blocksSnapshot")}</p>}
       </section>
 
       <section aria-labelledby="python-heading">
         <h2 id="python-heading">
-          {pythonMode ? "Python" : "Generated Python"}
+          {pythonMode ? t("program.python") : t("program.generatedPython")}
         </h2>
         {pythonMode ? (
           <textarea
@@ -344,11 +643,11 @@ export function ProgramView({
             value={project.pythonSource}
             onChange={(event) => editPython(event.target.value)}
             spellCheck={false}
-            aria-label="Python source"
+            aria-label={t("program.python")}
           />
         ) : (
           <pre className="code">
-            {project.generatedPython || "# add a block to begin"}
+            {project.generatedPython || t("program.emptyProgram")}
           </pre>
         )}
         {warnings.length > 0 && (
@@ -361,7 +660,7 @@ export function ProgramView({
       </section>
 
       <section aria-labelledby="console-heading">
-        <h2 id="console-heading">Console</h2>
+        <h2 id="console-heading">{t("program.console")}</h2>
         {failure !== null && (
           <div className="notice bad" role="alert">
             <strong>
@@ -380,10 +679,13 @@ export function ProgramView({
           </div>
         )}
         {console.length === 0 ? (
-          <p className="muted">Nothing printed yet.</p>
+          <p className="muted">{t("program.consoleEmpty")}</p>
         ) : (
           <pre className="code">{console.join("")}</pre>
         )}
+        <p className="muted">
+          {identity.displayName} · {identity.role}
+        </p>
       </section>
     </>
   );
