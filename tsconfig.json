@@ -1,0 +1,8 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./apps/agent-mesh-bridge" },
+    { "path": "./apps/studio-web" },
+    { "path": "./packages/protocol-ts" }
+  ]
+}

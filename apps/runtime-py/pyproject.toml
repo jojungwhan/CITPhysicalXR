@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-runtime"
+version = "0.0.0"
+description = "Non-dispatching local-runtime foundation for CIT Physical XR"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "cit-protocol",
+  "cit-safety-core",
+  "jsonschema[format-nongpl]==4.26.0",
+  "pyyaml==6.0.3",
+]
+
+[tool.uv.sources]
+cit-protocol = { workspace = true }
+cit-safety-core = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cit_runtime"]

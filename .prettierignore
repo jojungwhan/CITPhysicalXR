@@ -1,0 +1,12 @@
+.venv/
+artifacts/
+dist/
+node_modules/
+docs/PRD.md
+LICENSE
+pnpm-lock.yaml
+uv.lock
+apps/quest-godot/**/*.gd
+apps/quest-godot/**/*.godot
+apps/quest-godot/**/*.tscn
+packages/protocol-py/src/cit_protocol/generated.py

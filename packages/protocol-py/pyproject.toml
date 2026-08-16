@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-protocol"
+version = "0.0.0"
+description = "Generated Pydantic models for CIT Physical XR protocol v1"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "jsonschema[format-nongpl]==4.26.0",
+  "pydantic==2.13.4",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cit_protocol"]

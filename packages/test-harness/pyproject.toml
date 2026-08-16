@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-test-harness"
+version = "0.0.0"
+description = "Reusable public-boundary contract assertions for CIT adapters"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = ["cit-device-simulator"]
+
+[tool.uv.sources]
+cit-device-simulator = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cit_test_harness"]

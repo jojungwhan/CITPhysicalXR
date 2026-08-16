@@ -1,0 +1,20 @@
+{
+  "commandId": "45e8743a-8c95-40ed-91f0-9285929355f4",
+  "sessionId": "session-a",
+  "deviceId": "fake-s1-main",
+  "capability": "drive.velocity",
+  "action": "set",
+  "arguments": {
+    "forward": 0.2,
+    "strafe": 0,
+    "rotation": 0
+  },
+  "source": "student_blocks",
+  "issuedAt": "2026-08-16T04:00:00.000Z",
+  "expiresAt": "2026-08-16T04:00:00.400Z",
+  "idempotencyKey": "session-a:move-1",
+  "safetyContext": {
+    "policyId": "student-low-speed",
+    "armed": false
+  }
+}

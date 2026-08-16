@@ -1,0 +1,15 @@
+{
+  "eventId": "c32dab6c-ca57-45dd-8d47-fc289559152a",
+  "deviceId": "fake-leap-main",
+  "sessionId": "session-a",
+  "sequence": 2,
+  "category": "input",
+  "name": "gesture.open_palm",
+  "values": {
+    "hand": "right",
+    "confidence": 0.94
+  },
+  "sourceTimestamp": "2026-08-16T04:00:00.050Z",
+  "receivedAt": "2026-08-16T04:00:00.060Z",
+  "historical": false
+}

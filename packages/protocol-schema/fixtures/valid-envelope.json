@@ -1,0 +1,13 @@
+{
+  "protocolVersion": 1,
+  "messageId": "0048197d-0a18-41f4-9734-92ac07a2af47",
+  "type": "device.event",
+  "runtimeId": "classroom-pc",
+  "deviceId": "fake-s1-main",
+  "sequence": 7,
+  "sentAt": "2026-08-16T04:00:00.000Z",
+  "payload": {
+    "name": "telemetry.battery",
+    "percent": 71
+  }
+}

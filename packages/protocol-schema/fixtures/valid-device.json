@@ -1,0 +1,11 @@
+{
+  "deviceId": "fake-lego-spike-01",
+  "displayName": "Fake LEGO SPIKE 01",
+  "deviceType": "robot",
+  "model": "spike-prime",
+  "adapterId": "fake-lego",
+  "adapterVersion": "0.0.0",
+  "physical": false,
+  "capabilities": ["drive.velocity", "motor.stop", "telemetry.battery"],
+  "safetyProfile": "simulation"
+}
