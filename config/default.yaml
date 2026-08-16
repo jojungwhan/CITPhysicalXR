@@ -1,0 +1,14 @@
+version: 1
+
+runtime:
+  bindHost: "127.0.0.1"
+  bindPort: 8765
+  physicalDevicesEnabled: false
+  agentMeshBridgeEnabled: false
+
+externalRepositories: {}
+externalEnvironments: {}
+
+secretStore:
+  provider: os_keyring
+  namespace: cit-physical-xr

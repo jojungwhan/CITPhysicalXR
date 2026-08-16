@@ -1,0 +1,42 @@
+version: 1
+
+runtime:
+  bindHost: "127.0.0.1"
+  bindPort: 8765
+  physicalDevicesEnabled: false
+  agentMeshBridgeEnabled: false
+
+# These discovered Windows paths are evidence for the reuse audit. Copy this
+# example outside the repository and edit paths for the machine in use.
+externalRepositories:
+  agentMesh:
+    kind: git
+    paths:
+      windows: 'D:\dev\glasses2CLI'
+    expectedRevision: "79983dfadc378566168343e57814a046089c2047"
+    licenseStatus: owner-private-unlicensed
+  robomasterGesture:
+    kind: git
+    paths:
+      windows: 'D:\dev\robomaster-gesture-control-reference'
+    expectedRevision: "e5a94865451dc8a9a266bb9223f8ed090ac11681"
+    licenseStatus: owner-private-unlicensed
+  robomasterCourse:
+    kind: git
+    paths:
+      windows: 'D:\dev\robomasterCITCourse'
+    expectedRevision: "2f54bc7f2de6925b1e388632c45cb4dd7296d660"
+    licenseStatus: owner-private-unlicensed
+
+externalEnvironments:
+  robomasterS1:
+    repositoryId: robomasterCourse
+    interpreterPaths:
+      windows: 'D:\dev\robomasterCITCourse\.venv-robot\Scripts\python.exe'
+    packageVersions:
+      python: "3.8.10"
+      robomaster: "0.1.1.68"
+
+secretStore:
+  provider: os_keyring
+  namespace: cit-physical-xr

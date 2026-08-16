@@ -1,0 +1,19 @@
+{
+  "name": "@citxr/protocol-schema",
+  "version": "0.0.0",
+  "private": true,
+  "description": "JSON Schema source of truth for CIT Physical XR protocol v1.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "files": [
+    "schemas",
+    "fixtures"
+  ],
+  "exports": {
+    "./cit-protocol.schema.json": "./schemas/cit-protocol.schema.json"
+  },
+  "scripts": {
+    "build": "node -e \"JSON.parse(require('node:fs').readFileSync('schemas/cit-protocol.schema.json','utf8'))\"",
+    "typecheck": "node -e \"process.exit(0)\""
+  }
+}

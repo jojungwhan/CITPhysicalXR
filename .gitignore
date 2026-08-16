@@ -1,0 +1,39 @@
+# JavaScript / TypeScript
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+*.egg-info/
+
+# Generated reports
+artifacts/
+
+# Active machine configuration and secrets
+config/local.yaml
+config/*.local.yaml
+.env
+.env.*
+!.env.example
+
+# Godot/editor/export state
+.godot/
+.import/
+export_presets.cfg
+*.apk
+*.pck
+
+# Editors and operating systems
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

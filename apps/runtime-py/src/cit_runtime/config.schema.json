@@ -1,0 +1,144 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://citxr.dev/schema/config/v1/config.schema.json",
+  "title": "CIT Physical XR Foundation Configuration",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "runtime", "externalRepositories"],
+  "properties": {
+    "version": {
+      "const": 1,
+      "type": "integer"
+    },
+    "runtime": {
+      "$ref": "#/$defs/Runtime"
+    },
+    "externalRepositories": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/ExternalRepository"
+      },
+      "propertyNames": {
+        "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+      }
+    },
+    "externalEnvironments": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/ExternalEnvironment"
+      },
+      "propertyNames": {
+        "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+      }
+    },
+    "secretStore": {
+      "$ref": "#/$defs/SecretStore"
+    }
+  },
+  "$defs": {
+    "Runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bindHost",
+        "bindPort",
+        "physicalDevicesEnabled",
+        "agentMeshBridgeEnabled"
+      ],
+      "properties": {
+        "bindHost": {
+          "enum": ["127.0.0.1", "::1"]
+        },
+        "bindPort": {
+          "type": "integer",
+          "minimum": 1024,
+          "maximum": 65535
+        },
+        "physicalDevicesEnabled": {
+          "type": "boolean"
+        },
+        "agentMeshBridgeEnabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "PlatformPaths": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "windows": {
+          "type": "string",
+          "minLength": 3,
+          "pattern": "^[A-Za-z]:\\\\"
+        },
+        "linux": {
+          "type": "string",
+          "minLength": 2,
+          "pattern": "^/"
+        }
+      }
+    },
+    "ExternalRepository": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "paths", "expectedRevision", "licenseStatus"],
+      "properties": {
+        "kind": {
+          "const": "git"
+        },
+        "paths": {
+          "$ref": "#/$defs/PlatformPaths"
+        },
+        "expectedRevision": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "licenseStatus": {
+          "enum": ["compatible", "owner-private-unlicensed", "unknown"]
+        }
+      }
+    },
+    "ExternalEnvironment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repositoryId", "interpreterPaths", "packageVersions"],
+      "properties": {
+        "repositoryId": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9]*$"
+        },
+        "interpreterPaths": {
+          "$ref": "#/$defs/PlatformPaths"
+        },
+        "packageVersions": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "propertyNames": {
+            "pattern": "^[A-Za-z0-9_.-]+$"
+          }
+        }
+      }
+    },
+    "SecretStore": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider", "namespace"],
+      "properties": {
+        "provider": {
+          "enum": ["os_keyring", "environment"]
+        },
+        "namespace": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        }
+      }
+    }
+  }
+}

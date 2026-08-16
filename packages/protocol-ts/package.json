@@ -1,0 +1,22 @@
+{
+  "name": "@citxr/protocol",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Generated TypeScript models and validators for CIT Physical XR protocol v1.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1"
+  }
+}
