@@ -376,12 +376,20 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
                 "recovery": dispatch.error.recoverySuggestion,
             }
         result = dispatch.result
-        return {
+        response: dict[str, Any] = {
             "accepted": dispatch.accepted,
             "status": result.status if result else "unknown",
             "commandId": str(intent.commandId),
             "clampedFields": list(dispatch.clamped_fields),
         }
+        if result is not None and not dispatch.accepted:
+            # A device-level refusal carries its own reason. Dropping it here
+            # leaves the console saying "rejected" and nothing else.
+            details = dict(result.details.model_dump()) if result.details is not None else {}
+            response["code"] = str(details.get("code", "DEVICE_CAPABILITY_UNSUPPORTED"))
+            if result.message:
+                response["message"] = result.message
+        return response
 
     @app.get("/api/audit")
     async def audit() -> Mapping[str, Any]:
@@ -490,6 +498,7 @@ def serve(
     host: str = "127.0.0.1",
     port: int = 8791,
     allow_non_loopback: bool = False,
+    config_path: str | None = None,
 ) -> None:
     """Run the runtime. Refuses a non-loopback bind unless forced."""
 
@@ -501,4 +510,9 @@ def serve(
             "listen on a routable interface. Pass allow_non_loopback=True only on an isolated "
             "network you control."
         )
-    uvicorn.run(create_app(), host=host, port=port, log_level="info")
+    runtime: Runtime | None = None
+    if config_path is not None:
+        from .physical_devices import runtime_from_config
+
+        runtime = runtime_from_config(config_path)
+    uvicorn.run(create_app(runtime), host=host, port=port, log_level="info")

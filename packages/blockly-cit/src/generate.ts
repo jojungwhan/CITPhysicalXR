@@ -204,6 +204,8 @@ function emitExpression(block: GeneratorBlock, context: Context): string {
       return `(await ${target}.sensor("sensor.distance")).value`;
     case "cit_read_color":
       return `(await ${target}.sensor("sensor.color")).value`;
+    case "cit_read_force":
+      return `(await ${target}.sensor("sensor.force")).value`;
     default:
       context.emitter.warn({
         blockId: block.id,
@@ -376,13 +378,54 @@ function deviceCall(
     }
     case "cit_stop":
       return `${target}.stop()`;
-    case "cit_motor_speed": {
+    case "cit_motor_run": {
+      const port = pythonString(field(block, "port") ?? "A");
       const speed = pythonNumber(
         field(block, "speed"),
         defaultOf(spec, "speed"),
       );
-      return `${target}.motor.speed(speed=${speed})`;
+      const duration = pythonNumber(
+        field(block, "durationSeconds"),
+        defaultOf(spec, "durationSeconds"),
+      );
+      return `${target}.motor.run(port=${port}, speed=${speed}, durationSeconds=${duration})`;
     }
+    case "cit_motor_angle": {
+      const port = pythonString(field(block, "port") ?? "A");
+      const angle = pythonNumber(
+        field(block, "angle"),
+        defaultOf(spec, "angle"),
+      );
+      const speed = pythonNumber(
+        field(block, "speed"),
+        defaultOf(spec, "speed"),
+      );
+      return `${target}.motor.run_angle(port=${port}, angle=${angle}, speed=${speed})`;
+    }
+    case "cit_drive_straight": {
+      const millimetres = pythonNumber(
+        field(block, "distanceMillimetres"),
+        defaultOf(spec, "distanceMillimetres"),
+      );
+      const speed = pythonNumber(
+        field(block, "speed"),
+        defaultOf(spec, "speed"),
+      );
+      return `${target}.drive.straight(distanceMillimetres=${millimetres}, speed=${speed})`;
+    }
+    case "cit_drive_turn": {
+      const angle = pythonNumber(
+        field(block, "angle"),
+        defaultOf(spec, "angle"),
+      );
+      const speed = pythonNumber(
+        field(block, "speed"),
+        defaultOf(spec, "speed"),
+      );
+      return `${target}.drive.turn(angle=${angle}, speed=${speed})`;
+    }
+    case "cit_hub_display":
+      return `${target}.hub.display(text=${pythonString(field(block, "text"))})`;
     case "cit_gimbal": {
       const pitch = pythonNumber(
         field(block, "pitch"),

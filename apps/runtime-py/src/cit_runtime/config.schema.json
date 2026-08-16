@@ -31,11 +31,74 @@
         "pattern": "^[A-Za-z][A-Za-z0-9]*$"
       }
     },
+    "devices": {
+      "description": "Physical devices this machine may connect to, keyed by exact deviceId.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/PhysicalDevice"
+      },
+      "propertyNames": {
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+      }
+    },
     "secretStore": {
       "$ref": "#/$defs/SecretStore"
     }
   },
   "$defs": {
+    "PhysicalDevice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["adapter", "displayName"],
+      "properties": {
+        "adapter": {
+          "enum": ["lego-pybricks"]
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "hubName": {
+          "description": "The name the hub advertises over Bluetooth. Names only: a Bluetooth address is a device secret and never belongs in a committed file.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 32,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9 ._-]*$"
+        },
+        "hubModel": {
+          "enum": ["spike-prime", "spike-essential", "robot-inventor"]
+        },
+        "ports": {
+          "type": "object",
+          "additionalProperties": {
+            "enum": ["empty", "motor", "distance", "color", "force"]
+          },
+          "propertyNames": {
+            "pattern": "^[A-F]$"
+          }
+        },
+        "safetyProfile": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "maxMotorPercent": {
+          "type": "integer",
+          "minimum": 5,
+          "maximum": 100
+        },
+        "maxCommandMilliseconds": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 5000
+        }
+      }
+    },
+    "Identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+    },
     "Runtime": {
       "type": "object",
       "additionalProperties": false,

@@ -136,9 +136,24 @@ class StudentBridge:
                 "recovery": dispatch.error.recoverySuggestion,
                 "deviceId": device_id,
             }
+        result = dispatch.result
+        if result is not None and not dispatch.accepted:
+            # The runtime let the command through and the device itself refused
+            # it -- a port with no motor in it, a capability the hub does not
+            # have. The device said something useful; a student who only sees
+            # "rejected" has been told their robot is broken.
+            details = dict(result.details.model_dump()) if result.details is not None else {}
+            return {
+                "accepted": False,
+                "status": result.status,
+                "code": str(details.get("code", "DEVICE_CAPABILITY_UNSUPPORTED")),
+                "message": result.message or f"The device refused this command ({result.status}).",
+                "recovery": "Fix what the device named above, then run the program again.",
+                "deviceId": device_id,
+            }
         return {
             "accepted": True,
-            "status": dispatch.result.status if dispatch.result else "unknown",
+            "status": result.status if result else "unknown",
             "clampedFields": list(dispatch.clamped_fields),
             "deviceId": device_id,
         }

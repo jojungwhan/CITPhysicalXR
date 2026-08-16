@@ -6,6 +6,7 @@ license = "Apache-2.0"
 requires-python = ">=3.11,<3.14"
 dependencies = [
   "cit-device-simulator",
+  "cit-lego-pybricks",
   "cit-runtime",
   "cit-protocol",
   "cit-safety-core",
@@ -35,6 +36,7 @@ package = false
 
 [tool.uv.workspace]
 members = [
+  "adapters/lego-pybricks",
   "apps/runtime-py",
   "packages/device-simulator",
   "packages/protocol-py",
@@ -45,6 +47,7 @@ members = [
 
 [tool.uv.sources]
 cit-device-simulator = { workspace = true }
+cit-lego-pybricks = { workspace = true }
 cit-runtime = { workspace = true }
 cit-protocol = { workspace = true }
 cit-safety-core = { workspace = true }
@@ -53,7 +56,7 @@ cit-test-harness = { workspace = true }
 
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers"
-testpaths = ["packages", "tests"]
+testpaths = ["adapters", "packages", "tests"]
 
 [tool.ruff]
 target-version = "py311"
@@ -69,5 +72,12 @@ quote-style = "double"
 [tool.mypy]
 python_version = "3.11"
 strict = true
-files = ["apps", "packages", "tests"]
+files = ["adapters", "apps", "packages", "tests"]
 exclude = ["packages/protocol-py/src/cit_protocol/generated.py"]
+
+# `pybricksdev` is an optional hardware dependency (see
+# adapters/lego-pybricks/pyproject.toml). It is deliberately absent from the
+# default environment, so the one module that imports it has no stubs to check.
+[[tool.mypy.overrides]]
+module = ["pybricksdev.*"]
+ignore_missing_imports = true

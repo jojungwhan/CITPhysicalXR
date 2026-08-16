@@ -8,6 +8,10 @@ Repository-owned Milestone 0 source is licensed under Apache-2.0. Every npm and 
 2. Installed npm licence groups are within the explicit SPDX allowlist.
 3. Registry packages in `uv.lock` have installed metadata that normalizes to an allowlisted licence.
 
+### Optional extras are outside what the gate sees
+
+The gate reads `uv.lock` and skips any package that is not installed, so an optional extra is invisible until someone installs it. That is a real gap, and Milestone 4 measured it rather than leaving it implicit: `adapters/lego-pybricks`'s `hardware` extra installs `asyncssh` (`EPL-2.0 OR GPL-2.0-or-later`), `cffi` (`MIT-0`), and `mpy-cross` builds with no licence metadata, none of which are allowlisted. `pnpm license:check` passes here and fails on a machine with the extra installed. ADR-023 in `docs/DECISIONS.md` holds the decision; it is open.
+
 `pnpm sbom` generates a deterministic CycloneDX 1.6 inventory from `pnpm-lock.yaml` and `uv.lock`. The report is a build artifact and is not a substitute for notices or source-provenance review.
 
 The audited Agent CLI Mesh and RoboMaster repositories are external and owner-private-unlicensed at their inspected revisions. Their code is not included. A future change may reuse source only after recording the exact source, revision, licence, modification state, dependencies, tests, protocol compatibility, decision, and risk in `REUSE_AUDIT.md` and `THIRD_PARTY_NOTICES.md`.

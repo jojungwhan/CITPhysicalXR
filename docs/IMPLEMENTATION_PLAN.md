@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- Status: Milestones 0, 1, and 3 complete (simulation only, no hardware adapter). M2 is deferred until hardware is available.
+- Status: Milestones 0, 1, 3, and 4 complete. Every device so far is simulated: M4 built the LEGO adapter, hub agent, and protocol, but no hub was connected (no Bluetooth adapter on the development host). M2 is deferred until hardware is available.
 - Authoritative product specification: `docs/PRD.md` version 1.0, 2026-08-16
 
 ## Delivery rule
@@ -13,7 +13,7 @@ Only one milestone is implemented at a time. Each milestone ends with a runnable
 | M1        | Runtime core and simulation             | `apps/runtime-py`, `apps/studio-web`, safety/session/device services, simulator/replay                                              | Fake multi-device program and complete M1 fault suite                                    |
 | M2        | Existing S1 and Leap adapters           | `adapters/robomaster-s1`, `adapters/leap-motion`, sanitized fixtures                                                                | Owner hardware regression and tracking-loss stop                                         |
 | M3        | Blockly and student Python              | `packages/blockly-cit`, `student-sdk-py`, `student-runtime-web`, Studio editor                                                      | Blocks-to-readable-Python simulation and armed S1 flow                                   |
-| M4        | LEGO                                    | `adapters/lego-pybricks`, `firmware/lego-hub-agent`                                                                                 | S1/LEGO coordinated hardware program                                                     |
+| M4        | LEGO                                    | `adapters/lego-pybricks`, `firmware/lego-hub-agent`                                                                                 | Built and simulated; S1/LEGO coordinated **hardware** program still outstanding          |
 | M5        | Quest                                   | `apps/quest-godot`, `adapters/quest-gateway`                                                                                        | One APK on Quest 2/3 and dead-man stop evidence                                          |
 | M6        | Unified projects and instructor console | Studio instructor UI, roles, assignment, replay, i18n                                                                               | Multi-client classroom isolation and stop-all                                            |
 | M7        | Agent Mesh and existing glasses         | `apps/agent-mesh-bridge` plus changes in separately reviewed Agent Mesh repository                                                  | Status in Quest/G2/Meta; wearable stop but no movement                                   |
@@ -105,20 +105,20 @@ Only one milestone is implemented at a time. Each milestone ends with a runnable
 
 ### LEGO and legacy hubs
 
-| Requirement                 | Milestone  | Planned files / evidence                                            |
-| --------------------------- | ---------- | ------------------------------------------------------------------- |
-| FR-045 primary LEGO hubs    | M4         | SPIKE Prime/Essential and Robot Inventor compatibility records      |
-| FR-046 firmware strategy    | M4         | explicit instructor setup/rollback docs; no automatic flashing path |
-| FR-047 host-controlled mode | M4         | BLE adapter plus persistent bounded hub agent                       |
-| FR-048 autonomous mode      | M4         | explicit compile/download proof separated from class-run startup    |
-| FR-049 hybrid mode          | M4         | hub watchdog and host planning protocol tests                       |
-| FR-050 framed hub protocol  | M4         | versioned bounded parser/encoder, ACK/heartbeat/fuzz tests; no eval |
-| FR-051 LEGO capabilities    | M4         | port/hub capability discovery and manifests                         |
-| FR-052 BLE handling         | M4         | injectable BLE boundary, diagnostics, reconnect/fault tests         |
-| FR-053 LEGO safety          | M1, M4     | power/duration/port/ownership bounds and stop-on-loss tests         |
-| FR-054 Robot Inventor       | M4         | same Pybricks contract and hardware matrix as SPIKE Prime           |
-| FR-055 EV3                  | M8         | optional adapter proof that cannot block v1 core                    |
-| FR-056 NXT/RCX out of scope | None in v1 | documented non-goal and no adapter/toolbox entries                  |
+| Requirement                 | Milestone  | Planned files / evidence                                                                               |
+| --------------------------- | ---------- | ------------------------------------------------------------------------------------------------------ |
+| FR-045 primary LEGO hubs    | M4         | `hubs.py` model registry; `docs/COMPATIBILITY.md` LEGO table (declared, not hardware-verified)         |
+| FR-046 firmware strategy    | M4         | `docs/LEGO_SETUP.md`; test asserts running a lesson downloads nothing                                  |
+| FR-047 host-controlled mode | M4         | `PybricksHubAdapter` + `firmware/lego-hub-agent`; browser-verified against a simulated hub             |
+| FR-048 autonomous mode      | M4         | `autonomous.py` step-list programs; instructor-gated `install_program`; golden output test             |
+| FR-049 hybrid mode          | M4         | hub-side 500 ms watchdog test; host heartbeat driven by `Runtime.tick`                                 |
+| FR-050 framed hub protocol  | M4         | `protocol.py` + hub codec; cross-decode test both ways; no-eval tests on both sides                    |
+| FR-051 LEGO capabilities    | M4         | `capabilities_for()` derived from the hub's own port report; toolbox follows it                        |
+| FR-052 BLE handling         | M4         | `HubTransport` boundary + diagnostics; **real radio (`ble.py`) unverified**                            |
+| FR-053 LEGO safety          | M1, M4     | percent/duration caps, port validation, stop on disconnect, host-vs-autonomous exclusivity, hub button |
+| FR-054 Robot Inventor       | M4         | same path as SPIKE Prime; capability-parity test; no hardware record yet                               |
+| FR-055 EV3                  | M8         | optional adapter proof that cannot block v1 core                                                       |
+| FR-056 NXT/RCX out of scope | None in v1 | documented non-goal and no adapter/toolbox entries                                                     |
 
 ### Orchestration, simulation, instructor, and safety
 
@@ -182,43 +182,43 @@ Only one milestone is implemented at a time. Each milestone ends with a runnable
 
 ## Acceptance-criteria traceability
 
-| AC                                    | Milestone                       | Required evidence before acceptance                      |
-| ------------------------------------- | ------------------------------- | -------------------------------------------------------- |
-| 1 Apache-2.0 licensable               | M0, M9                          | licence and dependency/source audit                      |
-| 2 Windows/Ubuntu build/test           | M0 onward                       | green CI matrix at each milestone                        |
-| 3 complete reuse audit                | M0, update M7                   | exact module/path/licence/evidence entries               |
-| 4 S1 environment preserved            | M0, M2                          | no in-place changes; diagnostics name exact executable   |
-| 5 Leap to S1 through adapters         | M2                              | regression plus hardware record                          |
-| 6 Leap to Quest object                | M5                              | fake then hardware integration test                      |
-| 7 tracking loss stops motion          | M2                              | fault injection and measured owner test                  |
-| 8 readable generated Python           | M3                              | reviewed golden fixtures                                 |
-| 9 same public API                     | M3                              | blocks/handwritten conformance suite                     |
-| 10 block project simulates S1         | M3                              | browser/runtime e2e                                      |
-| 11 blocks control armed S1            | M3                              | hardware checklist after instructor arm                  |
-| 12 blocks control LEGO                | M4                              | SPIKE/Robot Inventor hardware record                     |
-| 13 one program coordinates S1/LEGO    | M4                              | exact routing integration/hardware test                  |
-| 14 unsupported blocks hidden/rejected | M3, M6                          | dynamic toolbox/API tests                                |
-| 15 Quest 2 runtime                    | M5                              | signed test record                                       |
-| 16 same runtime on Quest 3            | M5                              | same artifact hash/package record                        |
-| 17 Quest S1/LEGO telemetry            | M5                              | integration/hardware capture                             |
-| 18 Quest controls assigned robot      | M5                              | armed exact-device hardware test                         |
-| 19 dead-man release stops             | M5                              | measured fault test                                      |
-| 20 Quest disconnect stops             | M5                              | Wi-Fi-loss fault test                                    |
-| 21 no safety bypass                   | Every milestone                 | architecture/import/API negative tests and review        |
-| 22 no expired replay                  | M0, M1, hardware milestones     | ledger/reconnect/fault tests                             |
-| 23 exclusive physical lease           | M0, M1                          | concurrency and persistence tests                        |
-| 24 instructor stop-all                | M1, M6                          | adapter failure-injection suite                          |
-| 25 no default S1 blaster              | M2, M3                          | capability/toolbox/API search and tests                  |
-| 26 works without Agent Mesh           | M1 onward                       | offline CI/e2e profile                                   |
-| 27 Agent Mesh status display          | M7                              | bridge/UI integration test                               |
-| 28 extend G2/Meta                     | M0, M7                          | reuse audit and changes in existing app repository       |
-| 29 wearable stop, no movement         | M0, M7                          | allowlist and movement-denial tests                      |
-| 30 no credentials                     | M0 onward                       | secret scan, redaction tests, sanitized fixtures/bundles |
-| 31 licences documented                | M0 onward                       | notice/SBOM/licence gate                                 |
-| 32 tested hardware versions           | M2, M4, M5, M9                  | `docs/COMPATIBILITY.md` records                          |
-| 33 complete README/setup docs         | M9                              | documentation checklist; interim README remains honest   |
-| 34 all safety faults pass             | M1 then each hardware milestone | complete fault matrix, not a narrow unit suite           |
-| 35 examples include output/safety     | M3–M9                           | example manifest/documentation tests                     |
+| AC                                    | Milestone                       | Required evidence before acceptance                                        |
+| ------------------------------------- | ------------------------------- | -------------------------------------------------------------------------- |
+| 1 Apache-2.0 licensable               | M0, M9                          | licence and dependency/source audit                                        |
+| 2 Windows/Ubuntu build/test           | M0 onward                       | green CI matrix at each milestone                                          |
+| 3 complete reuse audit                | M0, update M7                   | exact module/path/licence/evidence entries                                 |
+| 4 S1 environment preserved            | M0, M2                          | no in-place changes; diagnostics name exact executable                     |
+| 5 Leap to S1 through adapters         | M2                              | regression plus hardware record                                            |
+| 6 Leap to Quest object                | M5                              | fake then hardware integration test                                        |
+| 7 tracking loss stops motion          | M2                              | fault injection and measured owner test                                    |
+| 8 readable generated Python           | M3                              | reviewed golden fixtures                                                   |
+| 9 same public API                     | M3                              | blocks/handwritten conformance suite                                       |
+| 10 block project simulates S1         | M3                              | browser/runtime e2e                                                        |
+| 11 blocks control armed S1            | M3                              | hardware checklist after instructor arm                                    |
+| 12 blocks control LEGO                | M4                              | Blocks reach a simulated hub in a browser; **hardware record outstanding** |
+| 13 one program coordinates S1/LEGO    | M4                              | Exact-routing integration test passes; **hardware test outstanding**       |
+| 14 unsupported blocks hidden/rejected | M3, M6                          | dynamic toolbox/API tests                                                  |
+| 15 Quest 2 runtime                    | M5                              | signed test record                                                         |
+| 16 same runtime on Quest 3            | M5                              | same artifact hash/package record                                          |
+| 17 Quest S1/LEGO telemetry            | M5                              | integration/hardware capture                                               |
+| 18 Quest controls assigned robot      | M5                              | armed exact-device hardware test                                           |
+| 19 dead-man release stops             | M5                              | measured fault test                                                        |
+| 20 Quest disconnect stops             | M5                              | Wi-Fi-loss fault test                                                      |
+| 21 no safety bypass                   | Every milestone                 | architecture/import/API negative tests and review                          |
+| 22 no expired replay                  | M0, M1, hardware milestones     | ledger/reconnect/fault tests                                               |
+| 23 exclusive physical lease           | M0, M1                          | concurrency and persistence tests                                          |
+| 24 instructor stop-all                | M1, M6                          | adapter failure-injection suite                                            |
+| 25 no default S1 blaster              | M2, M3                          | capability/toolbox/API search and tests                                    |
+| 26 works without Agent Mesh           | M1 onward                       | offline CI/e2e profile                                                     |
+| 27 Agent Mesh status display          | M7                              | bridge/UI integration test                                                 |
+| 28 extend G2/Meta                     | M0, M7                          | reuse audit and changes in existing app repository                         |
+| 29 wearable stop, no movement         | M0, M7                          | allowlist and movement-denial tests                                        |
+| 30 no credentials                     | M0 onward                       | secret scan, redaction tests, sanitized fixtures/bundles                   |
+| 31 licences documented                | M0 onward                       | notice/SBOM/licence gate                                                   |
+| 32 tested hardware versions           | M2, M4, M5, M9                  | `docs/COMPATIBILITY.md` records                                            |
+| 33 complete README/setup docs         | M9                              | documentation checklist; interim README remains honest                     |
+| 34 all safety faults pass             | M1 then each hardware milestone | complete fault matrix, not a narrow unit suite                             |
+| 35 examples include output/safety     | M3–M9                           | example manifest/documentation tests                                       |
 
 ## Milestone 0 file plan
 

@@ -65,6 +65,7 @@ class Runtime:
         *,
         clock: Clock | None = None,
         adapters: Iterable[DeviceAdapter] | None = None,
+        providers: Iterable[DiscoveryProvider] = (),
         policies: Iterable[SafetyPolicy] = (),
         runtime_id: str = "cit-runtime-local",
         physical_enabled: bool = False,
@@ -87,8 +88,14 @@ class Runtime:
             audit=self.audit,
             logger=self.logger,
         )
-        self._provider: DiscoveryProvider = ConfiguredDiscoveryProvider(
-            adapters if adapters is not None else default_simulation_adapters()
+        # The fake fleet is always present (FR-062 simulation-first). A hardware
+        # provider is added beside it, never instead of it, so a class whose hub
+        # is flat can still run the lesson against a simulated one.
+        self._providers: tuple[DiscoveryProvider, ...] = (
+            ConfiguredDiscoveryProvider(
+                adapters if adapters is not None else default_simulation_adapters()
+            ),
+            *providers,
         )
         self._recorders: dict[str, Recorder] = {}
         self._recordings: dict[str, Recording] = {}
@@ -108,12 +115,30 @@ class Runtime:
     # ----------------------------------------------------------------- devices
 
     async def discover(self) -> tuple[str, ...]:
-        return await self.registry.discover_from(self._provider, at=self.clock.now())
+        found: list[str] = []
+        for provider in self._providers:
+            found.extend(await self.registry.discover_from(provider, at=self.clock.now()))
+        return tuple(found)
 
     async def connect_all(self) -> tuple[str, ...]:
+        """Connect every discovered device. A hub that refuses is not fatal.
+
+        One flat hub must not stop a class from starting. The failure is
+        recorded on the device, where the instructor console shows it, and the
+        rest of the room comes up.
+        """
+
         connected: list[str] = []
         for device in self.registry.list():
-            await self.registry.connect(device.device_id, at=self.clock.now())
+            try:
+                await self.registry.connect(device.device_id, at=self.clock.now())
+            except Exception as error:
+                self.logger.warning(
+                    "device connect failed",
+                    deviceId=device.device_id,
+                    reason=str(error),
+                )
+                continue
             self.audit.record(
                 AuditAction.DEVICE_CONNECTED,
                 actor_id="system",
@@ -282,9 +307,22 @@ class Runtime:
         return await self.pipeline.stop_all(reason=reason, actor_id=actor_id)
 
     async def tick(self) -> int:
-        """Drive watchdogs. A host loop or a test calls this."""
+        """Drive watchdogs and give every adapter its slice of the same loop.
+
+        An adapter that has to keep a link alive -- a LEGO hub stops on its own
+        after 500 ms of silence (FR-049) -- gets its heartbeat from here rather
+        than from a task of its own. A background task would happily keep
+        feeding a hub after the loop that supervises it had died.
+        """
 
         expiries = await self.pipeline.enforce_watchdogs()
+        for device in self.registry.list():
+            adapter = self.registry.adapter(device.device_id)
+            tick = getattr(adapter, "tick", None)
+            if tick is None:
+                continue
+            events = await tick(at=self.clock.now())
+            self.router.publish_all(events)
         return len(expiries)
 
     # --------------------------------------------------------------- recording

@@ -260,14 +260,31 @@ def create_fake_lego_adapter() -> FakeDeviceAdapter:
         device_type="robot",
         model="lego-spike",
         adapter_id="fake-lego-pybricks",
+        # The FR-051 capability set for the common classroom build: a SPIKE
+        # Prime driving base with two motors, a distance sensor, and a colour
+        # sensor. It is written out rather than imported from the LEGO adapter
+        # so the simulator keeps no dependency on a hardware package -- but it
+        # is the same list `capabilities_for()` produces for that build, and a
+        # test in the LEGO package asserts they agree.
         capabilities=(
-            "drive.velocity",
+            "drive.straight",
             "drive.stop",
-            "motor.speed",
-            "motor.stop",
-            "sensor.distance",
-            "sensor.color",
+            "drive.turn",
+            "drive.velocity",
             "hub.battery",
+            "hub.button",
+            "hub.display",
+            "hub.sound",
+            "motor.run",
+            "motor.run_angle",
+            "motor.run_target",
+            "motor.run_time",
+            "motor.stop",
+            "sensor.color",
+            "sensor.distance",
+            "sensor.gyro",
+            "sensor.imu",
+            "sensor.reflection",
         ),
     )
 

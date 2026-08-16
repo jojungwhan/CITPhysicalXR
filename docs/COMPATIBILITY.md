@@ -23,12 +23,26 @@ Status date: 2026-08-16
 
 ## Hardware targets
 
-| Target                                 | Planned milestone                   | M0 evidence                                                         |
-| -------------------------------------- | ----------------------------------- | ------------------------------------------------------------------- |
-| RoboMaster S1                          | M2                                  | Fake contract only; no connection                                   |
-| Ultraleap/Leap Motion                  | M2                                  | Fake contract only; local runtime/service and bridge DLL unresolved |
-| LEGO SPIKE / Robot Inventor            | M4                                  | Fake contract only; no BLE/firmware work                            |
-| Quest 2 baseline / Quest 3 enhancement | M5                                  | Godot text scaffold only; no SDK, APK, or device test               |
-| Even G2 / Meta glasses                 | M7 through existing Agent Mesh apps | Reuse audit and policy scaffold only                                |
+| Target                                 | Planned milestone                   | M0 evidence                                                                                                      |
+| -------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| RoboMaster S1                          | M2                                  | Fake contract only; no connection                                                                                |
+| Ultraleap/Leap Motion                  | M2                                  | Fake contract only; local runtime/service and bridge DLL unresolved                                              |
+| LEGO SPIKE / Robot Inventor            | M4                                  | Adapter, hub agent, and protocol built and tested against a simulated hub; no BLE, no hub, no firmware installed |
+| Quest 2 baseline / Quest 3 enhancement | M5                                  | Godot text scaffold only; no SDK, APK, or device test                                                            |
+| Even G2 / Meta glasses                 | M7 through existing Agent Mesh apps | Reuse audit and policy scaffold only                                                                             |
 
 On 2026-08-16, an ephemeral `ubuntu:24.04` container copied a read-only source mount into a clean filesystem and passed locked installation, generation drift, schemas, Quest structure, secret scan, formatting, lint, strict type checks, TypeScript builds, 70 tests, licence checks, SBOM generation, and all five Python package builds. No device was passed into the container. This is Linux software evidence, not hardware evidence. GitHub Actions remains unreported until the repository is pushed.
+
+## LEGO hubs (Milestone 4)
+
+Every row is a _declared_ requirement. No hub was connected: the development host has no Bluetooth adapter (`/sys/class/bluetooth/` is empty), so none of this is hardware evidence.
+
+| Hub                            | Model id          | Ports | Pybricks class | Minimum firmware | Minimum BLE profile | Status                                     |
+| ------------------------------ | ----------------- | ----- | -------------- | ---------------- | ------------------- | ------------------------------------------ |
+| LEGO SPIKE Prime Hub           | `spike-prime`     | A–F   | `PrimeHub`     | 3.3.0            | 1.2.0               | Adapter written; untested against hardware |
+| LEGO SPIKE Essential Hub       | `spike-essential` | A–B   | `EssentialHub` | 3.3.0            | 1.2.0               | Adapter written; untested against hardware |
+| LEGO MINDSTORMS Robot Inventor | `robot-inventor`  | A–F   | `InventorHub`  | 3.3.0            | 1.2.0               | Same Pybricks path as SPIKE Prime (FR-054) |
+
+Recent SPIKE Prime and Robot Inventor hubs use the STM32H5 microcontroller and need the Pybricks 4.1 beta build. Read the hub revision before installing firmware (`docs/LEGO_SETUP.md`).
+
+Host-side software evidence on 2026-08-16, Ubuntu (Linux 7.0.0-29-generic), CPython 3.11.15, Node 22.22.1, pnpm 10.28.2: all eleven repository gates pass with 313 Python and 78 TypeScript tests, and the block-to-hub path was driven in Chromium against a runtime whose LEGO device is the real adapter over an in-memory hub. That is software evidence. It is not evidence that a motor turned.

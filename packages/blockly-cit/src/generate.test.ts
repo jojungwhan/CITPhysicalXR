@@ -4,6 +4,7 @@ import {
   buildToolbox,
   isBlockSupported,
   NEVER_IN_STUDENT_TOOLBOX,
+  type ToolboxDevice,
 } from "./catalog.js";
 import {
   blockForLine,
@@ -18,7 +19,7 @@ const BINDINGS: GeneratorBinding[] = [
 ];
 
 const S1_CAPS = ["drive.velocity", "drive.stop", "gimbal.pitch_yaw"];
-const LEGO_CAPS = ["motor.speed", "sensor.distance", "drive.stop"];
+const LEGO_CAPS = ["motor.run", "sensor.distance", "drive.stop"];
 
 describe("toolbox (FR-010)", () => {
   it("hides device blocks until a device offers the capability", () => {
@@ -28,7 +29,7 @@ describe("toolbox (FR-010)", () => {
     );
     expect(types).toContain("cit_repeat");
     expect(types).not.toContain("cit_drive_velocity");
-    expect(types).not.toContain("cit_motor_speed");
+    expect(types).not.toContain("cit_motor_run");
   });
 
   it("shows a block as soon as its capability appears", () => {
@@ -38,7 +39,7 @@ describe("toolbox (FR-010)", () => {
     const types = withLego.flatMap((entry) =>
       entry.blocks.map((block) => block.type),
     );
-    expect(types).toContain("cit_motor_speed");
+    expect(types).toContain("cit_motor_run");
     expect(types).toContain("cit_read_distance");
     expect(types).not.toContain("cit_gimbal");
   });
@@ -58,9 +59,9 @@ describe("toolbox (FR-010)", () => {
   });
 
   it("rejects a stored block whose device is gone (AC-14)", () => {
-    expect(isBlockSupported("cit_motor_speed", [])).toBe(false);
+    expect(isBlockSupported("cit_motor_run", [])).toBe(false);
     expect(
-      isBlockSupported("cit_motor_speed", [
+      isBlockSupported("cit_motor_run", [
         { deviceId: "fake-lego-main", capabilities: LEGO_CAPS },
       ]),
     ).toBe(true);
@@ -110,8 +111,13 @@ describe("generated Python (FR-011, AC-8)", () => {
               },
               {
                 id: "b8",
-                type: "cit_motor_speed",
-                fields: { device: "lego", speed: 200 },
+                type: "cit_motor_run",
+                fields: {
+                  device: "lego",
+                  port: "A",
+                  speed: 0.3,
+                  durationSeconds: 1,
+                },
               },
             ],
           },
@@ -136,7 +142,7 @@ async def main():
         await sleep(0.5)
     await parallel(
         s1.stop(),
-        lego.motor.speed(speed=200),
+        lego.motor.run(port="A", speed=0.3, durationSeconds=1),
     )
 `,
     );
@@ -440,5 +446,120 @@ describe("loose blocks (a student drops one on the canvas)", () => {
     );
     expect(result.python).toContain("@every(1)");
     expect(result.python).not.toContain("async def main():");
+  });
+});
+
+describe("LEGO blocks (FR-051, M4)", () => {
+  const LEGO_HUB: ToolboxDevice = {
+    deviceId: "lego-spike-01",
+    capabilities: [
+      "motor.run",
+      "motor.run_angle",
+      "drive.straight",
+      "drive.turn",
+      "hub.display",
+      "sensor.force",
+    ],
+  };
+
+  it("shows a LEGO block only when its exact capability is present", () => {
+    const types = buildToolbox([LEGO_HUB]).flatMap((entry) =>
+      entry.blocks.map((block) => block.type),
+    );
+    expect(types).toContain("cit_motor_run");
+    expect(types).toContain("cit_drive_straight");
+    expect(types).toContain("cit_hub_display");
+    expect(types).toContain("cit_read_force");
+    // The hub has one distance-free build: no distance sensor, no block.
+    expect(types).not.toContain("cit_read_distance");
+  });
+
+  it("generates the same student API a hand-written program would use", () => {
+    const result = generatePython(
+      [
+        {
+          id: "b1",
+          type: "cit_on_start",
+          children: [
+            {
+              id: "b2",
+              type: "cit_motor_run",
+              fields: {
+                device: "lego",
+                port: "B",
+                speed: 0.4,
+                durationSeconds: 1.5,
+              },
+            },
+            {
+              id: "b3",
+              type: "cit_motor_angle",
+              fields: { device: "lego", port: "A", angle: 180, speed: 0.2 },
+            },
+            {
+              id: "b4",
+              type: "cit_drive_straight",
+              fields: { device: "lego", distanceMillimetres: 250, speed: 0.3 },
+            },
+            {
+              id: "b5",
+              type: "cit_drive_turn",
+              fields: { device: "lego", angle: -90, speed: 0.3 },
+            },
+            {
+              id: "b6",
+              type: "cit_hub_display",
+              fields: { device: "lego", text: "go" },
+            },
+          ],
+        },
+      ],
+      BINDINGS,
+    );
+
+    expect(result.warnings).toEqual([]);
+    expect(result.python).toContain(
+      'await lego.motor.run(port="B", speed=0.4, durationSeconds=1.5)',
+    );
+    expect(result.python).toContain(
+      'await lego.motor.run_angle(port="A", angle=180, speed=0.2)',
+    );
+    expect(result.python).toContain(
+      "await lego.drive.straight(distanceMillimetres=250, speed=0.3)",
+    );
+    expect(result.python).toContain(
+      "await lego.drive.turn(angle=-90, speed=0.3)",
+    );
+    expect(result.python).toContain('await lego.hub.display(text="go")');
+  });
+
+  it("reads a force sensor as a value, not a step", () => {
+    const result = generatePython(
+      [
+        {
+          id: "b1",
+          type: "cit_on_start",
+          children: [
+            {
+              id: "b2",
+              type: "cit_if",
+              children: [
+                {
+                  id: "b3",
+                  type: "cit_read_force",
+                  fields: { device: "lego" },
+                },
+                { id: "b4", type: "cit_stop", fields: { device: "lego" } },
+              ],
+            },
+          ],
+        },
+      ],
+      BINDINGS,
+    );
+
+    expect(result.python).toContain(
+      'if (await lego.sensor("sensor.force")).value:',
+    );
   });
 });

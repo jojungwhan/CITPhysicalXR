@@ -1,0 +1,49 @@
+# A classroom with one LEGO hub. Copy this outside the repository, edit it for
+# the room in use, and start the runtime with:
+#
+#     uv run python -m cit_runtime --config path/to/lego-classroom.yaml
+#
+# Two things this file deliberately cannot contain:
+#
+# - A Bluetooth address. Hubs are bound by the name they advertise, so there is
+#   no device identifier here worth protecting.
+# - A speed a student can raise. `maxMotorPercent` is the instructor's ceiling;
+#   the safety profile's own bound is applied before it.
+#
+# Setting `physicalDevicesEnabled: false` while this section exists is refused
+# at startup rather than ignored, so a hub that was wired up on purpose never
+# fails silently.
+
+version: 1
+
+runtime:
+  bindHost: "127.0.0.1"
+  bindPort: 8791
+  physicalDevicesEnabled: true
+  agentMeshBridgeEnabled: false
+
+externalRepositories: {}
+externalEnvironments: {}
+
+devices:
+  lego-spike-01:
+    adapter: lego-pybricks
+    displayName: "Class hub 1"
+    # Rename the hub in the Pybricks Code app so each hub in the room is
+    # distinguishable; the default name is the same on every box.
+    hubName: "cit-hub-1"
+    hubModel: spike-prime
+    # What is physically plugged into the hub. The runtime re-reads this from
+    # the hub on connect and the hub's answer wins; this is what the class
+    # expects to find, so a missing motor is an error and not a surprise.
+    ports:
+      A: motor
+      B: motor
+      C: distance
+    safetyProfile: lego-student
+    maxMotorPercent: 60
+    maxCommandMilliseconds: 1500
+
+secretStore:
+  provider: os_keyring
+  namespace: cit-physical-xr

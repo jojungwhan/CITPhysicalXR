@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-lego-pybricks"
+version = "0.0.0"
+description = "LEGO SPIKE and MINDSTORMS adapter for CIT Physical XR, over Pybricks firmware"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "cit-device-simulator",
+  "cit-protocol",
+  "cit-safety-core",
+]
+
+# Bluetooth is not a test dependency. The adapter is written against an
+# injectable transport (FR-052) and its whole test suite runs on a fake, so the
+# real radio stack stays optional and is installed only on a machine that has a
+# hub in front of it: `uv sync --extra hardware`.
+[project.optional-dependencies]
+hardware = ["pybricksdev>=1.0.0,<2"]
+
+[tool.uv.sources]
+cit-device-simulator = { workspace = true }
+cit-protocol = { workspace = true }
+cit-safety-core = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cit_lego_pybricks"]

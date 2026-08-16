@@ -36,6 +36,23 @@ The current resolved dependency graph contains software under `Apache-2.0`, `MIT
 | FastAPI and Starlette     | Local runtime API                | `MIT` / `BSD-3-Clause` |
 | uvicorn and websockets    | Local runtime transport          | `BSD-3-Clause`         |
 
+## Optional hardware dependencies (Milestone 4)
+
+`adapters/lego-pybricks` declares an optional `hardware` extra. It is not installed by default, is not required to build, test, or run this repository, and is needed only on a machine that will connect to a LEGO hub over Bluetooth.
+
+| Component                      | Purpose                                               | Licence                                                             |
+| ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------- |
+| `pybricksdev`                  | Pybricks BLE protocol, program compile and download   | `MIT`                                                               |
+| `bleak`                        | Cross-platform Bluetooth Low Energy (via pybricksdev) | `MIT`                                                               |
+| `asyncssh`                     | Transitive: pybricksdev's ev3dev support              | `EPL-2.0 OR GPL-2.0-or-later` — **not allowlisted**                 |
+| `cffi`                         | Transitive                                            | `MIT-0` — **not allowlisted**                                       |
+| `mpy-cross-v5`, `mpy-cross-v6` | Transitive: MicroPython compilers                     | no licence metadata published — **not allowlisted**                 |
+| `aioserial`, `tqdm`            | Transitive                                            | `MPL-2.0`, `MPL-2.0 AND MIT` (allowed; metadata does not normalize) |
+
+Installing the extra therefore makes `pnpm license:check` fail on that machine. This is recorded, not resolved: see ADR-023 in `docs/DECISIONS.md`. No LEGO hardware work should proceed until the owner decides which way it goes.
+
+LEGO hardware, the Pybricks firmware installed on a hub, and the Pybricks Code web installer are not distributed by this repository.
+
 ## Generated files
 
 `packages/protocol-ts/src/generated` and `packages/protocol-py/src/cit_protocol/generated.py` are generated from the repository's original JSON Schema. Generator dependencies are tooling only; generated output remains part of this Apache-2.0 project to the extent permitted by those tools.

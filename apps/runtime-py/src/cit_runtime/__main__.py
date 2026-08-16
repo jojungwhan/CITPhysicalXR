@@ -15,6 +15,14 @@ def main() -> None:
     parser.add_argument("--host", default="127.0.0.1", help="Interface to bind (loopback only)")
     parser.add_argument("--port", type=int, default=8791, help="TCP port to listen on")
     parser.add_argument(
+        "--config",
+        default=None,
+        help=(
+            "Class configuration file. Without one the runtime starts in simulation with "
+            "the fake devices; with one it also connects the physical devices it names."
+        ),
+    )
+    parser.add_argument(
         "--allow-non-loopback",
         action="store_true",
         help=(
@@ -27,6 +35,7 @@ def main() -> None:
         host=arguments.host,
         port=arguments.port,
         allow_non_loopback=arguments.allow_non_loopback,
+        config_path=arguments.config,
     )
 
 
