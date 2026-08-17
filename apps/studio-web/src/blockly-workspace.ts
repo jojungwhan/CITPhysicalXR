@@ -13,6 +13,7 @@ import * as KoMessages from "blockly/msg/ko";
 import {
   BLOCK_CATALOG,
   buildToolbox,
+  toWorkspaceBlocks,
   type BlockSpec,
   type ToolboxDevice,
 } from "@citxr/blockly-cit";
@@ -179,6 +180,33 @@ function categoryLabel(category: string, locale: Locale): string {
 }
 
 /** Read the workspace into the shape the project file stores. */
+/**
+ * FR-001. Show the student the project that was opened.
+ *
+ * Without this, opening a stored project changed the document in memory and
+ * left the editor showing the previous program -- and the next change event
+ * wrote the editor's blocks over the ones that had just been loaded. Events are
+ * suppressed during the load for exactly that reason: the change listener would
+ * treat the load as an edit and save it back over itself.
+ */
+export function loadWorkspace(
+  workspace: Blockly.Workspace,
+  state: BlocksState,
+): void {
+  Blockly.Events.disable();
+  try {
+    workspace.clear();
+    for (const block of toWorkspaceBlocks(state.blocks)) {
+      Blockly.serialization.blocks.append(
+        block as Blockly.serialization.blocks.State,
+        workspace,
+      );
+    }
+  } finally {
+    Blockly.Events.enable();
+  }
+}
+
 export function readWorkspace(workspace: Blockly.Workspace): BlocksState {
   const roots = workspace
     .getTopBlocks(true)

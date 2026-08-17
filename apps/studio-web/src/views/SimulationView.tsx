@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { exportFilename, saveTextAsFile } from "../download.js";
 import type { Translate } from "../i18n.js";
 import type {
   RecordingView,
@@ -61,12 +62,17 @@ export function SimulationView({
       setNotice(t("simulation.replayed", { count: outcome.delivered }));
     });
 
+  // FR-084. The replay package leaves as a file, so a lesson can be looked at
+  // after the runtime that recorded it has been shut down.
   const exportPackage = (recordingId: string) =>
     run(async () => {
       const text = await client.exportRecording(recordingId);
-      // Shown rather than downloaded: a page served by the runtime can hand
-      // this to the instructor without asking the browser for a file.
-      setNotice(`${recordingId}: ${text.length} bytes`);
+      const name = saveTextAsFile(
+        text,
+        exportFilename("replay", recordingId, new Date(), "json"),
+        "application/json",
+      );
+      setNotice(t("download.saved", { name }));
     });
 
   const remove = (recordingId: string) =>

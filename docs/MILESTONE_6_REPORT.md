@@ -157,13 +157,15 @@ instructor again.
   lesson and the person.
 - **Projects do not autosave.** Saving is a button. The store is built for
   autosave -- atomic writes and a retained previous version -- but nothing calls
-  it on a timer yet.
+  it on a timer yet. _(Closed 2026-08-17; see `MILESTONE_6_FOLLOWUP_REPORT.md`
+  and ADR-030. Turning it on exposed a bug of this milestone's: opening a
+  project did not load its blocks, so the editor overwrote what was opened.)_
 - **The export shows a byte count rather than downloading a file.** The audit and
   replay-package routes return their documents; the Studio reports the size and
-  does not yet hand the browser a file.
+  does not yet hand the browser a file. _(Closed 2026-08-17; ADR-031.)_
 - **The command queue is still not the dispatch path.** Unchanged from Milestone
   1: `CommandQueue` implements FR-072 ordering and FR-067 clearing, and
-  `submit()` still dispatches directly.
+  `submit()` still dispatches directly. _(Closed 2026-08-17; ADR-029.)_
 - **Roles are two.** Student and instructor. There is no administrator, and no
   per-class membership: anyone who can reach the loopback port can join as a
   student.
@@ -173,4 +175,5 @@ instructor again.
   equally as "released" and could have presented the dangerous state as the safe
   one, so the armed and disarmed states are now `작동 허용` and `작동 잠김`. That
   is a review, not a native reader's verdict.
-- **ADR-023 is still open**, and still blocks LEGO hardware bring-up.
+- **ADR-023 is still open**, and still blocks LEGO hardware bring-up. _(Decided
+  2026-08-17: option 3, the transport split. Not implemented.)_

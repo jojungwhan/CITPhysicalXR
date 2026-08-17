@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
+import { exportFilename, saveTextAsFile } from "../download.js";
 import type { Translate } from "../i18n.js";
 import type {
   AuditEntryView,
@@ -39,10 +40,18 @@ export function LogsView({
     void run(refresh);
   }, [refresh, run]);
 
+  // FR-084. A file the instructor keeps, not a byte count they read. The log
+  // is fetched with the runtime token in a header, so this cannot be a link:
+  // the document is already in memory by the time it is saved.
   const exportLog = () =>
     run(async () => {
       const text = await client.auditExport();
-      setExported(`${text.split("\n").length} lines`);
+      const name = saveTextAsFile(
+        text,
+        exportFilename("audit", null, new Date(), "jsonl"),
+        "application/x-ndjson",
+      );
+      setExported(t("download.saved", { name }));
     });
 
   return (

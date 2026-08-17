@@ -21,11 +21,14 @@ import {
   type ProgramError,
 } from "@citxr/student-runtime-web";
 
+import { Autosave, type SaveState } from "./autosave.js";
 import {
+  loadWorkspace,
   readWorkspace,
   registerBlocks,
   toolboxDefinition,
 } from "./blockly-workspace.js";
+import { exportFilename, saveTextAsFile } from "./download.js";
 import type { Locale, Translate } from "./i18n.js";
 import type {
   CommandOutcome,
@@ -95,6 +98,17 @@ export function ProgramView({
   const [running, setRunning] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [outcome, setOutcome] = useState<CommandOutcome | null>(null);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
+  // What a change is, for the purpose of saving one. Not `updatedAt`: opening a
+  // project restamps it, and a project that saves itself because it was opened
+  // rotates its own backup for nothing.
+  const contentOf = (candidate: CitProject): string =>
+    exportProject({ ...candidate, updatedAt: "" });
+  // The document as the runtime last stored it. `null` means this project has
+  // never been on disk, and nothing is autosaved until it has been: a project
+  // the Studio invented at page load has an id every other tab invented too,
+  // and autosaving it would have two students writing one file.
+  const savedTextRef = useRef<string | null>(null);
   // FR-062. Simulation unless an instructor deliberately chooses otherwise, and
   // a student has no control that changes it.
   const [mode, setMode] = useState<"simulation" | "physical">("simulation");
@@ -223,17 +237,62 @@ export function ProgramView({
     window.localStorage.removeItem("citxr.openProject");
     void run(async () => {
       const stored = (await client.project(wanted)) as unknown as CitProject;
+      const workspace = workspaceRef.current;
+      // The blocks first: the change listener regenerates from the workspace,
+      // so a project set in state while the editor still holds the previous
+      // program is a project about to be overwritten by it.
+      if (workspace !== null) loadWorkspace(workspace, stored.blocksState);
       setProject(stored);
+      savedTextRef.current = contentOf(stored);
+      setSaveState("saved");
       setNotice(null);
     });
   }, [client, run]);
 
+  // FR-001. Edits reach the disk without anybody pressing anything.
+  //
+  // Created once and kept in a ref: an autosave rebuilt on every render would
+  // lose the edit it was holding, which is the failure it exists to prevent.
+  const autosaveRef = useRef<Autosave<CitProject> | null>(null);
+  if (autosaveRef.current === null) {
+    autosaveRef.current = new Autosave<CitProject>({
+      onState: setSaveState,
+      save: async (document) => {
+        const text = contentOf(document);
+        await client.saveProject(
+          document.projectId,
+          document as unknown as Record<string, unknown>,
+        );
+        savedTextRef.current = text;
+      },
+    });
+  }
+
+  useEffect(() => {
+    const autosave = autosaveRef.current;
+    return () => {
+      // Leaving the Program view is not a decision to discard the last edit.
+      autosave?.flushNow();
+      autosave?.stop();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (savedTextRef.current === null) return;
+    const text = contentOf(project);
+    if (text === savedTextRef.current) return;
+    autosaveRef.current?.change(project);
+  }, [project]);
+
   const save = () =>
     run(async () => {
+      const text = contentOf(project);
       await client.saveProject(
         project.projectId,
         project as unknown as Record<string, unknown>,
       );
+      savedTextRef.current = text;
+      setSaveState("saved");
       setNotice(t("projects.saved"));
     });
 
@@ -405,12 +464,15 @@ export function ProgramView({
     }
   };
 
+  // FR-002. The project leaves as the same versioned document the runtime
+  // stores, so a student can take their work home on a memory stick.
   const download = () => {
-    const text = exportProject(project);
-    setConsole((current) => [
-      ...current,
-      `Exported ${text.length} bytes of project JSON.\n`,
-    ]);
+    const name = saveTextAsFile(
+      exportProject(project),
+      exportFilename("project", project.name, new Date(), "json"),
+      "application/json",
+    );
+    setNotice(t("download.saved", { name }));
   };
 
   const pythonMode = project.authoringMode === "python";
@@ -617,6 +679,20 @@ export function ProgramView({
             <button type="button" onClick={download}>
               {t("program.export")}
             </button>
+            {/* Read on every render that changes `saveState`, and the two are
+                always set together. UI 11.6: a student can tell whether their
+                work is on the runtime without opening another page. */}
+            <span className="muted save-state" role="status">
+              {savedTextRef.current === null
+                ? t("projects.notStored")
+                : saveState === "saving"
+                  ? t("projects.saving")
+                  : saveState === "unsaved"
+                    ? t("projects.unsaved")
+                    : saveState === "failed"
+                      ? t("projects.autosaveFailed")
+                      : t("projects.saved")}
+            </span>
           </div>
         </div>
 

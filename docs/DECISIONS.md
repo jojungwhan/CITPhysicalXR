@@ -157,7 +157,11 @@ Two reasons this is a rule rather than a preference. A number a student carries 
 
 ## ADR-023 — `pybricksdev` is the hardware transport, and its licence tree is an open owner decision
 
-Status: Proposed — needs an owner decision before hardware bring-up
+Status: Accepted 2026-08-17 (owner) — **option 3**. Nothing is implemented yet: the split below is authorized, not built, and `--extra hardware` still installs the contested tree today. Implementing it belongs to LEGO hardware bring-up.
+
+The owner's decision: host-controlled mode runs on `bleak` alone (MIT, clean tree), and `pybricksdev` is kept only for the autonomous download path FR-048 needs. An ordinary classroom therefore never installs `asyncssh`, `cffi`, or an `mpy-cross` build with no licence metadata; the machine that installs a program onto a hub does, deliberately, and the licence gate has to say so rather than be widened. The allowlist is unchanged.
+
+The reasoning that was put to the owner follows, unedited.
 
 The Pybricks BLE service UUIDs, command and event byte codes, and the framing of `WriteStdin`/`WriteStdout` belong to the firmware project and change with the firmware. Hardcoding them would mean CIT silently owning a copy of someone else's wire format. `pybricksdev` is MIT, is maintained by that project, and is what PRD section 2.3 names. It also supplies the `mpy-cross` compile-and-download path that FR-048 needs. It is therefore the transport, behind the injectable boundary FR-052 requires, and it is an **optional** dependency so a machine with no hub never installs a radio stack.
 
@@ -219,6 +223,36 @@ The supervisor now derives it: a device's dead-man is active only if a heartbeat
 
 This tightens physical mode only. Simulation never required a dead-man and still does not, because FR-062 has to work with nobody in the room.
 
+## ADR-029 — The command queue is the dispatch path, and a device drains its own
+
+Status: Accepted (Milestone 6 follow-up)
+
+`CommandQueue` implemented FR-072 priority ordering and FR-067 clearing since Milestone 1, and `submit()` dispatched straight to the adapter. The queue was therefore a structure beside the runtime rather than in it: a stop could not overtake a command that was already waiting, and clearing a queue cleared something no command had ever been in. Both requirements were enforced against nobody, in the same sense ADR-027 and ADR-028 mean.
+
+Every command now enters the queue, and the outcome is still returned to the caller that submitted it. What changed is that while that caller waits, the runtime may run somebody else's higher-priority command for that device first.
+
+Draining is **per device**, not per runtime. A robot executes one command at a time and a lease is per device, so serializing a device is physics; serializing the room would make one student's slow command the reason another student's robot stood still (FR-057). Each device has a lane, and whoever submits does the draining — there is no background worker to supervise, nothing to leak when a runtime stops, and no command left in a queue because its task was never started.
+
+Two consequences are deliberate. A cleared queue is a refusal, not a silence: every discarded command is answered with the reason it never ran and recorded as denied, so a student whose robot did nothing after a stop-all can be told why instead of watching a page wait forever. And the emergency paths — `stop_device`, `stop_all`, watchdogs — do not queue behind a lane, because a stop that waits for the command it is meant to interrupt is not a stop.
+
+## ADR-030 — A project is autosaved only once it exists on disk, and opening one loads its blocks
+
+Status: Accepted (Milestone 6 follow-up)
+
+The project store has been built for autosave since Milestone 6 — atomic write, retained previous version — and nothing called it, so a lesson's work depended on a child remembering a button. Editing now writes about a second and a half after the edits stop.
+
+It does not autosave a project the Studio invented at page load. That project's id is a fixed constant, so every tab in the classroom has the same one, and autosaving it would have two students writing one file. A project is autosaved once the runtime has it: opened from the Projects list, or saved once by hand.
+
+Turning autosave on made a Milestone 6 bug automatic and silent, so it is fixed here: opening a project set the document in memory and left the editor showing the previous program, and the editor's next change event wrote its own blocks over the ones that had just been loaded. Opening now loads the stored blocks into the workspace first. The translation back into Blockly's load format lives in `packages/blockly-cit`, with the catalog it needs and away from Blockly itself, because Blockly's Node entry point needs `jsdom` and Milestone 3 dropped `jsdom` rather than widen the licence allowlist. It is exact only while a catalog block has at most one value input and at most one statement input, and a test asserts that property rather than trusting it.
+
+## ADR-031 — An export is a file the page builds, not a link the browser follows
+
+Status: Accepted (Milestone 6 follow-up)
+
+The audit log, a replay package, and a project are fetched with the runtime token in an `Authorization` header. A plain link carries no header, and putting a token in a query string writes it into browser history, so an export cannot be a download URL: the document is already in memory by the time anybody wants it saved. The Studio therefore builds a blob and asks the browser to save it, revoking the object URL afterwards so a lesson's exports do not accumulate in the tab.
+
+Everything that touches the DOM is injected, so the naming and the lifetime are tested in Node without a DOM.
+
 ## Deviations from the PRD
 
 None at Milestone 0 start. The local workspace directory is named `CITPhysicalXR`, while the Git product/repository identity remains `cit-physical-xr`; this is a host path detail, not an architecture deviation.
@@ -229,5 +263,5 @@ None at Milestone 0 start. The local workspace directory is named `CITPhysicalXR
 2. Owner licence designation for Agent CLI Mesh, RoboMaster gesture control, and classroom mission source.
 3. Tested stable Godot/OpenXR/Godot XR Tools versions at the start of Milestone 5.
 4. Exact local secret-store implementation for Quest pairing tokens, decided before pairing code is implemented.
-5. ADR-023: whether the `hardware` extra's licence tree (`asyncssh` EPL/GPL, `cffi` MIT-0, `mpy-cross` unlicensed metadata) is acceptable, and if not, which replacement is taken. Blocking for LEGO hardware bring-up, not for anything already shipped.
+5. ~~ADR-023: whether the `hardware` extra's licence tree is acceptable~~ — decided 2026-08-17, option 3. What remains is engineering, not a decision: splitting the transport so host-controlled mode needs `bleak` alone, and teaching `license:check` to say which extra a package came from.
 6. Whether the LEGO drive-base geometry (56 mm wheels, 114 mm axle track) should be per-device configuration rather than a default, decided when a real build is measured.

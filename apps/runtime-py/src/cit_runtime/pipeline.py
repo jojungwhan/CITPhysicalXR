@@ -12,6 +12,7 @@ that has already been accepted.
 
 from __future__ import annotations
 
+import asyncio
 import heapq
 import itertools
 from collections.abc import Iterable, Mapping
@@ -39,6 +40,7 @@ from .supervisor import (
     SafetySupervisor,
     WatchdogAction,
     WatchdogExpiry,
+    classify_priority,
 )
 
 
@@ -59,6 +61,33 @@ class _QueueItem:
     priority: int
     tiebreak: int
     command: DeviceCommandIntent = field(compare=False)
+    # The caller waiting for this command's outcome, when there is one. A
+    # command pushed by a test has nobody waiting; a command pushed by
+    # ``submit`` has exactly one caller, and discarding it without answering
+    # them would leave that caller awaiting a result that can never arrive.
+    waiter: asyncio.Future[Dispatch] | None = field(compare=False, default=None)
+
+    def resolve(self, dispatch: Dispatch) -> None:
+        if self.waiter is not None and not self.waiter.done():
+            self.waiter.set_result(dispatch)
+
+    def fail(self, error: BaseException) -> None:
+        if self.waiter is not None and not self.waiter.done():
+            self.waiter.set_exception(error)
+
+
+@dataclass(slots=True)
+class _DeviceLane:
+    """One device's turn-taking. Held while that device's queue is drained.
+
+    Per device rather than per runtime: a lease is per device and a robot
+    executes one command at a time, so serializing a device is physics. Doing
+    the same across the room would make one student's slow command the reason
+    another student's robot stood still (FR-057).
+    """
+
+    lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+    users: int = 0
 
 
 class CommandQueue:
@@ -74,12 +103,23 @@ class CommandQueue:
     def __len__(self) -> int:
         return len(self._heap)
 
-    def push(self, command: DeviceCommandIntent, *, priority: CommandPriority) -> None:
+    def push(
+        self,
+        command: DeviceCommandIntent,
+        *,
+        priority: CommandPriority,
+        waiter: asyncio.Future[Dispatch] | None = None,
+    ) -> None:
         if len(self._heap) >= self._max_depth:
             raise OverflowError("Command queue is full; the runtime is shedding load")
         heapq.heappush(
             self._heap,
-            _QueueItem(priority=int(priority), tiebreak=next(self._counter), command=command),
+            _QueueItem(
+                priority=int(priority),
+                tiebreak=next(self._counter),
+                command=command,
+                waiter=waiter,
+            ),
         )
 
     def pop(self) -> DeviceCommandIntent | None:
@@ -87,18 +127,46 @@ class CommandQueue:
             return None
         return heapq.heappop(self._heap).command
 
-    def clear(self, *, device_id: str | None = None) -> int:
-        """FR-067. Returns how many queued commands were discarded."""
+    def pop_for(self, device_id: str) -> _QueueItem | None:
+        """The highest-priority queued item for one device (FR-072).
+
+        A heap orders the whole room, and the room is drained one device at a
+        time, so the item wanted here is not always the heap's root.
+        """
+
+        best: _QueueItem | None = None
+        for item in self._heap:
+            if item.command.deviceId != device_id:
+                continue
+            if best is None or item < best:
+                best = item
+        if best is None:
+            return None
+        self._heap.remove(best)
+        heapq.heapify(self._heap)
+        return best
+
+    def take(self, *, device_id: str | None = None) -> tuple[_QueueItem, ...]:
+        """Remove and return queued items, so a caller can answer their waiters."""
 
         if device_id is None:
-            cleared = len(self._heap)
+            taken = tuple(sorted(self._heap))
             self._heap.clear()
-            return cleared
-        kept = [item for item in self._heap if item.command.deviceId != device_id]
-        cleared = len(self._heap) - len(kept)
-        self._heap = kept
-        heapq.heapify(self._heap)
-        return cleared
+            return taken
+        taken = tuple(sorted(item for item in self._heap if item.command.deviceId == device_id))
+        if taken:
+            self._heap = [item for item in self._heap if item.command.deviceId != device_id]
+            heapq.heapify(self._heap)
+        return taken
+
+    def clear(self, *, device_id: str | None = None) -> int:
+        """FR-067. Returns how many queued commands were discarded.
+
+        Nothing waiting on a discarded command is answered here: a caller that
+        wants to answer them uses ``take``. The pipeline always does.
+        """
+
+        return len(self.take(device_id=device_id))
 
     def peek_device_ids(self) -> tuple[str, ...]:
         return tuple(item.command.deviceId for item in sorted(self._heap))
@@ -132,8 +200,76 @@ class CommandPipeline:
         self._leases = InMemoryDeviceLeaseRegistry()
         self._lease_ttl = lease_ttl
         self.queue = CommandQueue()
+        self._lanes: dict[str, _DeviceLane] = {}
 
     async def submit(self, command: DeviceCommandIntent) -> Dispatch:
+        """FR-072. Every command enters the queue; a device drains its own.
+
+        Until Milestone 6 the queue implemented ordering and clearing for
+        nobody: ``submit`` dispatched straight to the adapter, so a queued
+        instructor stop could not overtake a student command that had already
+        been handed to a robot, and clearing a queue cleared something no
+        command had ever been in. Both are now the same path.
+
+        The caller still awaits its own outcome. What changed is that while it
+        waits, the runtime is free to run somebody else's higher-priority
+        command for that device first.
+        """
+
+        priority = classify_priority(command)
+        waiter: asyncio.Future[Dispatch] = asyncio.get_running_loop().create_future()
+        try:
+            self.queue.push(command, priority=priority, waiter=waiter)
+        except OverflowError:
+            return self._reject(
+                command,
+                "SAFETY_POLICY_DENIED",
+                "The command queue is full and the runtime is shedding load",
+                "Wait for the class to catch up, then send this again.",
+                now=self._clock.now(),
+                priority=priority,
+            )
+        await self._drain(command.deviceId)
+        return await waiter
+
+    async def _drain(self, device_id: str) -> None:
+        """Run this device's queued commands, highest priority first.
+
+        Cooperative rather than a background task: whoever submits does the
+        draining, so there is no worker to supervise, nothing to leak when a
+        runtime stops, and no command sitting in a queue because its task was
+        never started. A caller may drain somebody else's command and find its
+        own already answered, which is the point.
+        """
+
+        lane = self._lanes.get(device_id)
+        if lane is None:
+            lane = self._lanes[device_id] = _DeviceLane()
+        # Counted before the lock is awaited, so the lane cannot be dropped and
+        # recreated while somebody is queued behind it -- two lanes for one
+        # device would be two commands on one robot at once.
+        lane.users += 1
+        try:
+            async with lane.lock:
+                while True:
+                    item = self.queue.pop_for(device_id)
+                    if item is None:
+                        return
+                    try:
+                        item.resolve(await self._dispatch(item.command))
+                    except Exception as error:
+                        # One command's failure belongs to whoever sent it, not
+                        # to whoever happened to be draining the lane.
+                        item.fail(error)
+                    except BaseException as error:
+                        item.fail(error)
+                        raise
+        finally:
+            lane.users -= 1
+            if lane.users == 0:
+                self._lanes.pop(device_id, None)
+
+    async def _dispatch(self, command: DeviceCommandIntent) -> Dispatch:
         """Run one command through every gate, in order."""
 
         now = self._clock.now()
@@ -354,7 +490,7 @@ class CommandPipeline:
         """Stop one device and clear anything queued for it (FR-067)."""
 
         now = self._clock.now()
-        cleared = self.queue.clear(device_id=device_id)
+        cleared = self._discard(device_id=device_id, reason=reason)
         adapter = self._registry.adapter(device_id)
         await adapter.stop(reason=reason, at=now)
         self._router.publish_all(adapter.drain_events())
@@ -371,7 +507,7 @@ class CommandPipeline:
         """FR-067 stop-all: every device stops, every queue empties, all disarm."""
 
         now = self._clock.now()
-        self.queue.clear()
+        self._discard(device_id=None, reason=reason)
         stopped: list[str] = []
         for device in self._registry.list():
             adapter = self._registry.adapter(device.device_id)
@@ -416,7 +552,7 @@ class CommandPipeline:
     def clear_queue(self, *, device_id: str | None, actor_id: str) -> int:
         """FR-067. Discard queued work without stopping anything else."""
 
-        cleared = self.queue.clear(device_id=device_id)
+        cleared = self._discard(device_id=device_id, reason=f"queue cleared by {actor_id}")
         self._audit.record(
             AuditAction.QUEUE_CLEARED,
             actor_id=actor_id,
@@ -457,7 +593,7 @@ class CommandPipeline:
         """FR-066 step 7 and FR-087: a disconnect disarms and clears the queue."""
 
         now = self._clock.now()
-        self.queue.clear(device_id=device_id)
+        self._discard(device_id=device_id, reason=f"device disconnected: {reason}")
         self._supervisor.disarm(device_id)
         self._registry.mark_failed(device_id, reason=reason, at=now)
         for session in self._sessions.active_for_device(device_id):
@@ -473,6 +609,32 @@ class CommandPipeline:
         )
 
     # ------------------------------------------------------------------ helpers
+
+    def _discard(self, *, device_id: str | None, reason: str) -> int:
+        """Drop queued commands and tell whoever sent them (FR-067, UI 11.6).
+
+        A cleared queue is a refusal, not a silence. Every discarded command is
+        answered with the reason it never ran and is recorded as denied, so a
+        student whose robot did nothing after a stop-all can be told why rather
+        than watching a page wait forever.
+        """
+
+        items = self.queue.take(device_id=device_id)
+        if not items:
+            return 0
+        now = self._clock.now()
+        for item in items:
+            item.resolve(
+                self._reject(
+                    item.command,
+                    "SAFETY_POLICY_DENIED",
+                    f"Queued command discarded: {reason}",
+                    "Nothing was sent to the device. Send it again when the class is running.",
+                    now=now,
+                    priority=CommandPriority(item.priority),
+                )
+            )
+        return len(items)
 
     def _actor_for(self, command: DeviceCommandIntent) -> str:
         """Who issued this, when the session is still known (FR-083)."""

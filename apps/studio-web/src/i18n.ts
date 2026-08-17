@@ -151,6 +151,12 @@ const EN = {
   "projects.unsaved": "Unsaved changes",
   "projects.save": "Save",
   "projects.confirmDelete": "Delete this project? This cannot be undone.",
+  "projects.notStored":
+    "Not on the runtime yet. Save once, and your edits are saved from then on.",
+  "projects.autosaveFailed":
+    "Could not save. Your work is still here; press Save to try again.",
+
+  "download.saved": "Saved as {name}",
 
   "xr.heading": "XR",
   "xr.notInThisMilestone":
@@ -353,6 +359,12 @@ const KO: Record<MessageKey, string> = {
   "projects.unsaved": "저장하지 않은 변경",
   "projects.save": "저장",
   "projects.confirmDelete": "이 프로젝트를 삭제할까요? 되돌릴 수 없습니다.",
+  "projects.notStored":
+    "아직 런타임에 저장하지 않았습니다. 한 번 저장하면 그다음부터는 알아서 저장합니다.",
+  "projects.autosaveFailed":
+    "자동 저장에 실패했습니다. 작업한 내용은 그대로 있으니 저장을 눌러 다시 해 보세요.",
+
+  "download.saved": "{name} 파일로 저장했습니다.",
 
   "xr.heading": "XR",
   "xr.notInThisMilestone":

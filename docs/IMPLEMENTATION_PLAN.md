@@ -1,6 +1,6 @@
 # Implementation Plan
 
-- Status: Milestones 0, 1, 3, 4, and 6 complete. Every device so far is simulated: M4 built the LEGO adapter, hub agent, and protocol, but no hub was connected (no Bluetooth adapter on the development host). M6 added roles, the instructor console, projects on disk, replay, and a Korean/English interface, and tightened two rules that were previously self-declared by the caller (ADR-027, ADR-028). M2 and M5 are deferred until hardware is available.
+- Status: Milestones 0, 1, 3, 4, and 6 complete, plus the Milestone 6 follow-up of 2026-08-17 (`docs/MILESTONE_6_FOLLOWUP_REPORT.md`): the command queue is now the dispatch path (FR-072, FR-067, ADR-029), projects autosave and open with their blocks (FR-001, ADR-030), and the audit, replay, and project exports leave as files (FR-084, ADR-031). Every device so far is simulated: M4 built the LEGO adapter, hub agent, and protocol, but no hub was connected (no Bluetooth adapter on the development host). M6 added roles, the instructor console, projects on disk, replay, and a Korean/English interface, and tightened two rules that were previously self-declared by the caller (ADR-027, ADR-028). M2 and M5 are deferred until hardware is available.
 - Authoritative product specification: `docs/PRD.md` version 1.0, 2026-08-16
 
 ## Delivery rule
