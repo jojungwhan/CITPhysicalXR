@@ -6,7 +6,23 @@
     "jsx": "react-jsx",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "noEmit": true
+    "noEmit": true,
+    // Typecheck the workspace packages from their source, not from the `dist`
+    // a previous build happened to leave behind. Two reasons, and CI found the
+    // second one: types read from `dist` are as old as the last build, and on a
+    // clean clone there is no `dist` at all -- the gate order runs `typecheck`
+    // before `build`, so every cross-package import was unresolved and the
+    // errors that followed were the cascade, not the fault.
+    //
+    // Vite is unaffected: it resolves these through the package `exports` at
+    // build time, and `pnpm -r build` builds a package before its consumer.
+    "paths": {
+      "@citxr/blockly-cit": ["../../packages/blockly-cit/src/index.ts"],
+      "@citxr/project-format": ["../../packages/project-format/src/index.ts"],
+      "@citxr/student-runtime-web": [
+        "../../packages/student-runtime-web/src/index.ts"
+      ]
+    }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "vite.config.ts"]
 }
