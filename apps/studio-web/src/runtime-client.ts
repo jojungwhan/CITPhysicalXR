@@ -176,25 +176,48 @@ export const LOOPBACK_RUNTIME_URL = "http://127.0.0.1:8791";
 const DEV_SERVER_PORTS = new Set(["5173", "4173"]);
 
 /**
- * Pick the runtime origin.
+ * Pick the runtime's base URL: the origin serving this page, and the path it is
+ * served under.
  *
  * The runtime serves this bundle itself, so same-origin is the normal case and
  * needs no CORS exception. Only Vite's dev server has to reach across to the
  * loopback port, and that origin is on the runtime's allowlist.
  *
- * A copy served from any other host resolves to its own origin, finds no API
- * there, and says the runtime is unreachable. That is correct: a remote page
- * must not be able to drive a robot on someone's desk.
+ * The path matters because the runtime can be served under one. A proxy that
+ * routes `https://host/citxr` to the runtime forwards the path as it arrived,
+ * so the API lives at `/citxr/api/...` and the page must ask for it there. A
+ * bundle served from a plain static host resolves the same way, finds no API
+ * beside itself, and says the runtime is unreachable -- which is correct, and is
+ * why a static copy of this page cannot drive anything.
+ *
+ * What keeps a robot safe is not this function. It is that the runtime binds
+ * loopback only, so the sole way to reach it from outside is a proxy its owner
+ * configured on purpose (see `docs/HOSTING.md`).
  */
 export function resolveRuntimeUrl(location?: {
   origin: string;
   port: string;
+  pathname?: string;
 }): string {
   const current =
     location ?? (typeof window === "undefined" ? undefined : window.location);
   if (current === undefined) return LOOPBACK_RUNTIME_URL;
   if (DEV_SERVER_PORTS.has(current.port)) return LOOPBACK_RUNTIME_URL;
-  return current.origin;
+  return `${current.origin}${basePathOf(current.pathname ?? "/")}`;
+}
+
+/**
+ * The directory this page is served from, with no trailing slash.
+ *
+ * `/citxr/index.html` and `/citxr/` are both `/citxr`; `/` and `/index.html`
+ * are both the empty string. A last segment is a file when it has a dot in it,
+ * which is the same rule the bundle's own relative asset URLs follow.
+ */
+export function basePathOf(pathname: string): string {
+  const segments = pathname.split("/");
+  const last = segments[segments.length - 1] ?? "";
+  if (last.includes(".")) segments.pop();
+  return segments.join("/").replace(/\/+$/, "");
 }
 
 export const DEFAULT_RUNTIME_URL = resolveRuntimeUrl();

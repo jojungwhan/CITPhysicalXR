@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 from collections.abc import AsyncIterator, Callable, Mapping
 from contextlib import asynccontextmanager, suppress
 from datetime import timedelta
@@ -44,6 +45,7 @@ from .retention import RetentionPolicy, replay_package
 from .roles import (
     Action,
     AuthenticationError,
+    Authority,
     AuthorizationError,
     Principal,
     Role,
@@ -1042,6 +1044,63 @@ def studio_dist() -> Path:
     return Path(__file__).resolve().parents[4] / "apps" / "studio-web" / "dist"
 
 
+class PathPrefix:
+    """Serve the whole runtime under a path, for a proxy that cannot rewrite one.
+
+    A Cloudflare Tunnel routes a hostname and path to a local service and
+    forwards the path as it arrived: a rule for ``/citxr`` delivers
+    ``/citxr/api/health``, not ``/api/health``. Rather than teaching every route
+    about a prefix, this strips it once, at the edge of the ASGI app.
+
+    Anything outside the prefix is refused rather than served. If the proxy is
+    ever pointed at this process for a path it was not given, that has to be a
+    404 and not an unintended way in.
+    """
+
+    def __init__(self, app: Any, prefix: str) -> None:
+        normalized = "/" + prefix.strip("/")
+        if normalized == "/":
+            raise ValueError("A path prefix of '/' is the same as no prefix")
+        self._app = app
+        self._prefix = normalized
+
+    @property
+    def prefix(self) -> str:
+        return self._prefix
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope["type"] not in {"http", "websocket"}:
+            await self._app(scope, receive, send)
+            return
+
+        path: str = scope.get("path", "")
+        if path == self._prefix or path.startswith(f"{self._prefix}/"):
+            scope = dict(scope)
+            scope["path"] = path[len(self._prefix) :] or "/"
+            scope["root_path"] = self._prefix
+            await self._app(scope, receive, send)
+            return
+
+        if scope["type"] == "websocket":
+            await send({"type": "websocket.close", "code": 1008})
+            return
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 404,
+                "headers": [(b"content-type", b"application/json")],
+            }
+        )
+        await send(
+            {
+                "type": "http.response.body",
+                "body": json.dumps(
+                    {"detail": f"This runtime is served under {self._prefix}"}
+                ).encode(),
+            }
+        )
+
+
 def _mount_studio(app: FastAPI) -> None:
     """Serve the built Studio from the runtime itself, when it exists.
 
@@ -1075,6 +1134,7 @@ def serve(
     port: int = 8791,
     allow_non_loopback: bool = False,
     config_path: str | None = None,
+    url_prefix: str | None = None,
 ) -> None:
     """Run the runtime. Refuses a non-loopback bind unless forced."""
 
@@ -1091,4 +1151,18 @@ def serve(
         from .physical_devices import runtime_from_config
 
         runtime = runtime_from_config(config_path)
-    uvicorn.run(create_app(runtime), host=host, port=port, log_level="info")
+
+    # A passcode that survives a restart, for a runtime supervised by something
+    # that restarts it. Without this the instructor role changes identity every
+    # time the service flaps, and the only record of it is a log line.
+    passcode = os.environ.get("CITXR_INSTRUCTOR_PASSCODE")
+    if passcode:
+        if runtime is None:
+            runtime = Runtime(instructor_passcode=passcode)
+        else:
+            runtime.authority = Authority(instructor_passcode=passcode)
+
+    app: Any = create_app(runtime)
+    if url_prefix is not None:
+        app = PathPrefix(app, url_prefix)
+    uvicorn.run(app, host=host, port=port, log_level="info")

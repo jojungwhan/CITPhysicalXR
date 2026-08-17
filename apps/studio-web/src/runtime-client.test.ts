@@ -54,6 +54,43 @@ describe("RuntimeClient", () => {
     );
   });
 
+  it("keeps the path it is served under, so a proxied runtime is found", () => {
+    // A proxy that routes `/citxr` to the runtime forwards the path as it
+    // arrived, so the API is at `/citxr/api/...` and asking the origin's root
+    // would reach whatever else that host serves.
+    expect(
+      resolveRuntimeUrl({
+        origin: "https://admin.example.org",
+        port: "",
+        pathname: "/citxr/index.html",
+      }),
+    ).toBe("https://admin.example.org/citxr");
+    expect(
+      resolveRuntimeUrl({
+        origin: "https://admin.example.org",
+        port: "",
+        pathname: "/citxr/",
+      }),
+    ).toBe("https://admin.example.org/citxr");
+  });
+
+  it("adds no path when the runtime serves the page from its root", () => {
+    expect(
+      resolveRuntimeUrl({
+        origin: "http://127.0.0.1:8791",
+        port: "8791",
+        pathname: "/index.html",
+      }),
+    ).toBe("http://127.0.0.1:8791");
+    expect(
+      resolveRuntimeUrl({
+        origin: "http://127.0.0.1:8791",
+        port: "8791",
+        pathname: "/",
+      }),
+    ).toBe("http://127.0.0.1:8791");
+  });
+
   it("strips a trailing slash so paths do not double up", () => {
     expect(new RuntimeClient("http://127.0.0.1:8791/").baseUrl).toBe(
       "http://127.0.0.1:8791",

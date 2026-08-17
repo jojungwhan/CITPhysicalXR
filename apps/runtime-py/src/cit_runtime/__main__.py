@@ -30,12 +30,22 @@ def main() -> None:
             "the PRD forbids exposing device control to the public internet."
         ),
     )
+    parser.add_argument(
+        "--url-prefix",
+        default=None,
+        help=(
+            "Serve the whole runtime under a path, e.g. /citxr. For a reverse proxy that "
+            "routes a path to this process without rewriting it. Anything outside the "
+            "prefix is refused."
+        ),
+    )
     arguments = parser.parse_args()
     serve(
         host=arguments.host,
         port=arguments.port,
         allow_non_loopback=arguments.allow_non_loopback,
         config_path=arguments.config,
+        url_prefix=arguments.url_prefix,
     )
 
 

@@ -253,6 +253,20 @@ The audit log, a replay package, and a project are fetched with the runtime toke
 
 Everything that touches the DOM is injected, so the naming and the lifetime are tested in Node without a DOM.
 
+## ADR-032 — A runtime may be published under a path, and the published one has no hardware
+
+Status: Accepted 2026-08-17 (owner)
+
+The Studio has been served as static files at `admin.secondbrains.org/citxr` since Milestone 6, where it could not drive anything: it resolved the API to its own origin, found none, and said so. The owner asked for it to work. That means publishing a runtime, and the PRD forbids exposing device control to the public internet — so what is published is a runtime with nothing to expose.
+
+The shape: the runtime still binds loopback and still refuses a routable interface. A Cloudflare Tunnel the owner controls maps one path to it, and Cloudflare Access decides who reaches that path. The hosted instance starts with no class configuration, so it has fake devices and `physical_enabled` is false. A visitor who defeats every other layer moves a simulation.
+
+Because a tunnel forwards the path it matched rather than rewriting it, the runtime can serve itself under one: `--url-prefix /citxr` strips the prefix once at the edge of the ASGI app and refuses anything outside it. A request arriving on a path the proxy was not given is a misroute, and answering it would be a second entrance. The Studio resolves its API from the path it is served under for the same reason, which also leaves a static copy exactly as inert as it was.
+
+The runtime's instructor passcode is not the gate here and cannot be: it is compared in constant time but has no rate limit and no lockout, which is adequate for a loopback service and not for an internet-facing one. The Access policy is therefore part of the deployment, not an optional hardening step. A stable passcode is read from a 0600 environment file, because a service that restarts would otherwise change the instructor's identity and print the new one only to a log.
+
+Hardware does not follow. The dead-man control is attested by a heartbeat from the page holding it (ADR-028) and arming assumes an instructor who can see the robot (FR-066): both encode that the person who may make something move is in the room. A tunnel removes precisely that, and an Access policy does not restore it. `docs/HOSTING.md` states the three things that must never be added to a tunnelled runtime — `--config`, `--allow-non-loopback`, and a remote CORS origin — and a hosted physical session, if ever wanted, is a design change with its own ADR.
+
 ## Deviations from the PRD
 
 None at Milestone 0 start. The local workspace directory is named `CITPhysicalXR`, while the Git product/repository identity remains `cit-physical-xr`; this is a host path detail, not an architecture deviation.

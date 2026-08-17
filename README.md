@@ -64,6 +64,13 @@ Studio copy served from another host resolves the API to its own origin, finds
 nothing there, and reports the runtime unreachable. That is deliberate: a page on
 a public website must not be able to drive a robot on someone's desk.
 
+A runtime can be published behind a proxy that its owner configured, under a
+path: `--url-prefix /citxr` serves everything under that path and refuses
+anything outside it, for a proxy that forwards the path rather than rewriting
+it. `docs/HOSTING.md` describes the one deployment that exists — a
+simulation-only runtime behind Cloudflare Access — and, more importantly, why a
+hub does not go behind it.
+
 ## Configuration
 
 `config/default.yaml` is safe, local-only, and keeps physical devices and Agent Mesh disabled. `config/examples/local-foundation.example.yaml` records the Windows checkout paths found during the audit, and `config/examples/lego-classroom.example.yaml` shows a room with one LEGO hub. A configuration that names physical devices while `physicalDevicesEnabled` is false is refused at startup rather than ignored. Copy an example to a location outside the repository before making machine-specific changes; `config/local.yaml`, `config/*.local.yaml`, and environment files are ignored.
