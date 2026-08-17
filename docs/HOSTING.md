@@ -1,8 +1,8 @@
 # Hosting the Studio at admin.secondbrains.org/citxr
 
-- Status date: 2026-08-17
-- What this describes: a **simulation-only** runtime, reachable through a
-  Cloudflare Tunnel and gated by Cloudflare Access
+- Status date: 2026-08-18
+- What this describes: a **simulation-only** runtime, published through the
+  tunnel that already serves this host, and gated by its own join passcode
 - What this does not describe, and must not become: a way to drive a robot from
   the internet. See "Hardware" at the end, which is the part to read before
   connecting a hub to anything hosted.
@@ -15,14 +15,16 @@ origin, found none, and said the runtime was unreachable. That was correct
 behaviour, and it is why the page was of no practical use.
 
 Now a runtime runs on this machine as a user service, bound to loopback, serving
-both the Studio and its API under the path `/citxr`. A tunnel rule maps
-`admin.secondbrains.org/citxr` to it, and Cloudflare Access decides who gets
-that far.
+both the Studio and its API under the path `/citxr`. It is published through the
+tunnel that already exists: `admin.secondbrains.org` is one route to
+ContentRadar's dev server, which proxies `/kakao`, `/wm`, `/studio` and now
+`/citxr` to local ports. No new tunnel route was needed.
 
 ```text
-browser ──► Cloudflare (Access policy) ──► cloudflared ──► 127.0.0.1:8791
-                                                            citxr-runtime.service
-                                                            simulation, fake devices
+browser ──► Cloudflare ──► cloudflared ──► ContentRadar vite :5174
+                                             └── ^/citxr(/|$) ──► 127.0.0.1:8791
+                                                   citxr-runtime.service
+                                                   simulation, fake devices
 ```
 
 Three properties hold this together, and each is worth naming because losing one
@@ -34,11 +36,11 @@ loses the safety of the arrangement:
 2. **The hosted runtime has no physical devices.** It starts with no `--config`,
    so it has the fakes and `physical_enabled` is false. There is nothing for a
    visitor to move.
-3. **Access is the gate, not the passcode.** The runtime's own instructor
-   passcode is checked with a constant-time compare and has no rate limit or
-   lockout. That is adequate for a loopback service and is _not_ adequate as the
-   only thing between the internet and a token, which is why the Cloudflare
-   Access policy is not optional.
+3. **The runtime closes its own join.** That host has no edge authentication --
+   every app behind it defends itself -- so `CITXR_JOIN_PASSCODE` is set and no
+   token exists until somebody presents a passcode (ADR-033). A student presents
+   the classroom passcode; an instructor presents the instructor passcode, which
+   the classroom passcode never substitutes for.
 
 ## The local half — already done
 
@@ -53,31 +55,40 @@ curl -s http://127.0.0.1:8791/citxr/api/health
   a 404, so a misrouted request cannot become a second way in.
 - Data (projects, recordings) in `/home/sb/.citxr-hosted`; log in
   `/home/sb/.citxr-hosted/logs/runtime.log`.
-- Instructor passcode in `/home/sb/.config/citxr/hosted.env`, mode 0600, read by
-  the unit as `CITXR_INSTRUCTOR_PASSCODE`. It survives a restart, which a random
-  per-run passcode does not.
+- Both passcodes in `/home/sb/.config/citxr/hosted.env`, mode 0600, read by the
+  unit as `CITXR_INSTRUCTOR_PASSCODE` and `CITXR_JOIN_PASSCODE`. They survive a
+  restart, which a random per-run passcode does not.
 - Rebuilding the Studio (`pnpm build`) is live: the runtime serves the `dist`
   directory from disk.
 
-Rotate the passcode:
+Rotate either passcode:
 
 ```bash
-printf 'CITXR_INSTRUCTOR_PASSCODE=%s\n' "$(python3 -c 'import secrets;print(secrets.token_urlsafe(18))')" \
-  > /home/sb/.config/citxr/hosted.env
+python3 - <<'EOF' > /home/sb/.config/citxr/hosted.env
+import secrets
+print(f"CITXR_INSTRUCTOR_PASSCODE={secrets.token_urlsafe(18)}")
+print(f"CITXR_JOIN_PASSCODE={secrets.token_urlsafe(12)}")
+EOF
 chmod 600 /home/sb/.config/citxr/hosted.env
 systemctl --user restart citxr-runtime.service
 ```
 
-## The Cloudflare half — yours to do
+The proxy rule lives in ContentRadar's `frontend/vite.proxy.ts` (`^/citxr(/|$)`,
+`ws: true`, no rewrite -- the runtime already serves under the prefix). Vite reads
+it at startup, so a change there needs
+`systemctl --user restart contentradar-frontend.service`. While the runtime is
+down the path returns a proxy error rather than the old static page; the unit is
+`Restart=always`.
+
+## The Cloudflare half — optional now, still worth doing
 
 `cloudflared` here runs from `/etc/cloudflared/token`, so its routes live in the
 Cloudflare dashboard and cannot be edited from this machine.
 
-**Do these in this order.** Measured on 2026-08-17,
-`https://admin.secondbrains.org/citxr/index.html` answers `200` to a stranger
-with no login — today that is harmless, because the page it serves is static and
-drives nothing. Add the tunnel route before the Access policy and the same
-anonymous request reaches a runtime that hands out tokens.
+Nothing here is required for the deployment to work; it works now. What it adds
+is a second lock in front of the first. The path is reachable anonymously —
+`https://admin.secondbrains.org/citxr/api/health` answers 200 to anyone — and
+what stops a stranger going further is the runtime's own join passcode.
 
 **1. Access application (Zero Trust → Access → Applications → Add → Self-hosted):**
 
@@ -86,19 +97,10 @@ anonymous request reaches a runtime that hands out tokens.
 | Application | `admin.secondbrains.org/citxr`      |
 | Policy      | Allow · Emails · `jc@citcoding.com` |
 
-**2. Public hostname (Zero Trust → Networks → Tunnels → this tunnel →
-Published application routes):**
-
-| Field    | Value                    |
-| -------- | ------------------------ |
-| Hostname | `admin.secondbrains.org` |
-| Path     | `citxr*`                 |
-| Service  | `http://127.0.0.1:8791`  |
-
-It must sit **above** the catch-all rule for `admin.secondbrains.org`; rules are
-matched in order, and the existing rule would otherwise take the path first.
-No path rewriting is needed or available — the runtime is served under `/citxr`
-precisely because the tunnel forwards the path as it arrived.
+**2.** No tunnel route to add. `admin.secondbrains.org` already resolves to
+ContentRadar's dev server, and the proxy rule there sends `/citxr` on. That is
+also why the runtime is served under a prefix: the proxy forwards the path as it
+arrived.
 
 WebSockets are already enabled for this tunnel's traffic in the sense that
 Cloudflare proxies them by default; the event stream is `wss://…/citxr/ws/events`
@@ -110,11 +112,9 @@ and needs no separate rule.
 curl -sI https://admin.secondbrains.org/citxr/api/health   # 302 to the Access login, not 200
 ```
 
-A `200` carrying JSON there means the Access policy is not covering the path,
-and an anonymous visitor can join the classroom. That is the one outcome to
-treat as a fault rather than a nuisance. (Before the tunnel route exists, this
-path returns `200` with ContentRadar's HTML, which is its single-page-app
-fallback answering for a path nothing else claims — not the runtime.)
+Until an Access policy exists this answers `200` with the runtime's health JSON,
+which is the current state and is safe by the paragraph above: health is public
+on purpose, and every other route is `401` without a token.
 
 ## What was verified here
 
@@ -132,6 +132,21 @@ instructor join, stored passcode   200
 instructor join, wrong passcode    403
 same passcode after a restart      200
 unprefixed /api/health             404
+```
+
+And through the tunnel, at `https://admin.secondbrains.org/citxr/index.html`,
+after the join passcode was turned on:
+
+```text
+sign-in asks a student for the classroom passcode   true
+wrong passcode                     "This classroom needs a passcode to join."
+signed in with the passcode        true
+drive outcome                      Accepted · completed
+event stream                       wss://admin.secondbrains.org/citxr/ws/events
+anonymous /citxr/api/devices       401
+anonymous /citxr/api/classroom     401
+anonymous /citxr/api/audit/export  401
+anonymous POST /citxr/api/safety/stop  401
 ```
 
 ## Hardware

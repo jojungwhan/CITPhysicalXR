@@ -142,6 +142,7 @@ export function App() {
           onLocale={setLocale}
           onSignedIn={setIdentity}
           runtimeError={error}
+          joinRequiresPasscode={health?.joinRequiresPasscode === true}
         />
       </main>
     );

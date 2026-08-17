@@ -39,6 +39,11 @@ const EN = {
   "signin.passcode": "Instructor passcode",
   "signin.passcodeHint":
     "The runtime prints it once when it starts. Ask whoever started it.",
+  "signin.explainNetwork":
+    "This runtime is reached over the network, so it asks who you are and for the classroom passcode. What you type stays on the machine running the classroom.",
+  "signin.classPasscode": "Classroom passcode",
+  "signin.classPasscodeHint":
+    "This classroom is open over the network, so it asks for a passcode. Ask whoever is running the lesson.",
   "signin.submit": "Join",
   "signin.signedInAs": "Signed in as",
   "signin.leave": "Sign out",
@@ -247,6 +252,11 @@ const KO: Record<MessageKey, string> = {
   "signin.passcode": "강사 코드",
   "signin.passcodeHint":
     "런타임을 실행할 때 한 번 표시됩니다. 실행한 분에게 물어보세요.",
+  "signin.explainNetwork":
+    "이 런타임은 네트워크로 연결합니다. 그래서 누구인지와 참여 코드를 확인합니다. 여기 입력한 내용은 수업을 실행하는 컴퓨터를 벗어나지 않습니다.",
+  "signin.classPasscode": "수업 참여 코드",
+  "signin.classPasscodeHint":
+    "이 수업은 네트워크로 열려 있어서 참여 코드를 받습니다. 수업을 여는 분에게 물어보세요.",
   "signin.submit": "참여",
   "signin.signedInAs": "접속 중",
   "signin.leave": "나가기",

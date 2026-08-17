@@ -92,6 +92,7 @@ class Runtime:
         physical_enabled: bool = False,
         data_dir: Path | None = None,
         instructor_passcode: str | None = None,
+        join_passcode: str | None = None,
         retention: RetentionPolicy | None = None,
     ) -> None:
         self.clock: Clock = clock or SystemClock()
@@ -102,7 +103,9 @@ class Runtime:
         self.router = EventRouter()
         self.audit = AuditLog()
         self.logger = StructuredLogger()
-        self.authority = Authority(instructor_passcode=instructor_passcode)
+        self.authority = Authority(
+            instructor_passcode=instructor_passcode, join_passcode=join_passcode
+        )
         self.supervisor = SafetySupervisor(clock=self.clock, policies=policies)
         self.status = DeviceStatusProjection()
         # FR-065 is fed by the event stream rather than by polling adapters, so

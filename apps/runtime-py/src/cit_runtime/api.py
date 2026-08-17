@@ -409,6 +409,9 @@ def create_app(runtime: Runtime | None = None) -> FastAPI:
             "protocolVersion": info.protocol_version,
             "executionMode": info.execution_mode,
             "physicalEnabled": info.physical_enabled,
+            # So the sign-in page can ask for the classroom passcode before the
+            # runtime refuses the join, rather than after (UI 11.6).
+            "joinRequiresPasscode": active.authority.join_requires_passcode,
         }
 
     @app.get("/api/devices")
@@ -1155,12 +1158,21 @@ def serve(
     # A passcode that survives a restart, for a runtime supervised by something
     # that restarts it. Without this the instructor role changes identity every
     # time the service flaps, and the only record of it is a log line.
+    #
+    # ``CITXR_JOIN_PASSCODE`` additionally closes the join itself, which a
+    # loopback runtime does not need and a published one does: without it, being
+    # able to reach the runtime is the same as being in the classroom (ADR-033).
     passcode = os.environ.get("CITXR_INSTRUCTOR_PASSCODE")
-    if passcode:
+    join_passcode = os.environ.get("CITXR_JOIN_PASSCODE")
+    if passcode or join_passcode:
+        authority = Authority(
+            instructor_passcode=passcode
+            or (runtime.authority.instructor_passcode if runtime else None),
+            join_passcode=join_passcode,
+        )
         if runtime is None:
-            runtime = Runtime(instructor_passcode=passcode)
-        else:
-            runtime.authority = Authority(instructor_passcode=passcode)
+            runtime = Runtime()
+        runtime.authority = authority
 
     app: Any = create_app(runtime)
     if url_prefix is not None:

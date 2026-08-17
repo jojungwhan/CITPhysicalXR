@@ -267,6 +267,22 @@ The runtime's instructor passcode is not the gate here and cannot be: it is comp
 
 Hardware does not follow. The dead-man control is attested by a heartbeat from the page holding it (ADR-028) and arming assumes an instructor who can see the robot (FR-066): both encode that the person who may make something move is in the room. A tunnel removes precisely that, and an Access policy does not restore it. `docs/HOSTING.md` states the three things that must never be added to a tunnelled runtime — `--config`, `--allow-non-loopback`, and a remote CORS origin — and a hosted physical session, if ever wanted, is a design change with its own ADR.
 
+## ADR-033 — A published runtime closes its own join
+
+Status: Accepted 2026-08-18 (owner)
+
+ADR-032 assumed the edge would gate the published runtime: a Cloudflare Access policy in front of the path. The route turned out to already exist -- `admin.secondbrains.org` is one tunnel route to ContentRadar's dev server, which proxies `/kakao`, `/wm`, `/studio` and now `/citxr` to local ports -- so the runtime became reachable by adding a proxy rule, with no dashboard step and therefore no edge authentication. Each app behind that host defends itself; that is the existing arrangement, not a lapse in it.
+
+So the runtime defends itself. `CITXR_JOIN_PASSCODE` closes the join: with it set, a student presents the classroom passcode and an instructor presents the instructor passcode, and no token exists before one of them matches. Unset -- the default, and every local runtime -- a student still joins by saying who they are, because on loopback being able to reach the runtime already means being at the machine, and asking a nine-year-old for a password to open their own lesson buys nothing.
+
+The classroom passcode never buys the instructor role. It is the weaker secret, shared with a room, and arming a device is the thing it must not reach.
+
+`GET /api/health` reports `joinRequiresPasscode` so the sign-in page can ask for the passcode before the runtime refuses the join rather than after (UI 11.6), and the page says plainly that this runtime is reached over the network -- the local copy's "nothing leaves this machine" is not true of a published one, and a login screen is a bad place to be inaccurate.
+
+None of this changes ADR-032's other half: the published runtime has no `--config`, so it has fake devices and `physical_enabled` is false. A passcode is what stands between a stranger and a simulation. What stands between a stranger and a robot is that no robot is there.
+
+Cloudflare Access in front of `/citxr` remains worth adding and is now defence in depth rather than the only defence.
+
 ## Deviations from the PRD
 
 None at Milestone 0 start. The local workspace directory is named `CITPhysicalXR`, while the Git product/repository identity remains `cit-physical-xr`; this is a host path detail, not an architecture deviation.

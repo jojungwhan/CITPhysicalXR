@@ -85,6 +85,8 @@ export interface HealthView {
   protocolVersion: number;
   executionMode: string;
   physicalEnabled: boolean;
+  /** ADR-033. True where the runtime is published and the join is closed. */
+  joinRequiresPasscode?: boolean;
 }
 
 export interface DeviceEventView {

@@ -110,11 +110,22 @@ class Authority:
         self,
         *,
         instructor_passcode: str | None = None,
+        join_passcode: str | None = None,
         token_ttl: timedelta = DEFAULT_TOKEN_TTL,
     ) -> None:
         self.instructor_passcode = instructor_passcode or secrets.token_hex(_PASSCODE_BYTES)
+        # A classroom passcode, when the runtime is reachable by people who are
+        # not in the classroom. Unset is the local default: a runtime on
+        # loopback is already only reachable by whoever is at the machine, and
+        # asking a nine-year-old for a password to open their own robot lesson
+        # buys nothing. Set it when a proxy publishes the runtime (ADR-033).
+        self.join_passcode = join_passcode or None
         self._ttl = token_ttl
         self._principals: dict[str, Principal] = {}
+
+    @property
+    def join_requires_passcode(self) -> bool:
+        return self.join_passcode is not None
 
     def join(
         self,
@@ -125,7 +136,12 @@ class Authority:
         passcode: str | None = None,
         display_name: str | None = None,
     ) -> tuple[str, Principal]:
-        """Issue a token. The instructor role costs a passcode; a student joins."""
+        """Issue a token. The instructor role costs a passcode; a student joins.
+
+        Where a classroom passcode is configured, everybody presents one before
+        a token exists at all -- an instructor presents theirs, which is the
+        stronger of the two, and a student presents the classroom's.
+        """
 
         if not actor_id.strip():
             raise AuthenticationError("An actor id is required to join")
@@ -135,6 +151,14 @@ class Authority:
             raise AuthorizationError(
                 "The instructor passcode does not match. It is printed once in the runtime log "
                 "when the runtime starts."
+            )
+        if (
+            role is not Role.INSTRUCTOR
+            and self.join_passcode is not None
+            and not secrets.compare_digest(passcode or "", self.join_passcode)
+        ):
+            raise AuthorizationError(
+                "This classroom needs a passcode to join. Ask whoever is running the lesson."
             )
         token = secrets.token_urlsafe(32)
         principal = Principal(

@@ -16,6 +16,7 @@ export function SignIn({
   onLocale,
   onSignedIn,
   runtimeError,
+  joinRequiresPasscode,
 }: {
   client: RuntimeClient;
   t: Translate;
@@ -23,6 +24,8 @@ export function SignIn({
   onLocale: (locale: Locale) => void;
   onSignedIn: (identity: Identity) => void;
   runtimeError: string | null;
+  /** ADR-033. A published runtime asks a student for the classroom passcode. */
+  joinRequiresPasscode: boolean;
 }) {
   const [actorId, setActorId] = useState("");
   const [role, setRole] = useState<Role>("student");
@@ -40,7 +43,11 @@ export function SignIn({
           actorId: actorId.trim(),
           role,
           displayName: actorId.trim(),
-          ...(role === "instructor" ? { passcode } : {}),
+          // Both roles present a passcode where one is asked for; which secret
+          // it has to be is the runtime's judgement, not this page's.
+          ...(role === "instructor" || joinRequiresPasscode
+            ? { passcode }
+            : {}),
         }),
       );
     } catch (caught) {
@@ -53,7 +60,11 @@ export function SignIn({
   return (
     <section aria-labelledby="signin-heading">
       <h2 id="signin-heading">{t("signin.heading")}</h2>
-      <p className="muted">{t("signin.explain")}</p>
+      <p className="muted">
+        {joinRequiresPasscode
+          ? t("signin.explainNetwork")
+          : t("signin.explain")}
+      </p>
 
       <form className="stack" onSubmit={submit}>
         <label>
@@ -83,16 +94,24 @@ export function SignIn({
           ))}
         </fieldset>
 
-        {role === "instructor" && (
+        {(role === "instructor" || joinRequiresPasscode) && (
           <label>
-            <span>{t("signin.passcode")}</span>
+            <span>
+              {role === "instructor"
+                ? t("signin.passcode")
+                : t("signin.classPasscode")}
+            </span>
             <input
               value={passcode}
               onChange={(event) => setPasscode(event.target.value)}
               autoComplete="off"
               maxLength={128}
             />
-            <small className="muted">{t("signin.passcodeHint")}</small>
+            <small className="muted">
+              {role === "instructor"
+                ? t("signin.passcodeHint")
+                : t("signin.classPasscodeHint")}
+            </small>
           </label>
         )}
 
