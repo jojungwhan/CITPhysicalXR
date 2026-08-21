@@ -74,30 +74,28 @@ robots, simulators, IoT devices, Codex, and Claude all use the same capability
 registry; vendor implementations remain isolated behind authenticated adapter
 WebSockets.
 
-Start the classroom device host first. The launcher signs the current Windows
-user into the local tutor console automatically, uses port `8766`, preserves or
-starts the existing Brain2Devices helper on `8765`, and keeps physical
-actuation disabled unless `-AllowPhysical` is explicit:
+On the tutor computer, open **CIT Classroom Control** from the Windows Desktop
+or Start menu and choose **Start classroom devices**. The native launcher signs
+the current Windows user into the local tutor console automatically, uses port
+`8766`, preserves or starts the existing Brain2Devices helper on `8765`, and
+enables physical adapters while leaving every device and lesson disarmed.
 
 If an older glasses-only Fabric already owns port `8766`, run
 `pnpm hardware:glasses:windows -- -Mode Stop` once before this migration.
 
-```powershell
-pnpm hardware:devices:windows -- -Mode Start -AllowPhysical
-$fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
-pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766 -SelectMostRecentAgentSession
-pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
-pnpm hardware:plug:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
-```
-
-The launcher opens **CIT Classroom Control** automatically. Follow the five
+The button opens **CIT Classroom Control** automatically. Follow the five
 on-screen steps: find devices, choose a lesson, assign devices, complete the
 safety check, then teach. The discovery cards distinguish **Connected**,
 **Found**, **Computer ready**, and **Setup needed** instead of treating a USB/network
-match as an authenticated node. Use `pnpm hardware:fabric:windows -- -Mode Open`
-to reopen it without restarting any device. See
+match as an authenticated node. Use the same Windows button again to reopen it
+without restarting any device. See
 `docs/operations/device-discovery.md` and
 `docs/operations/unified-fabric-console.md` for the complete workflow.
+
+Source-checkout maintainers install the Desktop and Start menu shortcut once
+with `pnpm hardware:install-button:windows`. This is installation work, not a
+tutor startup step. Component-level PowerShell commands remain documented only
+for hardware technicians and developers.
 
 The device scan reuses Brain2Devices' Windows multi-radio Tello scanner, checks
 MindWave/TGC, Ultraleap USB/service state, incoming RoboMaster STA broadcasts,

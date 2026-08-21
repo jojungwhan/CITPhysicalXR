@@ -28,13 +28,10 @@ It uses the real upstream `DryRunRobot` and `CommandPump`, but a generated
 semantic gesture pulse. `Verify` should report at least one gesture event, one
 bounded robot-command event, and one `SUCCEEDED` lifecycle.
 
-Both `hardware:fabric:windows -Mode Start` and the robot launcher open the same
-**CIT Classroom Control** screen with automatic local sign-in. If the browser
-was closed, reopen it without restarting the adapter:
-
-```powershell
-pnpm hardware:fabric:windows -- -Mode Open
-```
+The Windows **CIT Classroom Control** button and the robot launcher open the
+same browser screen with automatic local sign-in. If the browser was closed,
+use the Windows Desktop or Start menu button again; it reopens the screen
+without restarting the adapter.
 
 Choose **Gesture-controlled robot**. Confirm the gesture controller and
 classroom robot show **Ready**, complete the safety check, and start the lesson.

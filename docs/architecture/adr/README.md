@@ -15,3 +15,4 @@ ADRs are immutable decision snapshots. A superseding decision adds a new ADR and
 - [0011 — Tuya-LAN smart-plug boundary](0011-tuya-lan-smart-plug-boundary.md)
 - [0012 — Launcher-assisted tutor access](0012-launcher-assisted-tutor-access.md)
 - [0013 — Safe host discovery and connection actions](0013-safe-host-discovery-and-connection-actions.md)
+- [0014 — Native Windows classroom start button](0014-native-windows-classroom-start-button.md)

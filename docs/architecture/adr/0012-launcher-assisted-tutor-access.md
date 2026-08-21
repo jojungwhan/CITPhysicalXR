@@ -30,9 +30,9 @@ The ticket store is process-local, matching the local single-worker runtime.
 
 ## Consequences
 
-Tutors normally run `pnpm hardware:fabric:windows -- -Mode Start` or
-`-Mode Open` and arrive signed in. Capturing an unused link provides only a
-short redemption window; capturing a redeemed link provides no authority.
-Restarting the runtime invalidates outstanding tickets. A future multi-worker
-or remote deployment requires a shared atomic ticket store or a separately
-reviewed signed-exchange design.
+Tutors normally use the installed **CIT Classroom Control** Windows button and
+arrive signed in. They do not type the launcher command. Capturing an unused
+link provides only a short redemption window; capturing a redeemed link
+provides no authority. Restarting the runtime invalidates outstanding tickets.
+A future multi-worker or remote deployment requires a shared atomic ticket
+store or a separately reviewed signed-exchange design.

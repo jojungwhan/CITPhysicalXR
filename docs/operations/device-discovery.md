@@ -6,16 +6,18 @@ or enabling physical outputs.
 
 ## Start the device host
 
-```powershell
-pnpm hardware:devices:windows -- -Mode Start -AllowPhysical
-```
+1. Double-click **CIT Classroom Control** on the Windows Desktop or choose it
+   from the Start menu.
+2. Choose **Start classroom devices**. If a simulation-only host is already
+   running, choose **Enable classroom devices** and confirm the safe restart.
+3. Wait for the browser tutor screen to open automatically.
 
-This starts or preserves the shared Fabric on `127.0.0.1:8766`, starts or
+The button starts or preserves the shared Fabric on `127.0.0.1:8766`, starts or
 preserves the existing Brain2Devices helper on `127.0.0.1:8765`, and opens the
 single tutor UI with automatic local sign-in. Starting these services does not
 connect a headset, send a Tello SDK packet, arm a robot, start an agent, or
-switch a plug. `-AllowPhysical` permits authenticated physical adapters to
-register, but every newly created lesson remains disarmed.
+switch a plug. Physical-adapter mode permits authenticated physical adapters
+to register, but every newly created lesson remains disarmed.
 
 In the UI, choose **Find devices**. When one or more validated connectors are
 available, choose **Connect all available** to attach them in sequence. This is
@@ -118,6 +120,8 @@ student use.
   each Pybricks hub by its unique classroom name before connecting motors.
 
 ## Command-line checks
+
+The following commands are technician diagnostics, not tutor startup steps:
 
 ```powershell
 pnpm hardware:devices:windows -- -Mode Scan

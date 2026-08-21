@@ -2,7 +2,7 @@
 
 [CmdletBinding()]
 param(
-  [ValidateSet("Start", "Scan", "Status", "Open")]
+  [ValidateSet("Start", "Enable", "Scan", "Status", "Open")]
   [string]$Mode = "Start",
   [ValidateRange(1024, 65535)]
   [int]$FabricPort = 8766,
@@ -21,6 +21,46 @@ $StateRoot = [IO.Path]::GetFullPath($StateRoot)
 $fabricLauncher = Join-Path $repositoryRoot "tools\hardware\interaction-fabric-console.ps1"
 $brainLauncher = Join-Path $repositoryRoot "tools\hardware\brain2devices-hardware.ps1"
 $discoveryScript = Join-Path $repositoryRoot "tools\hardware\find-classroom-devices.ps1"
+
+function Start-ClassroomDevices([bool]$RestartSimulationHost) {
+  $physicalEnabled = [bool]$AllowPhysical -or $RestartSimulationHost
+  if ($RestartSimulationHost) {
+    $health = $null
+    try {
+      $health = Invoke-RestMethod -Uri "http://127.0.0.1:$FabricPort/api/v1/fabric/healthz" -TimeoutSec 3
+    } catch {
+      # No matching listener is the normal cold-start path. The fixed Fabric
+      # launcher performs the authoritative credential/port validation below.
+    }
+    if ($null -ne $health -and $health.physicalActuation -ne "enabled") {
+      Write-Host "Restarting the local simulation-only Fabric in disarmed physical-adapter mode."
+      & $fabricLauncher -Mode Stop -FabricPort $FabricPort -StateRoot $StateRoot
+    }
+  }
+
+  $fabricParameters = @{
+    Mode = "Start"
+    FabricPort = $FabricPort
+    StateRoot = $StateRoot
+    NoOpenConsole = $true
+  }
+  if ($physicalEnabled) { $fabricParameters.AllowPhysical = $true }
+  & $fabricLauncher @fabricParameters
+
+  $brainParameters = @{
+    Mode = "Start"
+    FabricPort = $FabricPort
+    SharedFabricRoot = $StateRoot
+    NoOpenConsole = $true
+  }
+  if ($Brain2DevicesRoot) { $brainParameters.Brain2DevicesRoot = $Brain2DevicesRoot }
+  if ($physicalEnabled) { $brainParameters.AllowPhysical = $true }
+  & $brainLauncher @brainParameters
+
+  Write-Host "READY. In Classroom Control, choose Find devices."
+  Write-Host "CIT will show connected, found, ready, and setup-needed hardware separately."
+  & $fabricLauncher -Mode Open -FabricPort $FabricPort -StateRoot $StateRoot
+}
 
 switch ($Mode) {
   "Scan" {
@@ -42,27 +82,9 @@ switch ($Mode) {
     & $fabricLauncher -Mode Open -FabricPort $FabricPort -StateRoot $StateRoot
   }
   "Start" {
-    $fabricParameters = @{
-      Mode = "Start"
-      FabricPort = $FabricPort
-      StateRoot = $StateRoot
-      NoOpenConsole = $true
-    }
-    if ($AllowPhysical) { $fabricParameters.AllowPhysical = $true }
-    & $fabricLauncher @fabricParameters
-
-    $brainParameters = @{
-      Mode = "Start"
-      FabricPort = $FabricPort
-      SharedFabricRoot = $StateRoot
-      NoOpenConsole = $true
-    }
-    if ($Brain2DevicesRoot) { $brainParameters.Brain2DevicesRoot = $Brain2DevicesRoot }
-    if ($AllowPhysical) { $brainParameters.AllowPhysical = $true }
-    & $brainLauncher @brainParameters
-
-    Write-Host "READY. In Classroom Control, choose Find devices."
-    Write-Host "CIT will show connected, found, ready, and setup-needed hardware separately."
-    & $fabricLauncher -Mode Open -FabricPort $FabricPort -StateRoot $StateRoot
+    Start-ClassroomDevices -RestartSimulationHost $false
+  }
+  "Enable" {
+    Start-ClassroomDevices -RestartSimulationHost $true
   }
 }

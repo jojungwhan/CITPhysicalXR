@@ -21,19 +21,12 @@ pnpm hardware:glasses:windows -- -Mode Stop
 ```
 
 Do not kill the Python PID directly; the component launcher also restores its
-temporary Agent Mesh changes. Then start the shared host:
-
-```powershell
-pnpm hardware:devices:windows -- -Mode Start -AllowPhysical
-```
-
-The launcher opens **CIT Classroom Control** and signs this Windows user in
-automatically. No credential needs to be copied or pasted. To reopen the tutor
-screen without restarting Fabric or any adapter, run:
-
-```powershell
-pnpm hardware:fabric:windows -- -Mode Open
-```
+temporary Agent Mesh changes. Then double-click **CIT Classroom Control** on
+the Windows Desktop or choose it from the Start menu. Choose **Start classroom
+devices**. The launcher opens the browser and signs this Windows user in
+automatically. No credential or command needs to be copied or pasted. Use the
+same button again to reopen the tutor screen without restarting Fabric or any
+adapter.
 
 The launcher exchanges a one-use, short-lived URL-fragment ticket for a
 12-hour instructor session. It removes the ticket from the address bar before
@@ -69,8 +62,21 @@ steps:
 
 If automatic sign-in cannot complete, expand **Use an access code instead** on
 the welcome screen and use `-Mode CopyCredential` as a recovery-only path.
-Clear the clipboard immediately afterward. Tutors should normally use
-`-Mode Open`.
+Clear the clipboard immediately afterward. Tutors should normally use the
+Windows button. Command-line recovery is for technicians only.
+
+## Install the Windows button
+
+The repository/source installation creates the Desktop and Start menu entries
+once with:
+
+```powershell
+pnpm hardware:install-button:windows
+```
+
+This is a maintainer installation step, not part of the tutor workflow. The
+shortcut opens a fixed native launcher; it accepts no command, URL, device
+address, or credential from the user.
 
 ## Attach integrations
 

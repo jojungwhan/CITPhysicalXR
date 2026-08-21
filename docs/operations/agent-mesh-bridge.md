@@ -26,8 +26,8 @@ need to appear together.
 The shared Fabric and component launchers open **CIT Classroom Control** with
 automatic local sign-in. Choose **Glasses and coding assistant**, connect the
 display/glasses and coding assistant roles, complete the safety check, and
-start the lesson. Use `pnpm hardware:fabric:windows -- -Mode Open` to reopen the
-screen without restarting either service.
+start the lesson. Use the **CIT Classroom Control** Windows Desktop or Start
+menu button to reopen the screen without restarting either service.
 
 Prefer `-AgentMeshSessionId <exact-id>` over `-SelectMostRecentAgentSession` when the intended G2 or Meta session is already known. `-ProvisionWearables` invokes Agent Mesh's existing phone/G2 provisioner and therefore requires one authorized Android phone attached through ADB. Without that switch, a previously provisioned G2 or Meta phone bridge can reconnect normally.
 

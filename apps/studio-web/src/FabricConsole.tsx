@@ -684,18 +684,18 @@ export function FabricConsole() {
               <div className="fabric-launch-instruction">
                 <span>1</span>
                 <div>
-                  <strong>Open classroom controls</strong>
+                  <strong>Use the CIT button</strong>
                   <p>
-                    On the tutor computer, run this command once. CIT will
-                    reopen this page and sign you in automatically.
+                    Open CIT Classroom Control from the Windows Desktop or Start
+                    menu, then choose Start classroom devices. CIT will reopen
+                    this page and sign you in automatically.
                   </p>
-                  <code>pnpm hardware:fabric:windows -- -Mode Open</code>
                 </div>
               </div>
               <div className="fabric-launch-instruction">
                 <span>2</span>
                 <div>
-                  <strong>Follow the five guided steps</strong>
+                  <strong>Continue in the browser</strong>
                   <p>
                     Choose a lesson, connect devices, check safety, and teach.
                     No account or device password is needed.

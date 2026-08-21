@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import socket
 import subprocess
 from pathlib import Path
 
@@ -67,6 +68,96 @@ def test_classroom_device_launcher_starts_discovery_hosts_without_actuation() ->
         assert forbidden not in brain
         assert forbidden not in probe
     assert ".Send(" not in probe
+
+
+def test_classroom_start_button_runs_only_the_fixed_disarmed_host_launcher() -> None:
+    button = _launcher("classroom-control-button.ps1")
+    devices = _launcher("classroom-devices.ps1")
+    installer = _launcher("install-classroom-control-button.ps1")
+
+    assert "Start classroom devices" in button
+    assert 'Join-Path $PSScriptRoot "classroom-devices.ps1"' in button
+    assert '$startInfo.ArgumentList.Add("-AllowPhysical")' in button
+    assert '[ValidateSet("Start", "Enable", "Open")]' in button
+    assert "Read-Host" not in button
+    assert "Invoke-Expression" not in button
+    assert '"Enable" {' in devices
+    assert "physical outputs will remain disarmed" in button
+    assert "$event.Cancel = $true" in button
+    assert "WScript.Shell" in installer
+    assert "CIT Classroom Control.lnk" in installer
+
+    console = (REPOSITORY_ROOT / "apps" / "studio-web" / "src" / "FabricConsole.tsx").read_text(
+        encoding="utf-8"
+    )
+    assert "Windows Desktop or" in console
+    assert "Start classroom devices" in console
+    assert "pnpm hardware:fabric:windows -- -Mode Open" not in console
+
+
+@pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows UI")
+def test_classroom_start_button_describes_an_offline_host_without_showing_ui() -> None:
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+
+    button = REPOSITORY_ROOT / "tools" / "hardware" / "classroom-control-button.ps1"
+    completed = subprocess.run(
+        [
+            "pwsh",
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(button),
+            "-Mode",
+            "Describe",
+            "-FabricPort",
+            str(port),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    description = json.loads(completed.stdout)
+    assert description["state"] == "offline"
+    assert description["primaryAction"] == "Start"
+    assert description["primaryLabel"] == "Start classroom devices"
+    assert completed.stderr == ""
+
+
+@pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows UI")
+def test_classroom_button_installer_creates_user_shortcuts_in_exact_roots(
+    tmp_path: Path,
+) -> None:
+    installer = REPOSITORY_ROOT / "tools" / "hardware" / "install-classroom-control-button.ps1"
+    desktop = tmp_path / "desktop"
+    programs = tmp_path / "programs"
+    completed = subprocess.run(
+        [
+            "pwsh",
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(installer),
+            "-Mode",
+            "Install",
+            "-DesktopRoot",
+            str(desktop),
+            "-ProgramsRoot",
+            str(programs),
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+
+    assert (desktop / "CIT Classroom Control.lnk").is_file()
+    assert (programs / "CIT Classroom" / "CIT Classroom Control.lnk").is_file()
+    assert "Desktop and Start menu" in completed.stdout
+    assert completed.stderr == ""
 
 
 def test_ui_started_physical_adapters_support_a_disarmed_connect_only_mode() -> None:
