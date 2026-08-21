@@ -115,7 +115,7 @@ main.fabric-main {
 }
 
 .fabric-overview {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(145px, 1fr));
   margin: 16px 0;
 }
 
@@ -138,7 +138,6 @@ main.fabric-main {
   margin-top: 16px;
 }
 
-.fabric-node-observability,
 .fabric-stream-grid {
   grid-template-columns: 1.2fr 0.8fr;
 }
@@ -187,7 +186,6 @@ main.fabric-main {
 
 .fabric-role-list,
 .fabric-node-list,
-.fabric-agent-list,
 .fabric-stream-list {
   display: grid;
   margin: 0;
@@ -198,7 +196,6 @@ main.fabric-main {
 
 .fabric-role,
 .fabric-node-card,
-.fabric-agent-list > div,
 .fabric-stream-list li,
 .fabric-audit-list > div,
 .fabric-arm-state {
@@ -209,8 +206,6 @@ main.fabric-main {
 }
 
 .fabric-role,
-.fabric-node-card,
-.fabric-agent-list > div,
 .fabric-stream-list li {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -225,9 +220,150 @@ main.fabric-main {
   gap: 8px;
 }
 
+.fabric-role > div,
+.fabric-node-card > div {
+  min-width: 0;
+}
+
+.fabric-role strong,
+.fabric-role small,
+.fabric-node-card > div > strong,
+.fabric-node-card > div > small,
+.fabric-stream-list strong,
+.fabric-stream-list small,
+.fabric-audit-list strong,
+.fabric-audit-list span,
+.fabric-audit-list small,
+.fabric-test-actions button small {
+  display: block;
+}
+
+.fabric-role small,
+.fabric-node-card > div > small,
+.fabric-stream-list small,
+.fabric-audit-list small {
+  overflow-wrap: anywhere;
+}
+
+.fabric-test-actions button small {
+  margin-top: 3px;
+}
+
+.fabric-arm-state {
+  display: flex;
+  grid-column: 1 / -1;
+  align-items: center;
+  gap: 10px;
+}
+
+.fabric-arm-state strong,
+.fabric-arm-state small {
+  display: block;
+}
+
 .fabric-test-panel,
-.fabric-audit-panel {
+.fabric-audit-panel,
+.fabric-node-panel {
   margin-top: 16px;
+}
+
+.fabric-io-groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.fabric-io-group {
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 11px;
+  background: rgb(0 0 0 / 14%);
+}
+
+.fabric-io-group > header {
+  display: flex;
+  margin-bottom: 10px;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.fabric-io-group > header > div {
+  min-width: 0;
+  margin-right: auto;
+}
+
+.fabric-io-group h3 {
+  margin: 0 0 2px;
+  color: #f0f6f1;
+}
+
+.fabric-io-group header small {
+  color: #84938a;
+}
+
+.fabric-io-group > header > strong {
+  display: grid;
+  min-width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 14px;
+  color: #102013;
+  background: var(--fabric-green);
+}
+
+.fabric-io-group.is-output > header > strong {
+  background: var(--fabric-blue);
+}
+
+.fabric-io-group.is-bidirectional > header > strong {
+  background: #d9b6ff;
+}
+
+.fabric-node-card {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 10px;
+}
+
+.fabric-node-state {
+  display: flex;
+  grid-column: 2;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.fabric-capability-row {
+  display: grid;
+  margin-top: 8px;
+  gap: 4px;
+}
+
+.fabric-capability-row > span {
+  color: #84938a;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.fabric-capability-row > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.fabric-capability-row code,
+.fabric-capability-row em {
+  max-width: 100%;
+  padding: 3px 6px;
+  overflow-wrap: anywhere;
+  border-radius: 5px;
+  color: #c9d7ce;
+  background: rgb(255 255 255 / 6%);
+  font-size: 0.68rem;
+  font-style: normal;
 }
 
 .fabric-node-icon {
@@ -269,9 +405,9 @@ main.fabric-main {
 @media (max-width: 800px) {
   .fabric-header,
   .fabric-grid,
-  .fabric-node-observability,
   .fabric-stream-grid,
-  .fabric-test-actions {
+  .fabric-test-actions,
+  .fabric-io-groups {
     grid-template-columns: 1fr;
   }
 

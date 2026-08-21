@@ -257,6 +257,13 @@ def create_fabric_app(
             raise ValueError("studio_directory must contain index.html and an assets directory")
         app.mount("/assets", StaticFiles(directory=assets_path), name="fabric-studio-assets")
 
+        favicon_path = configured_studio / "favicon.svg"
+        if favicon_path.is_file():
+
+            @app.get("/favicon.svg", include_in_schema=False)
+            async def fabric_favicon() -> FileResponse:
+                return FileResponse(favicon_path, media_type="image/svg+xml")
+
         @app.get("/fabric", include_in_schema=False)
         async def fabric_console() -> FileResponse:
             return FileResponse(index_path, media_type="text/html")

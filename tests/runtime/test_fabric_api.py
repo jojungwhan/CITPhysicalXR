@@ -73,6 +73,32 @@ def test_explicit_physical_mode_and_robot_course_are_visible(tmp_path: Path) -> 
     }
 
 
+def test_fabric_console_serves_its_favicon_from_the_same_origin(tmp_path: Path) -> None:
+    studio_path = tmp_path / "studio"
+    (studio_path / "assets").mkdir(parents=True)
+    (studio_path / "index.html").write_text("<!doctype html><title>Fabric</title>")
+    (studio_path / "favicon.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>',
+        encoding="utf-8",
+    )
+
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "fabric.sqlite3",
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=(admin_identity(),),
+            maintenance_interval=None,
+            studio_directory=studio_path,
+        )
+    ) as client:
+        console = client.get("/fabric")
+        favicon = client.get("/favicon.svg")
+
+    assert console.status_code == 200
+    assert favicon.status_code == 200
+    assert favicon.headers["content-type"].startswith("image/svg+xml")
+
+
 def test_scoped_observer_token_is_hash_only_and_cannot_mutate(tmp_path: Path) -> None:
     database_path = tmp_path / "fabric.sqlite3"
     with TestClient(

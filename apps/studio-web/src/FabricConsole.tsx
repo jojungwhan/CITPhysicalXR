@@ -21,16 +21,13 @@ import {
   type StoredFabricEvent,
   type StoredFabricLifecycle,
 } from "./fabric-client.js";
+import {
+  classifyFabricNodeIo,
+  type FabricNodeIoKind,
+} from "./fabric-node-io.js";
+import { countActiveFabricCommands } from "./fabric-lifecycle.js";
 
 type BusyAction = string | null;
-
-const TERMINAL_COMMAND_STAGES = new Set([
-  "SUCCEEDED",
-  "FAILED",
-  "CANCELLED",
-  "TIMED_OUT",
-  "REJECTED",
-]);
 
 export function FabricConsole() {
   const client = useMemo(() => new FabricClient(), []);
@@ -396,21 +393,14 @@ export function FabricConsole() {
     );
   }
 
-  const activeCommands = lifecycle.filter(
-    (item) => !TERMINAL_COMMAND_STAGES.has(item.lifecycle.stage),
-  );
-  const agentNodes = nodes.filter((node) =>
-    [...node.publishedCapabilities, ...node.consumedCapabilities].some(
-      (capability) => capability.name.startsWith("agent."),
-    ),
-  );
+  const nodeGroups = groupNodesByIo(nodes);
 
   return (
     <div className="fabric-console">
       <header className="fabric-header">
         <div>
-          <p className="eyebrow">Local-first orchestration</p>
-          <h1>Interaction Fabric</h1>
+          <p className="eyebrow">Unified inputs, outputs, and agents</p>
+          <h1>CIT Interaction Fabric</h1>
         </div>
         <div className="fabric-identity">
           <span className="status-dot status-ok" />
@@ -449,11 +439,16 @@ export function FabricConsole() {
         <section className="fabric-overview" aria-label="Fabric status">
           <FabricMetric label="Nodes" value={String(nodes.length)} />
           <FabricMetric
-            label="Connected"
-            value={String(
-              nodes.filter((node) => node.connectionState === "connected")
-                .length,
-            )}
+            label="Input only"
+            value={String(nodeGroups.input.length)}
+          />
+          <FabricMetric
+            label="Output only"
+            value={String(nodeGroups.output.length)}
+          />
+          <FabricMetric
+            label="Bidirectional"
+            value={String(nodeGroups.bidirectional.length)}
           />
           <FabricMetric
             label="Active sessions"
@@ -463,7 +458,7 @@ export function FabricConsole() {
           />
           <FabricMetric
             label="Active commands"
-            value={String(activeCommands.length)}
+            value={String(countActiveFabricCommands(lifecycle))}
           />
           <FabricMetric
             label="Safety"
@@ -756,49 +751,36 @@ export function FabricConsole() {
           </div>
         </section>
 
-        <section className="fabric-grid fabric-node-observability">
-          <article className="fabric-panel fabric-node-panel">
-            <PanelHeading
-              eyebrow="Capability registry"
-              title="Connected nodes"
+        <section className="fabric-panel fabric-node-panel">
+          <PanelHeading
+            eyebrow="One capability registry"
+            title="All connected inputs and outputs"
+          />
+          <p className="fabric-help">
+            Every sensor, wearable, robot, IoT device, simulator, and coding
+            agent appears here. Publishing capabilities are inputs to the
+            Fabric; consumed commands are outputs from it.
+          </p>
+          <div className="fabric-io-groups">
+            <FabricNodeGroup
+              kind="input"
+              title="Inputs"
+              description="Publishes signals, state, or telemetry"
+              nodes={nodeGroups.input}
             />
-            <div className="fabric-node-list">
-              {nodes.length === 0 ? (
-                <p className="fabric-empty">
-                  No nodes are registered in this scope.
-                </p>
-              ) : (
-                nodes.map((node) => (
-                  <FabricNodeCard key={node.nodeId} node={node} />
-                ))
-              )}
-            </div>
-          </article>
-          <article className="fabric-panel">
-            <PanelHeading eyebrow="Agent gateway" title="Coding-agent status" />
-            {agentNodes.length === 0 ? (
-              <p className="fabric-empty">
-                Connect the Agent Mesh bridge to advertise sessions.
-              </p>
-            ) : (
-              <div className="fabric-agent-list">
-                {agentNodes.map((node) => (
-                  <div key={node.nodeId}>
-                    <span
-                      className={`status-dot ${node.connectionState === "connected" ? "status-ok" : "status-warning"}`}
-                    />
-                    <div>
-                      <strong>{node.displayName}</strong>
-                      <small>
-                        {node.nodeId} · {node.connectionState}
-                      </small>
-                    </div>
-                    <span>{metadataText(node, "agentType") ?? "agent"}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </article>
+            <FabricNodeGroup
+              kind="bidirectional"
+              title="Bidirectional"
+              description="Publishes events and consumes commands"
+              nodes={nodeGroups.bidirectional}
+            />
+            <FabricNodeGroup
+              kind="output"
+              title="Outputs"
+              description="Consumes commands from the Fabric"
+              nodes={nodeGroups.output}
+            />
+          </div>
         </section>
 
         <section className="fabric-grid fabric-stream-grid">
@@ -910,6 +892,7 @@ function FabricMetric({
 
 function FabricNodeCard({ node }: { node: IntegrationNode }) {
   const battery = metadataNumber(node, "batteryPercent");
+  const agentType = metadataText(node, "agentType");
   return (
     <div className="fabric-node-card">
       <span
@@ -921,14 +904,24 @@ function FabricNodeCard({ node }: { node: IntegrationNode }) {
       <div>
         <strong>{node.displayName}</strong>
         <small>
-          {node.nodeId} · {node.hostId}
+          {node.pluginId} · {node.nodeId}
         </small>
-        <p>
-          {[...node.publishedCapabilities, ...node.consumedCapabilities]
-            .slice(0, 3)
-            .map((capability) => capability.name)
-            .join(" · ")}
-        </p>
+        <small>
+          Host {node.hostId}
+          {agentType === undefined ? "" : ` · ${agentType}`}
+        </small>
+        <CapabilityList
+          label="Publishes"
+          capabilities={node.publishedCapabilities.map(
+            (capability) => capability.name,
+          )}
+        />
+        <CapabilityList
+          label="Consumes"
+          capabilities={node.consumedCapabilities.map(
+            (capability) => capability.name,
+          )}
+        />
       </div>
       <div className="fabric-node-state">
         <span>{node.connectionState}</span>
@@ -940,6 +933,72 @@ function FabricNodeCard({ node }: { node: IntegrationNode }) {
     </div>
   );
 }
+
+function FabricNodeGroup({
+  kind,
+  title,
+  description,
+  nodes,
+}: {
+  kind: FabricNodeIoKind;
+  title: string;
+  description: string;
+  nodes: IntegrationNode[];
+}) {
+  return (
+    <article className={`fabric-io-group is-${kind}`}>
+      <header>
+        <div>
+          <h3>{title}</h3>
+          <small>{description}</small>
+        </div>
+        <strong aria-label={`${nodes.length} ${title.toLowerCase()}`}>
+          {nodes.length}
+        </strong>
+      </header>
+      <div className="fabric-node-list">
+        {nodes.length === 0 ? (
+          <p className="fabric-empty">No {title.toLowerCase()} connected.</p>
+        ) : (
+          nodes.map((node) => <FabricNodeCard key={node.nodeId} node={node} />)
+        )}
+      </div>
+    </article>
+  );
+}
+
+function CapabilityList({
+  label,
+  capabilities,
+}: {
+  label: string;
+  capabilities: string[];
+}) {
+  return (
+    <div className="fabric-capability-row">
+      <span>{label}</span>
+      <div>
+        {capabilities.length === 0 ? (
+          <em>None</em>
+        ) : (
+          capabilities.map((capability) => (
+            <code key={capability}>{capability}</code>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+const groupNodesByIo = (nodes: IntegrationNode[]) => {
+  const groups: Record<FabricNodeIoKind, IntegrationNode[]> = {
+    input: [],
+    output: [],
+    bidirectional: [],
+  };
+  nodes.forEach((node) => groups[classifyFabricNodeIo(node)].push(node));
+  return groups;
+};
 
 const courseKey = (coursePackId: string, version: string) =>
   `${coursePackId}@${version}`;
