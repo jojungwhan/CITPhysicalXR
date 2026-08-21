@@ -1,0 +1,28 @@
+{
+  "repository": "https://github.com/jojungwhan/robomaster-gesture-control.git",
+  "revision": "3c213c110b0cdf2912985bfcde442d67092b98f0",
+  "modules": {
+    "gesture": "robomaster_gesture.gesture.GestureController",
+    "leap": "robomaster_gesture.leap_source.LeapSource",
+    "robotDryRun": "robomaster_gesture.robot_adapter.DryRunRobot",
+    "robotSdk": "robomaster_gesture.robot_adapter.DjiRobotAdapter",
+    "robotS1App": "robomaster_gesture.robot_adapter.S1AppKeyboardAdapter",
+    "commandPump": "robomaster_gesture.robot_adapter.CommandPump"
+  },
+  "safety": {
+    "maximumTranslationMetersPerSecond": 0.35,
+    "maximumYawDegreesPerSecond": 35.0,
+    "staleAfterMilliseconds": 200,
+    "movingKeepaliveMilliseconds": 150,
+    "robotTimeoutMilliseconds": 350
+  },
+  "stopConditions": [
+    "pinch release",
+    "fist",
+    "no hand",
+    "multiple hands",
+    "hand identity change",
+    "tracking timeout",
+    "process shutdown"
+  ]
+}

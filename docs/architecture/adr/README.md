@@ -10,3 +10,4 @@ ADRs are immutable decision snapshots. A superseding decision adds a new ADR and
 - [0006 — Deterministic safety and dry replay](0006-deterministic-safety-and-dry-replay.md)
 - [0007 — Bounded declarative flow subset](0007-bounded-declarative-flow-subset.md)
 - [0008 — Agent Mesh compatibility mirror before native cutover](0008-agent-mesh-compatibility-mirror.md)
+- [0009 — RoboMaster/Leap polyglot wrapper](0009-robomaster-leap-polyglot-wrapper.md)

@@ -1,0 +1,23 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-robomaster-leap"
+version = "0.1.0"
+description = "CIT Interaction Fabric wrapper for the existing RoboMaster S1 and Leap Motion implementation"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "cit-protocol",
+  "websockets==17.0.1",
+]
+
+[project.scripts]
+cit-robomaster-leap = "cit_robomaster_leap.__main__:main"
+
+[tool.uv.sources]
+cit-protocol = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cit_robomaster_leap"]

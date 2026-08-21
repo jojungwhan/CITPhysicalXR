@@ -7,6 +7,7 @@ requires-python = ">=3.11,<3.14"
 dependencies = [
   "cit-device-simulator",
   "cit-lego-pybricks",
+  "cit-robomaster-leap",
   "cit-runtime",
   "cit-protocol",
   "cit-safety-core",
@@ -37,6 +38,7 @@ package = false
 [tool.uv.workspace]
 members = [
   "adapters/lego-pybricks",
+  "adapters/robomaster-leap",
   "apps/runtime-py",
   "packages/device-simulator",
   "packages/protocol-py",
@@ -48,6 +50,7 @@ members = [
 [tool.uv.sources]
 cit-device-simulator = { workspace = true }
 cit-lego-pybricks = { workspace = true }
+cit-robomaster-leap = { workspace = true }
 cit-runtime = { workspace = true }
 cit-protocol = { workspace = true }
 cit-safety-core = { workspace = true }

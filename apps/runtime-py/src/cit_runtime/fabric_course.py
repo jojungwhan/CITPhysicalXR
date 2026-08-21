@@ -138,3 +138,83 @@ def glasses_agent_course_pack() -> CoursePack:
     course_pack = CoursePack.model_validate(value)
     validate_course_pack(course_pack)
     return course_pack
+
+
+def gesture_ground_robot_course_pack() -> CoursePack:
+    """The canonical Leap-to-interchangeable-ground-robot recipe."""
+
+    value: dict[str, Any] = {
+        "schemaVersion": "1.0",
+        "coursePackId": "gesture-ground-robot",
+        "version": "1.0.0",
+        "displayName": "Leap gesture ground-robot control",
+        "description": (
+            "Routes normalized Leap virtual-joystick gestures to an assigned "
+            "ground-mobility node through deterministic Fabric safety."
+        ),
+        "roles": [
+            {
+                "role": "gesture_input",
+                "oneOfCapabilities": ["interaction.gesture.velocity"],
+                "optional": False,
+            },
+            {
+                "role": "student_robot",
+                "oneOfCapabilities": ["mobility.ground.set_velocity"],
+                "optional": False,
+            },
+        ],
+        "flows": [
+            {
+                "flowId": "gesture-to-ground-velocity",
+                "version": 1,
+                "trigger": {
+                    "event": "interaction.gesture.velocity",
+                    "minimumConfidence": 0.8,
+                    "debounceMs": 50,
+                },
+                "command": {
+                    "action": "mobility.ground.set_velocity",
+                    "fixedParameters": {},
+                    "parameterBindings": [
+                        {
+                            "payloadField": "forwardMetersPerSecond",
+                            "parameter": "forwardMetersPerSecond",
+                        },
+                        {
+                            "payloadField": "rightMetersPerSecond",
+                            "parameter": "rightMetersPerSecond",
+                        },
+                        {
+                            "payloadField": "clockwiseRadiansPerSecond",
+                            "parameter": "clockwiseRadiansPerSecond",
+                        },
+                    ],
+                },
+                "target": {"role": "student_robot"},
+                "guards": [
+                    "session_is_active",
+                    "role_is_assigned",
+                    "target_is_connected",
+                    "target_is_armed",
+                    "instructor_override_is_clear",
+                ],
+                "safetyProfile": "classroom-ground-robot",
+                "outputRoles": [],
+                "enabled": True,
+            }
+        ],
+        "safetyProfile": "classroom-ground-robot",
+        "simulatorRequired": True,
+        "assessmentEvents": [
+            "interaction.gesture.velocity",
+            "telemetry.motion.commanded",
+        ],
+        "fallbackBehavior": (
+            "Stop locally within 200 ms of stale input, disconnect, process failure, "
+            "or instructor emergency stop."
+        ),
+    }
+    course_pack = CoursePack.model_validate(value)
+    validate_course_pack(course_pack)
+    return course_pack

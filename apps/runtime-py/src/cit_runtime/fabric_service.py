@@ -1,8 +1,9 @@
 """Standalone, local-first service boundary for the CIT Interaction Fabric.
 
-This process layers the glasses/coding-agent vertical slice onto the current
-classroom runtime without replacing it.  It has a separate database, explicit
-credentials, and no physical-device dispatcher.
+This process layers capability-based interaction slices onto the current
+classroom runtime without replacing it. It has a separate database, explicit
+credentials, and an authenticated adapter dispatcher. Physical actuation is
+still disabled unless the local operator explicitly enables it at startup.
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from .fabric import FabricDispatchOutcome, InteractionFabric
 from .fabric_adapters import FabricAdapterConnections
 from .fabric_api import install_fabric_api
 from .fabric_auth import FABRIC_PERMISSIONS, FabricAuthService, FabricBootstrapIdentity
-from .fabric_course import glasses_agent_course_pack
+from .fabric_course import gesture_ground_robot_course_pack, glasses_agent_course_pack
 from .fabric_repository import SQLiteFabricRepository
 
 
@@ -146,10 +147,14 @@ def create_fabric_app(
             clock=wall_clock,
             allow_physical=allow_physical_fabric,
         )
-        fabric.install_course_pack(
+        for course_pack in (
             glasses_agent_course_pack(),
-            actor_id="system.bootstrap",
-        )
+            gesture_ground_robot_course_pack(),
+        ):
+            fabric.install_course_pack(
+                course_pack,
+                actor_id="system.bootstrap",
+            )
         connections = FabricAdapterConnections(
             fabric,
             auth,
@@ -240,7 +245,10 @@ def create_fabric_app(
 
     @app.get("/api/v1/fabric/healthz")
     async def health() -> dict[str, str]:
-        return {"status": "ok", "physicalActuation": "disabled"}
+        return {
+            "status": "ok",
+            "physicalActuation": "enabled" if allow_physical_fabric else "disabled",
+        }
 
     if configured_studio is not None:
         index_path = configured_studio / "index.html"
@@ -308,10 +316,14 @@ def create_persistent_fabric_app() -> FastAPI:
     else:
         built_studio = Path(__file__).resolve().parents[4] / "apps" / "studio-web" / "dist"
         studio_directory = built_studio if built_studio.is_dir() else None
+    physical_setting = os.environ.get("CITXR_ALLOW_PHYSICAL_FABRIC", "false").casefold()
+    if physical_setting not in {"true", "false"}:
+        raise ValueError("CITXR_ALLOW_PHYSICAL_FABRIC must be 'true' or 'false'")
     return create_fabric_app(
         database_path=data_directory / "interaction-fabric.sqlite3",
         fabric_bootstrap_identities=(bootstrap,),
         fabric_allowed_origins=(public_origin.rstrip("/"),),
         allowed_hosts=allowed_hosts,
+        allow_physical_fabric=physical_setting == "true",
         studio_directory=studio_directory,
     )

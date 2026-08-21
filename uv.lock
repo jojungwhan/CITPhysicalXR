@@ -12,6 +12,7 @@ members = [
     "cit-lego-pybricks",
     "cit-physical-xr-workspace",
     "cit-protocol",
+    "cit-robomaster-leap",
     "cit-runtime",
     "cit-safety-core",
     "cit-student-sdk",
@@ -323,6 +324,7 @@ dependencies = [
     { name = "cit-device-simulator" },
     { name = "cit-lego-pybricks" },
     { name = "cit-protocol" },
+    { name = "cit-robomaster-leap" },
     { name = "cit-runtime" },
     { name = "cit-safety-core" },
     { name = "cit-student-sdk" },
@@ -351,6 +353,7 @@ requires-dist = [
     { name = "cit-device-simulator", editable = "packages/device-simulator" },
     { name = "cit-lego-pybricks", editable = "adapters/lego-pybricks" },
     { name = "cit-protocol", editable = "packages/protocol-py" },
+    { name = "cit-robomaster-leap", editable = "adapters/robomaster-leap" },
     { name = "cit-runtime", editable = "apps/runtime-py" },
     { name = "cit-safety-core", editable = "packages/safety-core" },
     { name = "cit-student-sdk", editable = "packages/student-sdk-py" },
@@ -387,6 +390,21 @@ dependencies = [
 requires-dist = [
     { name = "jsonschema", extras = ["format-nongpl"], specifier = "==4.26.0" },
     { name = "pydantic", specifier = "==2.13.4" },
+]
+
+[[package]]
+name = "cit-robomaster-leap"
+version = "0.1.0"
+source = { editable = "adapters/robomaster-leap" }
+dependencies = [
+    { name = "cit-protocol" },
+    { name = "websockets" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cit-protocol", editable = "packages/protocol-py" },
+    { name = "websockets", specifier = "==17.0.1" },
 ]
 
 [[package]]
