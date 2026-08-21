@@ -23,19 +23,47 @@ temporary Agent Mesh changes. Then start the shared host:
 ```powershell
 pnpm hardware:fabric:windows -- -Mode Preflight
 pnpm hardware:fabric:windows -- -Mode Start
-pnpm hardware:fabric:windows -- -Mode CopyCredential
 ```
 
-Open <http://127.0.0.1:8766/fabric>, paste the copied credential, select
-**Connect locally**, then clear the clipboard:
+The launcher opens **CIT Classroom Control** and signs this Windows user in
+automatically. No credential needs to be copied or pasted. To reopen the tutor
+screen without restarting Fabric or any adapter, run:
 
 ```powershell
-Set-Clipboard -Value ''
+pnpm hardware:fabric:windows -- -Mode Open
 ```
 
-The credential ciphertext, logs, and shared SQLite state remain under
-`%LOCALAPPDATA%\CITPhysicalXR\interaction-fabric`. The plaintext credential is
-never printed or stored in the repository.
+The launcher exchanges a one-use, short-lived URL-fragment ticket for a
+12-hour instructor session. It removes the ticket from the address bar before
+loading classroom data, holds the resulting access only in page memory, and
+clears it on reload or sign-out. The administrator bootstrap remains
+current-user DPAPI protected under
+`%LOCALAPPDATA%\CITPhysicalXR\interaction-fabric`; it is never printed, copied
+to the browser, or stored in the repository.
+
+## Tutor workflow
+
+The main screen always highlights one next action. A normal lesson takes four
+steps:
+
+1. **Choose lesson** — select the large card that matches the activity and
+   choose **Set up this lesson**. If exactly one compatible device is connected
+   for a role, CIT assigns it automatically.
+2. **Connect devices** — start the needed component launcher, select a device
+   for each missing role, and choose **Use this device**. The screen explains
+   what each role does; protocol names are hidden under **Technical details**.
+3. **Safety check** — simulation remains locked from real hardware. Physical
+   lessons require the tutor acknowledgement and **Enable physical controls**
+   before **Start lesson** becomes available.
+4. **Teach** — use only the controls relevant to the selected lesson. Pause,
+   end, and the red **Stop all devices** control remain visible. Detailed
+   events, command lifecycle, identifiers, and audit records are collapsed
+   under **Technical diagnostics**.
+
+If automatic sign-in cannot complete, expand **Use an access code instead** on
+the welcome screen and use `-Mode CopyCredential` as a recovery-only path.
+Clear the clipboard immediately afterward. Tutors should normally use
+`-Mode Open`.
 
 ## Attach integrations
 
@@ -55,13 +83,12 @@ pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -Fabric
 pnpm hardware:plug:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
 
-Refresh the UI. Leap appears under **Inputs**. A robot, glasses endpoint, or
-coding agent normally appears under **Bidirectional** because it publishes
-telemetry/output and consumes commands. A command-only adapter appears under
-**Outputs**. Each card shows its complete **Publishes** and **Consumes** lists.
-The smart plug appears under **Bidirectional** because it publishes normalized
-state and consumes the exact boolean power command. Its dedicated card uses the
-same selected session and `classroom_plug` role.
+Each component launcher reopens the same tutor screen after attaching. Choose
+**Refresh devices** if it was already open. The device inventory groups devices
+as **Sends information**, **Sends and receives**, and **Receives instructions**.
+Technical capability and adapter identifiers remain available inside each
+device's collapsed details. The smart plug appears in the bidirectional group
+because it reports state and receives the bounded on/off instruction.
 
 Site and room scopes still isolate sessions. Create or select the relevant
 course pack, assign connected capability-compatible nodes to logical roles,

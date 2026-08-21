@@ -2,7 +2,7 @@
 
 [CmdletBinding()]
 param(
-  [ValidateSet("Preflight", "Start", "Status", "CopyCredential", "Stop")]
+  [ValidateSet("Preflight", "Start", "Open", "Status", "CopyCredential", "Stop")]
   [string]$Mode = "Start",
   [ValidateRange(1024, 65535)]
   [int]$FabricPort = 8766,
@@ -290,6 +290,28 @@ function Show-Status([hashtable]$State, [string]$Credential) {
   }
 }
 
+function Open-TutorConsole([string]$Credential) {
+  if (-not $Credential) { throw "No classroom access is available; start CIT first" }
+  if (-not (Get-ListeningProcessId $FabricPort)) {
+    throw "CIT Classroom Control is not running; use -Mode Start first"
+  }
+  try {
+    $handoff = Invoke-JsonApi `
+      -Method POST `
+      -Uri "$fabricOrigin/api/v1/fabric/auth/console-tickets" `
+      -Credential $Credential
+    if (-not $handoff.ticket) { throw "CIT did not return a classroom access link" }
+    $ticket = [Uri]::EscapeDataString([string]$handoff.ticket)
+    Start-Process -FilePath "$fabricOrigin/fabric#console-ticket=$ticket" | Out-Null
+    Write-Host "Opened Classroom Control with automatic local sign-in."
+    Write-Host "The access link expires quickly and can be used only once."
+  } catch {
+    Write-Warning "Automatic sign-in is unavailable: $($_.Exception.Message)"
+    Start-Process -FilePath "$fabricOrigin/fabric" | Out-Null
+    Write-Host "The page will show the access-code fallback."
+  }
+}
+
 function Stop-Fabric([hashtable]$State, [string]$Credential) {
   if ($Credential -and (Get-ListeningProcessId $FabricPort)) {
     try {
@@ -328,11 +350,15 @@ if ($Mode -eq "Status") {
   Show-Status $state $credential
   exit 0
 }
+if ($Mode -eq "Open") {
+  Open-TutorConsole $credential
+  exit 0
+}
 if ($Mode -eq "CopyCredential") {
   if (-not $credential) { throw "No shared Fabric credential exists; start the console first" }
   Set-Clipboard -Value $credential
-  Write-Host "Copied the shared Fabric credential without printing it."
-  Write-Host "Paste it into $fabricOrigin/fabric, then clear the clipboard with: Set-Clipboard -Value ''"
+  Write-Host "Copied the classroom access code without printing it."
+  Write-Host "Use the page's access-code fallback, then clear the clipboard with: Set-Clipboard -Value ''"
   exit 0
 }
 
@@ -349,5 +375,5 @@ Start-Fabric $state $credential
 Show-Status $state $credential
 Write-Host "READY one Fabric UI is available at $fabricOrigin/fabric"
 Write-Host "Attach integrations with -SharedFabricRoot `"$StateRoot`" -FabricPort $FabricPort"
-Write-Host "Copy the sign-in credential with: pnpm hardware:fabric:windows -- -Mode CopyCredential -FabricPort $FabricPort -StateRoot `"$StateRoot`""
-if (-not $NoOpenConsole) { Start-Process -FilePath "$fabricOrigin/fabric" | Out-Null }
+Write-Host "Reopen tutor controls with: pnpm hardware:fabric:windows -- -Mode Open -FabricPort $FabricPort -StateRoot `"$StateRoot`""
+if (-not $NoOpenConsole) { Open-TutorConsole $credential }

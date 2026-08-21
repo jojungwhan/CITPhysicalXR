@@ -74,26 +74,28 @@ robots, simulators, IoT devices, Codex, and Claude all use the same capability
 registry; vendor implementations remain isolated behind authenticated adapter
 WebSockets.
 
-Start the shared UI first. Its credential is current-user DPAPI protected, it
-uses port `8766` so the existing service on `8765` is preserved, and physical
-actuation is disabled unless `-AllowPhysical` is explicit:
+Start the shared UI first. The launcher signs the current Windows user into the
+local tutor console automatically, uses port `8766` so the existing service on
+`8765` is preserved, and keeps physical actuation disabled unless
+`-AllowPhysical` is explicit:
 
 If an older glasses-only Fabric already owns port `8766`, run
 `pnpm hardware:glasses:windows -- -Mode Stop` once before this migration.
 
 ```powershell
 pnpm hardware:fabric:windows -- -Mode Start
-pnpm hardware:fabric:windows -- -Mode CopyCredential
 $fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
 pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766 -SelectMostRecentAgentSession
 pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
 pnpm hardware:plug:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
 
-Open <http://127.0.0.1:8766/fabric>. The node inventory separates input-only,
-output-only, and bidirectional nodes and shows every published and consumed
-capability. Stop individual adapters first, then stop the shared Fabric. See
-`docs/operations/unified-fabric-console.md` for the complete workflow.
+The launcher opens **CIT Classroom Control** automatically. Follow the four
+on-screen steps: choose a lesson, connect devices, complete the safety check,
+then teach. Use `pnpm hardware:fabric:windows -- -Mode Open` to reopen it
+without restarting any device. Stop individual adapters first, then stop the
+shared Fabric. See `docs/operations/unified-fabric-console.md` for the complete
+workflow.
 
 Real G2/Meta acceptance still requires the owner hardware procedure in
 `docs/operations/agent-mesh-bridge.md`; simulator and software tests are not

@@ -43,4 +43,47 @@ describe("Fabric client credentials", () => {
     );
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it("redeems a launcher ticket once without sending it as a bearer credential", async () => {
+    const accessToken = "cit-tutor-" + "c".repeat(40);
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            accessToken,
+            expiresAt: "2026-08-22T03:00:00Z",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            identityId: "tutor-console-a",
+            actorType: "instructor",
+            roles: ["instructor"],
+            permissions: ["fabric.nodes.read"],
+            expiresAt: "2026-08-22T03:00:00Z",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+    const ticket = "t".repeat(43);
+
+    const principal = await client.connectWithConsoleTicket(ticket);
+
+    expect(principal.identityId).toBe("tutor-console-a");
+    const [redeemUrl, redeemInit] = fetchMock.mock.calls[0] ?? [];
+    expect(redeemUrl).toBe(
+      "https://runtime.example.test/api/v1/fabric/auth/console-tickets/redeem",
+    );
+    expect(new Headers(redeemInit?.headers).has("Authorization")).toBe(false);
+    expect(JSON.parse(String(redeemInit?.body))).toEqual({ ticket });
+    const [, identityInit] = fetchMock.mock.calls[1] ?? [];
+    expect(new Headers(identityInit?.headers).get("Authorization")).toBe(
+      `Bearer ${accessToken}`,
+    );
+  });
 });

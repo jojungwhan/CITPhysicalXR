@@ -50,10 +50,14 @@ Shared CIT Interaction Fabric (one FastAPI process + SQLite + UI)
 ```
 
 The Windows shared launcher owns this single Fabric process. Glasses/agent,
-Leap/RoboMaster, and Tuya-compatible smart-plug launchers attach with the protected shared credential while
-retaining ownership only of their own adapter processes and sessions. The UI
-groups every registered node as input-only, output-only, or bidirectional and
-shows both its published and consumed capabilities.
+Leap/RoboMaster, and Tuya-compatible smart-plug launchers attach with dedicated
+scoped adapter identities while retaining ownership only of their own adapter
+processes and sessions. The launcher opens the tutor UI through a one-use
+90-second ticket that redeems to an instructor-scoped, page-memory session; the
+administrator bootstrap never enters the browser. The UI leads tutors through
+lesson choice, device assignment, safety, and teaching. It groups every
+registered node by plain-language I/O behavior and keeps protocol identifiers
+and capabilities in collapsed technical details.
 
 The service starts through
 `cit_runtime.fabric_service:create_persistent_fabric_app`. It defaults to

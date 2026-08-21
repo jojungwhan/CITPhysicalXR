@@ -30,6 +30,7 @@ from .fabric import (
 )
 from .fabric_adapters import FabricAdapterConnections
 from .fabric_auth import (
+    INSTRUCTOR_PERMISSIONS,
     FabricAuthenticationError,
     FabricAuthorizationError,
     FabricAuthService,
@@ -69,6 +70,12 @@ class IssueIdentityRequest(BaseModel):
         Field(min_length=1, max_length=128, pattern=_IDENTIFIER_PATTERN),
     ] = None
     ttlSeconds: Annotated[int, Field(ge=60, le=7_776_000)] = 86_400
+
+
+class RedeemConsoleTicketRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    ticket: Annotated[str, Field(min_length=32, max_length=128)]
 
 
 class AssignRoleRequest(BaseModel):
@@ -167,6 +174,74 @@ def install_fabric_api(
         principal: Annotated[FabricPrincipal, Depends(principal_from_header)],
     ) -> dict[str, object]:
         return _principal_wire(principal)
+
+    @app.post(
+        "/api/v1/fabric/auth/console-tickets",
+        status_code=201,
+    )
+    async def create_console_ticket(
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.auth.issue")),
+        ],
+    ) -> dict[str, object]:
+        issued_at = current_time()
+        identity_id = f"tutor-console-{uuid4().hex[:16]}"
+        permissions = tuple(sorted(INSTRUCTOR_PERMISSIONS & principal.permissions))
+        ticket, ticket_expires_at = get_auth().create_console_ticket(
+            identity_id=identity_id,
+            permissions=permissions,
+            site_id=principal.site_id,
+            room_id=principal.room_id,
+            at=issued_at,
+        )
+        get_repository().record_fabric_audit(
+            actor_id=principal.identity_id,
+            action="fabric.console.open",
+            resource_type="identity",
+            resource_id=identity_id,
+            outcome="succeeded",
+            correlation_id=None,
+            occurred_at=issued_at,
+            details={"actorType": "instructor", "singleUse": True},
+        )
+        return {
+            "ticket": ticket,
+            "expiresAt": ticket_expires_at,
+            "singleUse": True,
+        }
+
+    @app.post("/api/v1/fabric/auth/console-tickets/redeem")
+    async def redeem_console_ticket(
+        request: RedeemConsoleTicketRequest,
+    ) -> dict[str, object]:
+        redeemed_at = current_time()
+        grant = get_auth().redeem_console_ticket(request.ticket, at=redeemed_at)
+        record, credential = get_auth().issue(
+            identity_id=grant.identity_id,
+            actor_type="instructor",
+            roles=("instructor",),
+            permissions=grant.permissions,
+            site_id=grant.site_id,
+            room_id=grant.room_id,
+            session_id=None,
+            ttl=timedelta(hours=12),
+            at=redeemed_at,
+        )
+        get_repository().record_fabric_audit(
+            actor_id=grant.identity_id,
+            action="fabric.console.connect",
+            resource_type="identity",
+            resource_id=grant.identity_id,
+            outcome="succeeded",
+            correlation_id=None,
+            occurred_at=redeemed_at,
+            details={"singleUse": True},
+        )
+        return {
+            "accessToken": credential,
+            "expiresAt": record.expires_at,
+        }
 
     @app.post(
         "/api/v1/fabric/auth/identities",

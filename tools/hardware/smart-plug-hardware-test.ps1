@@ -511,4 +511,9 @@ try {
 Write-Host "READY session $($active.sessionId) [$($active.state)]"
 Write-Host "UI $fabricOrigin/fabric"
 Write-Host "The adapter began OFF. Use the classroom_plug card for explicit on/off control."
-if (-not $NoOpenConsole) { Start-Process -FilePath "$fabricOrigin/fabric" | Out-Null }
+if (-not $NoOpenConsole) {
+  & (Join-Path $repositoryRoot "tools\hardware\interaction-fabric-console.ps1") `
+    -Mode Open `
+    -FabricPort $FabricPort `
+    -StateRoot $SharedFabricRoot
+}

@@ -10,7 +10,7 @@ Status: reconciled strangler plan as of 2026-08-21. Existing working paths remai
 | B — contracts           | Complete for the reference slice        | Generated Python/TypeScript Fabric and adapter contracts; legacy fixtures remain valid                                                   |
 | C — runtime/API         | Complete as a standalone service        | Scoped auth, SQLite, flow/lifecycle, adapter WebSocket, fail-closed physical default                                                     |
 | D — glasses/agents      | Software-complete in compatibility mode | Agent Mesh bridge and durable no-duplicate tests; owner G2/Meta hardware round trip pending                                              |
-| E — P0 console          | Complete for Fabric operations          | Same-origin `/fabric` route, explicit credential, nodes/roles/sessions/stop/lifecycle/audit                                              |
+| E — P0 console          | Complete for Fabric operations          | Same-origin guided `/fabric` route, launcher-assisted sign-in, nodes/roles/sessions/safety/stop/lifecycle/audit                          |
 | F — ground robot        | Software wrapper complete; HIL pending  | Pinned Leap/S1 workers, canonical flow, dual bounds, UI/launcher, and dry-run evidence; LEGO Fabric substitution and physical HIL remain |
 | G — remaining/hardening | Smart-plug software slice complete      | Tuya-LAN adapter/simulator/UI/launcher complete; all physical, network-loss, multi-host, privacy, and performance evidence remains       |
 

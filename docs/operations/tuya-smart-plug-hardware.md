@@ -29,13 +29,13 @@ pnpm hardware:fabric:windows -- -Mode Start
 $fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
 pnpm hardware:plug:windows -- -Mode Preflight -SharedFabricRoot $fabricRoot
 pnpm hardware:plug:windows -- -Mode Start -SharedFabricRoot $fabricRoot
-pnpm hardware:fabric:windows -- -Mode CopyCredential
 ```
 
-Open <http://127.0.0.1:8766/fabric>, connect, select the created
-`smart-plug-control` session, and confirm `classroom_plug` is assigned. Use
-**Turn on**, then **Turn off**. Confirm `power.switch.state` and the command
-lifecycle appear, then run:
+The launcher opens the shared tutor screen and signs in automatically. Choose
+**Classroom smart plug**, confirm **Classroom plug** is ready, complete the
+safety check, and start the lesson. Use **Turn on**, then **Turn off**. Confirm
+the visible outlet state changes; protocol-level state and command history are
+available under **Technical diagnostics**. Then run:
 
 ```powershell
 pnpm hardware:plug:windows -- -Mode Verify -SharedFabricRoot $fabricRoot

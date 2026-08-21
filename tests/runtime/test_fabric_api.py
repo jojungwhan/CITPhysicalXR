@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from cit_runtime.fabric_auth import FABRIC_PERMISSIONS, FabricAuthService, FabricBootstrapIdentity
@@ -152,6 +152,84 @@ def test_scoped_observer_token_is_hash_only_and_cannot_mutate(tmp_path: Path) ->
     assert denied.status_code == 403
     assert stored is not None
     assert stored.token_hash != observer_token
+
+
+def test_launcher_console_ticket_is_short_lived_single_use_and_tutor_scoped(
+    tmp_path: Path,
+) -> None:
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "fabric.sqlite3",
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=(admin_identity(),),
+            maintenance_interval=None,
+        )
+    ) as client:
+        created = client.post(
+            "/api/v1/fabric/auth/console-tickets",
+            headers=ADMIN_HEADERS,
+        )
+        ticket = created.json()["ticket"]
+        ticket_as_bearer = client.get(
+            "/api/v1/fabric/auth/whoami",
+            headers={"Authorization": f"Bearer {ticket}"},
+        )
+        redeemed = client.post(
+            "/api/v1/fabric/auth/console-tickets/redeem",
+            json={"ticket": ticket},
+        )
+        second_redemption = client.post(
+            "/api/v1/fabric/auth/console-tickets/redeem",
+            json={"ticket": ticket},
+        )
+        tutor_token = redeemed.json()["accessToken"]
+        tutor_headers = {"Authorization": f"Bearer {tutor_token}"}
+        tutor = client.get("/api/v1/fabric/auth/whoami", headers=tutor_headers)
+        cannot_issue_identity = client.post(
+            "/api/v1/fabric/auth/identities",
+            headers=tutor_headers,
+            json={
+                "identityId": "should-not-exist",
+                "actorType": "observer",
+                "roles": ["observer"],
+                "permissions": ["fabric.nodes.read"],
+            },
+        )
+
+    assert created.status_code == 201
+    assert created.json()["singleUse"] is True
+    assert "accessToken" not in created.json()
+    assert ticket_as_bearer.status_code == 401
+    assert redeemed.status_code == 200
+    assert second_redemption.status_code == 401
+    assert tutor.status_code == 200
+    assert tutor.json()["roles"] == ["instructor"]
+    assert "fabric.sessions.manage" in tutor.json()["permissions"]
+    assert "fabric.auth.issue" not in tutor.json()["permissions"]
+    assert cannot_issue_identity.status_code == 403
+
+
+def test_launcher_console_ticket_expires_before_redemption(tmp_path: Path) -> None:
+    current = [NOW]
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "fabric.sqlite3",
+            clock=lambda: current[0],
+            fabric_bootstrap_identities=(admin_identity(),),
+            maintenance_interval=None,
+        )
+    ) as client:
+        created = client.post(
+            "/api/v1/fabric/auth/console-tickets",
+            headers=ADMIN_HEADERS,
+        )
+        current[0] = NOW + timedelta(seconds=91)
+        expired = client.post(
+            "/api/v1/fabric/auth/console-tickets/redeem",
+            json={"ticket": created.json()["ticket"]},
+        )
+
+    assert expired.status_code == 401
 
 
 def test_session_request_rejects_duplicate_participants(tmp_path: Path) -> None:

@@ -23,6 +23,12 @@ The original no-`SharedFabricRoot` behavior remains available as a standalone
 compatibility path, but it should not be used when multiple integration types
 need to appear together.
 
+The shared Fabric and component launchers open **CIT Classroom Control** with
+automatic local sign-in. Choose **Glasses and coding assistant**, connect the
+display/glasses and coding assistant roles, complete the safety check, and
+start the lesson. Use `pnpm hardware:fabric:windows -- -Mode Open` to reopen the
+screen without restarting either service.
+
 Prefer `-AgentMeshSessionId <exact-id>` over `-SelectMostRecentAgentSession` when the intended G2 or Meta session is already known. `-ProvisionWearables` invokes Agent Mesh's existing phone/G2 provisioner and therefore requires one authorized Android phone attached through ADB. Without that switch, a previously provisioned G2 or Meta phone bridge can reconnect normally.
 
 Runtime state, logs, SQLite files, and DPAPI ciphertext default to `%LOCALAPPDATA%\CITPhysicalXR\glasses-hardware-test`; no plaintext credential is retained. On a clean start the launcher deliberately uses this order: create the draft Fabric session, start the bridge so nodes can register, bind connected nodes, then start the session. If no glasses client has polled Agent Mesh within two minutes, it remains visible but disconnected and cannot be bound until the owner opens or wears it and reruns `Start`.

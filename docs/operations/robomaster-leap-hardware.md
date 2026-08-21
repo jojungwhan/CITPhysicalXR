@@ -20,7 +20,6 @@ pnpm hardware:fabric:windows -- -Mode Start
 $fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
 pnpm hardware:robot:windows -- -Mode Preflight -SharedFabricRoot $fabricRoot -FabricPort 8766
 pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
-pnpm hardware:fabric:windows -- -Mode CopyCredential
 pnpm hardware:robot:windows -- -Mode Verify -SharedFabricRoot $fabricRoot -FabricPort 8766
 pnpm hardware:robot:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
@@ -29,13 +28,17 @@ It uses the real upstream `DryRunRobot` and `CommandPump`, but a generated
 semantic gesture pulse. `Verify` should report at least one gesture event, one
 bounded robot-command event, and one `SUCCEEDED` lifecycle.
 
-`CopyCredential` places the current-user DPAPI-protected Fabric credential on
-the Windows clipboard without printing it. Paste it into the UI, select
-**Connect locally**, and immediately clear the clipboard:
+Both `hardware:fabric:windows -Mode Start` and the robot launcher open the same
+**CIT Classroom Control** screen with automatic local sign-in. If the browser
+was closed, reopen it without restarting the adapter:
 
 ```powershell
-Set-Clipboard -Value ''
+pnpm hardware:fabric:windows -- -Mode Open
 ```
+
+Choose **Gesture-controlled robot**. Confirm the gesture controller and
+classroom robot show **Ready**, complete the safety check, and start the lesson.
+Use **Stop robot** for a harmless output test before allowing movement.
 
 ## Prepare physical Leap input
 

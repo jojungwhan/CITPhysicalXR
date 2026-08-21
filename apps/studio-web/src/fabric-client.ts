@@ -60,6 +60,11 @@ interface FabricErrorBody {
   correlationId?: unknown;
 }
 
+interface ConsoleTicketRedemption {
+  accessToken: string;
+  expiresAt: string;
+}
+
 export class FabricApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -109,6 +114,39 @@ export class FabricClient {
 
   whoAmI(): Promise<FabricPrincipal> {
     return this.#request("/api/v1/fabric/auth/whoami");
+  }
+
+  async connectWithConsoleTicket(ticket: string): Promise<FabricPrincipal> {
+    const normalized = ticket.trim();
+    if (
+      normalized !== ticket ||
+      normalized.length < 32 ||
+      normalized.length > 128
+    ) {
+      throw new Error("This classroom access link is invalid or has expired.");
+    }
+    const response = await this.#fetch(
+      `${this.#baseUrl}/api/v1/fabric/auth/console-tickets/redeem`,
+      {
+        method: "POST",
+        cache: "no-store",
+        credentials: "omit",
+        headers: {
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ticket: normalized }),
+      },
+    );
+    const redeemed =
+      await this.#readResponse<ConsoleTicketRedemption>(response);
+    this.setCredential(redeemed.accessToken);
+    try {
+      return await this.whoAmI();
+    } catch (caught) {
+      this.clearCredential();
+      throw caught;
+    }
   }
 
   listNodes(): Promise<IntegrationNode[]> {
@@ -226,6 +264,10 @@ export class FabricClient {
         ...init?.headers,
       },
     });
+    return this.#readResponse<ResponseBody>(response);
+  }
+
+  async #readResponse<ResponseBody>(response: Response): Promise<ResponseBody> {
     const text = await response.text();
     let body: unknown;
     try {

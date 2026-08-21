@@ -127,7 +127,15 @@ The later native-cutover gate will move initial prompt selection behind the Fabr
 
 The Python runtime issues and stores hashes of independent CIT tokens. Tokens carry actor ID, role, site/room/session scope, explicit capabilities, creation/expiry, and revocation state. Administrator, instructor, teaching-assistant, student, observer, automated-agent, and adapter identities are not interchangeable.
 
-The production console is served from the same origin as the API. Bearer credentials stay in memory, never URL parameters, local storage, or session storage. All state-changing Fabric routes require an authenticated scope and append an audit record. WebSocket authentication uses the first frame or an HttpOnly same-origin session established through explicit token exchange; origin is checked exactly.
+The production console is served from the same origin as the API. The local
+launcher obtains a high-entropy, one-use console ticket and places only that
+short-lived ticket in the URL fragment. The page removes it before requesting
+classroom data and exchanges it for an instructor-scoped bearer credential.
+Bearer credentials stay in memory, never URL parameters, fragments, local
+storage, or session storage. All state-changing Fabric routes require an
+authenticated scope and append an audit record. WebSocket authentication uses
+the first frame or an HttpOnly same-origin session established through explicit
+token exchange; origin is checked exactly.
 
 The upstream classroom and simulator routes remain compatibility routes during migration and are clearly separated from the independently authorized standalone Fabric service.
 

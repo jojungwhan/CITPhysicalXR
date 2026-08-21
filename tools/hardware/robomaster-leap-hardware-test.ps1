@@ -610,6 +610,12 @@ try {
 
 Write-Host "READY session $($active.sessionId) [$($active.state)]"
 Write-Host "UI $fabricOrigin/fabric"
-Write-Host "UI credential: rerun with -Mode CopyCredential, paste it once, then clear the clipboard."
+Write-Host "Classroom controls open with automatic local sign-in."
 Write-Host $(if ($Live) { "LIVE: robot is armed; release pinch or use Emergency stop immediately to halt." } else { "SIMULATION: a bounded demo pulse and stop are running through the upstream DryRunRobot." })
-if (-not $NoOpenConsole) { Start-Process "$fabricOrigin/fabric" }
+if (-not $NoOpenConsole) {
+  $consoleStateRoot = if ($SharedFabricRoot) { $SharedFabricRoot } else { $StateRoot }
+  & (Join-Path $repositoryRoot "tools\hardware\interaction-fabric-console.ps1") `
+    -Mode Open `
+    -FabricPort $FabricPort `
+    -StateRoot $consoleStateRoot
+}

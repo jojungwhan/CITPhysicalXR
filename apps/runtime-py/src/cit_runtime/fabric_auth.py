@@ -63,6 +63,7 @@ ADAPTER_PERMISSIONS = frozenset(
 )
 
 _TOKEN_DOMAIN = b"cit-interaction-fabric-token-v1\x00"
+_CONSOLE_TICKET_DOMAIN = b"cit-interaction-fabric-console-ticket-v1\x00"
 _MIN_TOKEN_LENGTH = 32
 _MAX_TOKEN_LENGTH = 512
 
@@ -110,6 +111,15 @@ class FabricPrincipal:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class FabricConsoleGrant:
+    identity_id: str
+    permissions: tuple[str, ...]
+    site_id: str | None
+    room_id: str | None
+    ticket_expires_at: datetime
+
+
 class FabricAuthenticationError(PermissionError):
     """Raised when a credential is absent, invalid, expired, or revoked."""
 
@@ -121,6 +131,7 @@ class FabricAuthorizationError(PermissionError):
 class FabricAuthService:
     def __init__(self, repository: SQLiteFabricRepository) -> None:
         self._repository = repository
+        self._console_tickets: dict[str, FabricConsoleGrant] = {}
 
     def install_bootstrap_identities(
         self,
@@ -220,6 +231,45 @@ class FabricAuthService:
     def revoke(self, identity_id: str, *, at: datetime) -> bool:
         return self._repository.revoke_fabric_identity(identity_id, at=_aware_utc(at))
 
+    def create_console_ticket(
+        self,
+        *,
+        identity_id: str,
+        permissions: tuple[str, ...],
+        site_id: str | None,
+        room_id: str | None,
+        at: datetime,
+        ttl: timedelta = timedelta(seconds=90),
+    ) -> tuple[str, datetime]:
+        """Create a short-lived, one-use handoff from the local launcher."""
+
+        if ttl < timedelta(seconds=15) or ttl > timedelta(minutes=5):
+            raise ValueError("Console ticket TTL must be between 15 seconds and five minutes")
+        timestamp = _aware_utc(at)
+        self._validate_identity_values(roles=("instructor",), permissions=permissions)
+        self._drop_expired_console_tickets(at=timestamp)
+        ticket = secrets.token_urlsafe(32)
+        ticket_expires_at = timestamp + ttl
+        self._console_tickets[self._hash_console_ticket(ticket)] = FabricConsoleGrant(
+            identity_id=identity_id,
+            permissions=permissions,
+            site_id=site_id,
+            room_id=room_id,
+            ticket_expires_at=ticket_expires_at,
+        )
+        return ticket, ticket_expires_at
+
+    def redeem_console_ticket(self, ticket: str, *, at: datetime) -> FabricConsoleGrant:
+        """Consume a launcher ticket exactly once and return its tutor grant."""
+
+        timestamp = _aware_utc(at)
+        ticket_hash = self._hash_console_ticket(ticket)
+        grant = self._console_tickets.pop(ticket_hash, None)
+        self._drop_expired_console_tickets(at=timestamp)
+        if grant is None or grant.ticket_expires_at <= timestamp:
+            raise FabricAuthenticationError("Console access link is invalid or expired")
+        return grant
+
     @staticmethod
     def hash_token(token: str) -> str:
         if not isinstance(token, str):
@@ -229,6 +279,25 @@ class FabricAuthService:
         if token != token.strip() or any(character.isspace() for character in token):
             raise FabricAuthenticationError("Fabric credential format is invalid")
         return hashlib.sha256(_TOKEN_DOMAIN + token.encode("utf-8")).hexdigest()
+
+    @staticmethod
+    def _hash_console_ticket(ticket: str) -> str:
+        if not isinstance(ticket, str):
+            raise FabricAuthenticationError("Console access link is invalid")
+        if not _MIN_TOKEN_LENGTH <= len(ticket) <= 128:
+            raise FabricAuthenticationError("Console access link is invalid")
+        if ticket != ticket.strip() or any(character.isspace() for character in ticket):
+            raise FabricAuthenticationError("Console access link is invalid")
+        return hashlib.sha256(_CONSOLE_TICKET_DOMAIN + ticket.encode("utf-8")).hexdigest()
+
+    def _drop_expired_console_tickets(self, *, at: datetime) -> None:
+        expired = [
+            ticket_hash
+            for ticket_hash, grant in self._console_tickets.items()
+            if grant.ticket_expires_at <= at
+        ]
+        for ticket_hash in expired:
+            self._console_tickets.pop(ticket_hash, None)
 
     @staticmethod
     def _validate_identity_values(

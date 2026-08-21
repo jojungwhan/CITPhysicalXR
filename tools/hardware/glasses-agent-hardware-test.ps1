@@ -821,5 +821,9 @@ if ($null -eq $binding.agent) {
 Write-Host "Expected safe prompt: Reply exactly CIT_HARDWARE_OK. Do not use tools or modify files."
 Write-Host "Stop/rollback: pwsh -NoProfile -File `"$PSCommandPath`" -Mode Stop"
 if (-not $NoOpenConsole) {
-  Start-Process -FilePath "$fabricOrigin/fabric" | Out-Null
+  $consoleStateRoot = if ($SharedFabricRoot) { $SharedFabricRoot } else { $StateRoot }
+  & (Join-Path $repositoryRoot "tools\hardware\interaction-fabric-console.ps1") `
+    -Mode Open `
+    -FabricPort $FabricPort `
+    -StateRoot $consoleStateRoot
 }
