@@ -14,7 +14,7 @@ Status: active. Likelihood and impact use Low/Medium/High.
 | R-008 | Raw audio, images, video, EEG, secrets, or CLI frames enter semantic storage | Medium     | High     | Data-class allowlist, bounded schemas, redaction, payload limits, raw-stream exclusion, retention defaults                        | Privacy fixture and forbidden-field tests             |
 | R-009 | MindWave value is presented as objective cognition                           | Medium     | High     | Preserve `mindwave.esense.*`; explicit calibration/derived recipe naming; instructor guidance                                     | Schema, UI labels, and course review                  |
 | R-010 | Brain2Devices dependency/runtime conflicts destabilize core                  | High       | Medium   | Run as out-of-process adapter in its supported Python; versioned wire contract                                                    | Independent process contract test on Windows          |
-| R-011 | Adapter crash or heartbeat loss leaves a device active                       | Medium     | Critical | Local watchdog and stop handler, node lease expiry, automatic disarm, process supervision, visible unsafe/unavailable state       | Crash/network-loss fault tests                        |
+| R-011 | Adapter crash or heartbeat loss leaves a device active                       | Medium     | Critical | Upstream 200 ms command watchdog, local stop handler, node lease expiry, automatic disarm, process supervision, visible state     | Physical crash/network-loss stop evidence             |
 | R-012 | Agent Mesh schema changes break bridge                                       | Medium     | Medium   | Explicit version negotiation, tolerant read of documented optional fields, fail closed on unsupported major                       | Cross-repository contract fixtures                    |
 | R-013 | Capability names imply substitution where semantics differ                   | Medium     | High     | Constraint/unit/version descriptors; vendor namespace for nonportable behavior; course validation                                 | RoboMaster/LEGO conformance tests                     |
 | R-014 | A flow recipe becomes an arbitrary-code channel                              | Low        | Critical | Declarative allowlisted operators only; no eval, scripts, shell, dynamic imports, or raw LLM execution                            | Malicious recipe rejection tests                      |
@@ -30,7 +30,7 @@ Status: active. Likelihood and impact use Low/Medium/High.
 
 ## Open assumptions requiring owner or hardware evidence
 
-- Which RoboMaster checkout is the long-term supported vendor boundary.
+- Whether revision `3c213c1...` remains the long-term RoboMaster/Leap boundary after owner HIL.
 - Whether the approved LEGO optional transport split works with the owner hub and Windows Bluetooth stack.
 - Whether a Tuya integration must use LAN control, vendor cloud, or both.
 - Exact G2 production plugin network and background-execution limits.

@@ -4,15 +4,15 @@ Status: reconciled strangler plan as of 2026-08-21. Existing working paths remai
 
 ## Reconciliation checkpoint
 
-| Phase                   | State                                   | Evidence / remaining gate                                                                   |
-| ----------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------- |
-| A — inventory           | Complete                                | Required architecture documents and external integration scan retained                      |
-| B — contracts           | Complete for the reference slice        | Generated Python/TypeScript Fabric and adapter contracts; legacy fixtures remain valid      |
-| C — runtime/API         | Complete as a standalone service        | Scoped auth, SQLite, flow/lifecycle, adapter WebSocket, fail-closed physical default        |
-| D — glasses/agents      | Software-complete in compatibility mode | Agent Mesh bridge and durable no-duplicate tests; owner G2/Meta hardware round trip pending |
-| E — P0 console          | Complete for Fabric operations          | Same-origin `/fabric` route, explicit credential, nodes/roles/sessions/stop/lifecycle/audit |
-| F — ground robot        | Pending                                 | Use upstream LEGO simulator/adapter and owner-selected Leap/S1 wrappers                     |
-| G — remaining/hardening | Pending                                 | Hardware, network-loss, multi-host, privacy, and performance evidence                       |
+| Phase                   | State                                   | Evidence / remaining gate                                                                                                                |
+| ----------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| A — inventory           | Complete                                | Required architecture documents and external integration scan retained                                                                   |
+| B — contracts           | Complete for the reference slice        | Generated Python/TypeScript Fabric and adapter contracts; legacy fixtures remain valid                                                   |
+| C — runtime/API         | Complete as a standalone service        | Scoped auth, SQLite, flow/lifecycle, adapter WebSocket, fail-closed physical default                                                     |
+| D — glasses/agents      | Software-complete in compatibility mode | Agent Mesh bridge and durable no-duplicate tests; owner G2/Meta hardware round trip pending                                              |
+| E — P0 console          | Complete for Fabric operations          | Same-origin `/fabric` route, explicit credential, nodes/roles/sessions/stop/lifecycle/audit                                              |
+| F — ground robot        | Software wrapper complete; HIL pending  | Pinned Leap/S1 workers, canonical flow, dual bounds, UI/launcher, and dry-run evidence; LEGO Fabric substitution and physical HIL remain |
+| G — remaining/hardening | Pending                                 | Hardware, network-loss, multi-host, privacy, and performance evidence                                                                    |
 
 ## Phase A — Baseline and inventory
 
@@ -100,9 +100,20 @@ Rollback: serve the existing simulator lab route and disable the `/fabric` conso
 
 ## Phase F — Ground robot slice
 
-Wrap the selected Leap and RoboMaster repositories and expose the existing upstream LEGO Pybricks adapter through the capability boundary. Prove one `interaction.gesture.swipe` flow can resolve to either compatible ground-mobility node. Add dual safety validation, exclusive lease, instructor override, disconnect safe state, and local latency instrumentation.
+The selected Leap and RoboMaster checkout is now wrapped as independent nodes at
+revision `3c213c1...`. `interaction.gesture.velocity` resolves through the
+declarative `gesture-ground-robot` flow to
+`mobility.ground.set_velocity`. Fabric and the external worker both validate
+bounds; the upstream 200 ms stale watchdog, Fabric exclusive lease, instructor
+emergency stop, disconnect disarm, simulator, UI, and launcher are present.
 
-No source is copied without a compatible licence. Physical movement remains behind a separately enabled hardware profile and checklist.
+Remaining Phase F work is to expose the existing LEGO Pybricks adapter through
+the same canonical Fabric capability, run real Leap/S1 and LEGO HIL, and record
+local p95 latency. Software-only evidence must not be reported as physical.
+
+No upstream implementation source is copied into the core. The owner authorized
+the external private/noncommercial wrapper. Physical movement remains behind a
+separately enabled local Fabric, explicit arm/start, and the hardware checklist.
 
 ## Phase G — Remaining integrations and hardening
 

@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 import { translatorFor, type Locale } from "./i18n.js";
 import { FabricConsole } from "./FabricConsole.js";
-import { ProgramView } from "./ProgramView.js";
 import {
   RuntimeClient,
   RuntimeRefusedError,
@@ -19,10 +26,21 @@ import { SignIn } from "./SignIn.js";
 import { DevicesView } from "./views/DevicesView.js";
 import { InstructorView } from "./views/InstructorView.js";
 import { LogsView } from "./views/LogsView.js";
-import { ProjectsView } from "./views/ProjectsView.js";
 import { SettingsView } from "./views/SettingsView.js";
 import { SimulationView } from "./views/SimulationView.js";
 import { XrView } from "./views/XrView.js";
+
+// These views pull in AJV's runtime schema compiler. Keep them in route-specific
+// chunks so the Fabric console remains compatible with its no-unsafe-eval CSP.
+const ProgramView = lazy(async () => {
+  const module = await import("./ProgramView.js");
+  return { default: module.ProgramView };
+});
+
+const ProjectsView = lazy(async () => {
+  const module = await import("./views/ProjectsView.js");
+  return { default: module.ProjectsView };
+});
 
 export function App() {
   if (
@@ -211,22 +229,26 @@ function ClassroomApp() {
       )}
 
       {route === "projects" && (
-        <ProjectsView client={client} t={t} run={run} busy={busy} />
+        <Suspense fallback={<p className="muted">Loading projects…</p>}>
+          <ProjectsView client={client} t={t} run={run} busy={busy} />
+        </Suspense>
       )}
 
       {route === "program" && (
-        <ProgramView
-          client={client}
-          identity={identity}
-          session={session}
-          setSession={setSession}
-          devices={devices}
-          locale={locale}
-          t={t}
-          run={run}
-          busy={busy}
-          refresh={refresh}
-        />
+        <Suspense fallback={<p className="muted">Loading program…</p>}>
+          <ProgramView
+            client={client}
+            identity={identity}
+            session={session}
+            setSession={setSession}
+            devices={devices}
+            locale={locale}
+            t={t}
+            run={run}
+            busy={busy}
+            refresh={refresh}
+          />
+        </Suspense>
       )}
 
       {route === "devices" && (

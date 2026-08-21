@@ -1,3 +1,7 @@
-# RoboMaster S1 adapter placeholder
+# RoboMaster S1 adapter boundary
 
-Production work is deferred to Milestone 2. It will wrap the owner-designated external Python environment through authenticated local IPC; Milestone 0 contains no DJI SDK import, subprocess launch, or hardware connection.
+The production wrapper is implemented in
+[`adapters/robomaster-leap`](../robomaster-leap/README.md). RoboMaster is exposed
+as its own Fabric node even though the preserved upstream repository also
+contains Leap gesture code. DJI and Win32 imports remain in the external Python
+3.8 worker and never enter the orchestration core.

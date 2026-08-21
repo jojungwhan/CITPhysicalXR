@@ -51,7 +51,9 @@ Standalone CIT Interaction Fabric (FastAPI + separate SQLite)
 
 The service starts through
 `cit_runtime.fabric_service:create_persistent_fabric_app`. It defaults to
-simulation/informational behavior and has no physical-device dispatcher.
+simulation/informational behavior. Its authenticated adapter dispatcher can
+reach physical nodes only when the local process was explicitly started with
+physical Fabric enabled; the persistent default remains fail closed.
 Credentials are independently scoped and stored only as domain-separated
 hashes. Agent Mesh remains responsible for the existing Codex, Claude, G2, and
 Meta implementations; no private Agent Mesh source is copied into this
@@ -71,8 +73,8 @@ cross-repository cutover.
   simulators and safety gates. Retain as an out-of-process candidate because
   of its Python and hardware dependencies.
 - `D:\dev\robomaster-gesture-control-reference`: Leap/Ultraleap gesture and
-  RoboMaster behavior reference. Characterize and wrap the owner-selected
-  implementation; do not copy unlicensed code.
+  RoboMaster behavior implementation, pinned at `3c213c1...` and wrapped by
+  separate Python 3.8 JSON-lines workers; original source remains external.
 - `D:\dev\robomasterCITCourse`: additional RoboMaster classroom and mission
   behavior reference, also without a selected reusable source license.
 
@@ -83,7 +85,10 @@ cross-repository cutover.
   outstanding.
 - G2 and Meta: the software compatibility path and Windows launcher exist; the
   owner hardware round trip is still required.
-- RoboMaster S1 and Leap: not yet implemented in the current upstream runtime.
+- RoboMaster S1 and Leap: software adapter, semantic course flow, UI controls,
+  upstream dry-run process test, and hardware launcher are implemented. The
+  native Leap DLL/runtime/service and physical HIL evidence remain absent on
+  this host.
 - MindWave and Tello: working external implementations were discovered but are
   not yet Fabric adapters.
 - Tuya: no reusable production implementation was discovered.

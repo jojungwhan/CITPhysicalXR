@@ -1,8 +1,8 @@
 # CIT Physical XR Studio
 
 This repository contains the completed **Milestone 6 classroom foundation**, the
-Milestone 4 LEGO adapter, and an additive Interaction Fabric compatibility
-slice. On top of the Milestone 0 foundation it provides the local runtime,
+Milestone 4 LEGO adapter, an additive Interaction Fabric compatibility slice,
+and the first RoboMaster/Leap ground-robot slice. On top of the Milestone 0 foundation it provides the local runtime,
 authoring environment, instructor/student isolation, projects, simulation,
 record/replay, safety controls, and a loopback-first HTTP/WebSocket API.
 
@@ -19,8 +19,10 @@ from the hub's own port report, and instructor-gated autonomous programs.
 
 **No LEGO hub has been connected.** The adapter is written behind an injectable
 Bluetooth boundary and every test runs against a hub simulated in memory; the
-development host has no Bluetooth adapter. There is still no RoboMaster S1 or
-Leap adapter (M2) and no Quest application (M5).
+development host has no Bluetooth adapter. RoboMaster S1 and Leap now have an
+out-of-process Fabric adapter and simulator-backed course flow, but this host is
+missing the native Leap runtime artifacts, so physical HIL remains pending.
+There is no Quest application (M5).
 
 ## Development setup
 
@@ -86,6 +88,30 @@ requires the owner hardware procedure in
 `docs/operations/agent-mesh-bridge.md`; simulator and software tests are not
 reported as physical evidence.
 
+## RoboMaster S1 and Leap Motion
+
+The latest owner-selected
+`jojungwhan/robomaster-gesture-control` revision is pinned at
+`3c213c110b0cdf2912985bfcde442d67092b98f0`. CIT launches its gesture, LeapC,
+DJI, stock-S1, and command-pump code under the existing Python 3.8 environment
+and exposes independent Leap and S1 capability nodes. Vendor SDKs never enter
+the orchestration process.
+
+Run the complete software-only route first:
+
+```powershell
+pnpm hardware:robot:windows -- -Mode Preflight
+pnpm hardware:robot:windows -- -Mode Start
+pnpm hardware:robot:windows -- -Mode Verify
+pnpm hardware:robot:windows -- -Mode Stop
+```
+
+The dedicated Fabric UI is <http://127.0.0.1:8767/fabric>. Physical execution
+requires the explicit `-Live` flag and still requires the Fabric **Arm** and
+**Start** transitions. See
+`docs/operations/robomaster-leap-hardware.md` before connecting wheels to the
+floor.
+
 The runtime binds the loopback interface and refuses to bind a routable one
 without an explicit override. Its CORS allowlist contains no remote origin, so a
 Studio copy served from another host resolves the API to its own origin, finds
@@ -111,25 +137,27 @@ Platform paths are stored separately and never translated between Windows and Li
 - `packages/safety-core`: command ledger, expiry, leases, and foundation denial policy
 - `packages/device-simulator`: non-hardware adapter contract and fake S1, Leap, LEGO, and Quest devices
 - `adapters/lego-pybricks`: the LEGO hub adapter, framed protocol, capability discovery, and injectable Bluetooth boundary
+- `adapters/robomaster-leap`: authenticated Fabric wrapper plus isolated Python 3.8 Leap and S1 workers
 - `firmware/lego-hub-agent`: the Pybricks program that runs on a hub
 - `packages/test-harness`: reusable adapter shape assertion
 - `apps/runtime-py`: the local runtime -- sessions, device registry, safety supervisor, command pipeline, event router, record/replay, audit, and the loopback API
 - `apps/studio-web`: the Studio console -- device cards, session controls, drive controls, and a live event stream
 - `apps/agent-mesh-bridge`: authenticated Agent Mesh compatibility adapter with a durable local outbox
 - `course-packs/glasses-agent-control`: capability-based glasses/agent reference lesson
+- `course-packs/gesture-ground-robot`: Leap semantic velocity to interchangeable ground-mobility role
 - `apps/quest-godot`: text-only Godot scene scaffold; no OpenXR or export setup
 - `docs/REUSE_AUDIT.md`: exact external checkout evidence and reuse decisions
 
 ## Current limitations
 
-- No hardware was contacted or modified. The LEGO adapter is real code against a simulated hub; `ble.py` has never run.
+- No hardware was contacted or modified during this integration. LEGO and RoboMaster/Leap software paths have simulator evidence only.
 - Installing the current LEGO `hardware` extra breaks `pnpm license:check`; ADR-023 selected a transport split, which is not implemented yet and still blocks hardware bring-up.
-- The runtime listens on loopback only. There is no arbitrary shell, subprocess bridge, eval endpoint, or public endpoint.
+- The runtime listens on loopback only. The new subprocess bridge executes one fixed worker path with an allowlisted JSON-lines contract; there is no arbitrary shell, eval endpoint, or public endpoint.
 - Fake-device tests are contract evidence only; they are not Milestone 1 simulation or hardware evidence.
-- The working DJI Python environment was found, but the expected built Leap bridge DLL, Leap runtime/service, and owner-designated integrated checkout were not found.
+- The working DJI Python environment and pinned upstream checkout are integrated, but the built Leap bridge DLL, adjacent LeapC runtime, and tracking service are still absent on this host.
 - Linux paths for the audited external repositories remain unresolved.
 - Godot is not installed on the discovery host, so only static project structure is checked. No APK or Quest/OpenXR behavior is claimed.
-- Agent CLI Mesh and the audited RoboMaster repositories have no owner licence at their inspected top level; none of their original code is copied here.
+- Agent CLI Mesh and the audited RoboMaster repositories have no owner licence at their inspected top level; none of their original code is copied here. The RoboMaster wrapper follows the owner's private noncommercial authorization.
 - The GitHub Actions matrix covers Windows and Ubuntu with Python 3.11 and 3.13.
 
 See `docs/MILESTONE_4_REPORT.md`, `docs/MILESTONE_3_REPORT.md`, and `docs/MILESTONE_1_REPORT.md` for what each milestone verified and what it deliberately leaves out, `docs/IMPLEMENTATION_PLAN.md` for requirement traceability and `docs/DECISIONS.md` for architecture decisions. The repository is licensed under Apache-2.0; dependency and external-source status is in `THIRD_PARTY_NOTICES.md` and `docs/LICENSING.md`.

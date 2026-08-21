@@ -289,23 +289,34 @@ export function FabricConsole() {
       );
     });
 
-  const sendTestCommand = (kind: "agent" | "display") =>
+  const sendTestCommand = (kind: "agent" | "display" | "robot-stop") =>
     runAction(`Testing ${kind}`, async () => {
       if (selectedSession === undefined)
         throw new Error("Select a session first.");
-      if (selectedSession.state !== "active") {
+      if (kind !== "robot-stop" && selectedSession.state !== "active") {
         throw new Error("Start the session before testing an output.");
       }
-      const role = kind === "agent" ? "coding_agent" : "primary_glasses";
+      const role =
+        kind === "agent"
+          ? "coding_agent"
+          : kind === "display"
+            ? "primary_glasses"
+            : "student_robot";
       const action =
-        kind === "agent" ? "agent.prompt.submit" : "display.text.render";
+        kind === "agent"
+          ? "agent.prompt.submit"
+          : kind === "display"
+            ? "display.text.render"
+            : "mobility.ground.stop";
       const parameters =
         kind === "agent"
           ? {
               prompt:
                 "Reply with a short CIT Fabric connectivity acknowledgement.",
             }
-          : { text: "CIT Fabric display test" };
+          : kind === "display"
+            ? { text: "CIT Fabric display test" }
+            : {};
       if (
         !selectedSession.roleBindings.some((binding) => binding.role === role)
       ) {
@@ -334,9 +345,14 @@ export function FabricConsole() {
         correlationId,
       });
       const terminal = result.lifecycle.at(-1);
+      const label =
+        kind === "agent"
+          ? "Agent"
+          : kind === "display"
+            ? "Display"
+            : "Robot stop";
       setNotice(
-        `${kind === "agent" ? "Agent" : "Display"} test reached ` +
-          `${terminal?.stage ?? "an unknown state"}.`,
+        `${label} test reached ${terminal?.stage ?? "an unknown state"}.`,
       );
     });
 
@@ -706,6 +722,21 @@ export function FabricConsole() {
               Test glasses display
               <small>Render one fixed notification</small>
             </button>
+            <button
+              type="button"
+              disabled={
+                !canSubmitCommands ||
+                selectedSession === undefined ||
+                busy !== null ||
+                !selectedSession.roleBindings.some(
+                  (binding) => binding.role === "student_robot",
+                )
+              }
+              onClick={() => void sendTestCommand("robot-stop")}
+            >
+              Test robot stop
+              <small>Send only the allowlisted zero-motion command</small>
+            </button>
             <div className="fabric-arm-state">
               <span
                 className={`status-dot ${selectedSession?.armed ? "status-warning" : "status-ok"}`}
@@ -718,7 +749,7 @@ export function FabricConsole() {
                 </strong>
                 <small>
                   {selectedSession?.disarmReason?.replaceAll("_", " ") ??
-                    "Reference runtime has no physical execution path"}
+                    "Physical execution remains locally opt-in"}
                 </small>
               </div>
             </div>
