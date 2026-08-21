@@ -130,6 +130,7 @@ def test_fixed_adapter_connection_actions_use_disarmed_launchers(
         state_root=tmp_path / "fabric",
         brain2devices_root=tmp_path / "brain",
         robomaster_root=tmp_path / "robot",
+        agent_mesh_root=tmp_path / "agent-mesh",
         fabric_port=9876,
         powershell_path="pwsh",
     )

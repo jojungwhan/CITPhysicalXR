@@ -50,7 +50,9 @@ steps:
 
 1. **Find devices** — power on today's equipment, plug in USB devices, then
    choose **Find devices**. Review Connected, Found, Ready, or Setup needed on
-   each supported integration card. Discovery cannot arm or actuate hardware.
+   each supported integration card. Choose **Connect all available** to run
+   every verified connect-only adapter; aircraft require the grounded safety
+   confirmation first. Discovery and connection cannot arm or actuate hardware.
 2. **Choose lesson** — select the large card that matches the activity and
    choose **Set up this lesson**. If exactly one compatible device is connected
    for a role, CIT assigns it automatically.

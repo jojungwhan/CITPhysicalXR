@@ -502,6 +502,51 @@ main.fabric-main {
   flex: 0 0 auto;
 }
 
+.fabric-connect-all {
+  display: flex;
+  margin: 12px 0;
+  padding: 15px 16px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid rgb(158 234 100 / 28%);
+  border-radius: 12px;
+  background: linear-gradient(
+    110deg,
+    rgb(158 234 100 / 9%),
+    rgb(117 199 255 / 5%)
+  );
+}
+
+.fabric-connect-all strong {
+  color: #edf7ef;
+}
+
+.fabric-connect-all p {
+  max-width: 720px;
+  margin: 5px 0 0;
+  color: #9dad9f;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.fabric-connect-all .fabric-grounded-confirmation {
+  margin-bottom: 0 !important;
+}
+
+.fabric-connect-all-button {
+  min-width: 250px;
+  flex: 0 0 auto;
+}
+
+.fabric-connect-all-button small {
+  display: block;
+  margin-top: 3px;
+  color: #2b4a31;
+  font-size: 0.67rem;
+  font-weight: 700;
+}
+
 .fabric-candidate-list strong,
 .fabric-candidate-list small {
   display: block;
@@ -1401,6 +1446,16 @@ main.fabric-main {
 
   .fabric-find-devices {
     width: 100%;
+  }
+
+  .fabric-connect-all {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .fabric-connect-all-button {
+    width: 100%;
+    min-width: 0;
   }
 
   .fabric-next-step {

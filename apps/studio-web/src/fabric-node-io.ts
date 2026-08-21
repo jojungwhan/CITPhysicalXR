@@ -1,5 +1,9 @@
 export type FabricNodeIoKind = "input" | "output" | "bidirectional";
 
+type NodeConnection = {
+  connectionState: string;
+};
+
 type NodeCapabilityLists = {
   publishedCapabilities: readonly unknown[];
   consumedCapabilities: readonly unknown[];
@@ -19,4 +23,11 @@ export function classifyFabricNodeIo(
   if (publishes && consumes) return "bidirectional";
   if (consumes) return "output";
   return "input";
+}
+
+/** Only live or explicitly degraded adapters belong in classroom controls. */
+export function isAvailableFabricNode(node: NodeConnection): boolean {
+  return (
+    node.connectionState === "connected" || node.connectionState === "degraded"
+  );
 }

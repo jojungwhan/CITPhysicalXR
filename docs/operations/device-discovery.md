@@ -17,7 +17,14 @@ connect a headset, send a Tello SDK packet, arm a robot, start an agent, or
 switch a plug. `-AllowPhysical` permits authenticated physical adapters to
 register, but every newly created lesson remains disarmed.
 
-In the UI, choose **Find devices**. Each integration has one of these states:
+In the UI, choose **Find devices**. When one or more validated connectors are
+available, choose **Connect all available** to attach them in sequence. This is
+connect-only: lessons, robots, drones, and outlets remain disarmed. If a Tello
+is included, the button stays locked until the tutor confirms that every
+aircraft is grounded with its propellers removed or guarded. You can still use
+an individual card's connection button when troubleshooting one integration.
+
+Each integration has one of these states:
 
 | State          | Meaning                                                                |
 | -------------- | ---------------------------------------------------------------------- |
@@ -91,9 +98,12 @@ pnpm hardware:plug:windows -- -Mode Configure
 ```
 
 The key is entered in PowerShell, protected with current-user DPAPI, and never
-returned by discovery. Scan again, then choose **Connect approved plug**. The
-adapter reads current state, registers against an unstarted lesson, and remains
-disarmed; it does not change the outlet state. Follow
+returned by discovery. The scan passively listens for Tuya-family LAN
+announcements and may show only a possible-device count; it does not send a
+probe, return addresses, guess credentials, or assume that every Gosund model
+supports local Tuya control. Scan again after configuration, then choose
+**Connect approved plug**. The adapter reads current state, registers against
+an unstarted lesson, and remains disarmed; it does not change the outlet state. Follow
 [Tuya/Gosund hardware validation](tuya-smart-plug-hardware.md) before enabling
 student use.
 
@@ -116,5 +126,8 @@ pnpm hardware:brain:windows -- -Mode Preflight
 pnpm hardware:brain:windows -- -Mode Status
 ```
 
-The JSON scan is credential-free and read-only. Status output contains counts
-and connection states, not tokens or device credentials.
+The JSON scan is read-only and accepts no browser or device credential. Its
+Agent Mesh readiness check uses Agent Mesh's existing locally scoped CLI
+credential, reduces the result to a count, and discards session metadata.
+Status output contains counts and connection states, not tokens, paths,
+prompts, or device credentials.

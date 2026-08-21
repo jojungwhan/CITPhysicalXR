@@ -280,8 +280,16 @@ function Show-Status([hashtable]$State, [string]$Credential) {
   }
   $health = Invoke-RestMethod -Uri "$fabricOrigin/api/v1/fabric/healthz" -TimeoutSec 5
   Write-Host "Physical actuation: $($health.physicalActuation)"
-  $nodes = @(Expand-Sequence (Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/nodes" -Credential $Credential))
-  Write-Host "Registered nodes: $($nodes.Count)"
+  $registeredNodes = @(Expand-Sequence (Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/nodes" -Credential $Credential))
+  $nodes = @(
+    $registeredNodes |
+      Where-Object { $_.connectionState -in @("connected", "degraded") }
+  )
+  $offlineNodeCount = $registeredNodes.Count - $nodes.Count
+  Write-Host "Connected nodes: $($nodes.Count)"
+  if ($offlineNodeCount -gt 0) {
+    Write-Host "Offline adapter records hidden: $offlineNodeCount"
+  }
   foreach ($node in $nodes | Sort-Object { Get-NodeIoType $_ }, displayName) {
     $published = @($node.publishedCapabilities | ForEach-Object { $_.name }) -join ", "
     $consumed = @($node.consumedCapabilities | ForEach-Object { $_.name }) -join ", "

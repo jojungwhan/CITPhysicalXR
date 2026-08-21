@@ -26,6 +26,14 @@ def test_shared_launcher_uses_one_use_fragment_ticket_without_printing_a_token()
     assert '"Open"' in launcher
 
 
+def test_shared_launcher_hides_disconnected_adapter_history_from_live_status() -> None:
+    launcher = _launcher("interaction-fabric-console.ps1")
+
+    assert 'Where-Object { $_.connectionState -in @("connected", "degraded") }' in launcher
+    assert 'Write-Host "Connected nodes: $($nodes.Count)"' in launcher
+    assert 'Write-Host "Offline adapter records hidden: $offlineNodeCount"' in launcher
+
+
 def test_component_launchers_reopen_the_single_shared_tutor_console() -> None:
     for name in (
         "glasses-agent-hardware-test.ps1",
@@ -114,6 +122,8 @@ if ($ResultPath) {
             str(tmp_path / "brain2devices"),
             "-RoboMasterRoot",
             str(tmp_path / "robomaster"),
+            "-AgentMeshRoot",
+            str(tmp_path / "agent-mesh"),
         ],
         check=True,
         capture_output=True,
@@ -125,4 +135,8 @@ if ($ResultPath) {
 
     assert report["schemaVersion"] == "1.0"
     assert len(report["integrations"]) == 8
+    coding_agents = next(
+        item for item in report["integrations"] if item["integrationId"] == "coding-agents"
+    )
+    assert "actionId" not in coding_agents
     assert completed.stderr == ""

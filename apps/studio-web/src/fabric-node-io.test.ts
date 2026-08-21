@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { classifyFabricNodeIo } from "./fabric-node-io.js";
+import {
+  classifyFabricNodeIo,
+  isAvailableFabricNode,
+} from "./fabric-node-io.js";
 
 describe("Fabric node I/O classification", () => {
   it("classifies a publisher as an input", () => {
@@ -28,5 +31,16 @@ describe("Fabric node I/O classification", () => {
         consumedCapabilities: ["mobility.ground.drive"],
       }),
     ).toBe("bidirectional");
+  });
+
+  it("keeps disconnected history out of the live classroom inventory", () => {
+    expect(isAvailableFabricNode({ connectionState: "connected" })).toBe(true);
+    expect(isAvailableFabricNode({ connectionState: "degraded" })).toBe(true);
+    expect(isAvailableFabricNode({ connectionState: "disconnected" })).toBe(
+      false,
+    );
+    expect(isAvailableFabricNode({ connectionState: "unavailable" })).toBe(
+      false,
+    );
   });
 });

@@ -376,6 +376,12 @@ def create_persistent_fabric_app() -> FastAPI:
                     str(workspace_root / "robomaster-gesture-control-reference"),
                 )
             ),
+            agent_mesh_root=Path(
+                os.environ.get(
+                    "CITXR_AGENT_MESH_ROOT",
+                    str(workspace_root / "glasses2CLI"),
+                )
+            ),
             fabric_port=parsed_origin.port or (443 if parsed_origin.scheme == "https" else 80),
         ),
         physical_actuation_enabled=physical_setting == "true",

@@ -5,6 +5,7 @@ param(
   [string]$StateRoot = "",
   [string]$Brain2DevicesRoot = "",
   [string]$RoboMasterRoot = "",
+  [string]$AgentMeshRoot = "",
   [switch]$SkipWifiScan
 )
 
@@ -25,9 +26,13 @@ if (-not $Brain2DevicesRoot) {
 if (-not $RoboMasterRoot) {
   $RoboMasterRoot = Join-Path $workspaceRoot "robomaster-gesture-control-reference"
 }
+if (-not $AgentMeshRoot) {
+  $AgentMeshRoot = Join-Path $workspaceRoot "glasses2CLI"
+}
 $StateRoot = [IO.Path]::GetFullPath($StateRoot)
 $Brain2DevicesRoot = [IO.Path]::GetFullPath($Brain2DevicesRoot)
 $RoboMasterRoot = [IO.Path]::GetFullPath($RoboMasterRoot)
+$AgentMeshRoot = [IO.Path]::GetFullPath($AgentMeshRoot)
 $warnings = [Collections.Generic.List[string]]::new()
 
 function Test-LocalTcpPort([int]$Port) {
@@ -53,6 +58,38 @@ function Get-PresentDevices([string]$Pattern) {
   }
 }
 
+function Get-SelectableAgentSessionCount([string]$Root) {
+  if (-not (Test-Path -LiteralPath $Root -PathType Container)) { return 0 }
+  $pnpmCommand = Get-Command pnpm -ErrorAction SilentlyContinue
+  if ($null -eq $pnpmCommand) { return 0 }
+
+  try {
+    Push-Location -LiteralPath $Root
+    try {
+      # The local CLI loads its own scoped control credential. Capture and discard
+      # the complete response so workspace/session details never enter this report.
+      $raw = (& $pnpmCommand.Source --silent agentmesh --output json session list 2>$null | Out-String)
+      if ($LASTEXITCODE -ne 0 -or -not $raw.Trim()) { return 0 }
+      $document = $raw | ConvertFrom-Json -Depth 20
+    } finally {
+      Pop-Location
+    }
+
+    $unavailableStates = @("failed", "stopping", "stopped", "disconnected")
+    return @(
+      $document.sessions |
+        Where-Object {
+          $controlStatus = [string]$_.controlStatus
+          $state = [string]$_.state
+          $controlStatus -in @("managed", "observed") -and
+            $state -notin $unavailableStates
+        }
+    ).Count
+  } catch {
+    return 0
+  }
+}
+
 function Get-RoboMasterBroadcastCount([int]$TimeoutMilliseconds = 2200) {
   $addresses = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
   $listener = $null
@@ -75,6 +112,56 @@ function Get-RoboMasterBroadcastCount([int]$TimeoutMilliseconds = 2200) {
     $script:warnings.Add("RoboMaster STA broadcast port 45678 is already in use; close the DJI desktop app or use an explicit robot address before SDK discovery.")
   } finally {
     if ($null -ne $listener) { $listener.Dispose() }
+  }
+  return $addresses.Count
+}
+
+function Get-TuyaBroadcastCount([int]$TimeoutMilliseconds = 1800) {
+  $addresses = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+  $listeners = [Collections.Generic.List[Net.Sockets.UdpClient]]::new()
+  try {
+    foreach ($port in @(6666, 6667, 7000)) {
+      $listener = $null
+      try {
+        $listener = [Net.Sockets.UdpClient]::new()
+        $listener.ExclusiveAddressUse = $false
+        $listener.Client.SetSocketOption(
+          [Net.Sockets.SocketOptionLevel]::Socket,
+          [Net.Sockets.SocketOptionName]::ReuseAddress,
+          $true
+        )
+        $listener.Client.Bind([Net.IPEndPoint]::new([Net.IPAddress]::Any, $port))
+        $listeners.Add($listener)
+        $listener = $null
+      } catch {
+        if ($null -ne $listener) { $listener.Dispose() }
+      }
+    }
+    if ($listeners.Count -eq 0) { return 0 }
+
+    $deadline = [DateTimeOffset]::UtcNow.AddMilliseconds($TimeoutMilliseconds)
+    while ([DateTimeOffset]::UtcNow -lt $deadline) {
+      foreach ($listener in $listeners) {
+        try {
+          while ($listener.Available -gt 0) {
+            $remote = [Net.IPEndPoint]::new([Net.IPAddress]::Any, 0)
+            $payload = $listener.Receive([ref]$remote)
+            if (
+              $payload.Length -gt 0 -and
+              $payload.Length -le 65535 -and
+              -not [Net.IPAddress]::IsLoopback($remote.Address)
+            ) {
+              $null = $addresses.Add($remote.Address.ToString())
+            }
+          }
+        } catch [Net.Sockets.SocketException] {
+          continue
+        }
+      }
+      Start-Sleep -Milliseconds 40
+    }
+  } finally {
+    foreach ($listener in $listeners) { $listener.Dispose() }
   }
   return $addresses.Count
 }
@@ -203,13 +290,34 @@ foreach ($agent in @(
       -Detail "The executable is installed; start or select an approved workspace session to expose it to CIT."
   }
 }
+$selectableAgentSessionCount = if ($agentMeshListening) {
+  Get-SelectableAgentSessionCount -Root $AgentMeshRoot
+} else {
+  0
+}
+if ($selectableAgentSessionCount -gt 0) {
+  $agentCandidates += New-Candidate `
+    -Id "agent-mesh-live-sessions" `
+    -Name "$selectableAgentSessionCount active Agent Mesh session(s)" `
+    -Transport "Local scoped control plane" `
+    -Status "found" `
+    -Detail "At least one approved live session can be attached to the Interaction Fabric; private workspace and prompt details were discarded."
+}
 $agentStatus = if ($agentCandidates.Count -gt 0) { "ready" } else { "setup_required" }
+$installedAgentCount = @($agentCandidates | Where-Object candidateId -in @("codex-cli", "claude-code-cli")).Count
+$agentSummary = if ($selectableAgentSessionCount -gt 0) {
+  "$selectableAgentSessionCount approved live coding-agent session(s) available to connect."
+} elseif ($installedAgentCount -gt 0) {
+  "$installedAgentCount supported coding-agent executable(s) installed, but no live approved session is available."
+} else {
+  "No supported coding-agent executable was found on PATH."
+}
 $integrations.Add((New-Integration `
   -Id "coding-agents" `
   -Name "Codex and Claude coding agents" `
   -Category "coding_agent" `
   -Status $agentStatus `
-  -Summary $(if ($agentCandidates.Count -gt 0) { "$($agentCandidates.Count) supported coding-agent executable(s) installed." } else { "No supported coding-agent executable was found on PATH." }) `
+  -Summary $agentSummary `
   -ConnectionMethod "Local supervised process" `
   -Candidates $agentCandidates `
   -SetupSteps @(
@@ -217,8 +325,8 @@ $integrations.Add((New-Integration `
     "Start the glasses/Agent Mesh adapter and choose that session in the classroom UI."
   ) `
   -SetupCommand 'pnpm hardware:glasses:windows -- -Mode Start -SelectMostRecentAgentSession -SharedFabricRoot "$env:LOCALAPPDATA\CITPhysicalXR\interaction-fabric"' `
-  -ActionId $(if ($agentMeshListening -and $agentCandidates.Count -gt 0) { "cit.glasses-agent.connect" } else { "" }) `
-  -ActionLabel $(if ($agentMeshListening -and $agentCandidates.Count -gt 0) { "Connect glasses and agent" } else { "" }) `
+  -ActionId $(if ($selectableAgentSessionCount -gt 0) { "cit.glasses-agent.connect" } else { "" }) `
+  -ActionLabel $(if ($selectableAgentSessionCount -gt 0) { "Connect glasses and agent" } else { "" }) `
   -SafetyNote "Discovery never starts an agent or grants filesystem, shell, or device credentials."))
 
 # Leap Motion is detectable without opening the camera stream.
@@ -453,12 +561,15 @@ $integrations.Add((New-Integration `
     "Start Brain2Devices, then connect the headset."
   ) `
   -SetupCommand 'pnpm hardware:brain:windows -- -Mode Start' `
-  -ActionId $(if ($brainListening -and -not $headsetConnected) { "brain2devices.mindwave.connect" } else { "" }) `
-  -ActionLabel $(if ($brainListening -and -not $headsetConnected) { "Connect headset" } else { "" }) `
+  -ActionId $(if ($brainListening -and $tgcListening -and -not $headsetConnected) { "brain2devices.mindwave.connect" } else { "" }) `
+  -ActionLabel $(if ($brainListening -and $tgcListening -and -not $headsetConnected) { "Connect headset" } else { "" }) `
   -SafetyNote "Only vendor-labelled semantic metrics are surfaced. Discovery stores no raw biosignal samples."))
 
-# Smart plugs require one exact encrypted local profile. Blind LAN control and
-# credential collection in the browser remain prohibited.
+# Smart plugs require one exact encrypted local profile. A short passive UDP
+# listen may count Tuya-family announcements, but never returns their address or
+# treats a broadcast as authenticated. Blind LAN control and browser credential
+# collection remain prohibited.
+$tuyaBroadcastCount = Get-TuyaBroadcastCount
 $citStateBase = Split-Path $StateRoot -Parent
 $plugRoots = [Collections.Generic.List[string]]::new()
 $legacyPlugRoot = Join-Path $citStateBase "smart-plug"
@@ -470,6 +581,14 @@ if (Test-Path -LiteralPath $multiPlugRoot) {
 }
 $plugCandidates = @()
 $configuredPlugCount = 0
+if ($tuyaBroadcastCount -gt 0) {
+  $plugCandidates += New-Candidate `
+    -Id "tuya-lan-announcements" `
+    -Name "$tuyaBroadcastCount possible Tuya LAN device(s)" `
+    -Transport "Passive local UDP announcement" `
+    -Status "setup_required" `
+    -Detail "A compatible-port announcement was heard, but it is not authenticated. Configure the exact approved plug before CIT connects it."
+}
 foreach ($plugRoot in $plugRoots) {
   $settingsPath = Join-Path $plugRoot "state.json"
   $secretPath = Join-Path $plugRoot "secrets\tuya-device.dpapi"
@@ -492,8 +611,8 @@ $integrations.Add((New-Integration `
   -Id "tuya-gosund-plugs" `
   -Name "Tuya and Gosund smart plugs" `
   -Category "smart_device" `
-  -Status $(if ($configuredPlugCount -gt 0) { "ready" } else { "setup_required" }) `
-  -Summary $(if ($configuredPlugCount -gt 0) { "$configuredPlugCount approved encrypted smart-plug profile(s) are ready for a read-only probe." } else { "No approved Tuya/Gosund local profile is configured. Network presence alone cannot authenticate a plug." }) `
+  -Status $(if ($configuredPlugCount -gt 0) { "ready" } elseif ($tuyaBroadcastCount -gt 0) { "found" } else { "setup_required" }) `
+  -Summary $(if ($configuredPlugCount -gt 0) { "$configuredPlugCount approved encrypted smart-plug profile(s) are ready for a read-only probe." } elseif ($tuyaBroadcastCount -gt 0) { "$tuyaBroadcastCount possible Tuya-family LAN device announcement(s) heard; exact approved profiles are still required." } else { "No approved Tuya/Gosund local profile is configured. Network presence alone cannot authenticate a plug." }) `
   -ConnectionMethod "Local Tuya LAN profile" `
   -Candidates $plugCandidates `
   -SetupSteps @(

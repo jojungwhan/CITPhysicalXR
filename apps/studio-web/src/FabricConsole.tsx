@@ -27,6 +27,7 @@ import {
 import { consumeConsoleTicket } from "./fabric-console-access.js";
 import {
   classifyFabricNodeIo,
+  isAvailableFabricNode,
   type FabricNodeIoKind,
 } from "./fabric-node-io.js";
 import { countActiveFabricCommands } from "./fabric-lifecycle.js";
@@ -97,8 +98,37 @@ export function FabricConsole() {
     principal,
     "fabric.discovery.connect",
   );
+  const connectableIntegrations = useMemo(
+    () =>
+      discovery?.integrations.filter(
+        (integration) =>
+          integration.actionId !== undefined &&
+          integration.status !== "connected",
+      ) ?? [],
+    [discovery],
+  );
+  const groundedConnections = useMemo(
+    () =>
+      connectableIntegrations.filter(
+        (integration) => integration.requiresGroundedConfirmation,
+      ),
+    [connectableIntegrations],
+  );
+  const allAircraftGrounded = groundedConnections.every(
+    (integration) => groundedConfirmations[integration.integrationId] === true,
+  );
+  const discoveryConnectionsEnabled =
+    canConnectDevices && discovery?.physicalActuationEnabled === true;
   const canStopAll = hasPermission(principal, "fabric.stop_all");
-  const smartPlugNodes = useMemo(() => nodes.filter(isSmartPlugNode), [nodes]);
+  const availableNodes = useMemo(
+    () => nodes.filter(isAvailableFabricNode),
+    [nodes],
+  );
+  const offlineNodeCount = nodes.length - availableNodes.length;
+  const smartPlugNodes = useMemo(
+    () => availableNodes.filter(isSmartPlugNode),
+    [availableNodes],
+  );
   const smartPlugBinding = selectedSession?.roleBindings.find(
     (binding) => binding.role === "classroom_plug",
   );
@@ -430,6 +460,51 @@ export function FabricConsole() {
       setNotice(result.message);
     });
 
+  const connectAllDiscovered = () =>
+    runAction("Connecting available devices", async () => {
+      if (connectableIntegrations.length === 0) {
+        throw new Error(
+          "No verified connection is ready. Follow the Setup needed cards, then find devices again.",
+        );
+      }
+      if (!allAircraftGrounded) {
+        throw new Error(
+          "Confirm that every aircraft is grounded before connecting all available devices.",
+        );
+      }
+
+      let latestReport = discovery;
+      const connectedNames: string[] = [];
+      const failures: string[] = [];
+      for (const integration of connectableIntegrations) {
+        if (integration.actionId === undefined) continue;
+        try {
+          const result = await client.runDiscoveryAction(
+            integration.actionId,
+            integration.requiresGroundedConfirmation,
+          );
+          latestReport = result.report;
+          connectedNames.push(integration.displayName);
+        } catch (caught) {
+          failures.push(
+            `${integration.displayName}: ${describeFabricError(caught)}`,
+          );
+        }
+      }
+      if (latestReport !== null) setDiscovery(latestReport);
+
+      const connectionSummary =
+        connectedNames.length === 0
+          ? "No connection completed."
+          : `Connection completed for ${connectedNames.length} device group${connectedNames.length === 1 ? "" : "s"}: ${connectedNames.join(", ")}.`;
+      setNotice(
+        `${connectionSummary} Physical outputs remain disarmed until a tutor starts an approved lesson.`,
+      );
+      if (failures.length > 0) {
+        setError(`Some devices still need attention. ${failures.join(" ")}`);
+      }
+    });
+
   const copySetupCommand = (integration: FabricIntegrationDiscovery) =>
     runAction(`Copying ${integration.displayName} setup`, async () => {
       if (integration.setupCommand === undefined) {
@@ -684,7 +759,7 @@ export function FabricConsole() {
     );
   }
 
-  const nodeGroups = groupNodesByIo(nodes);
+  const nodeGroups = groupNodesByIo(availableNodes);
 
   return (
     <div className="fabric-console">
@@ -825,6 +900,64 @@ export function FabricConsole() {
             </div>
           </div>
 
+          {connectableIntegrations.length > 0 && (
+            <div className="fabric-connect-all">
+              <div>
+                <strong>
+                  {connectableIntegrations.length} safe connection
+                  {connectableIntegrations.length === 1 ? "" : "s"} ready
+                </strong>
+                <p>
+                  Connect every verified adapter in one step. Robots, drones,
+                  plugs, and lesson sessions remain disarmed.
+                </p>
+                {groundedConnections.length > 0 && (
+                  <label className="fabric-grounded-confirmation">
+                    <input
+                      type="checkbox"
+                      checked={allAircraftGrounded}
+                      onChange={(event) => {
+                        const confirmed = event.target.checked;
+                        setGroundedConfirmations((current) => ({
+                          ...current,
+                          ...Object.fromEntries(
+                            groundedConnections.map((integration) => [
+                              integration.integrationId,
+                              confirmed,
+                            ]),
+                          ),
+                        }));
+                      }}
+                    />
+                    <span>
+                      Every aircraft is grounded; propellers are removed or
+                      guarded.
+                    </span>
+                  </label>
+                )}
+              </div>
+              <button
+                className="fabric-primary-action fabric-connect-all-button"
+                type="button"
+                disabled={
+                  !discoveryConnectionsEnabled ||
+                  busy !== null ||
+                  !allAircraftGrounded
+                }
+                onClick={() => void connectAllDiscovered()}
+              >
+                {busy === "Connecting available devices"
+                  ? "Connecting…"
+                  : "Connect all available"}
+                <small>
+                  {discovery?.physicalActuationEnabled
+                    ? "Connect only — no movement or switching"
+                    : "Start the physical device host first"}
+                </small>
+              </button>
+            </div>
+          )}
+
           {discovery !== null && (
             <div className="fabric-discovery-meta">
               <span>
@@ -859,7 +992,7 @@ export function FabricConsole() {
                 key={integration.integrationId}
                 integration={integration}
                 busy={busy}
-                canConnect={canConnectDevices}
+                canConnect={discoveryConnectionsEnabled}
                 groundedConfirmed={
                   groundedConfirmations[integration.integrationId] === true
                 }
@@ -886,7 +1019,11 @@ export function FabricConsole() {
         <section className="fabric-overview" aria-label="Classroom status">
           <FabricMetric
             label="Connected devices"
-            value={nodes.length === 0 ? "None yet" : String(nodes.length)}
+            value={
+              availableNodes.length === 0
+                ? "None yet"
+                : String(availableNodes.length)
+            }
           />
           <FabricMetric
             label="Current lesson"
@@ -1487,6 +1624,20 @@ export function FabricConsole() {
               </ol>
             </article>
           </section>
+
+          {offlineNodeCount > 0 && (
+            <section className="fabric-panel fabric-offline-history">
+              <PanelHeading
+                eyebrow="Adapter history"
+                title={`${offlineNodeCount} offline ${offlineNodeCount === 1 ? "record" : "records"} hidden`}
+              />
+              <p className="fabric-help">
+                Disconnected adapter records are retained for diagnostics and
+                audit, but they are excluded from connected-device totals and
+                lesson assignment choices.
+              </p>
+            </section>
+          )}
 
           {audit.length > 0 && (
             <section className="fabric-panel fabric-audit-panel">

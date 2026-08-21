@@ -21,11 +21,15 @@ not checked → found / ready / setup needed → adapter-connected Fabric node
 
 The persistent Windows runtime invokes one fixed repository-owned PowerShell
 probe. The probe may inspect PnP state, services, installed commands, loopback
-ports, configured encrypted-profile presence, physical Wi-Fi adapters, visible
-Tello SSIDs, and incoming RoboMaster STA broadcasts. It reuses the preserved
-Brain2Devices Tello radio helper through its result-file boundary. It never
-accepts a browser-supplied command, path, address, credential, or arbitrary URL,
-and it sends no motor, flight, switch, agent, media, or SDK command.
+ports, configured encrypted-profile presence, passive Tuya-family UDP
+announcement counts, physical Wi-Fi adapters, visible Tello SSIDs, incoming
+RoboMaster STA broadcasts, and the count of currently
+selectable Agent Mesh sessions. The Agent Mesh check uses its existing locally
+scoped CLI credential, immediately discards session metadata, and returns only
+the count. The probe reuses the preserved Brain2Devices Tello radio helper
+through its result-file boundary. It never accepts a browser-supplied command,
+path, address, credential, or arbitrary URL, and it sends no motor, flight,
+switch, agent, media, or SDK command.
 
 Discovery candidates are not registered as nodes. Only an authenticated
 adapter handshake can create a connected capability node. Tuya/Gosund devices
@@ -43,6 +47,11 @@ explicit grounded/propeller confirmation and still cannot take off, land, move,
 or stop motors. Actions and denials are audited. There is no arbitrary process,
 shell, URL, SDK-text, or datapoint endpoint.
 
+The console may invoke every action exposed by the latest scan through one
+**Connect all available** control. It executes the same allowlisted actions in
+sequence, preserves per-action audit records, continues past an adapter-specific
+failure, and never treats setup-only candidates as connectable.
+
 ## Consequences
 
 - Tutors can distinguish physical discovery, software readiness, one-time
@@ -50,7 +59,8 @@ shell, URL, SDK-text, or datapoint endpoint.
 - New physical adapters remain additive; candidate discovery does not change
   command routing or weaken adapter authentication.
 - A scan can honestly say that a USB Wi-Fi radio is ready while no powered
-  Tello is visible, or that Agent Mesh is running while no glasses are recent.
+  Tello is visible, or that Agent Mesh and its executables are installed while
+  no approved live session is selectable.
 - Hardware still requires one-time vendor-specific setup where no safe generic
   handshake exists. Once configured, supported adapters can be started from
   their card; the UI shows the exact next step for the remaining cases instead

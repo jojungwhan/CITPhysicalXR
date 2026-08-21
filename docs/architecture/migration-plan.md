@@ -93,8 +93,9 @@ Deliver the same-origin console with:
 - session start/stop, arm/disarm, local stop-all;
 - input/output tests and simulator selection;
 - live signal, command lifecycle, active lease, safety state, agent status, errors, and disconnects.
-- credential-free host candidate discovery with explicit found/ready/setup/
-  connected states and audited allowlisted connection actions.
+- read-only host candidate discovery with explicit found/ready/setup/connected
+  states, no browser/device credential input, and audited allowlisted connection
+  actions.
 
 Exit gate: every mutation is scoped, audited, protected from cross-origin use, and unavailable to observer/student roles where prohibited. The browser retains no bearer after refresh.
 

@@ -1,10 +1,11 @@
-"""Credential-free host discovery and allowlisted local connection actions.
+"""Host discovery and allowlisted local connection actions.
 
 The Interaction Fabric core never imports a vendor SDK.  This module invokes a
 fixed, repository-owned host probe and, for the already-running Brain2Devices
 compatibility service, a closed set of loopback-only connection operations.
-Neither path accepts a shell command, device credential, address, or arbitrary
-URL from the browser.
+Agent Mesh readiness is obtained through its locally scoped CLI credential and
+reduced to a count by the probe. Neither path accepts a shell command, device
+credential, address, or arbitrary URL from the browser.
 """
 
 from __future__ import annotations
@@ -194,6 +195,7 @@ class PowerShellDiscoveryRunner:
         state_root: Path,
         brain2devices_root: Path,
         robomaster_root: Path,
+        agent_mesh_root: Path,
         fabric_port: int = 8766,
         powershell_path: str | None = None,
         brain2devices_origin: str = "http://127.0.0.1:8765",
@@ -202,6 +204,7 @@ class PowerShellDiscoveryRunner:
         self._state_root = state_root.resolve()
         self._brain2devices_root = brain2devices_root.resolve()
         self._robomaster_root = robomaster_root.resolve()
+        self._agent_mesh_root = agent_mesh_root.resolve()
         if not 1024 <= fabric_port <= 65535:
             raise ValueError("fabric_port must be between 1024 and 65535")
         self._fabric_port = fabric_port
@@ -229,6 +232,8 @@ class PowerShellDiscoveryRunner:
             str(self._brain2devices_root),
             "-RoboMasterRoot",
             str(self._robomaster_root),
+            "-AgentMeshRoot",
+            str(self._agent_mesh_root),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
