@@ -5,8 +5,11 @@ UI. Every running adapter registers into that process, so sensors, wearables,
 robots, IoT devices, simulators, and coding agents can be assigned and observed
 without opening a device-specific console.
 
-Only integrations that are actually connected are shown. The UI does not fake
-support for a device whose adapter has not been implemented or started.
+The discovery center shows every supported integration, but keeps hardware
+candidates separate from authenticated Fabric nodes. The connected-node
+inventory still shows only adapters that actually registered; the UI does not
+fake a capability because an SSID, USB name, process, or encrypted profile was
+found.
 
 ## Start the shared console
 
@@ -21,8 +24,7 @@ Do not kill the Python PID directly; the component launcher also restores its
 temporary Agent Mesh changes. Then start the shared host:
 
 ```powershell
-pnpm hardware:fabric:windows -- -Mode Preflight
-pnpm hardware:fabric:windows -- -Mode Start
+pnpm hardware:devices:windows -- -Mode Start
 ```
 
 The launcher opens **CIT Classroom Control** and signs this Windows user in
@@ -43,19 +45,22 @@ to the browser, or stored in the repository.
 
 ## Tutor workflow
 
-The main screen always highlights one next action. A normal lesson takes four
+The main screen always highlights one next action. A normal lesson takes five
 steps:
 
-1. **Choose lesson** — select the large card that matches the activity and
+1. **Find devices** — power on today's equipment, plug in USB devices, then
+   choose **Find devices**. Review Connected, Found, Ready, or Setup needed on
+   each supported integration card. Discovery cannot arm or actuate hardware.
+2. **Choose lesson** — select the large card that matches the activity and
    choose **Set up this lesson**. If exactly one compatible device is connected
    for a role, CIT assigns it automatically.
-2. **Connect devices** — start the needed component launcher, select a device
+3. **Assign devices** — use the card's fixed setup step where needed, select a device
    for each missing role, and choose **Use this device**. The screen explains
    what each role does; protocol names are hidden under **Technical details**.
-3. **Safety check** — simulation remains locked from real hardware. Physical
+4. **Safety check** — simulation remains locked from real hardware. Physical
    lessons require the tutor acknowledgement and **Enable physical controls**
    before **Start lesson** becomes available.
-4. **Teach** — use only the controls relevant to the selected lesson. Pause,
+5. **Teach** — use only the controls relevant to the selected lesson. Pause,
    end, and the red **Stop all devices** control remain visible. Detailed
    events, command lifecycle, identifiers, and audit records are collapsed
    under **Technical diagnostics**.
@@ -72,6 +77,9 @@ separate component state directory:
 
 ```powershell
 $fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
+
+# Preserved Tello/MindWave host; connection buttons then appear in this UI
+pnpm hardware:brain:windows -- -Mode Start -SharedFabricRoot $fabricRoot
 
 # Existing G2/Meta and Codex/Claude bridge
 pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766 -SelectMostRecentAgentSession
@@ -94,6 +102,12 @@ Site and room scopes still isolate sessions. Create or select the relevant
 course pack, assign connected capability-compatible nodes to logical roles,
 then start the session. One UI can monitor multiple rooms without allowing one
 session to commandeer another room's node.
+
+The Tello card can associate discovered USB Wi-Fi radios and start grounded
+SDK handshakes through Brain2Devices. It cannot fly an aircraft. The MindWave
+card can start the preserved headset connection. Smart plugs cannot be
+authenticated from network presence: configure each exact DPAPI-protected
+profile once from PowerShell. See `device-discovery.md`.
 
 ## Physical devices
 

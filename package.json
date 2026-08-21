@@ -26,6 +26,8 @@
     "license:check": "node tools/license-check/check.mjs",
     "sbom": "uv run python tools/sbom/generate.py",
     "hardware:fabric:windows": "pwsh -NoProfile -File tools/hardware/interaction-fabric-console.ps1",
+    "hardware:devices:windows": "pwsh -NoProfile -File tools/hardware/classroom-devices.ps1",
+    "hardware:brain:windows": "pwsh -NoProfile -File tools/hardware/brain2devices-hardware.ps1",
     "hardware:glasses:windows": "pwsh -NoProfile -File tools/hardware/glasses-agent-hardware-test.ps1",
     "hardware:robot:windows": "pwsh -NoProfile -File tools/hardware/robomaster-leap-hardware-test.ps1",
     "hardware:plug:windows": "pwsh -NoProfile -File tools/hardware/smart-plug-hardware-test.ps1"

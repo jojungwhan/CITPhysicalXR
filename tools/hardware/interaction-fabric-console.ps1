@@ -239,9 +239,10 @@ function Start-Fabric([hashtable]$State, [string]$Credential) {
       CITXR_DATA_DIRECTORY = $runtimeDataRoot
       CITXR_PUBLIC_ORIGIN = $fabricOrigin
       CITXR_ALLOWED_HOSTS = "127.0.0.1,localhost"
-      CITXR_FABRIC_BOOTSTRAP_TOKEN = $Credential
-      CITXR_ALLOW_PHYSICAL_FABRIC = if ($AllowPhysical) { "true" } else { "false" }
-    }
+    CITXR_FABRIC_BOOTSTRAP_TOKEN = $Credential
+    CITXR_ALLOW_PHYSICAL_FABRIC = if ($AllowPhysical) { "true" } else { "false" }
+    CITXR_DISCOVERY_STATE_ROOT = $StateRoot
+  }
   $State.fabricLauncherPid = $process.Id
   $State.fabricOwned = $true
   $State.allowPhysical = [bool]$AllowPhysical

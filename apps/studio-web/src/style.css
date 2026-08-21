@@ -124,7 +124,7 @@ main.fabric-main {
   display: grid;
   margin: 0;
   padding: 0;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   list-style: none;
 }
 
@@ -267,6 +267,339 @@ main.fabric-main {
 .fabric-panel-heading h2 {
   margin-top: 0;
   color: #f0f6f1;
+}
+
+.fabric-discovery-panel {
+  margin-top: 16px;
+  scroll-margin-top: 106px;
+  border-color: rgb(117 199 255 / 22%);
+  background:
+    radial-gradient(circle at 100% 0, rgb(117 199 255 / 8%), transparent 28%),
+    #111914;
+}
+
+.fabric-discovery-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+}
+
+.fabric-discovery-heading h2 {
+  margin: 4px 0 10px;
+  color: #f0f6f1;
+  font-size: clamp(1.35rem, 2.6vw, 1.9rem);
+}
+
+.fabric-discovery-heading .fabric-panel-intro {
+  max-width: 820px;
+  margin: 0;
+}
+
+.fabric-find-devices {
+  min-width: 230px;
+  min-height: 58px;
+  flex: 0 0 auto;
+  font-size: 1rem;
+}
+
+.fabric-find-devices small {
+  display: block;
+  margin-top: 3px;
+  color: #2b4a31;
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.fabric-discovery-safety {
+  display: flex;
+  margin: 18px 0 12px;
+  padding: 12px 14px;
+  align-items: flex-start;
+  gap: 11px;
+  border: 1px solid rgb(158 234 100 / 20%);
+  border-radius: 11px;
+  background: rgb(158 234 100 / 5%);
+}
+
+.fabric-discovery-safety > span {
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #102013;
+  background: var(--fabric-green);
+  font-weight: 900;
+}
+
+.fabric-discovery-safety strong {
+  color: #eaf3ec;
+}
+
+.fabric-discovery-safety p {
+  margin: 2px 0 0;
+  color: #95a49a;
+  font-size: 0.83rem;
+  line-height: 1.45;
+}
+
+.fabric-discovery-meta {
+  display: flex;
+  margin: 10px 0 14px;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.fabric-discovery-meta span {
+  padding: 5px 9px;
+  border-radius: 99px;
+  color: #a8b7ad;
+  background: rgb(255 255 255 / 6%);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.fabric-discovery-warnings {
+  margin: 10px 0 14px;
+  padding: 12px 14px;
+  border: 1px solid rgb(255 157 98 / 32%);
+  border-radius: 10px;
+  color: #f2c2ac;
+  background: rgb(255 157 98 / 7%);
+}
+
+.fabric-discovery-warnings ul {
+  margin: 6px 0 0;
+  padding-left: 20px;
+  color: #d5a993;
+  font-size: 0.8rem;
+}
+
+.fabric-discovery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(310px, 1fr));
+  gap: 11px;
+}
+
+.fabric-discovery-loading {
+  grid-column: 1 / -1;
+}
+
+.fabric-discovery-card {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 12px;
+  background: rgb(0 0 0 / 17%);
+}
+
+.fabric-discovery-card.is-connected {
+  border-color: rgb(158 234 100 / 36%);
+  box-shadow: inset 3px 0 0 var(--fabric-green);
+}
+
+.fabric-discovery-card.is-found {
+  border-color: rgb(117 199 255 / 34%);
+}
+
+.fabric-discovery-card.is-setup-required {
+  border-color: rgb(255 157 98 / 27%);
+}
+
+.fabric-discovery-card > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.fabric-discovery-card h3 {
+  margin: 0 0 2px;
+  color: #eff6f1;
+  font-size: 0.96rem;
+}
+
+.fabric-discovery-card header small {
+  display: block;
+  color: #7f8e84;
+  font-size: 0.73rem;
+}
+
+.fabric-discovery-icon {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 10px;
+  color: #102013;
+  background: var(--fabric-blue);
+  font-size: 0.72rem;
+  font-weight: 950;
+  letter-spacing: -0.02em;
+}
+
+.fabric-discovery-status {
+  padding: 5px 8px;
+  border-radius: 99px;
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.fabric-discovery-status.is-connected {
+  color: #102013;
+  background: var(--fabric-green);
+}
+
+.fabric-discovery-status.is-found,
+.fabric-discovery-status.is-ready {
+  color: #102033;
+  background: var(--fabric-blue);
+}
+
+.fabric-discovery-status.is-setup {
+  color: #321b10;
+  background: #ffad78;
+}
+
+.fabric-discovery-status.is-missing,
+.fabric-discovery-status.is-unchecked {
+  color: #bdc8c0;
+  background: #3a453e;
+}
+
+.fabric-discovery-summary {
+  min-height: 44px;
+  margin: 12px 0;
+  color: #a8b6ac;
+  font-size: 0.82rem;
+  line-height: 1.45;
+}
+
+.fabric-candidate-list {
+  display: grid;
+  max-height: 238px;
+  margin: 0 0 12px;
+  padding: 0;
+  gap: 6px;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.fabric-candidate-list li {
+  display: flex;
+  padding: 8px;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: 8px;
+  background: rgb(255 255 255 / 3%);
+}
+
+.fabric-candidate-list .status-dot {
+  margin-top: 5px;
+  flex: 0 0 auto;
+}
+
+.fabric-candidate-list strong,
+.fabric-candidate-list small {
+  display: block;
+}
+
+.fabric-candidate-list strong {
+  color: #dfe9e2;
+  font-size: 0.79rem;
+}
+
+.fabric-candidate-list small,
+.fabric-candidate-list p {
+  color: #7f8e84;
+  font-size: 0.71rem;
+}
+
+.fabric-candidate-list p {
+  margin: 3px 0 0;
+  line-height: 1.4;
+}
+
+.fabric-grounded-confirmation {
+  display: flex !important;
+  margin: 8px 0 !important;
+  padding: 9px;
+  align-items: flex-start;
+  gap: 8px !important;
+  border: 1px solid rgb(255 157 98 / 28%);
+  border-radius: 9px;
+  color: #e4b49f !important;
+  background: rgb(255 157 98 / 6%);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.fabric-grounded-confirmation input {
+  width: 18px;
+  min-height: 18px;
+  flex: 0 0 auto;
+}
+
+.fabric-discovery-actions {
+  display: flex;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.fabric-connect-device {
+  color: #102013 !important;
+  background: var(--fabric-green) !important;
+}
+
+.fabric-copy-setup {
+  color: #b9dfff !important;
+  background: rgb(117 199 255 / 8%) !important;
+}
+
+.fabric-device-help {
+  margin-top: 11px;
+  padding-top: 9px;
+  border-top: 1px solid rgb(255 255 255 / 7%);
+}
+
+.fabric-device-help summary {
+  color: #92a299;
+  cursor: pointer;
+  font-size: 0.77rem;
+  font-weight: 750;
+}
+
+.fabric-device-help ol {
+  margin: 9px 0;
+  padding-left: 20px;
+  color: #9eaca3;
+  font-size: 0.76rem;
+  line-height: 1.55;
+}
+
+.fabric-device-help code {
+  display: block;
+  max-width: 100%;
+  padding: 8px;
+  overflow-wrap: anywhere;
+  border-radius: 7px;
+  color: #cfe0d3;
+  background: #080d0a;
+  font-size: 0.68rem;
+}
+
+.fabric-device-help small,
+.fabric-device-help p {
+  display: block;
+  margin: 8px 0 0;
+  color: #74837a;
+  font-size: 0.71rem;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
 
 .fabric-console label {
@@ -1062,6 +1395,14 @@ main.fabric-main {
     display: grid;
   }
 
+  .fabric-discovery-heading {
+    flex-direction: column;
+  }
+
+  .fabric-find-devices {
+    width: 100%;
+  }
+
   .fabric-next-step {
     grid-template-columns: 1fr;
   }
@@ -1094,6 +1435,19 @@ main.fabric-main {
   .fabric-welcome {
     padding: 26px 20px;
     border-radius: 18px;
+  }
+
+  .fabric-discovery-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .fabric-discovery-card > header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .fabric-discovery-status {
+    grid-column: 2;
+    justify-self: start;
   }
 
   .fabric-safety-summary {

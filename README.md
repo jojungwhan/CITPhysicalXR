@@ -74,28 +74,38 @@ robots, simulators, IoT devices, Codex, and Claude all use the same capability
 registry; vendor implementations remain isolated behind authenticated adapter
 WebSockets.
 
-Start the shared UI first. The launcher signs the current Windows user into the
-local tutor console automatically, uses port `8766` so the existing service on
-`8765` is preserved, and keeps physical actuation disabled unless
-`-AllowPhysical` is explicit:
+Start the classroom device host first. The launcher signs the current Windows
+user into the local tutor console automatically, uses port `8766`, preserves or
+starts the existing Brain2Devices helper on `8765`, and keeps physical
+actuation disabled unless `-AllowPhysical` is explicit:
 
 If an older glasses-only Fabric already owns port `8766`, run
 `pnpm hardware:glasses:windows -- -Mode Stop` once before this migration.
 
 ```powershell
-pnpm hardware:fabric:windows -- -Mode Start
+pnpm hardware:devices:windows -- -Mode Start
 $fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
 pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766 -SelectMostRecentAgentSession
 pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
 pnpm hardware:plug:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
 
-The launcher opens **CIT Classroom Control** automatically. Follow the four
-on-screen steps: choose a lesson, connect devices, complete the safety check,
-then teach. Use `pnpm hardware:fabric:windows -- -Mode Open` to reopen it
-without restarting any device. Stop individual adapters first, then stop the
-shared Fabric. See `docs/operations/unified-fabric-console.md` for the complete
-workflow.
+The launcher opens **CIT Classroom Control** automatically. Follow the five
+on-screen steps: find devices, choose a lesson, assign devices, complete the
+safety check, then teach. The discovery cards distinguish **Connected**,
+**Found**, **Ready**, and **Setup needed** instead of treating a USB/network
+match as an authenticated node. Use `pnpm hardware:fabric:windows -- -Mode Open`
+to reopen it without restarting any device. See
+`docs/operations/device-discovery.md` and
+`docs/operations/unified-fabric-console.md` for the complete workflow.
+
+The device scan reuses Brain2Devices' Windows multi-radio Tello scanner, checks
+MindWave/TGC, Ultraleap USB/service state, incoming RoboMaster STA broadcasts,
+Agent Mesh, coding-agent executables, configured encrypted smart-plug profiles,
+and paired LEGO candidates. It sends no actuator, flight, power, agent, media,
+or SDK command. Instructor-only Tello and MindWave connection buttons use a
+closed Brain2Devices allowlist; Tello additionally requires a grounded-aircraft
+confirmation and still sends no flight command.
 
 Real G2/Meta acceptance still requires the owner hardware procedure in
 `docs/operations/agent-mesh-bridge.md`; simulator and software tests are not
@@ -123,6 +133,24 @@ address, explicit `-Live`, a physical Fabric session, and the UI's Arm/Start
 safety state. The adapter starts and shuts down in **off** state; it never
 automatically turns a load on. Follow
 `docs/operations/tuya-smart-plug-hardware.md` before connecting a real outlet.
+
+## Tello and MindWave discovery
+
+The preserved `brain2devices` implementation now has a CIT service launcher
+and appears in the single classroom discovery screen:
+
+```powershell
+pnpm hardware:brain:windows -- -Mode Preflight
+pnpm hardware:brain:windows -- -Mode Start
+pnpm hardware:devices:windows -- -Mode Scan
+```
+
+Two or more stock Tellos require one physical USB Wi-Fi adapter per aircraft;
+the screen lists radios separately from currently visible `TELLO-*`/`RMTT-*`
+networks. The connection action performs only radio setup and SDK handshakes.
+Canonical Fabric flight nodes and flight controls remain behind the later drone
+safety slice. MindWave connection continues through ThinkGear Connector and no
+raw biosignal is recorded by discovery.
 
 ## RoboMaster S1 and Leap Motion
 
@@ -189,7 +217,10 @@ Platform paths are stored separately and never translated between Windows and Li
 
 ## Current limitations
 
-- No hardware was contacted or modified during this integration. LEGO, RoboMaster/Leap, and smart-plug software paths have simulator evidence only.
+- Read-only host discovery was exercised on Windows, but no physical actuator,
+  headset, smart plug, or aircraft was connected or commanded. LEGO,
+  RoboMaster/Leap, and smart-plug control paths still have simulator evidence
+  only.
 - Installing the current LEGO `hardware` extra breaks `pnpm license:check`; ADR-023 selected a transport split, which is not implemented yet and still blocks hardware bring-up.
 - The runtime listens on loopback only. The new subprocess bridge executes one fixed worker path with an allowlisted JSON-lines contract; there is no arbitrary shell, eval endpoint, or public endpoint.
 - Fake-device tests are contract evidence only; they are not Milestone 1 simulation or hardware evidence.

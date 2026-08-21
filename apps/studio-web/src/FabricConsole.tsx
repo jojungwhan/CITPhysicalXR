@@ -18,6 +18,8 @@ import {
   FabricApiError,
   FabricClient,
   type FabricAuditRecord,
+  type FabricDiscoveryReport,
+  type FabricIntegrationDiscovery,
   type FabricPrincipal,
   type StoredFabricEvent,
   type StoredFabricLifecycle,
@@ -42,6 +44,9 @@ export function FabricConsole() {
   const [credential, setCredential] = useState("");
   const [principal, setPrincipal] = useState<FabricPrincipal | null>(null);
   const [nodes, setNodes] = useState<IntegrationNode[]>([]);
+  const [discovery, setDiscovery] = useState<FabricDiscoveryReport | null>(
+    null,
+  );
   const [coursePacks, setCoursePacks] = useState<CoursePack[]>([]);
   const [sessions, setSessions] = useState<InteractionSession[]>([]);
   const [events, setEvents] = useState<StoredFabricEvent[]>([]);
@@ -60,6 +65,9 @@ export function FabricConsole() {
   const [showAccessCode, setShowAccessCode] = useState(false);
   const [autoConnecting, setAutoConnecting] = useState(false);
   const [safetyConfirmed, setSafetyConfirmed] = useState(false);
+  const [groundedConfirmations, setGroundedConfirmations] = useState<
+    Record<string, boolean>
+  >({});
   const [busy, setBusy] = useState<BusyAction>(null);
   const [notice, setNotice] = useState("Ready to set up your classroom.");
   const [error, setError] = useState<string | null>(null);
@@ -85,6 +93,10 @@ export function FabricConsole() {
   const canManageSessions = hasPermission(principal, "fabric.sessions.manage");
   const canAssignRoles = hasPermission(principal, "fabric.roles.assign");
   const canSubmitCommands = hasPermission(principal, "fabric.commands.submit");
+  const canConnectDevices = hasPermission(
+    principal,
+    "fabric.discovery.connect",
+  );
   const canStopAll = hasPermission(principal, "fabric.stop_all");
   const smartPlugNodes = useMemo(() => nodes.filter(isSmartPlugNode), [nodes]);
   const smartPlugBinding = selectedSession?.roleBindings.find(
@@ -104,9 +116,14 @@ export function FabricConsole() {
         .map((requirement) => requirement.role) ?? [],
     [selectedCourse],
   );
+  const discoveryScanned =
+    discovery !== null &&
+    discovery.integrations.every(
+      (integration) => integration.status !== "not_scanned",
+    );
   const guide = useMemo(
-    () => tutorGuide(selectedSession, requiredRoles),
-    [requiredRoles, selectedSession],
+    () => tutorGuide(selectedSession, requiredRoles, discoveryScanned),
+    [discoveryScanned, requiredRoles, selectedSession],
   );
   const requiredRolesReady = useMemo(() => {
     if (selectedSession === undefined) return false;
@@ -121,12 +138,15 @@ export function FabricConsole() {
       if (principal === null || pollActive.current) return;
       pollActive.current = true;
       try {
-        const [nextNodes, nextCourses, nextSessions] = await Promise.all([
-          client.listNodes(),
-          client.listCoursePacks(),
-          client.listSessions(),
-        ]);
+        const [nextNodes, nextDiscovery, nextCourses, nextSessions] =
+          await Promise.all([
+            client.listNodes(),
+            client.getDiscovery(),
+            client.listCoursePacks(),
+            client.listSessions(),
+          ]);
         setNodes(nextNodes);
+        setDiscovery(nextDiscovery);
         setCoursePacks(nextCourses);
         setSessions(nextSessions);
         setSelectedCourseKey(
@@ -277,11 +297,13 @@ export function FabricConsole() {
     client.clearCredential();
     setPrincipal(null);
     setNodes([]);
+    setDiscovery(null);
     setCoursePacks([]);
     setSessions([]);
     setEvents([]);
     setLifecycle([]);
     setAudit([]);
+    setGroundedConfirmations({});
     setNotice(
       "Signed out. Reopen the console from the CIT launcher to return.",
     );
@@ -370,6 +392,55 @@ export function FabricConsole() {
       setNotice(
         `Emergency stop ${result.status}: ${result.stoppedSessionIds.length} session(s), ` +
           `${result.stoppedNodeIds.length} adapter node(s).`,
+      );
+    });
+
+  const findDevices = () =>
+    runAction("Finding devices", async () => {
+      const report = await client.scanDevices();
+      setDiscovery(report);
+      const connected = report.integrations.filter(
+        (integration) => integration.status === "connected",
+      ).length;
+      const found = report.integrations.filter((integration) =>
+        ["found", "ready"].includes(integration.status),
+      ).length;
+      setNotice(
+        `Device check finished: ${connected} connected, ${found} found or ready. Review the cards below for anything that still needs setup.`,
+      );
+    });
+
+  const connectDiscovered = (integration: FabricIntegrationDiscovery) =>
+    runAction(`Connecting ${integration.displayName}`, async () => {
+      if (integration.actionId === undefined) {
+        throw new Error("This integration needs its setup command first.");
+      }
+      const confirmed =
+        groundedConfirmations[integration.integrationId] === true;
+      if (integration.requiresGroundedConfirmation && !confirmed) {
+        throw new Error(
+          "Confirm that every aircraft is grounded before connecting.",
+        );
+      }
+      const result = await client.runDiscoveryAction(
+        integration.actionId,
+        confirmed,
+      );
+      setDiscovery(result.report);
+      setNotice(result.message);
+    });
+
+  const copySetupCommand = (integration: FabricIntegrationDiscovery) =>
+    runAction(`Copying ${integration.displayName} setup`, async () => {
+      if (integration.setupCommand === undefined) {
+        throw new Error("No setup command is available for this integration.");
+      }
+      if (navigator.clipboard === undefined) {
+        throw new Error("Clipboard access is unavailable in this browser.");
+      }
+      await navigator.clipboard.writeText(integration.setupCommand);
+      setNotice(
+        `${integration.displayName} setup command copied. Paste it into PowerShell on this tutor computer.`,
       );
     });
 
@@ -549,7 +620,7 @@ export function FabricConsole() {
               <div className="fabric-launch-instruction">
                 <span>2</span>
                 <div>
-                  <strong>Follow the four guided steps</strong>
+                  <strong>Follow the five guided steps</strong>
                   <p>
                     Choose a lesson, connect devices, check safety, and teach.
                     No account or device password is needed.
@@ -664,45 +735,152 @@ export function FabricConsole() {
             <button
               className="fabric-primary-action"
               type="button"
-              onClick={() =>
+              disabled={guide.stage === "find_devices" && busy !== null}
+              onClick={() => {
+                if (guide.stage === "find_devices") {
+                  void findDevices();
+                  return;
+                }
                 document
                   .getElementById(guide.targetId)
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" })
-              }
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
             >
-              {guide.stage === "choose_lesson"
-                ? "Choose a lesson"
-                : guide.stage === "connect_devices"
-                  ? "Choose devices"
-                  : guide.stage === "teach"
-                    ? "Go to live controls"
-                    : guide.stage === "lesson_ended"
-                      ? "Set up another lesson"
-                      : "Review and start"}
+              {guide.stage === "find_devices"
+                ? "Find devices"
+                : guide.stage === "choose_lesson"
+                  ? "Choose a lesson"
+                  : guide.stage === "connect_devices"
+                    ? "Choose devices"
+                    : guide.stage === "teach"
+                      ? "Go to live controls"
+                      : guide.stage === "lesson_ended"
+                        ? "Set up another lesson"
+                        : "Review and start"}
             </button>
           </div>
           <ol className="fabric-steps" aria-label="Lesson setup progress">
-            {["Choose lesson", "Connect devices", "Safety check", "Teach"].map(
-              (label, index) => {
-                const step = index + 1;
-                return (
-                  <li
-                    className={
-                      step < guide.step
-                        ? "is-complete"
-                        : step === guide.step
-                          ? "is-current"
-                          : undefined
-                    }
-                    key={label}
-                  >
-                    <span>{step < guide.step ? "✓" : step}</span>
-                    <strong>{label}</strong>
-                  </li>
-                );
-              },
-            )}
+            {[
+              "Find devices",
+              "Choose lesson",
+              "Assign devices",
+              "Safety check",
+              "Teach",
+            ].map((label, index) => {
+              const step = index + 1;
+              return (
+                <li
+                  className={
+                    step < guide.step
+                      ? "is-complete"
+                      : step === guide.step
+                        ? "is-current"
+                        : undefined
+                  }
+                  key={label}
+                >
+                  <span>{step < guide.step ? "✓" : step}</span>
+                  <strong>{label}</strong>
+                </li>
+              );
+            })}
           </ol>
+        </section>
+
+        <section
+          className="fabric-panel fabric-discovery-panel"
+          id="device-discovery"
+          aria-labelledby="device-discovery-title"
+        >
+          <div className="fabric-discovery-heading">
+            <div>
+              <p className="eyebrow">Step 1</p>
+              <h2 id="device-discovery-title">Find classroom devices</h2>
+              <p className="fabric-panel-intro">
+                Power devices on, plug in USB equipment, and choose Find
+                devices. CIT checks this computer, USB, Bluetooth readiness,
+                local services, Wi-Fi radios, and visible Tello networks.
+              </p>
+            </div>
+            <button
+              className="fabric-primary-action fabric-find-devices"
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void findDevices()}
+            >
+              {busy === "Finding devices" ? "Checking…" : "Find devices"}
+              <small>No device will move, fly, or switch on</small>
+            </button>
+          </div>
+
+          <div className="fabric-discovery-safety">
+            <span aria-hidden="true">✓</span>
+            <div>
+              <strong>Safe discovery only</strong>
+              <p>
+                Finding devices never arms robots, starts propellers, moves a
+                motor, turns on a plug, starts an agent, or stores raw audio,
+                video, or biosignals.
+              </p>
+            </div>
+          </div>
+
+          {discovery !== null && (
+            <div className="fabric-discovery-meta">
+              <span>
+                {discoveryScanned
+                  ? `Checked ${formatTime(discovery.scannedAt)}`
+                  : "Not checked yet"}
+              </span>
+              <span>{discovery.hostId}</span>
+              <span>
+                Physical control is{" "}
+                {discovery.physicalActuationEnabled
+                  ? "available but locked"
+                  : "disabled in this runtime"}
+              </span>
+            </div>
+          )}
+
+          {(discovery?.warnings.length ?? 0) > 0 && (
+            <div className="fabric-discovery-warnings" role="status">
+              <strong>Some checks need attention</strong>
+              <ul>
+                {discovery?.warnings.map((warning) => (
+                  <li key={warning}>{warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          <div className="fabric-discovery-grid">
+            {discovery?.integrations.map((integration) => (
+              <FabricDiscoveryCard
+                key={integration.integrationId}
+                integration={integration}
+                busy={busy}
+                canConnect={canConnectDevices}
+                groundedConfirmed={
+                  groundedConfirmations[integration.integrationId] === true
+                }
+                onGroundedChange={(confirmed) =>
+                  setGroundedConfirmations((current) => ({
+                    ...current,
+                    [integration.integrationId]: confirmed,
+                  }))
+                }
+                onConnect={() => void connectDiscovered(integration)}
+                onCopySetup={() => void copySetupCommand(integration)}
+              />
+            ))}
+            {discovery === null && (
+              <div className="fabric-empty-state fabric-discovery-loading">
+                <span aria-hidden="true">…</span>
+                <strong>Loading the device checklist</strong>
+                <p>CIT is preparing the supported hardware list.</p>
+              </div>
+            )}
+          </div>
         </section>
 
         <section className="fabric-overview" aria-label="Classroom status">
@@ -742,7 +920,7 @@ export function FabricConsole() {
             className="fabric-panel fabric-session-builder"
             id="lesson-setup"
           >
-            <PanelHeading eyebrow="Step 1" title="Choose a lesson" />
+            <PanelHeading eyebrow="Step 2" title="Choose a lesson" />
             <p className="fabric-panel-intro">
               What do you want students to do today?
             </p>
@@ -855,7 +1033,7 @@ export function FabricConsole() {
             className="fabric-panel fabric-session-control"
             id="device-setup"
           >
-            <PanelHeading eyebrow="Step 2" title="Check your devices" />
+            <PanelHeading eyebrow="Step 3" title="Assign lesson devices" />
             <p className="fabric-panel-intro">
               CIT only shows devices that can perform each job in this lesson.
             </p>
@@ -951,7 +1129,7 @@ export function FabricConsole() {
               {selectedSession?.armed ? "!" : "✓"}
             </span>
             <div>
-              <PanelHeading eyebrow="Step 3" title="Review and start" />
+              <PanelHeading eyebrow="Step 4" title="Review and start" />
               <strong>
                 {selectedSession === undefined
                   ? "Set up a lesson to continue"
@@ -1053,11 +1231,11 @@ export function FabricConsole() {
         </section>
 
         <section className="fabric-panel fabric-test-panel" id="live-controls">
-          <PanelHeading eyebrow="Step 4" title="Teach and test" />
+          <PanelHeading eyebrow="Step 5" title="Teach and test" />
           <p className="fabric-panel-intro">
             {selectedSession?.state === "active"
               ? "The lesson is running. Use only the checks that match today’s activity."
-              : "Start the lesson in Step 3 to unlock its teaching controls."}
+              : "Start the lesson in Step 4 to unlock its teaching controls."}
           </p>
           <div className="fabric-test-actions">
             {(selectedCourse?.flows.length ?? 0) > 0 && (
@@ -1362,6 +1540,131 @@ function FabricMetric({
   );
 }
 
+function FabricDiscoveryCard({
+  integration,
+  busy,
+  canConnect,
+  groundedConfirmed,
+  onGroundedChange,
+  onConnect,
+  onCopySetup,
+}: {
+  integration: FabricIntegrationDiscovery;
+  busy: BusyAction;
+  canConnect: boolean;
+  groundedConfirmed: boolean;
+  onGroundedChange: (confirmed: boolean) => void;
+  onConnect: () => void;
+  onCopySetup: () => void;
+}) {
+  const status = discoveryStatus(integration.status);
+  const connected = integration.status === "connected";
+  return (
+    <article
+      className={`fabric-discovery-card is-${integration.status.replaceAll("_", "-")}`}
+    >
+      <header>
+        <span className="fabric-discovery-icon" aria-hidden="true">
+          {DISCOVERY_ICONS[integration.integrationId] ?? "IO"}
+        </span>
+        <div>
+          <h3>{integration.displayName}</h3>
+          <small>{integration.connectionMethod}</small>
+        </div>
+        <strong className={`fabric-discovery-status is-${status.tone}`}>
+          {status.label}
+        </strong>
+      </header>
+
+      <p className="fabric-discovery-summary">{integration.summary}</p>
+
+      {integration.candidates.length > 0 && (
+        <ul className="fabric-candidate-list">
+          {integration.candidates.map((candidate, index) => (
+            <li key={`${candidate.candidateId}:${index}`}>
+              <span
+                className={`status-dot ${candidate.status === "found" ? "status-ok" : "status-muted"}`}
+              />
+              <div>
+                <strong>{candidate.displayName}</strong>
+                <small>
+                  {candidate.transport}
+                  {candidate.signalPercent === undefined
+                    ? ""
+                    : ` · ${candidate.signalPercent}% signal`}
+                </small>
+                <p>{candidate.detail}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {integration.requiresGroundedConfirmation &&
+        integration.actionId !== undefined &&
+        !connected && (
+          <label className="fabric-grounded-confirmation">
+            <input
+              type="checkbox"
+              checked={groundedConfirmed}
+              onChange={(event) => onGroundedChange(event.target.checked)}
+            />
+            <span>
+              Every aircraft is grounded; propellers are removed or guarded.
+            </span>
+          </label>
+        )}
+
+      <div className="fabric-discovery-actions">
+        {integration.actionId !== undefined && !connected && (
+          <button
+            className="fabric-connect-device"
+            type="button"
+            disabled={
+              !canConnect ||
+              busy !== null ||
+              (integration.requiresGroundedConfirmation && !groundedConfirmed)
+            }
+            onClick={onConnect}
+          >
+            {integration.actionLabel ?? "Connect"}
+          </button>
+        )}
+        {integration.setupCommand !== undefined && !connected && (
+          <button
+            className="fabric-copy-setup"
+            type="button"
+            disabled={busy !== null}
+            onClick={onCopySetup}
+          >
+            Copy setup command
+          </button>
+        )}
+      </div>
+
+      <details className="fabric-device-help">
+        <summary>
+          {connected ? "Connection details" : "What do I need to do?"}
+        </summary>
+        {integration.setupSteps.length > 0 && (
+          <ol>
+            {integration.setupSteps.map((step) => (
+              <li key={step}>{step}</li>
+            ))}
+          </ol>
+        )}
+        {integration.setupCommand !== undefined && !connected && (
+          <code>{integration.setupCommand}</code>
+        )}
+        {integration.connectedNodeIds.length > 0 && (
+          <small>CIT nodes: {integration.connectedNodeIds.join(", ")}</small>
+        )}
+        <p>{integration.safetyNote}</p>
+      </details>
+    </article>
+  );
+}
+
 function FabricNodeCard({ node }: { node: IntegrationNode }) {
   const battery = metadataNumber(node, "batteryPercent");
   const agentType = metadataText(node, "agentType");
@@ -1473,6 +1776,36 @@ const groupNodesByIo = (nodes: IntegrationNode[]) => {
   };
   nodes.forEach((node) => groups[classifyFabricNodeIo(node)].push(node));
   return groups;
+};
+
+const DISCOVERY_ICONS: Record<string, string> = {
+  "even-meta-glasses": "XR",
+  "coding-agents": "AI",
+  "leap-motion": "LM",
+  "robomaster-s1": "S1",
+  "tello-drones": "TL",
+  "mindwave-mobile2": "MW",
+  "tuya-gosund-plugs": "PL",
+  "lego-hubs": "LE",
+};
+
+const discoveryStatus = (status: FabricIntegrationDiscovery["status"]) => {
+  switch (status) {
+    case "connected":
+      return { label: "Connected", tone: "connected" };
+    case "found":
+      return { label: "Found", tone: "found" };
+    case "ready":
+      return { label: "Computer ready", tone: "ready" };
+    case "setup_required":
+      return { label: "Setup needed", tone: "setup" };
+    case "not_found":
+      return { label: "Not found", tone: "missing" };
+    case "unavailable":
+      return { label: "Unavailable", tone: "missing" };
+    case "not_scanned":
+      return { label: "Not checked", tone: "unchecked" };
+  }
 };
 
 const courseKey = (coursePackId: string, version: string) =>

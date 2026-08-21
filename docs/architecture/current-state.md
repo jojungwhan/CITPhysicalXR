@@ -57,7 +57,10 @@ processes and sessions. The launcher opens the tutor UI through a one-use
 administrator bootstrap never enters the browser. The UI leads tutors through
 lesson choice, device assignment, safety, and teaching. It groups every
 registered node by plain-language I/O behavior and keeps protocol identifiers
-and capabilities in collapsed technical details.
+and capabilities in collapsed technical details. An authenticated discovery
+route invokes a fixed read-only Windows host probe and leads the five-stage
+tutor flow: find devices, choose lesson, assign devices, safety, and teach.
+Candidates remain separate from authenticated nodes.
 
 The service starts through
 `cit_runtime.fabric_service:create_persistent_fabric_app`. It defaults to
@@ -99,8 +102,10 @@ cross-repository cutover.
   upstream dry-run process test, and hardware launcher are implemented. The
   native Leap DLL/runtime/service and physical HIL evidence remain absent on
   this host.
-- MindWave and Tello: working external implementations were discovered but are
-  not yet Fabric adapters.
+- MindWave and Tello: the preserved Brain2Devices process now has a CIT
+  launcher, read-only status/discovery cards, and instructor-only connection
+  actions. They are not yet canonical Fabric telemetry/flight nodes; no flight
+  command is exposed.
 - Tuya / Gosund: no prior reusable implementation was discovered. A new
   TinyTuya 1.20.0 LAN adapter, simulator, course role, UI controls, and Windows
   launcher are implemented; no physical outlet has passed HIL yet.

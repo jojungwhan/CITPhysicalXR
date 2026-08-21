@@ -36,6 +36,12 @@ from .fabric_auth import (
     FabricAuthService,
     FabricPrincipal,
 )
+from .fabric_discovery import (
+    FabricDiscoveryActionResult,
+    FabricDiscoveryError,
+    FabricDiscoveryReport,
+    FabricDiscoveryService,
+)
 from .fabric_persistence import FABRIC_PAGE_LIMIT, FabricIdentityRecord
 from .fabric_repository import SQLiteFabricRepository
 
@@ -84,6 +90,12 @@ class AssignRoleRequest(BaseModel):
     nodeId: Annotated[str, Field(min_length=1, max_length=128, pattern=_IDENTIFIER_PATTERN)]
 
 
+class DiscoveryActionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    confirmGrounded: bool = False
+
+
 class FabricStreamAuthentication(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -100,6 +112,7 @@ FabricGetter = Callable[[], InteractionFabric]
 AuthGetter = Callable[[], FabricAuthService]
 ConnectionsGetter = Callable[[], FabricAdapterConnections]
 RepositoryGetter = Callable[[], SQLiteFabricRepository]
+DiscoveryGetter = Callable[[], FabricDiscoveryService]
 StopAll = Callable[[], Awaitable[dict[str, object]]]
 
 
@@ -110,6 +123,7 @@ def install_fabric_api(
     get_auth: AuthGetter,
     get_connections: ConnectionsGetter,
     get_repository: RepositoryGetter,
+    get_discovery: DiscoveryGetter,
     clock: Callable[[], datetime],
     allowed_origins: frozenset[str],
     stop_all: StopAll,
@@ -168,6 +182,13 @@ def install_fabric_api(
         error: FabricPolicyError,
     ) -> JSONResponse:
         return _fabric_error(403, error.code, str(error))
+
+    @app.exception_handler(FabricDiscoveryError)
+    async def discovery_error_handler(
+        _request: Request,
+        error: FabricDiscoveryError,
+    ) -> JSONResponse:
+        return _fabric_error(409, error.code, str(error))
 
     @app.get("/api/v1/fabric/auth/whoami")
     async def whoami(
@@ -350,6 +371,98 @@ def install_fabric_api(
                 capability=capability,
             )
         )
+
+    def visible_nodes(principal: FabricPrincipal) -> tuple[IntegrationNode, ...]:
+        return get_fabric().list_nodes(
+            site_id=principal.site_id,
+            room_id=principal.room_id,
+        )
+
+    @app.get(
+        "/api/v1/fabric/discovery",
+        response_model=FabricDiscoveryReport,
+        response_model_exclude_none=True,
+    )
+    async def discovery_status(
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.nodes.read")),
+        ],
+    ) -> FabricDiscoveryReport:
+        return get_discovery().current(visible_nodes(principal))
+
+    @app.post(
+        "/api/v1/fabric/discovery/scan",
+        response_model=FabricDiscoveryReport,
+        response_model_exclude_none=True,
+    )
+    async def scan_devices(
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.nodes.read")),
+        ],
+    ) -> FabricDiscoveryReport:
+        report = await get_discovery().scan(visible_nodes(principal))
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.discovery.scan",
+            resource_type="host",
+            resource_id=report.hostId,
+            at=current_time(),
+            outcome="succeeded",
+            details={
+                "scanId": report.scanId,
+                "integrationCount": len(report.integrations),
+            },
+        )
+        return report
+
+    @app.post(
+        "/api/v1/fabric/discovery/actions/{action_id}",
+        response_model=FabricDiscoveryActionResult,
+        response_model_exclude_none=True,
+    )
+    async def run_discovery_action(
+        action_id: Annotated[
+            str,
+            Field(pattern=r"^[a-z0-9][a-z0-9._-]*$", max_length=96),
+        ],
+        request: DiscoveryActionRequest,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.discovery.connect")),
+        ],
+    ) -> FabricDiscoveryActionResult:
+        try:
+            result = await get_discovery().perform(
+                action_id,
+                confirm_grounded=request.confirmGrounded,
+                nodes=visible_nodes(principal),
+            )
+        except FabricDiscoveryError as error:
+            _audit(
+                get_repository(),
+                principal,
+                action="fabric.discovery.connect",
+                resource_type="integration_action",
+                resource_id=action_id,
+                at=current_time(),
+                outcome="denied",
+                details={"code": error.code},
+            )
+            raise
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.discovery.connect",
+            resource_type="integration_action",
+            resource_id=action_id,
+            at=current_time(),
+            outcome="succeeded",
+            details={"groundedConfirmed": request.confirmGrounded},
+        )
+        return result
 
     @app.get("/api/v1/fabric/course-packs", response_model=list[CoursePack])
     async def course_packs(
@@ -825,6 +938,7 @@ def _audit(
     resource_type: str,
     resource_id: str | None,
     at: datetime,
+    outcome: str = "succeeded",
     correlation_id: str | None = None,
     details: dict[str, object] | None = None,
 ) -> None:
@@ -833,7 +947,7 @@ def _audit(
         action=action,
         resource_type=resource_type,
         resource_id=resource_id,
-        outcome="succeeded",
+        outcome=outcome,
         correlation_id=correlation_id,
         occurred_at=at,
         details=details,

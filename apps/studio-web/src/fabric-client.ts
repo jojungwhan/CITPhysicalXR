@@ -54,6 +54,65 @@ export interface FabricAuditRecord {
   details: Record<string, unknown>;
 }
 
+export type FabricDiscoveryStatus =
+  | "not_scanned"
+  | "connected"
+  | "found"
+  | "ready"
+  | "setup_required"
+  | "not_found"
+  | "unavailable";
+
+export interface FabricDiscoveryCandidate {
+  candidateId: string;
+  displayName: string;
+  transport: string;
+  status: "found" | "ready" | "setup_required" | "not_found";
+  detail: string;
+  signalPercent?: number;
+}
+
+export interface FabricIntegrationDiscovery {
+  integrationId: string;
+  displayName: string;
+  category:
+    | "interaction"
+    | "sensor"
+    | "robot"
+    | "drone"
+    | "smart_device"
+    | "coding_agent";
+  status: FabricDiscoveryStatus;
+  summary: string;
+  connectionMethod: string;
+  connectedNodeIds: string[];
+  candidates: FabricDiscoveryCandidate[];
+  setupSteps: string[];
+  setupCommand?: string;
+  actionId?: string;
+  actionLabel?: string;
+  requiresGroundedConfirmation: boolean;
+  safetyNote: string;
+}
+
+export interface FabricDiscoveryReport {
+  schemaVersion: "1.0";
+  scanId: string;
+  scannedAt: string;
+  hostId: string;
+  platform: string;
+  physicalActuationEnabled: boolean;
+  integrations: FabricIntegrationDiscovery[];
+  warnings: string[];
+}
+
+export interface FabricDiscoveryActionResult {
+  actionId: string;
+  accepted: boolean;
+  message: string;
+  report: FabricDiscoveryReport;
+}
+
 interface FabricErrorBody {
   code?: unknown;
   message?: unknown;
@@ -151,6 +210,30 @@ export class FabricClient {
 
   listNodes(): Promise<IntegrationNode[]> {
     return this.#request("/api/v1/fabric/nodes");
+  }
+
+  getDiscovery(): Promise<FabricDiscoveryReport> {
+    return this.#request("/api/v1/fabric/discovery");
+  }
+
+  scanDevices(): Promise<FabricDiscoveryReport> {
+    return this.#request("/api/v1/fabric/discovery/scan", { method: "POST" });
+  }
+
+  runDiscoveryAction(
+    actionId: string,
+    confirmGrounded = false,
+  ): Promise<FabricDiscoveryActionResult> {
+    if (!/^[a-z0-9][a-z0-9._-]*$/.test(actionId)) {
+      throw new Error("The device connection action is invalid.");
+    }
+    return this.#request(
+      `/api/v1/fabric/discovery/actions/${encodeURIComponent(actionId)}`,
+      {
+        method: "POST",
+        body: JSON.stringify({ confirmGrounded }),
+      },
+    );
   }
 
   listCoursePacks(): Promise<CoursePack[]> {

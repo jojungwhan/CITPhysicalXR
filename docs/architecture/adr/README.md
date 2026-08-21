@@ -14,3 +14,4 @@ ADRs are immutable decision snapshots. A superseding decision adds a new ADR and
 - [0010 — One capability-driven Fabric console](0010-one-fabric-console.md)
 - [0011 — Tuya-LAN smart-plug boundary](0011-tuya-lan-smart-plug-boundary.md)
 - [0012 — Launcher-assisted tutor access](0012-launcher-assisted-tutor-access.md)
+- [0013 — Safe host discovery and connection actions](0013-safe-host-discovery-and-connection-actions.md)

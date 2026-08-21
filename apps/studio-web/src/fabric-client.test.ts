@@ -32,6 +32,37 @@ describe("Fabric client credentials", () => {
     expect(init?.credentials).toBe("omit");
   });
 
+  it("uses fixed same-origin discovery routes and a structured grounded confirmation", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          actionId: "brain2devices.tello.connect-all",
+          accepted: true,
+          message: "Connection started.",
+          report: {},
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+    client.setCredential("cit-instructor-" + "d".repeat(40));
+
+    await client.runDiscoveryAction("brain2devices.tello.connect-all", true);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(
+      "https://runtime.example.test/api/v1/fabric/discovery/actions/brain2devices.tello.connect-all",
+    );
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      confirmGrounded: true,
+    });
+    expect(() => client.runDiscoveryAction("../../shell", true)).toThrow(
+      "connection action is invalid",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("forgets the in-memory credential when signed out", async () => {
     const fetchMock = vi.fn<typeof fetch>();
     const client = new FabricClient("", fetchMock);

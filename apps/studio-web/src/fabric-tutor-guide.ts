@@ -1,6 +1,7 @@
 import type { InteractionSession } from "@citxr/protocol";
 
 export type TutorStage =
+  | "find_devices"
   | "choose_lesson"
   | "connect_devices"
   | "review_safety"
@@ -10,7 +11,7 @@ export type TutorStage =
 
 export interface TutorGuide {
   stage: TutorStage;
-  step: 1 | 2 | 3 | 4;
+  step: 1 | 2 | 3 | 4 | 5;
   title: string;
   description: string;
   targetId: string;
@@ -19,11 +20,22 @@ export interface TutorGuide {
 export const tutorGuide = (
   session: InteractionSession | undefined,
   requiredRoles: readonly string[],
+  discoveryScanned: boolean,
 ): TutorGuide => {
+  if (!discoveryScanned) {
+    return {
+      stage: "find_devices",
+      step: 1,
+      title: "Find the classroom devices",
+      description:
+        "Power on today’s equipment, plug in USB devices, then let CIT check this computer and its local connections.",
+      targetId: "device-discovery",
+    };
+  }
   if (session === undefined) {
     return {
       stage: "choose_lesson",
-      step: 1,
+      step: 2,
       title: "Choose today’s lesson",
       description:
         "Pick an experience below. CIT will create a safe classroom session and find matching devices.",
@@ -33,7 +45,7 @@ export const tutorGuide = (
   if (["stopped", "emergency_stopped", "failed"].includes(session.state)) {
     return {
       stage: "lesson_ended",
-      step: 1,
+      step: 2,
       title: "This lesson has ended",
       description:
         "Choose a lesson to create a fresh session. Connected devices remain available.",
@@ -45,7 +57,7 @@ export const tutorGuide = (
   if (missing.length > 0) {
     return {
       stage: "connect_devices",
-      step: 2,
+      step: 3,
       title: `Connect ${missing.length} more ${missing.length === 1 ? "device" : "devices"}`,
       description:
         "Choose a connected device for each empty slot. If nothing is listed, start that device’s CIT adapter and refresh.",
@@ -55,7 +67,7 @@ export const tutorGuide = (
   if (session.mode === "physical" && session.armed !== true) {
     return {
       stage: "review_safety",
-      step: 3,
+      step: 4,
       title: "Review safety before enabling devices",
       description:
         "Check the room, keep the emergency stop visible, then confirm that physical control can be enabled.",
@@ -65,7 +77,7 @@ export const tutorGuide = (
   if (session.state === "active") {
     return {
       stage: "teach",
-      step: 4,
+      step: 5,
       title: "Lesson running",
       description:
         "Devices are ready. Use the lesson controls below and end the session when class is finished.",
@@ -74,7 +86,7 @@ export const tutorGuide = (
   }
   return {
     stage: "start_lesson",
-    step: 3,
+    step: 4,
     title: "Everything is ready",
     description:
       "Review the summary, then start the lesson when your students are ready.",

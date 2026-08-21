@@ -5,20 +5,23 @@ import { tutorGuide } from "./fabric-tutor-guide.js";
 
 describe("tutor next-step guide", () => {
   it("starts with a plain lesson choice", () => {
-    expect(tutorGuide(undefined, []).stage).toBe("choose_lesson");
-    expect(tutorGuide(undefined, []).title).toBe("Choose today’s lesson");
+    expect(tutorGuide(undefined, [], false).stage).toBe("find_devices");
+    expect(tutorGuide(undefined, [], true).stage).toBe("choose_lesson");
+    expect(tutorGuide(undefined, [], true).title).toBe("Choose today’s lesson");
   });
 
   it("directs the tutor through devices, safety, and teaching", () => {
     const draft = session({ state: "draft" });
-    expect(tutorGuide(draft, ["student_robot"]).stage).toBe("connect_devices");
+    expect(tutorGuide(draft, ["student_robot"], true).stage).toBe(
+      "connect_devices",
+    );
 
     const physicalReady = session({
       mode: "physical",
       state: "ready",
       roleBindings: [binding("student_robot")],
     });
-    expect(tutorGuide(physicalReady, ["student_robot"]).stage).toBe(
+    expect(tutorGuide(physicalReady, ["student_robot"], true).stage).toBe(
       "review_safety",
     );
 
@@ -28,7 +31,7 @@ describe("tutor next-step guide", () => {
       armed: true,
       roleBindings: [binding("student_robot")],
     });
-    expect(tutorGuide(active, ["student_robot"]).stage).toBe("teach");
+    expect(tutorGuide(active, ["student_robot"], true).stage).toBe("teach");
   });
 });
 

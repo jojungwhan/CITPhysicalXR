@@ -31,6 +31,11 @@ from .fabric_course import (
     glasses_agent_course_pack,
     smart_plug_course_pack,
 )
+from .fabric_discovery import (
+    FabricDiscoveryService,
+    PowerShellDiscoveryRunner,
+    UnavailableDiscoveryRunner,
+)
 from .fabric_repository import SQLiteFabricRepository
 
 
@@ -48,6 +53,7 @@ def create_fabric_app(
     allow_physical_fabric: bool = False,
     studio_directory: str | Path | None = None,
     maintenance_interval: float | None = 5.0,
+    discovery_service: FabricDiscoveryService | None = None,
 ) -> FastAPI:
     """Create one independently authenticated Interaction Fabric process."""
 
@@ -60,6 +66,11 @@ def create_fabric_app(
     configured_bootstrap_identities = tuple(fabric_bootstrap_identities)
     configured_studio = Path(studio_directory).resolve() if studio_directory else None
     wall_clock = clock or (lambda: datetime.now(UTC))
+    configured_discovery = discovery_service or FabricDiscoveryService(
+        UnavailableDiscoveryRunner(clock=wall_clock),
+        clock=wall_clock,
+        physical_actuation_enabled=allow_physical_fabric,
+    )
 
     repository: SQLiteFabricRepository | None = None
     fabric: InteractionFabric | None = None
@@ -87,6 +98,9 @@ def create_fabric_app(
                 "Fabric adapter transport is unavailable outside application lifespan"
             )
         return connections
+
+    def active_discovery() -> FabricDiscoveryService:
+        return configured_discovery
 
     async def dispatch(
         command: FabricResolvedCommand,
@@ -243,6 +257,7 @@ def create_fabric_app(
         get_auth=active_auth,
         get_connections=active_connections,
         get_repository=active_repository,
+        get_discovery=active_discovery,
         clock=wall_clock,
         allowed_origins=configured_origins,
         stop_all=stop_all,
@@ -331,6 +346,39 @@ def create_persistent_fabric_app() -> FastAPI:
     physical_setting = os.environ.get("CITXR_ALLOW_PHYSICAL_FABRIC", "false").casefold()
     if physical_setting not in {"true", "false"}:
         raise ValueError("CITXR_ALLOW_PHYSICAL_FABRIC must be 'true' or 'false'")
+    repository_root = Path(__file__).resolve().parents[4]
+    configured_discovery_root = os.environ.get("CITXR_DISCOVERY_STATE_ROOT")
+    discovery_root = (
+        Path(configured_discovery_root)
+        if configured_discovery_root
+        else (
+            data_directory.parent
+            if data_directory.name.casefold() == "runtime"
+            else data_directory / "interaction-fabric"
+        )
+    )
+    if not discovery_root.is_absolute():
+        raise ValueError("CITXR_DISCOVERY_STATE_ROOT must be an absolute path")
+    workspace_root = repository_root.parent
+    discovery = FabricDiscoveryService(
+        PowerShellDiscoveryRunner(
+            script_path=repository_root / "tools" / "hardware" / "find-classroom-devices.ps1",
+            state_root=discovery_root,
+            brain2devices_root=Path(
+                os.environ.get(
+                    "CITXR_BRAIN2DEVICES_ROOT",
+                    str(workspace_root / "brain2devices"),
+                )
+            ),
+            robomaster_root=Path(
+                os.environ.get(
+                    "CITXR_ROBOMASTER_ROOT",
+                    str(workspace_root / "robomaster-gesture-control-reference"),
+                )
+            ),
+        ),
+        physical_actuation_enabled=physical_setting == "true",
+    )
     return create_fabric_app(
         database_path=data_directory / "interaction-fabric.sqlite3",
         fabric_bootstrap_identities=(bootstrap,),
@@ -338,4 +386,5 @@ def create_persistent_fabric_app() -> FastAPI:
         allowed_hosts=allowed_hosts,
         allow_physical_fabric=physical_setting == "true",
         studio_directory=studio_directory,
+        discovery_service=discovery,
     )
