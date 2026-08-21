@@ -148,7 +148,11 @@ function Stop-ExactProcess([object]$ProcessId, [string]$RequiredFragment) {
   $commandLine = Get-ProcessCommandLine $numericId
   if ($null -eq $commandLine) { return }
   if (-not $commandLine.Contains($RequiredFragment, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Refusing to stop PID $numericId because it is not the expected process"
+    # A saved PID may be reused after its original process exits. Never stop the
+    # replacement process, but do continue cleaning up the remaining owned
+    # processes so one stale PID cannot strand the test stack.
+    Write-Warning "Ignoring stale PID $numericId because it is not the expected process"
+    return
   }
   Stop-Process -Id $numericId
   Wait-Process -Id $numericId -Timeout 15 -ErrorAction SilentlyContinue
@@ -370,6 +374,7 @@ function Start-Fabric([hashtable]$State, [string]$BootstrapCredential) {
       throw "Port $FabricPort is occupied by a process that is not this CIT Fabric instance"
     }
     $State.fabricPid = $listenerId
+    $State.Remove("fabricLauncherPid")
     Save-State $State
     return
   }
@@ -391,8 +396,22 @@ function Start-Fabric([hashtable]$State, [string]$BootstrapCredential) {
     -LogPrefix "cit-fabric" `
     -Environment $environment
   $State.fabricPid = $fabricProcess.Id
+  $State.fabricLauncherPid = $fabricProcess.Id
   Save-State $State
   Wait-Until { Test-JsonApi "$fabricOrigin/api/v1/fabric/auth/whoami" $BootstrapCredential } "CIT Fabric did not become ready"
+  $listenerId = Get-ListeningProcessId $FabricPort
+  if ($null -eq $listenerId) { throw "CIT Fabric became unreachable after startup" }
+  $listenerCommandLine = Get-ProcessCommandLine $listenerId
+  if (
+    $null -eq $listenerCommandLine -or
+    -not $listenerCommandLine.Contains("cit_runtime.fabric_service:create_persistent_fabric_app", [StringComparison]::OrdinalIgnoreCase)
+  ) {
+    throw "CIT Fabric port is not owned by the expected process after startup"
+  }
+  # Windows virtual-environment launchers may create a child Python process.
+  # Record the actual listener as well as the launcher so shutdown is complete.
+  $State.fabricPid = $listenerId
+  Save-State $State
 }
 
 function Ensure-FabricSession([hashtable]$State, [string]$BootstrapCredential) {
@@ -461,9 +480,19 @@ function Start-Bridge(
   [string]$AgentMeshCredential,
   [string]$SessionId
 ) {
-  if ($State.ContainsKey("bridgePid") -and $null -ne (Get-ProcessCommandLine ([int]$State.bridgePid))) {
-    if (-not ($AgentMeshSessionId -or $SelectMostRecentAgentSession)) { return }
-    Stop-ExactProcess $State.bridgePid "agent-mesh-bridge/dist/main.js"
+  if ($State.ContainsKey("bridgePid")) {
+    $savedBridgePid = [int]$State.bridgePid
+    $savedBridgeCommandLine = Get-ProcessCommandLine $savedBridgePid
+    $isRunningBridge = (
+      $null -ne $savedBridgeCommandLine -and
+      $savedBridgeCommandLine.Contains("agent-mesh-bridge/dist/main.js", [StringComparison]::OrdinalIgnoreCase)
+    )
+    if ($isRunningBridge -and -not ($AgentMeshSessionId -or $SelectMostRecentAgentSession)) { return }
+    if ($isRunningBridge) {
+      Stop-ExactProcess $savedBridgePid "agent-mesh-bridge/dist/main.js"
+    } elseif ($null -ne $savedBridgeCommandLine) {
+      Write-Warning "Discarding stale bridge PID $savedBridgePid; the PID now belongs to another process"
+    }
     $State.Remove("bridgePid")
     Save-State $State
   }
@@ -633,7 +662,19 @@ function Stop-Test([hashtable]$State) {
     }
   }
   Stop-ExactProcess $(if ($State.ContainsKey("bridgePid")) { $State.bridgePid } else { $null }) "agent-mesh-bridge/dist/main.js"
-  Stop-ExactProcess $(if ($State.ContainsKey("fabricPid")) { $State.fabricPid } else { $null }) "cit_runtime.fabric_service:create_persistent_fabric_app"
+  $fabricProcessIds = @()
+  if (
+    $bootstrap -and
+    (Get-ListeningProcessId $FabricPort) -and
+    (Test-JsonApi "$fabricOrigin/api/v1/fabric/auth/whoami" $bootstrap)
+  ) {
+    $fabricProcessIds += Get-ListeningProcessId $FabricPort
+  }
+  if ($State.ContainsKey("fabricPid")) { $fabricProcessIds += $State.fabricPid }
+  if ($State.ContainsKey("fabricLauncherPid")) { $fabricProcessIds += $State.fabricLauncherPid }
+  foreach ($processId in @($fabricProcessIds | Sort-Object -Unique)) {
+    Stop-ExactProcess $processId "cit_runtime.fabric_service:create_persistent_fabric_app"
+  }
   if ($State.ContainsKey("hubTransient") -and $State.hubTransient) {
     Stop-ExactProcess $(if ($State.ContainsKey("hubPid")) { $State.hubPid } else { $null }) "--cit-fabric-bridge-device $BridgeDeviceId"
   }
@@ -648,6 +689,11 @@ function Stop-Test([hashtable]$State) {
     Start-ScheduledTask -TaskName $HubTaskName
     Wait-Until { $null -ne (Get-ListeningProcessId 7342) } "The normal Agent Mesh Hub task did not restart"
   }
+  foreach ($key in @("bridgePid", "fabricPid", "fabricLauncherPid", "hubPid")) {
+    $State.Remove($key)
+  }
+  $State.hubTransient = $false
+  $State.nodeTaskStartedByLauncher = $false
   $State.stoppedAt = [DateTimeOffset]::UtcNow.ToString('o')
   Save-State $State
   Write-Host "Stopped the CIT hardware-test processes and restored the normal Agent Mesh Hub task."

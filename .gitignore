@@ -17,6 +17,8 @@ build/
 
 # Generated reports
 artifacts/
+output/
+.playwright-cli/
 
 # Active machine configuration and secrets
 config/local.yaml

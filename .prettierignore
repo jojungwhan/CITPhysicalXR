@@ -1,5 +1,7 @@
 .venv/
 artifacts/
+output/
+.playwright-cli/
 dist/
 node_modules/
 docs/PRD.md
