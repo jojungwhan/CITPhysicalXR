@@ -41,13 +41,19 @@ Agent Mesh bridge (Node.js)
         |
         | versioned authenticated adapter WebSocket
         v
-Standalone CIT Interaction Fabric (FastAPI + separate SQLite)
+Shared CIT Interaction Fabric (one FastAPI process + SQLite + UI)
         |
         +-- capability/node registry
         +-- logical lesson roles and bounded flow mapping
         +-- command lifecycle, arbitration, health, audit
         +-- same-origin /fabric instructor console
 ```
+
+The Windows shared launcher owns this single Fabric process. Glasses/agent and
+Leap/RoboMaster launchers attach with the protected shared credential while
+retaining ownership only of their own adapter processes and sessions. The UI
+groups every registered node as input-only, output-only, or bidirectional and
+shows both its published and consumed capabilities.
 
 The service starts through
 `cit_runtime.fabric_service:create_persistent_fabric_app`. It defaults to

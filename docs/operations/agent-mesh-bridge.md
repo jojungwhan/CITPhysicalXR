@@ -4,15 +4,24 @@ This runbook enables the opt-in glasses-and-coding-agent compatibility slice on 
 
 ## Automated Windows hardware-test path
 
-The Windows launcher performs preflight, builds both repositories, creates current-user DPAPI-protected test credentials, starts Fabric on port 8766, temporarily replaces the running Agent Mesh Hub process with the same scheduled-task command plus the opt-in mirror flag, starts the bridge, and restores the normal Hub task on stop. It never changes the scheduled-task definition and never enables physical Fabric actuation.
+The recommended Windows path attaches the glasses/agent bridge to the shared
+Fabric UI. The bridge launcher owns only its session, bridge process, and
+temporary Agent Mesh Hub changes; stopping it does not stop the shared Fabric
+or another adapter. It never changes the scheduled-task definition.
 
 ```powershell
-pnpm hardware:glasses:windows -- -Mode Preflight
-pnpm hardware:glasses:windows -- -Mode Start -SelectMostRecentAgentSession
-pnpm hardware:glasses:windows -- -Mode Status
-pnpm hardware:glasses:windows -- -Mode Verify
-pnpm hardware:glasses:windows -- -Mode Stop
+pnpm hardware:fabric:windows -- -Mode Start
+$fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
+pnpm hardware:glasses:windows -- -Mode Preflight -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766 -SelectMostRecentAgentSession
+pnpm hardware:glasses:windows -- -Mode Status -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:glasses:windows -- -Mode Verify -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:glasses:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
+
+The original no-`SharedFabricRoot` behavior remains available as a standalone
+compatibility path, but it should not be used when multiple integration types
+need to appear together.
 
 Prefer `-AgentMeshSessionId <exact-id>` over `-SelectMostRecentAgentSession` when the intended G2 or Meta session is already known. `-ProvisionWearables` invokes Agent Mesh's existing phone/G2 provisioner and therefore requires one authorized Android phone attached through ADB. Without that switch, a previously provisioned G2 or Meta phone bridge can reconnect normally.
 

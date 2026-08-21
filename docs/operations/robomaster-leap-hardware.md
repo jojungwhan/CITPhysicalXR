@@ -7,20 +7,22 @@ service, so no physical movement is claimed yet.
 
 ## What the launcher controls
 
-`tools/hardware/robomaster-leap-hardware-test.ps1` creates a dedicated local
-Fabric on port `8767`, stores credentials with current-user DPAPI, installs the
-`gesture-ground-robot` course, registers separate Leap and S1 nodes, assigns
-logical roles, and opens the existing Fabric UI at
-<http://127.0.0.1:8767/fabric>.
+`tools/hardware/robomaster-leap-hardware-test.ps1` attaches to the shared local
+Fabric, creates a `gesture-ground-robot` session, registers separate Leap and
+S1 nodes, assigns logical roles, and uses the same UI as glasses and coding
+agents at <http://127.0.0.1:8766/fabric>. The adapter launcher stops only its
+own session and processes.
 
 The default path is software-only:
 
 ```powershell
-pnpm hardware:robot:windows -- -Mode Preflight
-pnpm hardware:robot:windows -- -Mode Start
-pnpm hardware:robot:windows -- -Mode CopyCredential
-pnpm hardware:robot:windows -- -Mode Verify
-pnpm hardware:robot:windows -- -Mode Stop
+pnpm hardware:fabric:windows -- -Mode Start
+$fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
+pnpm hardware:robot:windows -- -Mode Preflight -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:fabric:windows -- -Mode CopyCredential
+pnpm hardware:robot:windows -- -Mode Verify -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:robot:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
 
 It uses the real upstream `DryRunRobot` and `CommandPump`, but a generated
@@ -74,8 +76,10 @@ instructor at the computer, and identify the physical power switch before arm.
 ## Start a live session
 
 ```powershell
-pnpm hardware:robot:windows -- -Mode Preflight -Live -RobotTransport sdk -Connection sta
-pnpm hardware:robot:windows -- -Mode Start -Live -RobotTransport sdk -Connection sta -RobotIp 192.168.2.1 -MaxSpeed 0.10 -MaxYaw 10
+pnpm hardware:fabric:windows -- -Mode Start -AllowPhysical
+$fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
+pnpm hardware:robot:windows -- -Mode Preflight -SharedFabricRoot $fabricRoot -FabricPort 8766 -Live -RobotTransport sdk -Connection sta
+pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766 -Live -RobotTransport sdk -Connection sta -RobotIp 192.168.2.1 -MaxSpeed 0.10 -MaxYaw 10
 ```
 
 The startup order is deliberate:
@@ -96,7 +100,7 @@ robot.
 Use the red **Emergency stop** control in the Fabric UI, or run:
 
 ```powershell
-pnpm hardware:robot:windows -- -Mode Stop
+pnpm hardware:robot:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
 
 The UI also has **Test robot stop**. It sends only the allowlisted
@@ -107,7 +111,7 @@ The UI also has **Test robot stop**. It sends only the allowlisted
 After a deliberate low-speed gesture and release:
 
 ```powershell
-pnpm hardware:robot:windows -- -Mode Verify -Live
+pnpm hardware:robot:windows -- -Mode Verify -SharedFabricRoot $fabricRoot -FabricPort 8766 -Live
 ```
 
 Record the robot firmware, Leap controller model, Ultraleap software version,
@@ -115,10 +119,13 @@ connection mode, measured end-to-end latency, and operator. Do not mark the HIL
 gate complete until pinch release, tracking loss, adapter termination, and UI
 emergency stop have each produced a physical stop.
 
-Logs and the persistent Fabric database remain under:
+Adapter logs and state remain under:
 
 ```text
 %LOCALAPPDATA%\CITPhysicalXR\robomaster-leap-hardware-test
 ```
+
+The shared Fabric database and UI logs remain under
+`%LOCALAPPDATA%\CITPhysicalXR\interaction-fabric`.
 
 No raw Leap frames are stored.

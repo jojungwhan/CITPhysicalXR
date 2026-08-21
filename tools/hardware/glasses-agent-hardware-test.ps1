@@ -2,10 +2,11 @@
 
 [CmdletBinding()]
 param(
-  [ValidateSet("Preflight", "Start", "Status", "Verify", "Stop")]
+  [ValidateSet("Preflight", "Start", "Status", "Verify", "CopyCredential", "Stop")]
   [string]$Mode = "Start",
   [string]$AgentMeshRoot = "",
   [string]$StateRoot = "",
+  [string]$SharedFabricRoot = "",
   [ValidateRange(1, 65535)]
   [int]$FabricPort = 8766,
   [string]$AgentMeshHubUrl = "http://127.0.0.1:7342",
@@ -34,6 +35,9 @@ if (-not $StateRoot) {
   $StateRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\glasses-hardware-test"
 }
 $StateRoot = [IO.Path]::GetFullPath($StateRoot)
+if ($SharedFabricRoot) {
+  $SharedFabricRoot = [IO.Path]::GetFullPath($SharedFabricRoot)
+}
 if (-not $BridgeHostId) {
   $BridgeHostId = "$($env:COMPUTERNAME.ToLowerInvariant())-windows"
 }
@@ -60,7 +64,11 @@ $statePath = Join-Path $StateRoot "state.json"
 $secretRoot = Join-Path $StateRoot "secrets"
 $logRoot = Join-Path $StateRoot "logs"
 $runtimeDataRoot = Join-Path $StateRoot "runtime"
-$bootstrapSecretPath = Join-Path $secretRoot "fabric-bootstrap.dpapi"
+$bootstrapSecretPath = if ($SharedFabricRoot) {
+  Join-Path $SharedFabricRoot "secrets\fabric-bootstrap.dpapi"
+} else {
+  Join-Path $secretRoot "fabric-bootstrap.dpapi"
+}
 $adapterSecretPath = Join-Path $secretRoot "fabric-adapter.dpapi"
 $agentMeshSecretPath = Join-Path $secretRoot "agent-mesh-bridge.dpapi"
 $fabricOrigin = "http://127.0.0.1:$FabricPort"
@@ -107,7 +115,7 @@ function Save-ProtectedSecret([string]$Path, [string]$Value) {
 
 function Read-ProtectedSecret([string]$Path) {
   Assert-Path $Path "Protected credential"
-  $ciphertext = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
+  $ciphertext = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8).Trim()
   $secure = ConvertTo-SecureString -String $ciphertext
   $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
   try {
@@ -242,6 +250,10 @@ function Show-Preflight {
   Write-Host $(if ($null -eq $hub) { "BLOCKED Agent Mesh Hub port 7342 is closed" } else { "PASS Agent Mesh Hub listens on 7342" })
   $fabric = Get-ListeningProcessId $FabricPort
   Write-Host $(if ($null -eq $fabric) { "PASS Fabric port $FabricPort is available" } else { "INFO Fabric port $FabricPort is already in use" })
+  if ($SharedFabricRoot) {
+    Assert-Path $bootstrapSecretPath "Shared Fabric credential; start the unified Fabric console first"
+    Write-Host "PASS shared Fabric root $SharedFabricRoot"
+  }
   $brain = Get-ListeningProcessId 8765
   if ($null -ne $brain) { Write-Host "PASS preserved existing port 8765 listener (Fabric will use $FabricPort)" }
   $adbLines = & (Resolve-Executable "adb") devices
@@ -373,10 +385,23 @@ function Start-Fabric([hashtable]$State, [string]$BootstrapCredential) {
     if (-not (Test-JsonApi "$fabricOrigin/api/v1/fabric/auth/whoami" $BootstrapCredential)) {
       throw "Port $FabricPort is occupied by a process that is not this CIT Fabric instance"
     }
+    $ownedExisting = (
+      -not $SharedFabricRoot -and
+      $State.ContainsKey("fabricPid") -and
+      [int]$State.fabricPid -eq $listenerId -and
+      (
+        ($State.ContainsKey("fabricOwned") -and $State.fabricOwned) -or
+        $State.ContainsKey("fabricLauncherPid")
+      )
+    )
     $State.fabricPid = $listenerId
-    $State.Remove("fabricLauncherPid")
+    $State.fabricOwned = [bool]$ownedExisting
+    if (-not $ownedExisting) { $State.Remove("fabricLauncherPid") }
     Save-State $State
     return
+  }
+  if ($SharedFabricRoot) {
+    throw "The shared Fabric is not listening on port $FabricPort; start tools/hardware/interaction-fabric-console.ps1 first"
   }
   $environment = @{
     CITXR_DATA_DIRECTORY = $runtimeDataRoot
@@ -397,6 +422,7 @@ function Start-Fabric([hashtable]$State, [string]$BootstrapCredential) {
     -Environment $environment
   $State.fabricPid = $fabricProcess.Id
   $State.fabricLauncherPid = $fabricProcess.Id
+  $State.fabricOwned = $true
   Save-State $State
   Wait-Until { Test-JsonApi "$fabricOrigin/api/v1/fabric/auth/whoami" $BootstrapCredential } "CIT Fabric did not become ready"
   $listenerId = Get-ListeningProcessId $FabricPort
@@ -593,9 +619,17 @@ function Bind-ReadyNodes([hashtable]$State, [string]$BootstrapCredential) {
 
 function Show-Status([hashtable]$State, [string]$BootstrapCredential = "") {
   Write-Host "State root: $StateRoot"
+  Write-Host "Fabric ownership: $(if ($SharedFabricRoot) { "shared ($SharedFabricRoot)" } elseif ($State.ContainsKey('fabricOwned') -and $State.fabricOwned) { 'standalone launcher' } else { 'external or unknown' })"
   Write-Host "Agent Mesh Hub: $(if ($null -eq (Get-ListeningProcessId 7342)) { 'offline' } else { 'listening' })"
   Write-Host "CIT Fabric: $(if ($null -eq (Get-ListeningProcessId $FabricPort)) { 'offline' } else { $fabricOrigin })"
-  Write-Host "Physical actuation: disabled"
+  if ($null -ne (Get-ListeningProcessId $FabricPort)) {
+    try {
+      $health = Invoke-RestMethod -Uri "$fabricOrigin/api/v1/fabric/healthz" -TimeoutSec 5
+      Write-Host "Physical actuation: $($health.physicalActuation) (this glasses session remains simulation/informational)"
+    } catch {
+      Write-Host "Physical actuation: unavailable"
+    }
+  }
   if ($State.ContainsKey("sessionId")) { Write-Host "Fabric session: $($State.sessionId)" }
   if ($State.ContainsKey("agentMeshSessionId")) { Write-Host "Assigned Agent Mesh session: $($State.agentMeshSessionId)" }
   if ($BootstrapCredential -and $State.ContainsKey("sessionId") -and (Get-ListeningProcessId $FabricPort)) {
@@ -662,18 +696,24 @@ function Stop-Test([hashtable]$State) {
     }
   }
   Stop-ExactProcess $(if ($State.ContainsKey("bridgePid")) { $State.bridgePid } else { $null }) "agent-mesh-bridge/dist/main.js"
-  $fabricProcessIds = @()
+  $listenerId = Get-ListeningProcessId $FabricPort
+  $ownsLegacyStandalone = (
+    -not $SharedFabricRoot -and
+    $null -ne $listenerId -and
+    $State.ContainsKey("fabricPid") -and
+    [int]$State.fabricPid -eq $listenerId -and
+    $State.ContainsKey("fabricLauncherPid")
+  )
   if (
-    $bootstrap -and
-    (Get-ListeningProcessId $FabricPort) -and
-    (Test-JsonApi "$fabricOrigin/api/v1/fabric/auth/whoami" $bootstrap)
+    ($State.ContainsKey("fabricOwned") -and $State.fabricOwned) -or
+    $ownsLegacyStandalone
   ) {
-    $fabricProcessIds += Get-ListeningProcessId $FabricPort
-  }
-  if ($State.ContainsKey("fabricPid")) { $fabricProcessIds += $State.fabricPid }
-  if ($State.ContainsKey("fabricLauncherPid")) { $fabricProcessIds += $State.fabricLauncherPid }
-  foreach ($processId in @($fabricProcessIds | Sort-Object -Unique)) {
-    Stop-ExactProcess $processId "cit_runtime.fabric_service:create_persistent_fabric_app"
+    $fabricProcessIds = @()
+    if ($State.ContainsKey("fabricPid")) { $fabricProcessIds += $State.fabricPid }
+    if ($State.ContainsKey("fabricLauncherPid")) { $fabricProcessIds += $State.fabricLauncherPid }
+    foreach ($processId in @($fabricProcessIds | Sort-Object -Unique)) {
+      Stop-ExactProcess $processId "cit_runtime.fabric_service:create_persistent_fabric_app"
+    }
   }
   if ($State.ContainsKey("hubTransient") -and $State.hubTransient) {
     Stop-ExactProcess $(if ($State.ContainsKey("hubPid")) { $State.hubPid } else { $null }) "--cit-fabric-bridge-device $BridgeDeviceId"
@@ -689,7 +729,7 @@ function Stop-Test([hashtable]$State) {
     Start-ScheduledTask -TaskName $HubTaskName
     Wait-Until { $null -ne (Get-ListeningProcessId 7342) } "The normal Agent Mesh Hub task did not restart"
   }
-  foreach ($key in @("bridgePid", "fabricPid", "fabricLauncherPid", "hubPid")) {
+  foreach ($key in @("bridgePid", "fabricPid", "fabricLauncherPid", "fabricOwned", "hubPid")) {
     $State.Remove($key)
   }
   $State.hubTransient = $false
@@ -715,6 +755,16 @@ if ($Mode -eq "Verify") {
   Show-Verification $state $bootstrap
   exit 0
 }
+if ($Mode -eq "CopyCredential") {
+  $bootstrap = if (Test-Path -LiteralPath $bootstrapSecretPath) { Read-ProtectedSecret $bootstrapSecretPath } else { "" }
+  if (-not $bootstrap) {
+    throw "No Fabric UI credential exists; start the unified or standalone Fabric first"
+  }
+  Set-Clipboard -Value $bootstrap
+  Write-Host "Copied the local Fabric credential to the Windows clipboard without printing it."
+  Write-Host "Paste it into the Fabric UI, connect, then clear the clipboard with: Set-Clipboard -Value ''"
+  exit 0
+}
 
 New-Item -ItemType Directory -Path $StateRoot, $secretRoot, $logRoot, $runtimeDataRoot -Force | Out-Null
 $state = Load-State
@@ -734,7 +784,11 @@ try {
   $agentMeshCredential = Ensure-AgentMeshCredential $state
   Start-MirrorHub $state $agentMeshCredential
   Start-AgentMeshNode $state $agentMeshCredential
-  $bootstrapCredential = Ensure-BootstrapCredential
+  $bootstrapCredential = if ($SharedFabricRoot) {
+    Read-ProtectedSecret $bootstrapSecretPath
+  } else {
+    Ensure-BootstrapCredential
+  }
   Start-Fabric $state $bootstrapCredential
   $session = Ensure-FabricSession $state $bootstrapCredential
   $adapterCredential = Ensure-AdapterCredential $state $bootstrapCredential $session.sessionId

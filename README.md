@@ -64,27 +64,35 @@ one URL is both the console and the API. From it you can create a session, bind 
 fake device, validate, drive it, watch device events stream in, and stop
 everything.
 
-## Interaction Fabric and glasses/agents
+## One Interaction Fabric UI for every integration
 
-The Interaction Fabric is a separate local process and database. It wraps the
-existing Agent Mesh G2, Meta, Codex, and Claude implementations through an
-authenticated adapter WebSocket; it does not copy their vendor code or replace
-the classroom runtime.
+The Interaction Fabric is one local process, database, and UI for every
+registered input, output, or bidirectional node. Leap, glasses, sensors,
+robots, simulators, IoT devices, Codex, and Claude all use the same capability
+registry; vendor implementations remain isolated behind authenticated adapter
+WebSockets.
 
-On Windows, the safe launcher performs preflight, builds both repositories,
-creates current-user DPAPI-protected credentials, uses port `8766` so an
-existing service on `8765` is preserved, and keeps physical actuation disabled:
+Start the shared UI first. Its credential is current-user DPAPI protected, it
+uses port `8766` so the existing service on `8765` is preserved, and physical
+actuation is disabled unless `-AllowPhysical` is explicit:
+
+If an older glasses-only Fabric already owns port `8766`, run
+`pnpm hardware:glasses:windows -- -Mode Stop` once before this migration.
 
 ```powershell
-pnpm hardware:glasses:windows -- -Mode Preflight
-pnpm hardware:glasses:windows -- -Mode Start -SelectMostRecentAgentSession
-pnpm hardware:glasses:windows -- -Mode Status
-pnpm hardware:glasses:windows -- -Mode Verify
-pnpm hardware:glasses:windows -- -Mode Stop
+pnpm hardware:fabric:windows -- -Mode Start
+pnpm hardware:fabric:windows -- -Mode CopyCredential
+$fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
+pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766 -SelectMostRecentAgentSession
+pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
 
-The console is <http://127.0.0.1:8766/fabric>. Real G2/Meta acceptance still
-requires the owner hardware procedure in
+Open <http://127.0.0.1:8766/fabric>. The node inventory separates input-only,
+output-only, and bidirectional nodes and shows every published and consumed
+capability. Stop individual adapters first, then stop the shared Fabric. See
+`docs/operations/unified-fabric-console.md` for the complete workflow.
+
+Real G2/Meta acceptance still requires the owner hardware procedure in
 `docs/operations/agent-mesh-bridge.md`; simulator and software tests are not
 reported as physical evidence.
 
@@ -97,18 +105,19 @@ DJI, stock-S1, and command-pump code under the existing Python 3.8 environment
 and exposes independent Leap and S1 capability nodes. Vendor SDKs never enter
 the orchestration process.
 
-Run the complete software-only route first:
+Run the complete software-only route through the shared console first (using
+`$fabricRoot` from above):
 
 ```powershell
-pnpm hardware:robot:windows -- -Mode Preflight
-pnpm hardware:robot:windows -- -Mode Start
-pnpm hardware:robot:windows -- -Mode Verify
-pnpm hardware:robot:windows -- -Mode Stop
+pnpm hardware:robot:windows -- -Mode Preflight -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:robot:windows -- -Mode Verify -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:robot:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
 
-The dedicated Fabric UI is <http://127.0.0.1:8767/fabric>. Physical execution
-requires the explicit `-Live` flag and still requires the Fabric **Arm** and
-**Start** transitions. See
+Physical execution requires starting the shared console with `-AllowPhysical`,
+passing the explicit `-Live` flag to the adapter, and completing the Fabric
+**Arm** and **Start** transitions. See
 `docs/operations/robomaster-leap-hardware.md` before connecting wheels to the
 floor.
 

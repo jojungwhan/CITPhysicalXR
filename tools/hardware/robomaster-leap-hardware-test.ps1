@@ -28,6 +28,7 @@ param(
   [ValidateRange(1024, 65535)]
   [int]$FabricPort = 8767,
   [string]$StateRoot = "",
+  [string]$SharedFabricRoot = "",
   [string]$SiteId = "cit-local",
   [string]$RoomId = "robotics-lab",
   [string]$HostId = "",
@@ -58,6 +59,9 @@ if (-not $StateRoot) {
   $StateRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\robomaster-leap-hardware-test"
 }
 $StateRoot = [IO.Path]::GetFullPath($StateRoot)
+if ($SharedFabricRoot) {
+  $SharedFabricRoot = [IO.Path]::GetFullPath($SharedFabricRoot)
+}
 if (-not $HostId) {
   $HostId = "$($env:COMPUTERNAME.ToLowerInvariant())-robotics"
 }
@@ -79,7 +83,11 @@ $statePath = Join-Path $StateRoot "state.json"
 $secretRoot = Join-Path $StateRoot "secrets"
 $logRoot = Join-Path $StateRoot "logs"
 $runtimeDataRoot = Join-Path $StateRoot "runtime"
-$bootstrapSecretPath = Join-Path $secretRoot "fabric-bootstrap.dpapi"
+$bootstrapSecretPath = if ($SharedFabricRoot) {
+  Join-Path $SharedFabricRoot "secrets\fabric-bootstrap.dpapi"
+} else {
+  Join-Path $secretRoot "fabric-bootstrap.dpapi"
+}
 $adapterSecretPath = Join-Path $secretRoot "robomaster-leap-adapter.dpapi"
 $activationPath = Join-Path $StateRoot "input-active.signal"
 $leapStopPath = Join-Path $StateRoot "leap-stop.request"
@@ -127,7 +135,7 @@ function Save-ProtectedSecret([string]$Path, [string]$Value) {
 
 function Read-ProtectedSecret([string]$Path) {
   Assert-Path $Path "Protected credential"
-  $ciphertext = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
+  $ciphertext = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8).Trim()
   $secure = ConvertTo-SecureString -String $ciphertext
   $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
   try {
@@ -291,6 +299,10 @@ function Show-Preflight {
   }
   $listener = Get-ListeningProcessId $FabricPort
   Write-Host $(if ($null -eq $listener) { "PASS Fabric port $FabricPort is available" } else { "INFO Fabric port $FabricPort is already in use" })
+  if ($SharedFabricRoot) {
+    Assert-Path $bootstrapSecretPath "Shared Fabric credential; start the unified Fabric console first"
+    Write-Host "PASS shared Fabric root $SharedFabricRoot"
+  }
 }
 
 function Build-Systems {
@@ -314,18 +326,26 @@ function Start-Fabric([hashtable]$State, [string]$BootstrapCredential) {
   if ($null -ne $listenerId) {
     try {
       $health = Invoke-RestMethod -Uri "$fabricOrigin/api/v1/fabric/healthz" -TimeoutSec 5
-      $expectedActuation = if ($Live) { "enabled" } else { "disabled" }
-      if ($health.physicalActuation -ne $expectedActuation) {
-        throw "Existing Fabric physical mode is $($health.physicalActuation), expected $expectedActuation"
+      if ($Live -and $health.physicalActuation -ne "enabled") {
+        throw "Existing Fabric physical mode is $($health.physicalActuation); live hardware requires enabled"
       }
       $null = Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/auth/whoami" -Credential $BootstrapCredential
     } catch {
       throw "Port $FabricPort is not the matching CIT Fabric instance: $($_.Exception.Message)"
     }
+    $ownedExisting = (
+      -not $SharedFabricRoot -and
+      $State.ContainsKey("fabricPid") -and
+      [int]$State.fabricPid -eq $listenerId -and
+      ($State.ContainsKey("fabricOwned") -and $State.fabricOwned)
+    )
     $State.fabricPid = $listenerId
-    $State.fabricOwned = $false
+    $State.fabricOwned = [bool]$ownedExisting
     Save-State $State
     return
+  }
+  if ($SharedFabricRoot) {
+    throw "The shared Fabric is not listening on port $FabricPort; start tools/hardware/interaction-fabric-console.ps1 first"
   }
   $runtimePython = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
   Assert-Path $runtimePython "CIT virtual-environment Python"
@@ -472,6 +492,7 @@ function Bind-And-Start(
 
 function Show-Status([hashtable]$State, [string]$BootstrapCredential) {
   Write-Host "Fabric: $fabricOrigin"
+  Write-Host "Fabric ownership: $(if ($SharedFabricRoot) { "shared ($SharedFabricRoot)" } elseif ($State.ContainsKey('fabricOwned') -and $State.fabricOwned) { 'standalone launcher' } else { 'external or unknown' })"
   Write-Host "Upstream: $ExternalRepositoryRoot @ $expectedRevision"
   Write-Host "Mode: $(if ($State.ContainsKey('live') -and $State.live) { 'LIVE physical' } else { 'simulation' })"
   Write-Host "Fabric PID: $(if ($State.ContainsKey('fabricPid')) { $State.fabricPid } else { 'not recorded' })"
@@ -514,9 +535,13 @@ function Stop-Test([hashtable]$State, [string]$BootstrapCredential) {
   if (Test-Path -LiteralPath $activationPath) { [IO.File]::Delete($activationPath) }
   if ($BootstrapCredential -and (Get-ListeningProcessId $FabricPort)) {
     try {
-      $null = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/safety/stop-all" -Credential $BootstrapCredential
+      if ($State.ContainsKey("fabricOwned") -and $State.fabricOwned) {
+        $null = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/safety/stop-all" -Credential $BootstrapCredential
+      } elseif ($State.ContainsKey("sessionId") -and $State.sessionId) {
+        $null = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/sessions/$($State.sessionId)/stop" -Credential $BootstrapCredential
+      }
     } catch {
-      Write-Warning "Fabric emergency stop failed: $($_.Exception.Message)"
+      Write-Warning "Fabric session/global stop failed: $($_.Exception.Message)"
     }
   }
   Stop-ExactProcess $(if ($State.ContainsKey("adapterPid")) { $State.adapterPid } else { $null }) "cit_robomaster_leap"
@@ -566,7 +591,11 @@ if ($Mode -eq "Stop") {
 New-Item -ItemType Directory -Path $StateRoot, $secretRoot, $logRoot, $runtimeDataRoot -Force | Out-Null
 Show-Preflight
 Build-Systems
-$bootstrap = Ensure-BootstrapCredential
+$bootstrap = if ($SharedFabricRoot) {
+  Read-ProtectedSecret $bootstrapSecretPath
+} else {
+  Ensure-BootstrapCredential
+}
 Start-Fabric $state $bootstrap
 $session = New-FabricSession $state $bootstrap
 $adapterCredential = New-AdapterCredential $state $bootstrap $session.sessionId
