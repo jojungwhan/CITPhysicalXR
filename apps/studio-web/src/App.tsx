@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { translatorFor, type Locale } from "./i18n.js";
+import { FabricConsole } from "./FabricConsole.js";
 import { ProgramView } from "./ProgramView.js";
 import {
   RuntimeClient,
@@ -24,6 +25,16 @@ import { SimulationView } from "./views/SimulationView.js";
 import { XrView } from "./views/XrView.js";
 
 export function App() {
+  if (
+    typeof window !== "undefined" &&
+    window.location.pathname.replace(/\/$/, "").endsWith("/fabric")
+  ) {
+    return <FabricConsole />;
+  }
+  return <ClassroomApp />;
+}
+
+function ClassroomApp() {
   const clientRef = useRef(new RuntimeClient());
   const client = clientRef.current;
 

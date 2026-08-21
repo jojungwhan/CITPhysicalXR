@@ -4,6 +4,9 @@
     "noEmit": false,
     "outDir": "dist",
     "rootDir": "src",
+    "paths": {
+      "@citxr/protocol": ["../../packages/protocol-ts/dist/index.d.ts"]
+    },
     "tsBuildInfoFile": "dist/.tsbuildinfo"
   },
   "exclude": ["src/**/*.test.ts"]

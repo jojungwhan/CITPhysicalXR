@@ -1,6 +1,10 @@
 # CIT Physical XR Studio
 
-This repository is at **Milestone 4: LEGO**. On top of the Milestone 0 foundation (versioned protocol models, validation and configuration contracts, fail-closed safety primitives, four in-memory adapter fakes, cross-platform CI) it adds a working local runtime and a Studio console that drives it: program sessions, a device registry, an independent safety supervisor, a single command pipeline, event routing, record and replay, and a loopback-only HTTP/WebSocket API.
+This repository contains the completed **Milestone 6 classroom foundation**, the
+Milestone 4 LEGO adapter, and an additive Interaction Fabric compatibility
+slice. On top of the Milestone 0 foundation it provides the local runtime,
+authoring environment, instructor/student isolation, projects, simulation,
+record/replay, safety controls, and a loopback-first HTTP/WebSocket API.
 
 On top of that runtime it adds the authoring half: a versioned project format, a
 capability-driven Blockly toolbox, a deterministic blocks-to-readable-Python
@@ -58,6 +62,30 @@ one URL is both the console and the API. From it you can create a session, bind 
 fake device, validate, drive it, watch device events stream in, and stop
 everything.
 
+## Interaction Fabric and glasses/agents
+
+The Interaction Fabric is a separate local process and database. It wraps the
+existing Agent Mesh G2, Meta, Codex, and Claude implementations through an
+authenticated adapter WebSocket; it does not copy their vendor code or replace
+the classroom runtime.
+
+On Windows, the safe launcher performs preflight, builds both repositories,
+creates current-user DPAPI-protected credentials, uses port `8766` so an
+existing service on `8765` is preserved, and keeps physical actuation disabled:
+
+```powershell
+pnpm hardware:glasses:windows -- -Mode Preflight
+pnpm hardware:glasses:windows -- -Mode Start -SelectMostRecentAgentSession
+pnpm hardware:glasses:windows -- -Mode Status
+pnpm hardware:glasses:windows -- -Mode Verify
+pnpm hardware:glasses:windows -- -Mode Stop
+```
+
+The console is <http://127.0.0.1:8766/fabric>. Real G2/Meta acceptance still
+requires the owner hardware procedure in
+`docs/operations/agent-mesh-bridge.md`; simulator and software tests are not
+reported as physical evidence.
+
 The runtime binds the loopback interface and refuses to bind a routable one
 without an explicit override. Its CORS allowlist contains no remote origin, so a
 Studio copy served from another host resolves the API to its own origin, finds
@@ -87,20 +115,21 @@ Platform paths are stored separately and never translated between Windows and Li
 - `packages/test-harness`: reusable adapter shape assertion
 - `apps/runtime-py`: the local runtime -- sessions, device registry, safety supervisor, command pipeline, event router, record/replay, audit, and the loopback API
 - `apps/studio-web`: the Studio console -- device cards, session controls, drive controls, and a live event stream
-- `apps/agent-mesh-bridge`: optional bridge policy only; no transport
+- `apps/agent-mesh-bridge`: authenticated Agent Mesh compatibility adapter with a durable local outbox
+- `course-packs/glasses-agent-control`: capability-based glasses/agent reference lesson
 - `apps/quest-godot`: text-only Godot scene scaffold; no OpenXR or export setup
 - `docs/REUSE_AUDIT.md`: exact external checkout evidence and reuse decisions
 
 ## Current limitations
 
 - No hardware was contacted or modified. The LEGO adapter is real code against a simulated hub; `ble.py` has never run.
-- Installing the LEGO `hardware` extra breaks `pnpm license:check` on that machine. The decision is open (ADR-023) and blocks hardware bring-up.
+- Installing the current LEGO `hardware` extra breaks `pnpm license:check`; ADR-023 selected a transport split, which is not implemented yet and still blocks hardware bring-up.
 - The runtime listens on loopback only. There is no arbitrary shell, subprocess bridge, eval endpoint, or public endpoint.
 - Fake-device tests are contract evidence only; they are not Milestone 1 simulation or hardware evidence.
 - The working DJI Python environment was found, but the expected built Leap bridge DLL, Leap runtime/service, and owner-designated integrated checkout were not found.
 - Linux paths for the audited external repositories remain unresolved.
 - Godot is not installed on the discovery host, so only static project structure is checked. No APK or Quest/OpenXR behavior is claimed.
 - Agent CLI Mesh and the audited RoboMaster repositories have no owner licence at their inspected top level; none of their original code is copied here.
-- A clean Ubuntu 24.04 Docker verification passes on this host. The GitHub Actions matrix is defined but cannot report an external run until the repository is pushed.
+- The GitHub Actions matrix covers Windows and Ubuntu with Python 3.11 and 3.13.
 
 See `docs/MILESTONE_4_REPORT.md`, `docs/MILESTONE_3_REPORT.md`, and `docs/MILESTONE_1_REPORT.md` for what each milestone verified and what it deliberately leaves out, `docs/IMPLEMENTATION_PLAN.md` for requirement traceability and `docs/DECISIONS.md` for architecture decisions. The repository is licensed under Apache-2.0; dependency and external-source status is in `THIRD_PARTY_NOTICES.md` and `docs/LICENSING.md`.

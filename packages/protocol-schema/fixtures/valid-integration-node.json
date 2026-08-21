@@ -1,0 +1,46 @@
+{
+  "schemaVersion": "1.0",
+  "nodeId": "g2-sim-a",
+  "pluginId": "cit.agent-mesh-bridge",
+  "pluginVersion": "0.1.0",
+  "runtimeVersion": "1.0.0",
+  "hostId": "agent-mesh-host-a",
+  "siteId": "local-site",
+  "roomId": "local-room",
+  "displayName": "Simulated G2",
+  "connectionState": "connected",
+  "healthState": "healthy",
+  "physical": false,
+  "simulated": true,
+  "publishedCapabilities": [
+    {
+      "name": "interaction.intent.agent_prompt",
+      "version": "1.0",
+      "direction": "publish",
+      "maximumRateHz": 10,
+      "latencyClass": "conversational",
+      "safetyClassification": "informational",
+      "dataClassification": "voice_transcript",
+      "constraints": {}
+    }
+  ],
+  "consumedCapabilities": [
+    {
+      "name": "display.text.render",
+      "version": "1.0",
+      "direction": "consume",
+      "maximumRateHz": 10,
+      "latencyClass": "ui_feedback",
+      "safetyClassification": "informational",
+      "dataClassification": "operational",
+      "constraints": {}
+    }
+  ],
+  "configurationSchema": {},
+  "safetyClassification": "informational",
+  "dataClassifications": ["operational", "voice_transcript"],
+  "simulatorAvailable": true,
+  "requiredPermissions": [],
+  "lastSeenAt": "2026-08-21T03:00:00Z",
+  "metadata": { "wrappedBy": "agent-mesh" }
+}

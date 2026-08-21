@@ -1,0 +1,20 @@
+{
+  "messageId": "35c5997b-8eb8-4c1a-aa0d-ad967c8180a2",
+  "schemaVersion": "1.0",
+  "messageType": "event",
+  "topic": "interaction.intent.agent_prompt",
+  "sourceNodeId": "g2-sim-a",
+  "sourceCapability": "interaction.intent.agent_prompt",
+  "siteId": "local-site",
+  "roomId": "local-room",
+  "sessionId": "lesson-session-a",
+  "participantId": "participant-a",
+  "timestamp": "2026-08-21T03:00:00Z",
+  "monotonicTimestamp": 123456789,
+  "sequence": 1,
+  "correlationId": "interaction-a",
+  "confidence": 0.96,
+  "ttlMs": 2000,
+  "dataClassification": "voice_transcript",
+  "payload": { "text": "Explain the selected test failure." }
+}

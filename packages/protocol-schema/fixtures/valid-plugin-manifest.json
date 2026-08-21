@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1.0",
+  "pluginId": "cit.agent-mesh-bridge",
+  "pluginVersion": "0.1.0",
+  "runtimeVersion": "1.0.0",
+  "displayName": "Agent Mesh bridge",
+  "adapterMode": "out_of_process",
+  "configurationSchema": {},
+  "publishedCapabilities": [
+    {
+      "name": "interaction.intent.agent_prompt",
+      "version": "1.0",
+      "direction": "publish",
+      "maximumRateHz": 10,
+      "latencyClass": "conversational",
+      "safetyClassification": "informational",
+      "dataClassification": "voice_transcript",
+      "constraints": {}
+    }
+  ],
+  "consumedCapabilities": [
+    {
+      "name": "display.text.render",
+      "version": "1.0",
+      "direction": "consume",
+      "maximumRateHz": 10,
+      "latencyClass": "ui_feedback",
+      "safetyClassification": "informational",
+      "dataClassification": "operational",
+      "constraints": {}
+    }
+  ],
+  "requiredPermissions": [],
+  "safetyClassification": "informational",
+  "dataClassifications": ["operational", "voice_transcript"],
+  "simulatorAvailability": "included",
+  "vendor": "CIT"
+}

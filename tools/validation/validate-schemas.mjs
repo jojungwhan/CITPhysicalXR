@@ -34,6 +34,11 @@ const fixtures = {
   DeviceCommandIntent: "valid-command.json",
   DeviceEvent: "valid-event.json",
   DeviceDescriptor: "valid-device.json",
+  PluginManifest: "valid-plugin-manifest.json",
+  IntegrationNode: "valid-integration-node.json",
+  FabricEventEnvelope: "valid-fabric-event.json",
+  CoursePack: "valid-course-pack.json",
+  AdapterRegistrationFrame: "valid-adapter-registration.json",
 };
 
 for (const [definition, filename] of Object.entries(fixtures)) {

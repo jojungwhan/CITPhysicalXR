@@ -24,7 +24,8 @@
     "test:ts": "vitest run",
     "typecheck": "pnpm -r --if-present typecheck && uv run mypy",
     "license:check": "node tools/license-check/check.mjs",
-    "sbom": "uv run python tools/sbom/generate.py"
+    "sbom": "uv run python tools/sbom/generate.py",
+    "hardware:glasses:windows": "pwsh -NoProfile -File tools/hardware/glasses-agent-hardware-test.ps1"
   },
   "devDependencies": {
     "@eslint/js": "9.39.5",
