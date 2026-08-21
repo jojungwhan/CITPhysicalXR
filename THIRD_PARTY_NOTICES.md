@@ -23,20 +23,22 @@ The current resolved dependency graph contains software under `Apache-2.0`, `MIT
 
 ## Direct Python dependencies
 
-| Component group           | Purpose                          | Licence                |
-| ------------------------- | -------------------------------- | ---------------------- |
-| Pydantic                  | Generated protocol models        | `MIT`                  |
-| jsonschema                | Runtime/configuration validation | `MIT`                  |
-| PyYAML                    | Safe YAML loading                | `MIT`                  |
-| datamodel-code-generator  | Python protocol generation       | `MIT`                  |
-| pytest and pytest-asyncio | Contract and safety tests        | `MIT` / `Apache-2.0`   |
-| Ruff                      | Lint and format checks           | `MIT`                  |
-| mypy and types-PyYAML     | Type checking                    | `MIT` / `Apache-2.0`   |
-| Hatchling and build       | Python package builds            | `MIT`                  |
-| FastAPI and Starlette     | Local runtime API                | `MIT` / `BSD-3-Clause` |
-| uvicorn and websockets    | Local runtime transport          | `BSD-3-Clause`         |
+| Component group           | Purpose                            | Licence                |
+| ------------------------- | ---------------------------------- | ---------------------- |
+| Pydantic                  | Generated protocol models          | `MIT`                  |
+| jsonschema                | Runtime/configuration validation   | `MIT`                  |
+| PyYAML                    | Safe YAML loading                  | `MIT`                  |
+| datamodel-code-generator  | Python protocol generation         | `MIT`                  |
+| pytest and pytest-asyncio | Contract and safety tests          | `MIT` / `Apache-2.0`   |
+| Ruff                      | Lint and format checks             | `MIT`                  |
+| mypy and types-PyYAML     | Type checking                      | `MIT` / `Apache-2.0`   |
+| Hatchling and build       | Python package builds              | `MIT`                  |
+| FastAPI and Starlette     | Local runtime API                  | `MIT` / `BSD-3-Clause` |
+| uvicorn and websockets    | Local runtime transport            | `BSD-3-Clause`         |
+| TinyTuya                  | Local Tuya-compatible LAN control  | `MIT`                  |
+| Requests                  | TinyTuya HTTP support (transitive) | `Apache-2.0`           |
 
-## Optional hardware dependencies (Milestone 4)
+## Optional hardware dependencies
 
 `adapters/lego-pybricks` declares an optional `hardware` extra. It is not installed by default, is not required to build, test, or run this repository, and is needed only on a machine that will connect to a LEGO hub over Bluetooth.
 
@@ -50,6 +52,13 @@ The current resolved dependency graph contains software under `Apache-2.0`, `MIT
 | `aioserial`, `tqdm`            | Transitive                                            | `MPL-2.0`, `MPL-2.0 AND MIT` (allowed; metadata does not normalize) |
 
 Installing the extra therefore makes `pnpm license:check` fail on that machine. This is recorded, not resolved: see ADR-023 in `docs/DECISIONS.md`. No LEGO hardware work should proceed until the owner decides which way it goes.
+
+`adapters/tuya-smart-plug` similarly declares a `lan` extra, selected from the
+root as `smart-plug-lan`. TinyTuya is `MIT`, but its installed cryptography stack
+includes `cffi` with `MIT-0`, which is outside the current default allowlist.
+The simulator and default CI do not install this extra. A hardware host may use
+the explicitly locked extra, must record that exception, and can restore the
+default environment with `uv sync --all-packages --frozen`.
 
 LEGO hardware, the Pybricks firmware installed on a hub, and the Pybricks Code web installer are not distributed by this repository.
 

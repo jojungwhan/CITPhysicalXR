@@ -71,6 +71,7 @@ jobs:
           uv build --package cit-device-simulator
           uv build --package cit-test-harness
           uv build --package cit-runtime
+          uv build --package cit-tuya-smart-plug
 
       - name: Run tests and compliance gates
         run: |

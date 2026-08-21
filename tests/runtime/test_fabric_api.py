@@ -70,6 +70,7 @@ def test_explicit_physical_mode_and_robot_course_are_visible(tmp_path: Path) -> 
     assert {course_pack["coursePackId"] for course_pack in course_packs.json()} == {
         "gesture-ground-robot",
         "glasses-agent-control",
+        "smart-plug-control",
     }
 
 

@@ -11,3 +11,5 @@ ADRs are immutable decision snapshots. A superseding decision adds a new ADR and
 - [0007 — Bounded declarative flow subset](0007-bounded-declarative-flow-subset.md)
 - [0008 — Agent Mesh compatibility mirror before native cutover](0008-agent-mesh-compatibility-mirror.md)
 - [0009 — RoboMaster/Leap polyglot wrapper](0009-robomaster-leap-polyglot-wrapper.md)
+- [0010 — One capability-driven Fabric console](0010-one-fabric-console.md)
+- [0011 — Tuya-LAN smart-plug boundary](0011-tuya-lan-smart-plug-boundary.md)

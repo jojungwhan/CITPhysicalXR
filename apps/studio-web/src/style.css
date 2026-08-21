@@ -262,9 +262,82 @@ main.fabric-main {
 }
 
 .fabric-test-panel,
+.fabric-smart-plug-panel,
 .fabric-audit-panel,
 .fabric-node-panel {
   margin-top: 16px;
+}
+
+.fabric-smart-plug-layout,
+.fabric-smart-plug-state,
+.fabric-smart-plug-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.fabric-smart-plug-layout {
+  align-items: stretch;
+}
+
+.fabric-smart-plug-state {
+  min-width: 0;
+  flex: 1;
+  align-items: center;
+  padding: 12px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 10px;
+  background: rgb(0 0 0 / 16%);
+}
+
+.fabric-smart-plug-state strong,
+.fabric-smart-plug-state small,
+.fabric-smart-plug-actions button small {
+  display: block;
+}
+
+.fabric-smart-plug-state small {
+  color: #84938a;
+  overflow-wrap: anywhere;
+}
+
+.fabric-plug-indicator {
+  display: grid;
+  width: 54px;
+  height: 54px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #d7e1da;
+  background: #39433d;
+  font-size: 0.72rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.fabric-plug-indicator.is-on {
+  color: #102013;
+  background: var(--fabric-green);
+  box-shadow: 0 0 22px rgb(158 234 100 / 28%);
+}
+
+.fabric-smart-plug-actions {
+  min-width: min(100%, 370px);
+}
+
+.fabric-smart-plug-actions button {
+  flex: 1;
+}
+
+.fabric-smart-plug-actions button small {
+  margin-top: 3px;
+}
+
+.fabric-power-on {
+  border-color: rgb(255 157 98 / 45%) !important;
+}
+
+.fabric-power-off {
+  border-color: rgb(117 199 255 / 40%) !important;
 }
 
 .fabric-io-groups {
@@ -407,8 +480,15 @@ main.fabric-main {
   .fabric-grid,
   .fabric-stream-grid,
   .fabric-test-actions,
+  .fabric-smart-plug-layout,
+  .fabric-smart-plug-actions,
   .fabric-io-groups {
     grid-template-columns: 1fr;
+  }
+
+  .fabric-smart-plug-layout,
+  .fabric-smart-plug-actions {
+    flex-direction: column;
   }
 
   .fabric-header {

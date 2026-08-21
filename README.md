@@ -2,7 +2,8 @@
 
 This repository contains the completed **Milestone 6 classroom foundation**, the
 Milestone 4 LEGO adapter, an additive Interaction Fabric compatibility slice,
-and the first RoboMaster/Leap ground-robot slice. On top of the Milestone 0 foundation it provides the local runtime,
+the first RoboMaster/Leap ground-robot slice, and a Tuya-compatible smart-plug
+slice. On top of the Milestone 0 foundation it provides the local runtime,
 authoring environment, instructor/student isolation, projects, simulation,
 record/replay, safety controls, and a loopback-first HTTP/WebSocket API.
 
@@ -22,7 +23,8 @@ Bluetooth boundary and every test runs against a hub simulated in memory; the
 development host has no Bluetooth adapter. RoboMaster S1 and Leap now have an
 out-of-process Fabric adapter and simulator-backed course flow, but this host is
 missing the native Leap runtime artifacts, so physical HIL remains pending.
-There is no Quest application (M5).
+The smart-plug adapter has simulator evidence but has not contacted a physical
+outlet. There is no Quest application (M5).
 
 ## Development setup
 
@@ -85,6 +87,7 @@ pnpm hardware:fabric:windows -- -Mode CopyCredential
 $fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
 pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766 -SelectMostRecentAgentSession
 pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:plug:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
 
 Open <http://127.0.0.1:8766/fabric>. The node inventory separates input-only,
@@ -95,6 +98,29 @@ capability. Stop individual adapters first, then stop the shared Fabric. See
 Real G2/Meta acceptance still requires the owner hardware procedure in
 `docs/operations/agent-mesh-bridge.md`; simulator and software tests are not
 reported as physical evidence.
+
+## Tuya and Gosund smart plugs
+
+The smart-plug adapter exposes only `power.switch.set { on: boolean }` and
+`power.switch.state`. It uses local Tuya LAN control through pinned TinyTuya
+1.20.0; vendor cloud commands and arbitrary datapoint writes are absent.
+Gosund is supported only for a specific model that passes the Tuya-LAN
+preflight—not by brand name alone.
+
+Run the simulator in the shared UI first:
+
+```powershell
+pnpm hardware:plug:windows -- -Mode Preflight -SharedFabricRoot $fabricRoot
+pnpm hardware:plug:windows -- -Mode Start -SharedFabricRoot $fabricRoot
+pnpm hardware:plug:windows -- -Mode Verify -SharedFabricRoot $fabricRoot
+pnpm hardware:plug:windows -- -Mode Stop -SharedFabricRoot $fabricRoot
+```
+
+Physical setup uses a DPAPI-protected local profile, an exact private IPv4
+address, explicit `-Live`, a physical Fabric session, and the UI's Arm/Start
+safety state. The adapter starts and shuts down in **off** state; it never
+automatically turns a load on. Follow
+`docs/operations/tuya-smart-plug-hardware.md` before connecting a real outlet.
 
 ## RoboMaster S1 and Leap Motion
 
@@ -147,6 +173,7 @@ Platform paths are stored separately and never translated between Windows and Li
 - `packages/device-simulator`: non-hardware adapter contract and fake S1, Leap, LEGO, and Quest devices
 - `adapters/lego-pybricks`: the LEGO hub adapter, framed protocol, capability discovery, and injectable Bluetooth boundary
 - `adapters/robomaster-leap`: authenticated Fabric wrapper plus isolated Python 3.8 Leap and S1 workers
+- `adapters/tuya-smart-plug`: authenticated Tuya-LAN adapter, simulator, exact boolean command, and safe-off boundary
 - `firmware/lego-hub-agent`: the Pybricks program that runs on a hub
 - `packages/test-harness`: reusable adapter shape assertion
 - `apps/runtime-py`: the local runtime -- sessions, device registry, safety supervisor, command pipeline, event router, record/replay, audit, and the loopback API
@@ -154,12 +181,13 @@ Platform paths are stored separately and never translated between Windows and Li
 - `apps/agent-mesh-bridge`: authenticated Agent Mesh compatibility adapter with a durable local outbox
 - `course-packs/glasses-agent-control`: capability-based glasses/agent reference lesson
 - `course-packs/gesture-ground-robot`: Leap semantic velocity to interchangeable ground-mobility role
+- `course-packs/smart-plug-control`: approved electrical output assigned through the `classroom_plug` role
 - `apps/quest-godot`: text-only Godot scene scaffold; no OpenXR or export setup
 - `docs/REUSE_AUDIT.md`: exact external checkout evidence and reuse decisions
 
 ## Current limitations
 
-- No hardware was contacted or modified during this integration. LEGO and RoboMaster/Leap software paths have simulator evidence only.
+- No hardware was contacted or modified during this integration. LEGO, RoboMaster/Leap, and smart-plug software paths have simulator evidence only.
 - Installing the current LEGO `hardware` extra breaks `pnpm license:check`; ADR-023 selected a transport split, which is not implemented yet and still blocks hardware bring-up.
 - The runtime listens on loopback only. The new subprocess bridge executes one fixed worker path with an allowlisted JSON-lines contract; there is no arbitrary shell, eval endpoint, or public endpoint.
 - Fake-device tests are contract evidence only; they are not Milestone 1 simulation or hardware evidence.

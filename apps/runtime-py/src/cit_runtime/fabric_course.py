@@ -218,3 +218,36 @@ def gesture_ground_robot_course_pack() -> CoursePack:
     course_pack = CoursePack.model_validate(value)
     validate_course_pack(course_pack)
     return course_pack
+
+
+def smart_plug_course_pack() -> CoursePack:
+    """The manual instructor-controlled Tuya-compatible plug recipe."""
+
+    value: dict[str, Any] = {
+        "schemaVersion": "1.0",
+        "coursePackId": "smart-plug-control",
+        "version": "1.0.0",
+        "displayName": "Tuya / Gosund smart-plug control",
+        "description": (
+            "Assigns an approved Tuya-LAN-compatible smart plug to the "
+            "classroom_plug role for deterministic instructor on/off control."
+        ),
+        "roles": [
+            {
+                "role": "classroom_plug",
+                "oneOfCapabilities": ["power.switch.set"],
+                "optional": False,
+            }
+        ],
+        "flows": [],
+        "safetyProfile": "classroom-smart-plug",
+        "simulatorRequired": True,
+        "assessmentEvents": ["power.switch.state"],
+        "fallbackBehavior": (
+            "Drive the approved nonessential classroom load to off when the "
+            "adapter, session, or Fabric stops."
+        ),
+    }
+    course_pack = CoursePack.model_validate(value)
+    validate_course_pack(course_pack)
+    return course_pack

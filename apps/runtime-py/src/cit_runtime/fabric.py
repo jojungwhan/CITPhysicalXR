@@ -784,7 +784,7 @@ class InteractionFabric:
             return "COMMAND_FROM_FUTURE", "Command request time is too far in the future"
         if command.expiresAt <= now:
             return "COMMAND_EXPIRED", "Command TTL has expired"
-        if session.state is not FabricSessionState.active and not _is_stop_action(command.action):
+        if session.state is not FabricSessionState.active and not _is_safe_state_command(command):
             return "SESSION_NOT_ACTIVE", "Only an active session can dispatch this command"
         if command.safetyProfile != session.safetyProfile:
             return "SAFETY_PROFILE_MISMATCH", "Command safety profile differs from the session"
@@ -802,20 +802,25 @@ class InteractionFabric:
             }
             and not node.simulated
         )
-        if requires_physical_safety and not _is_stop_action(command.action):
+        if requires_physical_safety and not _is_safe_state_command(command):
             if not session.armed:
                 return "SESSION_NOT_ARMED", "Physical outputs require an armed session"
             if not self._allow_physical:
                 return "PHYSICAL_EXECUTION_DISABLED", "Physical command execution is disabled"
             if command.priority is FabricCommandPriority.autonomous_agent:
                 return "AGENT_PHYSICAL_CONTROL_DENIED", "Autonomous agents cannot command hardware"
-            if capability.safetyClassification in {
-                FabricSafetyClassification.flight,
-                FabricSafetyClassification.electrical,
-            }:
+            if capability.safetyClassification is FabricSafetyClassification.flight:
                 return (
                     "SAFETY_PROFILE_NOT_IMPLEMENTED",
-                    "Flight and electrical command profiles are not enabled in this slice",
+                    "Flight command profiles are not enabled in this slice",
+                )
+            if (
+                capability.safetyClassification is FabricSafetyClassification.electrical
+                and command.action != "power.switch.set"
+            ):
+                return (
+                    "SAFETY_PROFILE_NOT_IMPLEMENTED",
+                    "Only the exact boolean smart-plug electrical command is enabled",
                 )
         parameter_error = _validate_command_parameters(command, capability)
         if parameter_error is not None:
@@ -1238,6 +1243,13 @@ def _is_stop_action(action: str) -> bool:
     return action.startswith("safety.") or action.endswith((".stop", ".land", ".disarm"))
 
 
+def _is_safe_state_command(command: FabricResolvedCommand) -> bool:
+    if _is_stop_action(command.action):
+        return True
+    parameters = command.parameters.model_dump(mode="json")
+    return bool(command.action == "power.switch.set" and parameters == {"on": False})
+
+
 def _validate_command_parameters(
     command: FabricResolvedCommand,
     capability: CapabilityDescriptor,
@@ -1259,6 +1271,9 @@ def _validate_command_parameters(
             return "Display text must be a non-empty string"
         if len(text.encode("utf-8")) > 4096:
             return "Display text exceeds the 4 KiB Fabric limit"
+    if command.action == "power.switch.set":
+        if set(parameters) != {"on"} or type(parameters.get("on")) is not bool:
+            return "Smart-plug command requires exactly one boolean 'on' parameter"
     constraints = capability.constraints.model_dump(mode="json")
     argument_limits = constraints.get("arguments")
     if isinstance(argument_limits, dict):
@@ -1269,6 +1284,10 @@ def _validate_command_parameters(
             if name not in parameters or not isinstance(bounds, dict):
                 continue
             value = parameters[name]
+            if bounds.get("type") == "boolean":
+                if type(value) is not bool:
+                    return f"Parameter {name!r} must be boolean"
+                continue
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return f"Parameter {name!r} must be numeric"
             minimum = bounds.get("minimum")

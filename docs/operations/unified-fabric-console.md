@@ -50,12 +50,18 @@ pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot $fabricRoot -Fabr
 
 # Leap and RoboMaster using semantic demo input and the real upstream dry-run robot
 pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
+
+# Tuya-compatible smart-plug simulator (same UI, no outlet contacted)
+pnpm hardware:plug:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
 
 Refresh the UI. Leap appears under **Inputs**. A robot, glasses endpoint, or
 coding agent normally appears under **Bidirectional** because it publishes
 telemetry/output and consumes commands. A command-only adapter appears under
 **Outputs**. Each card shows its complete **Publishes** and **Consumes** lists.
+The smart plug appears under **Bidirectional** because it publishes normalized
+state and consumes the exact boolean power command. Its dedicated card uses the
+same selected session and `classroom_plug` role.
 
 Site and room scopes still isolate sessions. Create or select the relevant
 course pack, assign connected capability-compatible nodes to logical roles,
@@ -83,6 +89,7 @@ higher priority than every lesson, student, or agent command.
 pnpm hardware:fabric:windows -- -Mode Status
 pnpm hardware:robot:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
 pnpm hardware:glasses:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:plug:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
 pnpm hardware:fabric:windows -- -Mode Stop
 ```
 

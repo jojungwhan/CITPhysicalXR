@@ -49,8 +49,8 @@ Shared CIT Interaction Fabric (one FastAPI process + SQLite + UI)
         +-- same-origin /fabric instructor console
 ```
 
-The Windows shared launcher owns this single Fabric process. Glasses/agent and
-Leap/RoboMaster launchers attach with the protected shared credential while
+The Windows shared launcher owns this single Fabric process. Glasses/agent,
+Leap/RoboMaster, and Tuya-compatible smart-plug launchers attach with the protected shared credential while
 retaining ownership only of their own adapter processes and sessions. The UI
 groups every registered node as input-only, output-only, or bidirectional and
 shows both its published and consumed capabilities.
@@ -97,7 +97,9 @@ cross-repository cutover.
   this host.
 - MindWave and Tello: working external implementations were discovered but are
   not yet Fabric adapters.
-- Tuya: no reusable production implementation was discovered.
+- Tuya / Gosund: no prior reusable implementation was discovered. A new
+  TinyTuya 1.20.0 LAN adapter, simulator, course role, UI controls, and Windows
+  launcher are implemented; no physical outlet has passed HIL yet.
 - Quest: upstream contains authoring/runtime placeholders and simulators, not a
   production headset application.
 

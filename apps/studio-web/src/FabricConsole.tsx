@@ -26,6 +26,11 @@ import {
   type FabricNodeIoKind,
 } from "./fabric-node-io.js";
 import { countActiveFabricCommands } from "./fabric-lifecycle.js";
+import {
+  isSmartPlugNode,
+  latestSmartPlugState,
+  POWER_SET_CAPABILITY,
+} from "./fabric-smart-plug.js";
 
 type BusyAction = string | null;
 
@@ -76,6 +81,17 @@ export function FabricConsole() {
   const canAssignRoles = hasPermission(principal, "fabric.roles.assign");
   const canSubmitCommands = hasPermission(principal, "fabric.commands.submit");
   const canStopAll = hasPermission(principal, "fabric.stop_all");
+  const smartPlugNodes = useMemo(() => nodes.filter(isSmartPlugNode), [nodes]);
+  const smartPlugBinding = selectedSession?.roleBindings.find(
+    (binding) => binding.role === "classroom_plug",
+  );
+  const selectedSmartPlug = smartPlugNodes.find(
+    (node) => node.nodeId === smartPlugBinding?.nodeId,
+  );
+  const smartPlugState = useMemo(
+    () => latestSmartPlugState(events, selectedSmartPlug?.nodeId),
+    [events, selectedSmartPlug?.nodeId],
+  );
 
   const refresh = useCallback(
     async (showError = false) => {
@@ -350,6 +366,44 @@ export function FabricConsole() {
             : "Robot stop";
       setNotice(
         `${label} test reached ${terminal?.stage ?? "an unknown state"}.`,
+      );
+    });
+
+  const setSmartPlugPower = (on: boolean) =>
+    runAction(`Turning smart plug ${on ? "on" : "off"}`, async () => {
+      if (selectedSession === undefined)
+        throw new Error("Select a smart-plug session first.");
+      if (smartPlugBinding === undefined)
+        throw new Error("Assign classroom_plug before controlling power.");
+      if (on && selectedSession.state !== "active")
+        throw new Error("Start the session before turning on a load.");
+      if (on && selectedSession.mode === "physical" && !selectedSession.armed)
+        throw new Error("Arm the physical session before turning on a load.");
+      const correlationId = crypto.randomUUID();
+      const priority: FabricCommandPriority =
+        principal?.roles.some((roleName) =>
+          ["administrator", "instructor"].includes(roleName),
+        ) === true
+          ? "instructor_override"
+          : "lesson_automation";
+      const result = await client.submitCommand({
+        messageId: crypto.randomUUID(),
+        schemaVersion: "1.0",
+        messageType: "command.requested",
+        action: POWER_SET_CAPABILITY,
+        target: { role: "classroom_plug" },
+        sessionId: selectedSession.sessionId,
+        parameters: { on },
+        priority,
+        idempotencyKey: `console-smart-plug:${on ? "on" : "off"}:${correlationId}`,
+        requestedAt: new Date().toISOString(),
+        ttlMs: 2_000,
+        safetyProfile: selectedSession.safetyProfile,
+        correlationId,
+      });
+      const terminal = result.lifecycle.at(-1);
+      setNotice(
+        `Smart-plug ${on ? "on" : "off"} request reached ${terminal?.stage ?? "an unknown state"}.`,
       );
     });
 
@@ -749,6 +803,77 @@ export function FabricConsole() {
               </div>
             </div>
           </div>
+        </section>
+
+        <section className="fabric-panel fabric-smart-plug-panel">
+          <PanelHeading
+            eyebrow="Electrical output"
+            title="Tuya and compatible Gosund smart plugs"
+          />
+          <div className="fabric-smart-plug-layout">
+            <div className="fabric-smart-plug-state">
+              <span
+                className={`fabric-plug-indicator ${smartPlugState?.on ? "is-on" : "is-off"}`}
+                aria-hidden="true"
+              >
+                {smartPlugState?.on ? "ON" : "OFF"}
+              </span>
+              <div>
+                <strong>
+                  {selectedSmartPlug?.displayName ??
+                    "No classroom plug assigned"}
+                </strong>
+                <small>
+                  {selectedSmartPlug === undefined
+                    ? `${smartPlugNodes.length} compatible node(s) connected`
+                    : `${metadataText(selectedSmartPlug, "vendorBrand") ?? "compatible"} · ${metadataText(selectedSmartPlug, "model") ?? selectedSmartPlug.nodeId}`}
+                </small>
+                <small>
+                  {smartPlugState === undefined
+                    ? "State has not been observed in this session"
+                    : `Observed ${formatTime(smartPlugState.observedAt)}${smartPlugState.source === undefined ? "" : ` · ${smartPlugState.source}`}`}
+                </small>
+              </div>
+            </div>
+            <div className="fabric-smart-plug-actions">
+              <button
+                className="fabric-power-on"
+                type="button"
+                disabled={
+                  !canSubmitCommands ||
+                  busy !== null ||
+                  smartPlugBinding === undefined ||
+                  selectedSession?.state !== "active" ||
+                  (selectedSession.mode === "physical" &&
+                    selectedSession.armed !== true)
+                }
+                onClick={() => void setSmartPlugPower(true)}
+              >
+                Turn on
+                <small>Requires active and armed physical session</small>
+              </button>
+              <button
+                className="fabric-power-off"
+                type="button"
+                disabled={
+                  !canSubmitCommands ||
+                  busy !== null ||
+                  smartPlugBinding === undefined
+                }
+                onClick={() => void setSmartPlugPower(false)}
+              >
+                Turn off
+                <small>
+                  Safe-state command remains available while disarmed
+                </small>
+              </button>
+            </div>
+          </div>
+          <p className="fabric-help">
+            Only the exact boolean power switch is exposed. Arbitrary Tuya
+            datapoints and cloud credentials never enter the Fabric. Gosund
+            models must first pass the Tuya-LAN hardware preflight.
+          </p>
         </section>
 
         <section className="fabric-panel fabric-node-panel">

@@ -259,6 +259,24 @@ The existing assets are strong reference and later integration candidates, but n
 | Decision          | Reference only; explicitly reject its movement route for Physical XR v1                                                                                   |
 | Evidence          | `robomasterCommandInputSchema`, `RoboMasterBridge`, `MotionController`, and `docs/ROBOMASTER.md`                                                          |
 
+### R-014 — Tuya-compatible smart-plug boundary
+
+| Field             | Finding                                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source repository | No existing implementation found in `CITPhysicalXR`, `brain2devices`, `glasses2CLI`, `robomasterCITCourse`, or the RoboMaster/Leap checkout; upstream library is `jasonacox/tinytuya` |
+| Module            | New `adapters/tuya-smart-plug`; external package `tinytuya==1.20.0`                                                                                                                   |
+| Purpose           | Exact local-LAN boolean outlet control and normalized verified state                                                                                                                  |
+| Language/runtime  | Python 3.11/3.13; authenticated Fabric WebSocket; Tuya LAN TCP                                                                                                                        |
+| Licence           | New CIT source is Apache-2.0; TinyTuya is MIT                                                                                                                                         |
+| Current tests     | Manifest/course parity, simulator idempotency, fake TinyTuya status/write verification, core electrical safety, UI state projection; physical HIL pending                             |
+| Dependencies      | TinyTuya 1.20.0 plus its locked dependencies; device ID/local key supplied only to the adapter process                                                                                |
+| Protocol          | Tuya LAN versions 3.1–3.5 at an exact private IPv4 address and configured boolean switch DPS                                                                                          |
+| Reusability       | No legacy module to wrap. Canonical `power.switch.*` contract and simulator are reusable; vendor protocol remains inside the adapter                                                  |
+| Required changes  | Run per-model Tuya/Gosund HIL and record firmware, DPS, disconnect, restore, latency, and safe-off behavior                                                                           |
+| Risk              | Gosund compatibility is model-specific; an on plug with unavailable Wi-Fi cannot receive a new off command                                                                            |
+| Decision          | LAN-only, exact boolean allowlist, DPAPI-protected profile, safe-off default; no scan, cloud command, or arbitrary DPS                                                                |
+| Evidence          | ADR-0011, `tests/adapters/test_tuya_smart_plug.py`, `tests/runtime/test_smart_plug_safety.py`, and the hardware runbook                                                               |
+
 ## Environment gaps and owner follow-up
 
 The following paths or runtime facts remain unresolved after local read-only discovery:

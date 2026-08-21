@@ -12,7 +12,7 @@ Status: reconciled strangler plan as of 2026-08-21. Existing working paths remai
 | D — glasses/agents      | Software-complete in compatibility mode | Agent Mesh bridge and durable no-duplicate tests; owner G2/Meta hardware round trip pending                                              |
 | E — P0 console          | Complete for Fabric operations          | Same-origin `/fabric` route, explicit credential, nodes/roles/sessions/stop/lifecycle/audit                                              |
 | F — ground robot        | Software wrapper complete; HIL pending  | Pinned Leap/S1 workers, canonical flow, dual bounds, UI/launcher, and dry-run evidence; LEGO Fabric substitution and physical HIL remain |
-| G — remaining/hardening | Pending                                 | Hardware, network-loss, multi-host, privacy, and performance evidence                                                                    |
+| G — remaining/hardening | Smart-plug software slice complete      | Tuya-LAN adapter/simulator/UI/launcher complete; all physical, network-loss, multi-host, privacy, and performance evidence remains       |
 
 ## Phase A — Baseline and inventory
 
@@ -118,7 +118,10 @@ separately enabled local Fabric, explicit arm/start, and the hardware checklist.
 ## Phase G — Remaining integrations and hardening
 
 - Wrap MindWave and Tello from Brain2Devices as separate processes.
-- Complete the approved LEGO transport/licensing split and add Tuya only after concrete device/SDK discovery.
+- Complete the approved LEGO transport/licensing split.
+- Run the implemented TinyTuya LAN adapter against each approved Tuya or
+  compatible Gosund model; record exact model, firmware, DPS, loss behavior,
+  and safe-off evidence before classroom use.
 - Add multimodal state windows after calibration semantics stabilize.
 - Integrate Tello only after simulator, ground robot, console, and safety evidence pass.
 - Run Windows/Linux, multi-host, crash, network-loss, restart, privacy, security, performance, and hardware-in-loop gates.

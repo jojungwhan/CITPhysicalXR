@@ -8,12 +8,16 @@ dependencies = [
   "cit-device-simulator",
   "cit-lego-pybricks",
   "cit-robomaster-leap",
+  "cit-tuya-smart-plug",
   "cit-runtime",
   "cit-protocol",
   "cit-safety-core",
   "cit-student-sdk",
   "cit-test-harness",
 ]
+
+[project.optional-dependencies]
+smart-plug-lan = ["cit-tuya-smart-plug[lan]"]
 
 [dependency-groups]
 dev = [
@@ -39,6 +43,7 @@ package = false
 members = [
   "adapters/lego-pybricks",
   "adapters/robomaster-leap",
+  "adapters/tuya-smart-plug",
   "apps/runtime-py",
   "packages/device-simulator",
   "packages/protocol-py",
@@ -51,6 +56,7 @@ members = [
 cit-device-simulator = { workspace = true }
 cit-lego-pybricks = { workspace = true }
 cit-robomaster-leap = { workspace = true }
+cit-tuya-smart-plug = { workspace = true }
 cit-runtime = { workspace = true }
 cit-protocol = { workspace = true }
 cit-safety-core = { workspace = true }
