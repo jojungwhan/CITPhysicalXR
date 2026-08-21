@@ -7,24 +7,25 @@ or enabling physical outputs.
 ## Start the device host
 
 ```powershell
-pnpm hardware:devices:windows -- -Mode Start
+pnpm hardware:devices:windows -- -Mode Start -AllowPhysical
 ```
 
 This starts or preserves the shared Fabric on `127.0.0.1:8766`, starts or
 preserves the existing Brain2Devices helper on `127.0.0.1:8765`, and opens the
 single tutor UI with automatic local sign-in. Starting these services does not
 connect a headset, send a Tello SDK packet, arm a robot, start an agent, or
-switch a plug.
+switch a plug. `-AllowPhysical` permits authenticated physical adapters to
+register, but every newly created lesson remains disarmed.
 
 In the UI, choose **Find devices**. Each integration has one of these states:
 
-| State        | Meaning                                                                |
-| ------------ | ---------------------------------------------------------------------- |
-| Connected    | An authenticated adapter registered a live Fabric capability node.     |
-| Found        | Hardware or a vendor service is visible; connection is still separate. |
-| Ready        | Required host software/radio/profile is ready; hardware may be off.    |
-| Setup needed | Follow the numbered card steps once, then scan again.                  |
-| Not found    | The check ran and no matching candidate was visible.                   |
+| State          | Meaning                                                                |
+| -------------- | ---------------------------------------------------------------------- |
+| Connected      | An authenticated adapter registered a live Fabric capability node.     |
+| Found          | Hardware or a vendor service is visible; connection is still separate. |
+| Computer ready | Required host software/radio/profile is ready; hardware may be off.    |
+| Setup needed   | Follow the numbered card steps once, then scan again.                  |
+| Not found      | The check ran and no matching candidate was visible.                   |
 
 **Copy setup command** copies only a fixed CIT command. Device IDs, local
 keys, tokens, IP addresses, and credentials never enter the browser report.
@@ -69,12 +70,15 @@ The scan checks the Ultraleap USB/service/runtime boundary and briefly listens
 for incoming DJI STA broadcasts on UDP 45678. It sends no discovery packet and
 does not identify a generic LAN host as a robot.
 
-Use **Copy setup command** on either card, then follow
+When the Leap runtime/controller and a RoboMaster STA broadcast are both found,
+choose **Connect robot and Leap**. CIT runs the characterized adapter in
+connect-only mode, binds both nodes to an unstarted lesson, and leaves the lesson
+disarmed with no activation file. For AP, RNDIS, or explicit-address setups,
+use **Copy setup command** and follow
 [RoboMaster and Leap hardware validation](robomaster-leap-hardware.md). For the
-first robot connection, raise the wheels and use the upstream connect-only
-check before any live lesson. A found network candidate is not a completed DJI
-handshake, and physical movement still requires the separately enabled Fabric
-and the robot runbook.
+first robot connection, raise the wheels. A found network candidate is not a
+completed DJI handshake, and movement still requires the tutor to complete the
+separate safety/start step.
 
 ## Tuya and Gosund plugs
 
@@ -87,16 +91,19 @@ pnpm hardware:plug:windows -- -Mode Configure
 ```
 
 The key is entered in PowerShell, protected with current-user DPAPI, and never
-returned by discovery. Scan again to see the encrypted profile as **Ready**,
-then follow [Tuya/Gosund hardware validation](tuya-smart-plug-hardware.md).
-Discovery never turns a plug on or off.
+returned by discovery. Scan again, then choose **Connect approved plug**. The
+adapter reads current state, registers against an unstarted lesson, and remains
+disarmed; it does not change the outlet state. Follow
+[Tuya/Gosund hardware validation](tuya-smart-plug-hardware.md) before enabling
+student use.
 
 ## Glasses, agents, and LEGO
 
 - Even G2/Meta cards distinguish Agent Mesh readiness, authorized Android
   bridges, and actual recently connected wearable nodes.
 - Codex/Claude cards distinguish installed executables from supervised Agent
-  Mesh sessions. Discovery never starts an agent or grants a workspace.
+  Mesh sessions. **Connect glasses and agent** starts only the fixed bridge for
+  an already approved session; it never creates an agent or grants a workspace.
 - LEGO cards show paired candidates but never choose the nearest BLE hub. Bind
   each Pybricks hub by its unique classroom name before connecting motors.
 

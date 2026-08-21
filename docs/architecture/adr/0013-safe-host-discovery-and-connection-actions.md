@@ -32,12 +32,16 @@ adapter handshake can create a connected capability node. Tuya/Gosund devices
 remain exact-profile-bound; discovery returns neither device IDs, addresses,
 local keys, nor tokens.
 
-Connection actions are a second, instructor-only allowlist. The initial list
-contains only preserved Brain2Devices operations for a MindWave connection and
-a grounded Tello SDK/radio handshake. Tello actions require an explicit
-grounded/propeller confirmation and still cannot take off, land, move, or stop
-motors. Actions and denials are audited. There is no arbitrary process, shell,
-URL, SDK-text, or datapoint endpoint.
+Connection actions are a second, instructor-only allowlist. It contains the
+preserved Brain2Devices operations for a MindWave connection and grounded Tello
+SDK/radio handshake, plus fixed repository-owned launchers for Agent Mesh,
+configured smart plugs, and the RoboMaster/Leap slice. The physical robot and
+plug launchers use a connect-only mode: they register and bind nodes to an
+unstarted lesson without arming the session or creating the adapter activation file. A
+plug connection performs only its backend state read. Tello actions require an
+explicit grounded/propeller confirmation and still cannot take off, land, move,
+or stop motors. Actions and denials are audited. There is no arbitrary process,
+shell, URL, SDK-text, or datapoint endpoint.
 
 ## Consequences
 
@@ -47,8 +51,9 @@ URL, SDK-text, or datapoint endpoint.
   command routing or weaken adapter authentication.
 - A scan can honestly say that a USB Wi-Fi radio is ready while no powered
   Tello is visible, or that Agent Mesh is running while no glasses are recent.
-- Some hardware still requires a one-time vendor-specific setup or component
-  launcher. The UI shows the exact next step instead of claiming automatic
-  connection.
+- Hardware still requires one-time vendor-specific setup where no safe generic
+  handshake exists. Once configured, supported adapters can be started from
+  their card; the UI shows the exact next step for the remaining cases instead
+  of claiming automatic connection.
 - Brain2Devices remains the system of record for Tello/MindWave hardware until
   their canonical Fabric adapter slice passes the later safety gate.

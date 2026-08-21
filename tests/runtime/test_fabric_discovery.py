@@ -1,14 +1,17 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from cit_protocol import IntegrationNode
 from cit_runtime.fabric_auth import FABRIC_PERMISSIONS, FabricBootstrapIdentity
 from cit_runtime.fabric_discovery import (
     FabricDiscoveryError,
     FabricDiscoveryReport,
     FabricDiscoveryService,
+    PowerShellDiscoveryRunner,
     initial_discovery_report,
 )
 from cit_runtime.fabric_service import create_fabric_app
@@ -113,6 +116,45 @@ def test_discovery_overlays_live_nodes_without_claiming_other_devices() -> None:
     assert leap.status == "connected"
     assert leap.connectedNodeIds == ["leap-motion-test"]
     assert robot.status == "not_scanned"
+
+
+def test_fixed_adapter_connection_actions_use_disarmed_launchers(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = PowerShellDiscoveryRunner(
+        script_path=Path(__file__).resolve().parents[2]
+        / "tools"
+        / "hardware"
+        / "find-classroom-devices.ps1",
+        state_root=tmp_path / "fabric",
+        brain2devices_root=tmp_path / "brain",
+        robomaster_root=tmp_path / "robot",
+        fabric_port=9876,
+        powershell_path="pwsh",
+    )
+    launches: list[tuple[str, tuple[str, ...]]] = []
+
+    async def capture_launcher(script_name: str, *arguments: str) -> None:
+        launches.append((script_name, arguments))
+
+    monkeypatch.setattr(runner, "_run_launcher", capture_launcher)
+
+    async def connect() -> None:
+        await runner.perform("cit.glasses-agent.connect", confirm_grounded=False)
+        await runner.perform("cit.robomaster-leap.connect", confirm_grounded=False)
+        await runner.perform("cit.smart-plug.connect", confirm_grounded=False)
+
+    asyncio.run(connect())
+
+    assert launches[0][0] == "glasses-agent-hardware-test.ps1"
+    assert "-SelectMostRecentAgentSession" in launches[0][1]
+    assert launches[1][0] == "robomaster-leap-hardware-test.ps1"
+    assert "-ConnectOnly" in launches[1][1]
+    assert "-Live" in launches[1][1]
+    assert launches[2][0] == "smart-plug-hardware-test.ps1"
+    assert "-ConnectOnly" in launches[2][1]
+    assert all("-NoOpenConsole" in arguments for _, arguments in launches)
 
 
 def test_authenticated_scan_and_allowlisted_connection_are_audited(tmp_path: Path) -> None:

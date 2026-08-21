@@ -61,6 +61,20 @@ def test_classroom_device_launcher_starts_discovery_hosts_without_actuation() ->
     assert ".Send(" not in probe
 
 
+def test_ui_started_physical_adapters_support_a_disarmed_connect_only_mode() -> None:
+    robot = _launcher("robomaster-leap-hardware-test.ps1")
+    plug = _launcher("smart-plug-hardware-test.ps1")
+    probe = _launcher("find-classroom-devices.ps1")
+
+    for launcher in (robot, plug):
+        assert "[switch]$ConnectOnly" in launcher
+        assert "CONNECTED AND DISARMED" in launcher
+        assert "[IO.File]::Delete" in launcher
+    assert '"cit.robomaster-leap.connect"' in probe
+    assert '"cit.smart-plug.connect"' in probe
+    assert "-ConnectOnly" in probe
+
+
 @pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows probe")
 def test_device_probe_captures_a_console_writing_tello_helper_as_one_json_document(
     tmp_path: Path,

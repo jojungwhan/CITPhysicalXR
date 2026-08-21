@@ -23,12 +23,17 @@ param(
   [string]$RoomId = "local-room",
   [string]$HostId = $env:COMPUTERNAME,
   [string]$NodeId = "smart-plug-01",
+  [switch]$ConnectOnly,
   [switch]$SkipBuild,
   [switch]$NoOpenConsole
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ($ConnectOnly -and -not $Live) {
+  throw "ConnectOnly is available only for the physical Live adapter"
+}
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 if (-not $SharedFabricRoot) {
@@ -370,16 +375,22 @@ function Start-Adapter(
   } "Smart-plug adapter did not register; inspect $logRoot" 45
 }
 
-function Bind-And-Start([hashtable]$State, [string]$Bootstrap, [string]$SessionId) {
+function Bind-Role([hashtable]$State, [string]$Bootstrap, [string]$SessionId) {
   $null = Invoke-JsonApi -Method PUT -Uri "$fabricOrigin/api/v1/fabric/sessions/$SessionId/roles/classroom_plug" -Credential $Bootstrap -Body @{
     nodeId = $NodeId
   }
+  return Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/sessions/$SessionId" -Credential $Bootstrap
+}
+
+function Bind-And-Start([hashtable]$State, [string]$Bootstrap, [string]$SessionId) {
+  $null = Bind-Role $State $Bootstrap $SessionId
   if ($Live) {
     $null = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/sessions/$SessionId/arm" -Credential $Bootstrap
   }
   $session = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/sessions/$SessionId/start" -Credential $Bootstrap
   [IO.File]::WriteAllText($activationPath, "active`n", [Text.Encoding]::ASCII)
   $State.live = [bool]$Live
+  $State.connectOnly = $false
   Save-State $State
   return $session
 }
@@ -387,7 +398,14 @@ function Bind-And-Start([hashtable]$State, [string]$Bootstrap, [string]$SessionI
 function Show-Status([hashtable]$State, [string]$Bootstrap) {
   Write-Host "Unified console: $fabricOrigin/fabric"
   Write-Host "Component state: $StateRoot"
-  Write-Host "Mode: $(if ($State.ContainsKey('live') -and $State.live) { 'LIVE Tuya LAN' } else { 'simulation' })"
+  $modeLabel = if ($State.ContainsKey('connectOnly') -and $State.connectOnly) {
+    "LIVE Tuya LAN (connected and disarmed)"
+  } elseif ($State.ContainsKey('live') -and $State.live) {
+    "LIVE Tuya LAN"
+  } else {
+    "simulation"
+  }
+  Write-Host "Mode: $modeLabel"
   Write-Host "Session: $(if ($State.ContainsKey('sessionId')) { $State.sessionId } else { 'not created' })"
   Write-Host "Adapter PID: $(if ($State.ContainsKey('adapterPid')) { $State.adapterPid } else { 'not recorded' })"
   if ($Bootstrap -and (Get-ListeningProcessId $FabricPort)) {
@@ -501,7 +519,14 @@ $session = New-FabricSession $state $bootstrap
 $adapterCredential = New-AdapterCredential $state $bootstrap $session.sessionId
 try {
   Start-Adapter $state $adapterCredential $session.sessionId
-  $active = Bind-And-Start $state $bootstrap $session.sessionId
+  if ($ConnectOnly) {
+    $active = Bind-Role $state $bootstrap $session.sessionId
+    $state.live = $true
+    $state.connectOnly = $true
+    Save-State $state
+  } else {
+    $active = Bind-And-Start $state $bootstrap $session.sessionId
+  }
 } catch {
   Write-Warning "Startup failed; applying smart-plug safe shutdown."
   Stop-Test $state $bootstrap
@@ -510,7 +535,7 @@ try {
 
 Write-Host "READY session $($active.sessionId) [$($active.state)]"
 Write-Host "UI $fabricOrigin/fabric"
-Write-Host "The adapter began OFF. Use the classroom_plug card for explicit on/off control."
+Write-Host $(if ($ConnectOnly) { "CONNECTED AND DISARMED: the adapter performed a read-only state check; it did not switch the outlet." } else { "The adapter began OFF. Use the classroom_plug card for explicit on/off control." })
 if (-not $NoOpenConsole) {
   & (Join-Path $repositoryRoot "tools\hardware\interaction-fabric-console.ps1") `
     -Mode Open `

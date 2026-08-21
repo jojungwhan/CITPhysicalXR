@@ -376,6 +376,7 @@ def create_persistent_fabric_app() -> FastAPI:
                     str(workspace_root / "robomaster-gesture-control-reference"),
                 )
             ),
+            fabric_port=parsed_origin.port or (443 if parsed_origin.scheme == "https" else 80),
         ),
         physical_actuation_enabled=physical_setting == "true",
     )

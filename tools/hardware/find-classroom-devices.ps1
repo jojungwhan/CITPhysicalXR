@@ -217,6 +217,8 @@ $integrations.Add((New-Integration `
     "Start the glasses/Agent Mesh adapter and choose that session in the classroom UI."
   ) `
   -SetupCommand 'pnpm hardware:glasses:windows -- -Mode Start -SelectMostRecentAgentSession -SharedFabricRoot "$env:LOCALAPPDATA\CITPhysicalXR\interaction-fabric"' `
+  -ActionId $(if ($agentMeshListening -and $agentCandidates.Count -gt 0) { "cit.glasses-agent.connect" } else { "" }) `
+  -ActionLabel $(if ($agentMeshListening -and $agentCandidates.Count -gt 0) { "Connect glasses and agent" } else { "" }) `
   -SafetyNote "Discovery never starts an agent or grants filesystem, shell, or device credentials."))
 
 # Leap Motion is detectable without opening the camera stream.
@@ -298,6 +300,8 @@ $integrations.Add((New-Integration `
     "Run connect-only verification before enabling a physical lesson."
   ) `
   -SetupCommand 'pnpm hardware:robot:windows -- -Mode Preflight -Live -SharedFabricRoot "$env:LOCALAPPDATA\CITPhysicalXR\interaction-fabric" -FabricPort 8766' `
+  -ActionId $(if ($robotBroadcastCount -gt 0 -and $leapStatus -eq "found") { "cit.robomaster-leap.connect" } else { "" }) `
+  -ActionLabel $(if ($robotBroadcastCount -gt 0 -and $leapStatus -eq "found") { "Connect robot and Leap" } else { "" }) `
   -SafetyNote "A network match is not treated as proof of a robot. Only the adapter handshake can confirm it, and movement stays disarmed."))
 
 # Reuse Brain2Devices' characterized, credential-free Windows radio scan. It
@@ -497,7 +501,9 @@ $integrations.Add((New-Integration `
     "Configure the plug's IPv4 address, device ID, local key, protocol version, and switch DPS once.",
     "Run the read-only preflight before starting its adapter."
   ) `
-  -SetupCommand 'pnpm hardware:plug:windows -- -Mode Configure' `
+  -SetupCommand $(if ($configuredPlugCount -gt 0) { 'pnpm hardware:plug:windows -- -Mode Start -Live -ConnectOnly -NoOpenConsole' } else { 'pnpm hardware:plug:windows -- -Mode Configure' }) `
+  -ActionId $(if ($configuredPlugCount -gt 0) { "cit.smart-plug.connect" } else { "" }) `
+  -ActionLabel $(if ($configuredPlugCount -gt 0) { "Connect approved plug" } else { "" }) `
   -SafetyNote "CIT does not guess keys, accept them in the browser, or switch power during discovery."))
 
 # LEGO remains configuration-bound by advertised hub name; a broad BLE nearest-

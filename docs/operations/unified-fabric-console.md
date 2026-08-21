@@ -24,7 +24,7 @@ Do not kill the Python PID directly; the component launcher also restores its
 temporary Agent Mesh changes. Then start the shared host:
 
 ```powershell
-pnpm hardware:devices:windows -- -Mode Start
+pnpm hardware:devices:windows -- -Mode Start -AllowPhysical
 ```
 
 The launcher opens **CIT Classroom Control** and signs this Windows user in

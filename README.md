@@ -83,7 +83,7 @@ If an older glasses-only Fabric already owns port `8766`, run
 `pnpm hardware:glasses:windows -- -Mode Stop` once before this migration.
 
 ```powershell
-pnpm hardware:devices:windows -- -Mode Start
+pnpm hardware:devices:windows -- -Mode Start -AllowPhysical
 $fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
 pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766 -SelectMostRecentAgentSession
 pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
@@ -93,7 +93,7 @@ pnpm hardware:plug:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricP
 The launcher opens **CIT Classroom Control** automatically. Follow the five
 on-screen steps: find devices, choose a lesson, assign devices, complete the
 safety check, then teach. The discovery cards distinguish **Connected**,
-**Found**, **Ready**, and **Setup needed** instead of treating a USB/network
+**Found**, **Computer ready**, and **Setup needed** instead of treating a USB/network
 match as an authenticated node. Use `pnpm hardware:fabric:windows -- -Mode Open`
 to reopen it without restarting any device. See
 `docs/operations/device-discovery.md` and

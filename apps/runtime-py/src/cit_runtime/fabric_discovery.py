@@ -13,6 +13,7 @@ import asyncio
 import json
 import os
 import shutil
+import subprocess
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
 from html.parser import HTMLParser
@@ -193,6 +194,7 @@ class PowerShellDiscoveryRunner:
         state_root: Path,
         brain2devices_root: Path,
         robomaster_root: Path,
+        fabric_port: int = 8766,
         powershell_path: str | None = None,
         brain2devices_origin: str = "http://127.0.0.1:8765",
     ) -> None:
@@ -200,6 +202,9 @@ class PowerShellDiscoveryRunner:
         self._state_root = state_root.resolve()
         self._brain2devices_root = brain2devices_root.resolve()
         self._robomaster_root = robomaster_root.resolve()
+        if not 1024 <= fabric_port <= 65535:
+            raise ValueError("fabric_port must be between 1024 and 65535")
+        self._fabric_port = fabric_port
         self._powershell_path = powershell_path
         if brain2devices_origin != "http://127.0.0.1:8765":
             raise ValueError("Brain2Devices discovery is restricted to its loopback origin")
@@ -226,7 +231,7 @@ class PowerShellDiscoveryRunner:
             str(self._robomaster_root),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            creationflags=int(getattr(__import__("subprocess"), "CREATE_NO_WINDOW", 0)),
+            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
         )
         try:
             stdout, stderr = await asyncio.wait_for(
@@ -261,6 +266,62 @@ class PowerShellDiscoveryRunner:
             ) from error
 
     async def perform(self, action_id: str, *, confirm_grounded: bool) -> str:
+        if action_id == "cit.glasses-agent.connect":
+            await self._run_launcher(
+                "glasses-agent-hardware-test.ps1",
+                "-Mode",
+                "Start",
+                "-SharedFabricRoot",
+                str(self._state_root),
+                "-FabricPort",
+                str(self._fabric_port),
+                "-SelectMostRecentAgentSession",
+                "-SkipBuild",
+                "-NoOpenConsole",
+            )
+            return (
+                "Glasses and coding-agent adapters connected through the existing "
+                "Agent Mesh bridge."
+            )
+        if action_id == "cit.robomaster-leap.connect":
+            await self._run_launcher(
+                "robomaster-leap-hardware-test.ps1",
+                "-Mode",
+                "Start",
+                "-SharedFabricRoot",
+                str(self._state_root),
+                "-FabricPort",
+                str(self._fabric_port),
+                "-Live",
+                "-ConnectOnly",
+                "-MaxSpeed",
+                "0.10",
+                "-MaxYaw",
+                "10",
+                "-SkipBuild",
+                "-NoOpenConsole",
+            )
+            return (
+                "Leap Motion and RoboMaster connected in an unstarted lesson. "
+                "The robot remains disarmed and no movement command was enabled."
+            )
+        if action_id == "cit.smart-plug.connect":
+            await self._run_launcher(
+                "smart-plug-hardware-test.ps1",
+                "-Mode",
+                "Start",
+                "-SharedFabricRoot",
+                str(self._state_root),
+                "-FabricPort",
+                str(self._fabric_port),
+                "-Live",
+                "-ConnectOnly",
+                "-NoOpenConsole",
+            )
+            return (
+                "The approved smart-plug adapter connected and read its state. "
+                "The outlet was not switched and its unstarted lesson remains disarmed."
+            )
         if action_id == "brain2devices.tello.connect-all":
             if not confirm_grounded:
                 raise FabricDiscoveryError(
@@ -287,6 +348,56 @@ class PowerShellDiscoveryRunner:
             "DISCOVERY_ACTION_NOT_ALLOWED",
             "That device connection action is not allowlisted",
         )
+
+    async def _run_launcher(self, script_name: str, *arguments: str) -> None:
+        powershell = self._powershell_path or shutil.which("pwsh")
+        launcher = (self._script_path.parent / script_name).resolve()
+        if (
+            os.name != "nt"
+            or powershell is None
+            or launcher.parent != self._script_path.parent
+            or not launcher.is_file()
+        ):
+            raise FabricDiscoveryError(
+                "DISCOVERY_ACTION_UNAVAILABLE",
+                "The fixed local adapter launcher is unavailable on this host",
+            )
+        process = await asyncio.create_subprocess_exec(
+            powershell,
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(launcher),
+            *arguments,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=DISCOVERY_ACTION_TIMEOUT_SECONDS,
+            )
+        except TimeoutError as error:
+            process.kill()
+            await process.wait()
+            raise FabricDiscoveryError(
+                "DISCOVERY_ACTION_TIMED_OUT",
+                "The local adapter took too long to connect and remains disarmed",
+            ) from error
+        if len(stdout) + len(stderr) > DISCOVERY_REPORT_MAX_BYTES:
+            raise FabricDiscoveryError(
+                "DISCOVERY_ACTION_OUTPUT_TOO_LARGE",
+                "The local adapter launcher exceeded its diagnostic output limit",
+            )
+        if process.returncode != 0:
+            diagnostic = stderr.decode("utf-8", errors="replace").strip()
+            if not diagnostic:
+                diagnostic = stdout.decode("utf-8", errors="replace").strip()
+            raise FabricDiscoveryError(
+                "DISCOVERY_CONNECTION_FAILED",
+                (diagnostic.rsplit("\n", maxsplit=1)[-1] or "Adapter connection failed")[:500],
+            )
 
 
 class _ControlTokenParser(HTMLParser):

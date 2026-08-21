@@ -25,6 +25,7 @@ param(
   [switch]$InvertStrafe,
   [switch]$InvertYaw,
   [switch]$Live,
+  [switch]$ConnectOnly,
   [ValidateRange(1024, 65535)]
   [int]$FabricPort = 8767,
   [string]$StateRoot = "",
@@ -40,6 +41,10 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ($ConnectOnly -and -not $Live) {
+  throw "ConnectOnly is available only for the physical Live adapter"
+}
 
 $expectedRevision = "3c213c110b0cdf2912985bfcde442d67092b98f0"
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
@@ -466,7 +471,7 @@ function Start-Adapter(
   } "The RoboMaster/Leap adapter did not register both nodes; inspect $logRoot" 45
 }
 
-function Bind-And-Start(
+function Bind-Roles(
   [hashtable]$State,
   [string]$BootstrapCredential,
   [string]$SessionId
@@ -479,12 +484,22 @@ function Bind-And-Start(
       nodeId = $binding.nodeId
     }
   }
+  return Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/sessions/$SessionId" -Credential $BootstrapCredential
+}
+
+function Bind-And-Start(
+  [hashtable]$State,
+  [string]$BootstrapCredential,
+  [string]$SessionId
+) {
+  $null = Bind-Roles $State $BootstrapCredential $SessionId
   if ($Live) {
     $null = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/sessions/$SessionId/arm" -Credential $BootstrapCredential
   }
   $session = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/sessions/$SessionId/start" -Credential $BootstrapCredential
   [IO.File]::WriteAllText($activationPath, "active`n", [Text.Encoding]::ASCII)
   $State.live = [bool]$Live
+  $State.connectOnly = $false
   $State.inputActivatedAt = [DateTimeOffset]::UtcNow.ToString('o')
   Save-State $State
   return $session
@@ -494,7 +509,14 @@ function Show-Status([hashtable]$State, [string]$BootstrapCredential) {
   Write-Host "Fabric: $fabricOrigin"
   Write-Host "Fabric ownership: $(if ($SharedFabricRoot) { "shared ($SharedFabricRoot)" } elseif ($State.ContainsKey('fabricOwned') -and $State.fabricOwned) { 'standalone launcher' } else { 'external or unknown' })"
   Write-Host "Upstream: $ExternalRepositoryRoot @ $expectedRevision"
-  Write-Host "Mode: $(if ($State.ContainsKey('live') -and $State.live) { 'LIVE physical' } else { 'simulation' })"
+  $modeLabel = if ($State.ContainsKey('connectOnly') -and $State.connectOnly) {
+    "LIVE physical (connected and disarmed)"
+  } elseif ($State.ContainsKey('live') -and $State.live) {
+    "LIVE physical"
+  } else {
+    "simulation"
+  }
+  Write-Host "Mode: $modeLabel"
   Write-Host "Fabric PID: $(if ($State.ContainsKey('fabricPid')) { $State.fabricPid } else { 'not recorded' })"
   Write-Host "Adapter PID: $(if ($State.ContainsKey('adapterPid')) { $State.adapterPid } else { 'not recorded' })"
   Write-Host "Session: $(if ($State.ContainsKey('sessionId')) { $State.sessionId } else { 'not created' })"
@@ -601,7 +623,15 @@ $session = New-FabricSession $state $bootstrap
 $adapterCredential = New-AdapterCredential $state $bootstrap $session.sessionId
 try {
   Start-Adapter $state $adapterCredential $session.sessionId
-  $active = Bind-And-Start $state $bootstrap $session.sessionId
+  if ($ConnectOnly) {
+    $active = Bind-Roles $state $bootstrap $session.sessionId
+    $state.live = $true
+    $state.connectOnly = $true
+    $state.Remove("inputActivatedAt")
+    Save-State $state
+  } else {
+    $active = Bind-And-Start $state $bootstrap $session.sessionId
+  }
 } catch {
   Write-Warning "Startup failed; applying the local emergency-stop path."
   Stop-Test $state $bootstrap
@@ -611,7 +641,7 @@ try {
 Write-Host "READY session $($active.sessionId) [$($active.state)]"
 Write-Host "UI $fabricOrigin/fabric"
 Write-Host "Classroom controls open with automatic local sign-in."
-Write-Host $(if ($Live) { "LIVE: robot is armed; release pinch or use Emergency stop immediately to halt." } else { "SIMULATION: a bounded demo pulse and stop are running through the upstream DryRunRobot." })
+Write-Host $(if ($ConnectOnly) { "CONNECTED AND DISARMED: no activation file was created and no movement command can run until the tutor starts the lesson." } elseif ($Live) { "LIVE: robot is armed; release pinch or use Emergency stop immediately to halt." } else { "SIMULATION: a bounded demo pulse and stop are running through the upstream DryRunRobot." })
 if (-not $NoOpenConsole) {
   $consoleStateRoot = if ($SharedFabricRoot) { $SharedFabricRoot } else { $StateRoot }
   & (Join-Path $repositoryRoot "tools\hardware\interaction-fabric-console.ps1") `
