@@ -91,3 +91,9 @@ exclude = ["packages/protocol-py/src/cit_protocol/generated.py"]
 [[tool.mypy.overrides]]
 module = ["pybricksdev.*"]
 ignore_missing_imports = true
+
+# OpenCV and NumPy are loaded only by the optional local vision extra. The
+# default CI environment must still type-check the guarded, fail-closed path.
+[[tool.mypy.overrides]]
+module = ["cv2", "numpy"]
+ignore_missing_imports = true
