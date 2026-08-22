@@ -4,10 +4,15 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import type {
+  AdapterRegistrationFrame,
   CitEnvelope,
+  CoursePack,
   DeviceCommandIntent,
   DeviceDescriptor,
   DeviceEvent,
+  FabricEventEnvelope,
+  IntegrationNode,
+  PluginManifest,
 } from "./generated/models.js";
 import { validateDefinition } from "./validator.js";
 
@@ -37,6 +42,36 @@ describe("protocol v1 public seam", () => {
       valid: true,
     });
     expect(command.deviceId).toBe("fake-s1-main");
+  });
+
+  it("validates transport-neutral Fabric and adapter contracts", () => {
+    const manifest = fixture<PluginManifest>("valid-plugin-manifest.json");
+    const node = fixture<IntegrationNode>("valid-integration-node.json");
+    const event = fixture<FabricEventEnvelope>("valid-fabric-event.json");
+    const coursePack = fixture<CoursePack>("valid-course-pack.json");
+    const registration = fixture<AdapterRegistrationFrame>(
+      "valid-adapter-registration.json",
+    );
+
+    expect(validateDefinition("PluginManifest", manifest)).toEqual({
+      valid: true,
+    });
+    expect(validateDefinition("IntegrationNode", node)).toEqual({
+      valid: true,
+    });
+    expect(validateDefinition("FabricEventEnvelope", event)).toEqual({
+      valid: true,
+    });
+    expect(validateDefinition("CoursePack", coursePack)).toEqual({
+      valid: true,
+    });
+    expect(
+      validateDefinition("AdapterRegistrationFrame", registration),
+    ).toEqual({
+      valid: true,
+    });
+    expect(registration.nodes[0]?.pluginId).toBe(manifest.pluginId);
+    expect(coursePack.flows[0]?.target.role).toBe("coding_agent");
   });
 
   it("rejects an unknown major version and a command without exact device identity", () => {

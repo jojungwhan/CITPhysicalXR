@@ -2,7 +2,7 @@
   "name": "@citxr/agent-mesh-bridge",
   "version": "0.0.0",
   "private": true,
-  "description": "Optional, non-transport Agent CLI Mesh policy scaffold",
+  "description": "Authenticated out-of-process adapter for existing Agent Mesh glasses and coding-agent sessions",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {
@@ -13,6 +13,10 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@citxr/protocol": "workspace:*"
   }
 }

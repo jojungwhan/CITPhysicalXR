@@ -7,12 +7,18 @@ requires-python = ">=3.11,<3.14"
 dependencies = [
   "cit-device-simulator",
   "cit-lego-pybricks",
+  "cit-robomaster-leap",
+  "cit-tuya-smart-plug",
   "cit-runtime",
   "cit-protocol",
   "cit-safety-core",
   "cit-student-sdk",
   "cit-test-harness",
 ]
+
+[project.optional-dependencies]
+smart-plug-lan = ["cit-tuya-smart-plug[lan]"]
+vision = ["cit-runtime[vision]"]
 
 [dependency-groups]
 dev = [
@@ -37,6 +43,8 @@ package = false
 [tool.uv.workspace]
 members = [
   "adapters/lego-pybricks",
+  "adapters/robomaster-leap",
+  "adapters/tuya-smart-plug",
   "apps/runtime-py",
   "packages/device-simulator",
   "packages/protocol-py",
@@ -48,6 +56,8 @@ members = [
 [tool.uv.sources]
 cit-device-simulator = { workspace = true }
 cit-lego-pybricks = { workspace = true }
+cit-robomaster-leap = { workspace = true }
+cit-tuya-smart-plug = { workspace = true }
 cit-runtime = { workspace = true }
 cit-protocol = { workspace = true }
 cit-safety-core = { workspace = true }
@@ -80,4 +90,10 @@ exclude = ["packages/protocol-py/src/cit_protocol/generated.py"]
 # default environment, so the one module that imports it has no stubs to check.
 [[tool.mypy.overrides]]
 module = ["pybricksdev.*"]
+ignore_missing_imports = true
+
+# OpenCV and NumPy are loaded only by the optional local vision extra. The
+# default CI environment must still type-check the guarded, fail-closed path.
+[[tool.mypy.overrides]]
+module = ["cv2", "numpy"]
 ignore_missing_imports = true

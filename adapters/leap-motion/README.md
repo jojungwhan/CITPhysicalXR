@@ -1,3 +1,6 @@
-# Leap Motion adapter placeholder
+# Leap Motion adapter boundary
 
-Production work is deferred to Milestone 2. The existing Leap-to-S1 implementation remains external and unchanged until its path, DLLs, service, and regression fixtures are owner-confirmed.
+The production wrapper is implemented in
+[`adapters/robomaster-leap`](../robomaster-leap/README.md). Leap is registered as
+an independent input node and publishes only semantic velocity gestures. Its
+worker imports no robot module, and raw Leap frames are not persisted.

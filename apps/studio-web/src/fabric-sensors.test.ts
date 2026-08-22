@@ -1,0 +1,70 @@
+import { describe, expect, it } from "vitest";
+
+import type { StoredFabricEvent } from "./fabric-client.js";
+import { latestSensorReadings } from "./fabric-sensors.js";
+
+describe("Fabric sensor presentation", () => {
+  it("keeps the latest value for every source and semantic sensor", () => {
+    const readings = latestSensorReadings([
+      event(1, "lego-a", "sensor.distance", { value: 320, unit: "mm" }),
+      event(2, "lego-a", "sensor.distance", { value: 180, unit: "mm" }),
+      event(3, "lego-a", "sensor.color", { color: "red" }),
+      event(4, "plug-a", "power.switch.state", { on: true }),
+    ]);
+
+    expect(readings).toEqual([
+      {
+        key: "lego-a:sensor.color",
+        sourceNodeId: "lego-a",
+        topic: "sensor.color",
+        observedAt: "2026-08-22T00:00:03Z",
+        values: [{ label: "Color", value: "red" }],
+      },
+      {
+        key: "lego-a:sensor.distance",
+        sourceNodeId: "lego-a",
+        topic: "sensor.distance",
+        observedAt: "2026-08-22T00:00:02Z",
+        values: [{ label: "Value", value: "180 mm" }],
+      },
+    ]);
+  });
+
+  it("does not surface raw media-shaped payload fields", () => {
+    const [reading] = latestSensorReadings([
+      event(1, "sensor-a", "telemetry.status", {
+        battery: 71,
+        image: "base64-data",
+        token: "secret",
+      }),
+    ]);
+
+    expect(reading?.values).toEqual([{ label: "Battery", value: "71" }]);
+  });
+});
+
+const event = (
+  streamSequence: number,
+  sourceNodeId: string,
+  topic: string,
+  payload: Record<string, unknown>,
+): StoredFabricEvent => ({
+  streamSequence,
+  event: {
+    messageId: `00000000-0000-4000-8000-${String(streamSequence).padStart(12, "0")}`,
+    schemaVersion: "1.0",
+    messageType: "event",
+    topic,
+    sourceNodeId,
+    sourceCapability: topic,
+    siteId: "cit-site",
+    roomId: "room-a",
+    sessionId: "00000000-0000-4000-8000-000000000001",
+    timestamp: `2026-08-22T00:00:0${streamSequence}Z`,
+    monotonicTimestamp: streamSequence,
+    sequence: streamSequence,
+    ttlMs: 1_000,
+    dataClassification: "operational",
+    payload,
+  },
+});

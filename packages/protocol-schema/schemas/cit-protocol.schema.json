@@ -4,12 +4,63 @@
   "title": "CIT Physical XR Protocol V1",
   "description": "Language-neutral foundation messages. This schema does not authorize physical execution.",
   "oneOf": [
-    { "$ref": "#/$defs/CitEnvelope" },
-    { "$ref": "#/$defs/DeviceCommandIntent" },
-    { "$ref": "#/$defs/DeviceEvent" },
-    { "$ref": "#/$defs/DeviceDescriptor" },
-    { "$ref": "#/$defs/CommandResult" },
-    { "$ref": "#/$defs/ProtocolError" }
+    {
+      "$ref": "#/$defs/CitEnvelope"
+    },
+    {
+      "$ref": "#/$defs/DeviceCommandIntent"
+    },
+    {
+      "$ref": "#/$defs/DeviceEvent"
+    },
+    {
+      "$ref": "#/$defs/DeviceDescriptor"
+    },
+    {
+      "$ref": "#/$defs/PluginManifest"
+    },
+    {
+      "$ref": "#/$defs/IntegrationNode"
+    },
+    {
+      "$ref": "#/$defs/HealthReport"
+    },
+    {
+      "$ref": "#/$defs/FabricEventEnvelope"
+    },
+    {
+      "$ref": "#/$defs/FabricCommandRequest"
+    },
+    {
+      "$ref": "#/$defs/FabricResolvedCommand"
+    },
+    {
+      "$ref": "#/$defs/FabricCommandLifecycleEvent"
+    },
+    {
+      "$ref": "#/$defs/CreateInteractionSessionRequest"
+    },
+    {
+      "$ref": "#/$defs/InteractionSession"
+    },
+    {
+      "$ref": "#/$defs/CoursePack"
+    },
+    {
+      "$ref": "#/$defs/FlowRecipe"
+    },
+    {
+      "$ref": "#/$defs/AdapterClientFrame"
+    },
+    {
+      "$ref": "#/$defs/AdapterServerFrame"
+    },
+    {
+      "$ref": "#/$defs/CommandResult"
+    },
+    {
+      "$ref": "#/$defs/ProtocolError"
+    }
   ],
   "$defs": {
     "Identifier": {
@@ -44,22 +95,49 @@
       "additionalProperties": false,
       "required": ["protocolVersion", "messageId", "type", "sentAt", "payload"],
       "properties": {
-        "protocolVersion": { "const": 1, "type": "integer" },
-        "messageId": { "type": "string", "format": "uuid" },
+        "protocolVersion": {
+          "const": 1,
+          "type": "integer"
+        },
+        "messageId": {
+          "type": "string",
+          "format": "uuid"
+        },
         "type": {
           "type": "string",
           "minLength": 3,
           "maxLength": 128,
           "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$"
         },
-        "runtimeId": { "$ref": "#/$defs/Identifier" },
-        "deviceId": { "$ref": "#/$defs/Identifier" },
-        "clientId": { "$ref": "#/$defs/Identifier" },
-        "sessionId": { "$ref": "#/$defs/Identifier" },
-        "correlationId": { "type": "string", "minLength": 1, "maxLength": 128 },
-        "sequence": { "type": "integer", "minimum": 0 },
-        "sentAt": { "type": "string", "format": "date-time" },
-        "expiresAt": { "type": "string", "format": "date-time" },
+        "runtimeId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "clientId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "correlationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
         "idempotencyKey": {
           "type": "string",
           "minLength": 1,
@@ -74,10 +152,20 @@
       "additionalProperties": false,
       "required": ["policyId", "armed"],
       "properties": {
-        "policyId": { "$ref": "#/$defs/Identifier" },
-        "armed": { "type": "boolean" },
-        "deadmanActive": { "type": "boolean" },
-        "inputConfidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        "policyId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "armed": {
+          "type": "boolean"
+        },
+        "deadmanActive": {
+          "type": "boolean"
+        },
+        "inputConfidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
       }
     },
     "DeviceCommandIntent": {
@@ -98,12 +186,25 @@
         "safetyContext"
       ],
       "properties": {
-        "commandId": { "type": "string", "format": "uuid" },
-        "sessionId": { "$ref": "#/$defs/Identifier" },
-        "deviceId": { "$ref": "#/$defs/Identifier" },
-        "capability": { "$ref": "#/$defs/CapabilityIdentifier" },
-        "action": { "$ref": "#/$defs/ActionIdentifier" },
-        "arguments": { "$ref": "#/$defs/JsonObject" },
+        "commandId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "capability": {
+          "$ref": "#/$defs/CapabilityIdentifier"
+        },
+        "action": {
+          "$ref": "#/$defs/ActionIdentifier"
+        },
+        "arguments": {
+          "$ref": "#/$defs/JsonObject"
+        },
         "source": {
           "type": "string",
           "enum": [
@@ -116,14 +217,22 @@
             "system"
           ]
         },
-        "issuedAt": { "type": "string", "format": "date-time" },
-        "expiresAt": { "type": "string", "format": "date-time" },
+        "issuedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
         "idempotencyKey": {
           "type": "string",
           "minLength": 1,
           "maxLength": 256
         },
-        "safetyContext": { "$ref": "#/$defs/SafetyContext" }
+        "safetyContext": {
+          "$ref": "#/$defs/SafetyContext"
+        }
       }
     },
     "DeviceEvent": {
@@ -139,10 +248,20 @@
         "receivedAt"
       ],
       "properties": {
-        "eventId": { "type": "string", "format": "uuid" },
-        "deviceId": { "$ref": "#/$defs/Identifier" },
-        "sessionId": { "$ref": "#/$defs/Identifier" },
-        "sequence": { "type": "integer", "minimum": 0 },
+        "eventId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
         "category": {
           "type": "string",
           "enum": [
@@ -162,10 +281,21 @@
           "maxLength": 128,
           "pattern": "^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$"
         },
-        "values": { "$ref": "#/$defs/JsonObject" },
-        "sourceTimestamp": { "type": "string", "format": "date-time" },
-        "receivedAt": { "type": "string", "format": "date-time" },
-        "historical": { "type": "boolean", "default": false }
+        "values": {
+          "$ref": "#/$defs/JsonObject"
+        },
+        "sourceTimestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "receivedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "historical": {
+          "type": "boolean",
+          "default": false
+        }
       }
     },
     "DeviceDescriptor": {
@@ -183,24 +313,44 @@
         "capabilities"
       ],
       "properties": {
-        "deviceId": { "$ref": "#/$defs/Identifier" },
-        "displayName": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "deviceId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
         "deviceType": {
           "type": "string",
           "enum": ["robot", "input", "xr_client", "virtual", "bridge"]
         },
-        "model": { "$ref": "#/$defs/Identifier" },
-        "adapterId": { "$ref": "#/$defs/Identifier" },
-        "adapterVersion": { "type": "string", "minLength": 1, "maxLength": 64 },
-        "physical": { "type": "boolean" },
+        "model": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "adapterId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "adapterVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "physical": {
+          "type": "boolean"
+        },
         "capabilities": {
           "type": "array",
           "minItems": 1,
           "maxItems": 256,
           "uniqueItems": true,
-          "items": { "$ref": "#/$defs/CapabilityIdentifier" }
+          "items": {
+            "$ref": "#/$defs/CapabilityIdentifier"
+          }
         },
-        "safetyProfile": { "$ref": "#/$defs/Identifier" }
+        "safetyProfile": {
+          "$ref": "#/$defs/Identifier"
+        }
       }
     },
     "CommandResult": {
@@ -209,8 +359,13 @@
       "additionalProperties": false,
       "required": ["commandId", "deviceId", "status", "recordedAt"],
       "properties": {
-        "commandId": { "type": "string", "format": "uuid" },
-        "deviceId": { "$ref": "#/$defs/Identifier" },
+        "commandId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "deviceId": {
+          "$ref": "#/$defs/Identifier"
+        },
         "status": {
           "type": "string",
           "enum": [
@@ -222,9 +377,18 @@
             "failed"
           ]
         },
-        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
-        "recordedAt": { "type": "string", "format": "date-time" },
-        "details": { "$ref": "#/$defs/JsonObject" }
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "recordedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "details": {
+          "$ref": "#/$defs/JsonObject"
+        }
       }
     },
     "ProtocolError": {
@@ -249,17 +413,1600 @@
             "INVALID_MESSAGE"
           ]
         },
-        "message": { "type": "string", "minLength": 1, "maxLength": 500 },
-        "deviceId": { "$ref": "#/$defs/Identifier" },
-        "sessionId": { "$ref": "#/$defs/Identifier" },
-        "correlationId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "deviceId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "correlationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
         "recoverySuggestion": {
           "type": "string",
           "minLength": 1,
           "maxLength": 500
         },
-        "details": { "$ref": "#/$defs/JsonObject" }
+        "details": {
+          "$ref": "#/$defs/JsonObject"
+        }
       }
+    },
+    "FabricSchemaVersion": {
+      "title": "FabricSchemaVersion",
+      "const": "1.0",
+      "type": "string"
+    },
+    "CapabilityDirection": {
+      "title": "CapabilityDirection",
+      "type": "string",
+      "enum": ["publish", "consume", "bidirectional"]
+    },
+    "FabricSafetyClassification": {
+      "title": "FabricSafetyClassification",
+      "type": "string",
+      "enum": [
+        "none",
+        "informational",
+        "bounded_physical",
+        "flight",
+        "electrical"
+      ]
+    },
+    "FabricDataClassification": {
+      "title": "FabricDataClassification",
+      "type": "string",
+      "enum": [
+        "public",
+        "operational",
+        "student",
+        "source_code",
+        "voice_transcript",
+        "biosignal_derived",
+        "sensitive_raw",
+        "secret"
+      ]
+    },
+    "FabricLatencyClass": {
+      "title": "FabricLatencyClass",
+      "type": "string",
+      "enum": [
+        "safety_critical",
+        "interactive",
+        "ui_feedback",
+        "conversational",
+        "bulk"
+      ]
+    },
+    "SimulatorAvailability": {
+      "title": "SimulatorAvailability",
+      "type": "string",
+      "enum": ["included", "recorded_replay", "external", "none"]
+    },
+    "CapabilityDescriptor": {
+      "title": "CapabilityDescriptor",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version",
+        "direction",
+        "latencyClass",
+        "safetyClassification",
+        "dataClassification",
+        "constraints"
+      ],
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/CapabilityIdentifier"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$"
+        },
+        "direction": {
+          "$ref": "#/$defs/CapabilityDirection"
+        },
+        "schemaRef": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 512
+        },
+        "units": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "maximumRateHz": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000
+        },
+        "latencyClass": {
+          "$ref": "#/$defs/FabricLatencyClass"
+        },
+        "safetyClassification": {
+          "$ref": "#/$defs/FabricSafetyClassification"
+        },
+        "dataClassification": {
+          "$ref": "#/$defs/FabricDataClassification"
+        },
+        "constraints": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      }
+    },
+    "PluginManifest": {
+      "title": "PluginManifest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "pluginId",
+        "pluginVersion",
+        "runtimeVersion",
+        "displayName",
+        "adapterMode",
+        "configurationSchema",
+        "publishedCapabilities",
+        "consumedCapabilities",
+        "requiredPermissions",
+        "safetyClassification",
+        "dataClassifications",
+        "simulatorAvailability"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/FabricSchemaVersion"
+        },
+        "pluginId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "pluginVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "runtimeVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "adapterMode": {
+          "type": "string",
+          "enum": ["in_process", "out_of_process"]
+        },
+        "configurationSchema": {
+          "$ref": "#/$defs/JsonObject"
+        },
+        "publishedCapabilities": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/CapabilityDescriptor"
+          }
+        },
+        "consumedCapabilities": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/CapabilityDescriptor"
+          }
+        },
+        "requiredPermissions": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          }
+        },
+        "safetyClassification": {
+          "$ref": "#/$defs/FabricSafetyClassification"
+        },
+        "dataClassifications": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/FabricDataClassification"
+          }
+        },
+        "simulatorAvailability": {
+          "$ref": "#/$defs/SimulatorAvailability"
+        },
+        "vendor": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    },
+    "FabricNodeConnectionState": {
+      "title": "FabricNodeConnectionState",
+      "type": "string",
+      "enum": [
+        "registering",
+        "connected",
+        "degraded",
+        "unavailable",
+        "disconnected",
+        "unsafe"
+      ]
+    },
+    "FabricNodeHealthState": {
+      "title": "FabricNodeHealthState",
+      "type": "string",
+      "enum": ["healthy", "degraded", "unhealthy", "unknown"]
+    },
+    "IntegrationNode": {
+      "title": "IntegrationNode",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "nodeId",
+        "pluginId",
+        "pluginVersion",
+        "runtimeVersion",
+        "hostId",
+        "siteId",
+        "roomId",
+        "displayName",
+        "connectionState",
+        "healthState",
+        "physical",
+        "simulated",
+        "publishedCapabilities",
+        "consumedCapabilities",
+        "configurationSchema",
+        "safetyClassification",
+        "dataClassifications",
+        "simulatorAvailable",
+        "lastSeenAt",
+        "metadata"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/FabricSchemaVersion"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "pluginId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "pluginVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "runtimeVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "hostId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "siteId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "roomId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "connectionState": {
+          "$ref": "#/$defs/FabricNodeConnectionState"
+        },
+        "healthState": {
+          "$ref": "#/$defs/FabricNodeHealthState"
+        },
+        "physical": {
+          "type": "boolean"
+        },
+        "simulated": {
+          "type": "boolean"
+        },
+        "publishedCapabilities": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/CapabilityDescriptor"
+          }
+        },
+        "consumedCapabilities": {
+          "type": "array",
+          "maxItems": 256,
+          "items": {
+            "$ref": "#/$defs/CapabilityDescriptor"
+          }
+        },
+        "configurationSchema": {
+          "$ref": "#/$defs/JsonObject"
+        },
+        "safetyClassification": {
+          "$ref": "#/$defs/FabricSafetyClassification"
+        },
+        "dataClassifications": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/FabricDataClassification"
+          }
+        },
+        "simulatorAvailable": {
+          "type": "boolean"
+        },
+        "requiredPermissions": {
+          "type": "array",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          }
+        },
+        "lastSeenAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "metadata": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      }
+    },
+    "HealthReport": {
+      "title": "HealthReport",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "nodeId",
+        "reportedAt",
+        "connectionState",
+        "healthState",
+        "metrics"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/FabricSchemaVersion"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "reportedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "connectionState": {
+          "$ref": "#/$defs/FabricNodeConnectionState"
+        },
+        "healthState": {
+          "$ref": "#/$defs/FabricNodeHealthState"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "batteryPercent": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "metrics": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      }
+    },
+    "FabricEventEnvelope": {
+      "title": "FabricEventEnvelope",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "messageId",
+        "schemaVersion",
+        "messageType",
+        "topic",
+        "sourceNodeId",
+        "sourceCapability",
+        "siteId",
+        "roomId",
+        "sessionId",
+        "timestamp",
+        "monotonicTimestamp",
+        "sequence",
+        "ttlMs",
+        "dataClassification",
+        "payload"
+      ],
+      "properties": {
+        "messageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "schemaVersion": {
+          "$ref": "#/$defs/FabricSchemaVersion"
+        },
+        "messageType": {
+          "const": "event",
+          "type": "string"
+        },
+        "topic": {
+          "$ref": "#/$defs/CapabilityIdentifier"
+        },
+        "sourceNodeId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "sourceCapability": {
+          "$ref": "#/$defs/CapabilityIdentifier"
+        },
+        "siteId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "roomId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "participantId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "monotonicTimestamp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "correlationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "causationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "ttlMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400000
+        },
+        "dataClassification": {
+          "$ref": "#/$defs/FabricDataClassification"
+        },
+        "payload": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      }
+    },
+    "FabricCommandPriority": {
+      "title": "FabricCommandPriority",
+      "type": "string",
+      "enum": [
+        "emergency_stop",
+        "safety_engine",
+        "instructor_override",
+        "lesson_automation",
+        "student_interaction",
+        "autonomous_agent"
+      ]
+    },
+    "FabricRoleTarget": {
+      "title": "FabricRoleTarget",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role"],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/Identifier"
+        }
+      }
+    },
+    "FabricCommandRequest": {
+      "title": "FabricCommandRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "messageId",
+        "schemaVersion",
+        "messageType",
+        "action",
+        "target",
+        "sessionId",
+        "parameters",
+        "priority",
+        "idempotencyKey",
+        "requestedAt",
+        "ttlMs",
+        "safetyProfile",
+        "correlationId"
+      ],
+      "properties": {
+        "messageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "schemaVersion": {
+          "$ref": "#/$defs/FabricSchemaVersion"
+        },
+        "messageType": {
+          "const": "command.requested",
+          "type": "string"
+        },
+        "action": {
+          "$ref": "#/$defs/CapabilityIdentifier"
+        },
+        "target": {
+          "$ref": "#/$defs/FabricRoleTarget"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "parameters": {
+          "$ref": "#/$defs/JsonObject"
+        },
+        "priority": {
+          "$ref": "#/$defs/FabricCommandPriority"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "ttlMs": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 60000
+        },
+        "safetyProfile": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "correlationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "causationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sourceNodeId": {
+          "$ref": "#/$defs/Identifier"
+        }
+      }
+    },
+    "FabricResolvedCommand": {
+      "title": "FabricResolvedCommand",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commandId",
+        "requestMessageId",
+        "schemaVersion",
+        "sessionId",
+        "targetNodeId",
+        "action",
+        "parameters",
+        "priority",
+        "idempotencyKey",
+        "requestedAt",
+        "expiresAt",
+        "safetyProfile",
+        "correlationId"
+      ],
+      "properties": {
+        "commandId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestMessageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "schemaVersion": {
+          "$ref": "#/$defs/FabricSchemaVersion"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "targetNodeId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "action": {
+          "$ref": "#/$defs/CapabilityIdentifier"
+        },
+        "parameters": {
+          "$ref": "#/$defs/JsonObject"
+        },
+        "priority": {
+          "$ref": "#/$defs/FabricCommandPriority"
+        },
+        "idempotencyKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "requestedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "safetyProfile": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "correlationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "causationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "sourceNodeId": {
+          "$ref": "#/$defs/Identifier"
+        }
+      }
+    },
+    "FabricCommandLifecycleStage": {
+      "title": "FabricCommandLifecycleStage",
+      "type": "string",
+      "enum": [
+        "PROPOSED",
+        "VALIDATED",
+        "AUTHORIZED",
+        "DISPATCHED",
+        "ACCEPTED",
+        "RUNNING",
+        "SUCCEEDED",
+        "FAILED",
+        "CANCELLED",
+        "TIMED_OUT",
+        "REJECTED"
+      ]
+    },
+    "FabricCommandLifecycleEvent": {
+      "title": "FabricCommandLifecycleEvent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "messageId",
+        "schemaVersion",
+        "messageType",
+        "commandId",
+        "requestMessageId",
+        "sessionId",
+        "targetNodeId",
+        "stage",
+        "occurredAt",
+        "correlationId",
+        "details"
+      ],
+      "properties": {
+        "messageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "schemaVersion": {
+          "$ref": "#/$defs/FabricSchemaVersion"
+        },
+        "messageType": {
+          "const": "command.lifecycle",
+          "type": "string"
+        },
+        "commandId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestMessageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "targetNodeId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "stage": {
+          "$ref": "#/$defs/FabricCommandLifecycleStage"
+        },
+        "occurredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "correlationId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "code": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "details": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      }
+    },
+    "RoleBinding": {
+      "title": "RoleBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role",
+        "nodeId",
+        "requiredCapability",
+        "assignedAt",
+        "assignedBy"
+      ],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "requiredCapability": {
+          "$ref": "#/$defs/CapabilityIdentifier"
+        },
+        "assignedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "assignedBy": {
+          "$ref": "#/$defs/Identifier"
+        }
+      }
+    },
+    "FabricSessionMode": {
+      "title": "FabricSessionMode",
+      "type": "string",
+      "enum": ["simulation", "physical"]
+    },
+    "FabricSessionState": {
+      "title": "FabricSessionState",
+      "type": "string",
+      "enum": [
+        "draft",
+        "ready",
+        "active",
+        "paused",
+        "stopped",
+        "emergency_stopped",
+        "failed"
+      ]
+    },
+    "CreateInteractionSessionRequest": {
+      "title": "CreateInteractionSessionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coursePackId",
+        "coursePackVersion",
+        "siteId",
+        "roomId",
+        "mode"
+      ],
+      "properties": {
+        "coursePackId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "coursePackVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "siteId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "roomId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "mode": {
+          "$ref": "#/$defs/FabricSessionMode"
+        },
+        "participantIds": {
+          "type": "array",
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          }
+        }
+      }
+    },
+    "InteractionSession": {
+      "title": "InteractionSession",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "sessionId",
+        "coursePackId",
+        "coursePackVersion",
+        "siteId",
+        "roomId",
+        "mode",
+        "state",
+        "participantIds",
+        "roleBindings",
+        "safetyProfile",
+        "createdAt",
+        "updatedAt",
+        "createdBy"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/FabricSchemaVersion"
+        },
+        "sessionId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "coursePackId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "coursePackVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "siteId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "roomId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "mode": {
+          "$ref": "#/$defs/FabricSessionMode"
+        },
+        "state": {
+          "$ref": "#/$defs/FabricSessionState"
+        },
+        "armed": {
+          "type": "boolean",
+          "default": false
+        },
+        "armedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "armedBy": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "disarmReason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "participantIds": {
+          "type": "array",
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          }
+        },
+        "roleBindings": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/RoleBinding"
+          }
+        },
+        "safetyProfile": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "startedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "endedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "createdBy": {
+          "$ref": "#/$defs/Identifier"
+        }
+      }
+    },
+    "FlowTrigger": {
+      "title": "FlowTrigger",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event"],
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/CapabilityIdentifier"
+        },
+        "minimumConfidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "debounceMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 60000
+        },
+        "payloadEquals": {
+          "$ref": "#/$defs/JsonObject"
+        }
+      }
+    },
+    "FlowParameterBinding": {
+      "title": "FlowParameterBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["payloadField", "parameter"],
+      "properties": {
+        "payloadField": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "parameter": {
+          "$ref": "#/$defs/Identifier"
+        }
+      }
+    },
+    "FlowAction": {
+      "title": "FlowAction",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["action", "fixedParameters", "parameterBindings"],
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/CapabilityIdentifier"
+        },
+        "fixedParameters": {
+          "$ref": "#/$defs/JsonObject"
+        },
+        "parameterBindings": {
+          "type": "array",
+          "maxItems": 32,
+          "items": {
+            "$ref": "#/$defs/FlowParameterBinding"
+          }
+        }
+      }
+    },
+    "FlowGuard": {
+      "title": "FlowGuard",
+      "type": "string",
+      "enum": [
+        "session_is_active",
+        "target_is_connected",
+        "role_is_assigned",
+        "instructor_override_is_clear",
+        "target_is_armed",
+        "approval_is_present"
+      ]
+    },
+    "FlowRecipe": {
+      "title": "FlowRecipe",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "flowId",
+        "version",
+        "trigger",
+        "command",
+        "target",
+        "guards",
+        "safetyProfile",
+        "enabled"
+      ],
+      "properties": {
+        "flowId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "trigger": {
+          "$ref": "#/$defs/FlowTrigger"
+        },
+        "command": {
+          "$ref": "#/$defs/FlowAction"
+        },
+        "target": {
+          "$ref": "#/$defs/FabricRoleTarget"
+        },
+        "guards": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/FlowGuard"
+          }
+        },
+        "safetyProfile": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "outputRoles": {
+          "type": "array",
+          "maxItems": 16,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          }
+        },
+        "enabled": {
+          "type": "boolean"
+        }
+      }
+    },
+    "CourseRoleRequirement": {
+      "title": "CourseRoleRequirement",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "oneOfCapabilities", "optional"],
+      "properties": {
+        "role": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "oneOfCapabilities": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 32,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/CapabilityIdentifier"
+          }
+        },
+        "optional": {
+          "type": "boolean"
+        }
+      }
+    },
+    "CoursePack": {
+      "title": "CoursePack",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schemaVersion",
+        "coursePackId",
+        "version",
+        "displayName",
+        "roles",
+        "flows",
+        "safetyProfile",
+        "simulatorRequired",
+        "assessmentEvents",
+        "fallbackBehavior"
+      ],
+      "properties": {
+        "schemaVersion": {
+          "$ref": "#/$defs/FabricSchemaVersion"
+        },
+        "coursePackId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        },
+        "displayName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "description": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "roles": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/CourseRoleRequirement"
+          }
+        },
+        "flows": {
+          "type": "array",
+          "maxItems": 128,
+          "items": {
+            "$ref": "#/$defs/FlowRecipe"
+          }
+        },
+        "safetyProfile": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "simulatorRequired": {
+          "type": "boolean"
+        },
+        "assessmentEvents": {
+          "type": "array",
+          "maxItems": 128,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/CapabilityIdentifier"
+          }
+        },
+        "fallbackBehavior": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    },
+    "AdapterAuthenticationFrame": {
+      "title": "AdapterAuthenticationFrame",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frameType",
+        "frameId",
+        "protocolVersion",
+        "credential",
+        "sentAt"
+      ],
+      "properties": {
+        "frameType": {
+          "const": "adapter.authenticate",
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "protocolVersion": {
+          "const": 1,
+          "type": "integer"
+        },
+        "credential": {
+          "type": "string",
+          "minLength": 32,
+          "maxLength": 512
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AdapterRegistrationFrame": {
+      "title": "AdapterRegistrationFrame",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frameType",
+        "frameId",
+        "protocolVersion",
+        "manifest",
+        "nodes",
+        "sentAt"
+      ],
+      "properties": {
+        "frameType": {
+          "const": "adapter.register",
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "protocolVersion": {
+          "const": 1,
+          "type": "integer"
+        },
+        "manifest": {
+          "$ref": "#/$defs/PluginManifest"
+        },
+        "nodes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/IntegrationNode"
+          }
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AdapterHeartbeatFrame": {
+      "title": "AdapterHeartbeatFrame",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frameType",
+        "frameId",
+        "protocolVersion",
+        "reports",
+        "sentAt"
+      ],
+      "properties": {
+        "frameType": {
+          "const": "adapter.heartbeat",
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "protocolVersion": {
+          "const": 1,
+          "type": "integer"
+        },
+        "reports": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "$ref": "#/$defs/HealthReport"
+          }
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AdapterEventFrame": {
+      "title": "AdapterEventFrame",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frameType",
+        "frameId",
+        "protocolVersion",
+        "event",
+        "sentAt"
+      ],
+      "properties": {
+        "frameType": {
+          "const": "adapter.event",
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "protocolVersion": {
+          "const": 1,
+          "type": "integer"
+        },
+        "event": {
+          "$ref": "#/$defs/FabricEventEnvelope"
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AdapterCommandLifecycleFrame": {
+      "title": "AdapterCommandLifecycleFrame",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frameType",
+        "frameId",
+        "protocolVersion",
+        "lifecycle",
+        "sentAt"
+      ],
+      "properties": {
+        "frameType": {
+          "const": "adapter.command_lifecycle",
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "protocolVersion": {
+          "const": 1,
+          "type": "integer"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/FabricCommandLifecycleEvent"
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AdapterWelcomeFrame": {
+      "title": "AdapterWelcomeFrame",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frameType",
+        "frameId",
+        "protocolVersion",
+        "runtimeId",
+        "heartbeatIntervalMs",
+        "sentAt"
+      ],
+      "properties": {
+        "frameType": {
+          "const": "adapter.welcome",
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "protocolVersion": {
+          "const": 1,
+          "type": "integer"
+        },
+        "runtimeId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "heartbeatIntervalMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 60000
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AdapterRegisteredFrame": {
+      "title": "AdapterRegisteredFrame",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frameType",
+        "frameId",
+        "protocolVersion",
+        "registeredNodeIds",
+        "sentAt"
+      ],
+      "properties": {
+        "frameType": {
+          "const": "adapter.registered",
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "protocolVersion": {
+          "const": 1,
+          "type": "integer"
+        },
+        "registeredNodeIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Identifier"
+          }
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AdapterCommandFrame": {
+      "title": "AdapterCommandFrame",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frameType",
+        "frameId",
+        "protocolVersion",
+        "command",
+        "sentAt"
+      ],
+      "properties": {
+        "frameType": {
+          "const": "adapter.command",
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "protocolVersion": {
+          "const": 1,
+          "type": "integer"
+        },
+        "command": {
+          "$ref": "#/$defs/FabricResolvedCommand"
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AdapterAcknowledgementFrame": {
+      "title": "AdapterAcknowledgementFrame",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frameType",
+        "frameId",
+        "protocolVersion",
+        "acknowledgedFrameId",
+        "status",
+        "sentAt"
+      ],
+      "properties": {
+        "frameType": {
+          "const": "adapter.ack",
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "protocolVersion": {
+          "const": 1,
+          "type": "integer"
+        },
+        "acknowledgedFrameId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["accepted", "duplicate"]
+        },
+        "streamSequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AdapterStopFrame": {
+      "title": "AdapterStopFrame",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frameType",
+        "frameId",
+        "protocolVersion",
+        "nodeId",
+        "reason",
+        "sentAt"
+      ],
+      "properties": {
+        "frameType": {
+          "const": "adapter.stop",
+          "type": "string"
+        },
+        "frameId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "protocolVersion": {
+          "const": 1,
+          "type": "integer"
+        },
+        "nodeId": {
+          "$ref": "#/$defs/Identifier"
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 256
+        },
+        "sentAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "AdapterClientFrame": {
+      "title": "AdapterClientFrame",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AdapterAuthenticationFrame"
+        },
+        {
+          "$ref": "#/$defs/AdapterRegistrationFrame"
+        },
+        {
+          "$ref": "#/$defs/AdapterHeartbeatFrame"
+        },
+        {
+          "$ref": "#/$defs/AdapterEventFrame"
+        },
+        {
+          "$ref": "#/$defs/AdapterCommandLifecycleFrame"
+        }
+      ]
+    },
+    "AdapterServerFrame": {
+      "title": "AdapterServerFrame",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/AdapterWelcomeFrame"
+        },
+        {
+          "$ref": "#/$defs/AdapterRegisteredFrame"
+        },
+        {
+          "$ref": "#/$defs/AdapterCommandFrame"
+        },
+        {
+          "$ref": "#/$defs/AdapterAcknowledgementFrame"
+        },
+        {
+          "$ref": "#/$defs/AdapterStopFrame"
+        }
+      ]
     }
   }
 }

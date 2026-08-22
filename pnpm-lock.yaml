@@ -51,7 +51,11 @@ importers:
         specifier: 2.9.0
         version: 2.9.0
 
-  apps/agent-mesh-bridge: {}
+  apps/agent-mesh-bridge:
+    dependencies:
+      '@citxr/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
 
   apps/studio-web:
     dependencies:
@@ -61,6 +65,9 @@ importers:
       '@citxr/project-format':
         specifier: workspace:*
         version: link:../../packages/project-format
+      '@citxr/protocol':
+        specifier: workspace:*
+        version: link:../../packages/protocol-ts
       '@citxr/student-runtime-web':
         specifier: workspace:*
         version: link:../../packages/student-runtime-web

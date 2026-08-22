@@ -1,0 +1,92 @@
+{
+  "frameType": "adapter.register",
+  "frameId": "557403d7-ab5e-48ad-8992-793ea2c26fc4",
+  "protocolVersion": 1,
+  "manifest": {
+    "schemaVersion": "1.0",
+    "pluginId": "cit.agent-mesh-bridge",
+    "pluginVersion": "0.1.0",
+    "runtimeVersion": "1.0.0",
+    "displayName": "Agent Mesh bridge",
+    "adapterMode": "out_of_process",
+    "configurationSchema": {},
+    "publishedCapabilities": [
+      {
+        "name": "interaction.intent.agent_prompt",
+        "version": "1.0",
+        "direction": "publish",
+        "maximumRateHz": 10,
+        "latencyClass": "conversational",
+        "safetyClassification": "informational",
+        "dataClassification": "voice_transcript",
+        "constraints": {}
+      }
+    ],
+    "consumedCapabilities": [
+      {
+        "name": "display.text.render",
+        "version": "1.0",
+        "direction": "consume",
+        "maximumRateHz": 10,
+        "latencyClass": "ui_feedback",
+        "safetyClassification": "informational",
+        "dataClassification": "operational",
+        "constraints": {}
+      }
+    ],
+    "requiredPermissions": [],
+    "safetyClassification": "informational",
+    "dataClassifications": ["operational", "voice_transcript"],
+    "simulatorAvailability": "included",
+    "vendor": "CIT"
+  },
+  "nodes": [
+    {
+      "schemaVersion": "1.0",
+      "nodeId": "g2-sim-a",
+      "pluginId": "cit.agent-mesh-bridge",
+      "pluginVersion": "0.1.0",
+      "runtimeVersion": "1.0.0",
+      "hostId": "agent-mesh-host-a",
+      "siteId": "local-site",
+      "roomId": "local-room",
+      "displayName": "Simulated G2",
+      "connectionState": "connected",
+      "healthState": "healthy",
+      "physical": false,
+      "simulated": true,
+      "publishedCapabilities": [
+        {
+          "name": "interaction.intent.agent_prompt",
+          "version": "1.0",
+          "direction": "publish",
+          "maximumRateHz": 10,
+          "latencyClass": "conversational",
+          "safetyClassification": "informational",
+          "dataClassification": "voice_transcript",
+          "constraints": {}
+        }
+      ],
+      "consumedCapabilities": [
+        {
+          "name": "display.text.render",
+          "version": "1.0",
+          "direction": "consume",
+          "maximumRateHz": 10,
+          "latencyClass": "ui_feedback",
+          "safetyClassification": "informational",
+          "dataClassification": "operational",
+          "constraints": {}
+        }
+      ],
+      "configurationSchema": {},
+      "safetyClassification": "informational",
+      "dataClassifications": ["operational", "voice_transcript"],
+      "simulatorAvailable": true,
+      "requiredPermissions": [],
+      "lastSeenAt": "2026-08-21T03:00:00Z",
+      "metadata": { "wrappedBy": "agent-mesh" }
+    }
+  ],
+  "sentAt": "2026-08-21T03:00:00Z"
+}

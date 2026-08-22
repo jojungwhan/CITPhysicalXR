@@ -14,4 +14,11 @@ The gate reads `uv.lock` and skips any package that is not installed, so an opti
 
 `pnpm sbom` generates a deterministic CycloneDX 1.6 inventory from `pnpm-lock.yaml` and `uv.lock`. The report is a build artifact and is not a substitute for notices or source-provenance review.
 
+The Tuya-compatible adapter pins TinyTuya 1.20.0 (`MIT`) in the explicit
+`smart-plug-lan` hardware extra. TinyTuya remains isolated inside the adapter;
+the orchestration core imports neither it nor any vendor SDK. Like the LEGO
+hardware extra, installing it introduces `cffi` (`MIT-0`) outside the default
+allowlist, so ordinary CI and simulation leave it uninstalled while the lock and
+SBOM retain the resolved provenance.
+
 The audited Agent CLI Mesh and RoboMaster repositories are external and owner-private-unlicensed at their inspected revisions. Their code is not included. A future change may reuse source only after recording the exact source, revision, licence, modification state, dependencies, tests, protocol compatibility, decision, and risk in `REUSE_AUDIT.md` and `THIRD_PARTY_NOTICES.md`.

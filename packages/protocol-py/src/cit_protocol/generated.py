@@ -10,6 +10,18 @@ from uuid import UUID
 from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, RootModel
 
 
+class Identifier(RootModel[str]):
+    root: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+
+
 class CapabilityIdentifier(RootModel[str]):
     root: Annotated[
         str,
@@ -342,14 +354,985 @@ class ProtocolError(BaseModel):
     details: JsonObject | None = None
 
 
+class CapabilityDirection(StrEnum):
+    publish = 'publish'
+    consume = 'consume'
+    bidirectional = 'bidirectional'
+
+
+class FabricSafetyClassification(StrEnum):
+    none = 'none'
+    informational = 'informational'
+    bounded_physical = 'bounded_physical'
+    flight = 'flight'
+    electrical = 'electrical'
+
+
+class FabricDataClassification(StrEnum):
+    public = 'public'
+    operational = 'operational'
+    student = 'student'
+    source_code = 'source_code'
+    voice_transcript = 'voice_transcript'
+    biosignal_derived = 'biosignal_derived'
+    sensitive_raw = 'sensitive_raw'
+    secret = 'secret'
+
+
+class FabricLatencyClass(StrEnum):
+    safety_critical = 'safety_critical'
+    interactive = 'interactive'
+    ui_feedback = 'ui_feedback'
+    conversational = 'conversational'
+    bulk = 'bulk'
+
+
+class SimulatorAvailability(StrEnum):
+    included = 'included'
+    recorded_replay = 'recorded_replay'
+    external = 'external'
+    none = 'none'
+
+
+class CapabilityDescriptor(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    name: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=3,
+            pattern='^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$',
+            title='CapabilityIdentifier',
+        ),
+    ]
+    version: Annotated[
+        str,
+        Field(max_length=64, min_length=1, pattern='^[0-9]+\\.[0-9]+(?:\\.[0-9]+)?$'),
+    ]
+    direction: CapabilityDirection
+    schemaRef: Annotated[str | None, Field(max_length=512, min_length=1)] = None
+    units: Annotated[str | None, Field(max_length=64, min_length=1)] = None
+    maximumRateHz: Annotated[float | None, Field(gt=0.0, le=10000.0)] = None
+    latencyClass: FabricLatencyClass
+    safetyClassification: FabricSafetyClassification
+    dataClassification: FabricDataClassification
+    constraints: JsonObject
+
+
+class AdapterMode(StrEnum):
+    in_process = 'in_process'
+    out_of_process = 'out_of_process'
+
+
+class PluginManifest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Annotated[Literal['1.0'], Field(title='FabricSchemaVersion')]
+    pluginId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    pluginVersion: Annotated[str, Field(max_length=64, min_length=1)]
+    runtimeVersion: Annotated[str, Field(max_length=64, min_length=1)]
+    displayName: Annotated[str, Field(max_length=128, min_length=1)]
+    adapterMode: AdapterMode
+    configurationSchema: JsonObject
+    publishedCapabilities: Annotated[list[CapabilityDescriptor], Field(max_length=256)]
+    consumedCapabilities: Annotated[list[CapabilityDescriptor], Field(max_length=256)]
+    requiredPermissions: Annotated[list[Identifier], Field(max_length=64)]
+    safetyClassification: FabricSafetyClassification
+    dataClassifications: Annotated[
+        list[FabricDataClassification], Field(max_length=8, min_length=1)
+    ]
+    simulatorAvailability: SimulatorAvailability
+    vendor: Annotated[str | None, Field(max_length=128, min_length=1)] = None
+    description: Annotated[str | None, Field(max_length=1000, min_length=1)] = None
+
+
+class FabricNodeConnectionState(StrEnum):
+    registering = 'registering'
+    connected = 'connected'
+    degraded = 'degraded'
+    unavailable = 'unavailable'
+    disconnected = 'disconnected'
+    unsafe = 'unsafe'
+
+
+class FabricNodeHealthState(StrEnum):
+    healthy = 'healthy'
+    degraded = 'degraded'
+    unhealthy = 'unhealthy'
+    unknown = 'unknown'
+
+
+class IntegrationNode(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Annotated[Literal['1.0'], Field(title='FabricSchemaVersion')]
+    nodeId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    pluginId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    pluginVersion: Annotated[str, Field(max_length=64, min_length=1)]
+    runtimeVersion: Annotated[str, Field(max_length=64, min_length=1)]
+    hostId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    siteId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    roomId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    displayName: Annotated[str, Field(max_length=128, min_length=1)]
+    connectionState: FabricNodeConnectionState
+    healthState: FabricNodeHealthState
+    physical: bool
+    simulated: bool
+    publishedCapabilities: Annotated[list[CapabilityDescriptor], Field(max_length=256)]
+    consumedCapabilities: Annotated[list[CapabilityDescriptor], Field(max_length=256)]
+    configurationSchema: JsonObject
+    safetyClassification: FabricSafetyClassification
+    dataClassifications: Annotated[
+        list[FabricDataClassification], Field(max_length=8, min_length=1)
+    ]
+    simulatorAvailable: bool
+    requiredPermissions: Annotated[list[Identifier] | None, Field(max_length=64)] = None
+    lastSeenAt: AwareDatetime
+    metadata: JsonObject
+
+
+class HealthReport(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Annotated[Literal['1.0'], Field(title='FabricSchemaVersion')]
+    nodeId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    reportedAt: AwareDatetime
+    connectionState: FabricNodeConnectionState
+    healthState: FabricNodeHealthState
+    message: Annotated[str | None, Field(max_length=500, min_length=1)] = None
+    batteryPercent: Annotated[float | None, Field(ge=0.0, le=100.0)] = None
+    metrics: JsonObject
+
+
+class FabricEventEnvelope(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    messageId: UUID
+    schemaVersion: Annotated[Literal['1.0'], Field(title='FabricSchemaVersion')]
+    messageType: Literal['event']
+    topic: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=3,
+            pattern='^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$',
+            title='CapabilityIdentifier',
+        ),
+    ]
+    sourceNodeId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    sourceCapability: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=3,
+            pattern='^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$',
+            title='CapabilityIdentifier',
+        ),
+    ]
+    siteId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    roomId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    sessionId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    participantId: Annotated[
+        str | None,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ] = None
+    timestamp: AwareDatetime
+    monotonicTimestamp: Annotated[int, Field(ge=0)]
+    sequence: Annotated[int, Field(ge=0)]
+    correlationId: Annotated[str | None, Field(max_length=128, min_length=1)] = None
+    causationId: Annotated[str | None, Field(max_length=128, min_length=1)] = None
+    confidence: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
+    ttlMs: Annotated[int, Field(ge=1, le=86400000)]
+    dataClassification: FabricDataClassification
+    payload: JsonObject
+
+
+class FabricCommandPriority(StrEnum):
+    emergency_stop = 'emergency_stop'
+    safety_engine = 'safety_engine'
+    instructor_override = 'instructor_override'
+    lesson_automation = 'lesson_automation'
+    student_interaction = 'student_interaction'
+    autonomous_agent = 'autonomous_agent'
+
+
+class FabricRoleTarget(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    role: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+
+
+class FabricCommandRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    messageId: UUID
+    schemaVersion: Annotated[Literal['1.0'], Field(title='FabricSchemaVersion')]
+    messageType: Literal['command.requested']
+    action: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=3,
+            pattern='^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$',
+            title='CapabilityIdentifier',
+        ),
+    ]
+    target: FabricRoleTarget
+    sessionId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    parameters: JsonObject
+    priority: FabricCommandPriority
+    idempotencyKey: Annotated[str, Field(max_length=256, min_length=1)]
+    requestedAt: AwareDatetime
+    ttlMs: Annotated[int, Field(ge=1, le=60000)]
+    safetyProfile: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    correlationId: Annotated[str, Field(max_length=128, min_length=1)]
+    causationId: Annotated[str | None, Field(max_length=128, min_length=1)] = None
+    sourceNodeId: Annotated[
+        str | None,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ] = None
+
+
+class FabricResolvedCommand(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    commandId: UUID
+    requestMessageId: UUID
+    schemaVersion: Annotated[Literal['1.0'], Field(title='FabricSchemaVersion')]
+    sessionId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    targetNodeId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    action: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=3,
+            pattern='^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$',
+            title='CapabilityIdentifier',
+        ),
+    ]
+    parameters: JsonObject
+    priority: FabricCommandPriority
+    idempotencyKey: Annotated[str, Field(max_length=256, min_length=1)]
+    requestedAt: AwareDatetime
+    expiresAt: AwareDatetime
+    safetyProfile: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    correlationId: Annotated[str, Field(max_length=128, min_length=1)]
+    causationId: Annotated[str | None, Field(max_length=128, min_length=1)] = None
+    sourceNodeId: Annotated[
+        str | None,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ] = None
+
+
+class FabricCommandLifecycleStage(StrEnum):
+    PROPOSED = 'PROPOSED'
+    VALIDATED = 'VALIDATED'
+    AUTHORIZED = 'AUTHORIZED'
+    DISPATCHED = 'DISPATCHED'
+    ACCEPTED = 'ACCEPTED'
+    RUNNING = 'RUNNING'
+    SUCCEEDED = 'SUCCEEDED'
+    FAILED = 'FAILED'
+    CANCELLED = 'CANCELLED'
+    TIMED_OUT = 'TIMED_OUT'
+    REJECTED = 'REJECTED'
+
+
+class FabricCommandLifecycleEvent(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    messageId: UUID
+    schemaVersion: Annotated[Literal['1.0'], Field(title='FabricSchemaVersion')]
+    messageType: Literal['command.lifecycle']
+    commandId: UUID
+    requestMessageId: UUID
+    sessionId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    targetNodeId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    stage: FabricCommandLifecycleStage
+    occurredAt: AwareDatetime
+    correlationId: Annotated[str, Field(max_length=128, min_length=1)]
+    code: Annotated[
+        str | None,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ] = None
+    message: Annotated[str | None, Field(max_length=500, min_length=1)] = None
+    details: JsonObject
+
+
+class RoleBinding(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    role: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    nodeId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    requiredCapability: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=3,
+            pattern='^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$',
+            title='CapabilityIdentifier',
+        ),
+    ]
+    assignedAt: AwareDatetime
+    assignedBy: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+
+
+class FabricSessionMode(StrEnum):
+    simulation = 'simulation'
+    physical = 'physical'
+
+
+class FabricSessionState(StrEnum):
+    draft = 'draft'
+    ready = 'ready'
+    active = 'active'
+    paused = 'paused'
+    stopped = 'stopped'
+    emergency_stopped = 'emergency_stopped'
+    failed = 'failed'
+
+
+class CreateInteractionSessionRequest(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    coursePackId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    coursePackVersion: Annotated[str, Field(max_length=64, min_length=1)]
+    siteId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    roomId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    mode: FabricSessionMode
+    participantIds: Annotated[list[Identifier] | None, Field(max_length=128)] = None
+
+
+class InteractionSession(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Annotated[Literal['1.0'], Field(title='FabricSchemaVersion')]
+    sessionId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    coursePackId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    coursePackVersion: Annotated[str, Field(max_length=64, min_length=1)]
+    siteId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    roomId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    mode: FabricSessionMode
+    state: FabricSessionState
+    armed: bool = False
+    armedAt: AwareDatetime | None = None
+    armedBy: Annotated[
+        str | None,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ] = None
+    disarmReason: Annotated[str | None, Field(max_length=256, min_length=1)] = None
+    participantIds: Annotated[list[Identifier], Field(max_length=128)]
+    roleBindings: Annotated[list[RoleBinding], Field(max_length=64)]
+    safetyProfile: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    createdAt: AwareDatetime
+    updatedAt: AwareDatetime
+    startedAt: AwareDatetime | None = None
+    endedAt: AwareDatetime | None = None
+    createdBy: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+
+
+class FlowTrigger(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    event: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=3,
+            pattern='^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$',
+            title='CapabilityIdentifier',
+        ),
+    ]
+    minimumConfidence: Annotated[float | None, Field(ge=0.0, le=1.0)] = None
+    debounceMs: Annotated[int | None, Field(ge=0, le=60000)] = None
+    payloadEquals: JsonObject | None = None
+
+
+class FlowParameterBinding(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    payloadField: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    parameter: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+
+
+class FlowAction(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    action: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=3,
+            pattern='^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$',
+            title='CapabilityIdentifier',
+        ),
+    ]
+    fixedParameters: JsonObject
+    parameterBindings: Annotated[list[FlowParameterBinding], Field(max_length=32)]
+
+
+class FlowGuard(StrEnum):
+    session_is_active = 'session_is_active'
+    target_is_connected = 'target_is_connected'
+    role_is_assigned = 'role_is_assigned'
+    instructor_override_is_clear = 'instructor_override_is_clear'
+    target_is_armed = 'target_is_armed'
+    approval_is_present = 'approval_is_present'
+
+
+class FlowRecipe(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    flowId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    version: Annotated[int, Field(ge=1)]
+    trigger: FlowTrigger
+    command: FlowAction
+    target: FabricRoleTarget
+    guards: Annotated[list[FlowGuard], Field(max_length=16)]
+    safetyProfile: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    outputRoles: Annotated[list[Identifier] | None, Field(max_length=16)] = None
+    enabled: bool
+
+
+class CourseRoleRequirement(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    role: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    oneOfCapabilities: Annotated[
+        list[CapabilityIdentifier], Field(max_length=32, min_length=1)
+    ]
+    optional: bool
+
+
+class CoursePack(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    schemaVersion: Annotated[Literal['1.0'], Field(title='FabricSchemaVersion')]
+    coursePackId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    version: Annotated[str, Field(max_length=64, min_length=1)]
+    displayName: Annotated[str, Field(max_length=128, min_length=1)]
+    description: Annotated[str | None, Field(max_length=2000, min_length=1)] = None
+    roles: Annotated[list[CourseRoleRequirement], Field(max_length=64, min_length=1)]
+    flows: Annotated[list[FlowRecipe], Field(max_length=128)]
+    safetyProfile: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    simulatorRequired: bool
+    assessmentEvents: Annotated[list[CapabilityIdentifier], Field(max_length=128)]
+    fallbackBehavior: Annotated[str, Field(max_length=1000, min_length=1)]
+
+
+class AdapterAuthenticationFrame(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    frameType: Literal['adapter.authenticate']
+    frameId: UUID
+    protocolVersion: Literal[1]
+    credential: Annotated[str, Field(max_length=512, min_length=32)]
+    sentAt: AwareDatetime
+
+
+class AdapterRegistrationFrame(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    frameType: Literal['adapter.register']
+    frameId: UUID
+    protocolVersion: Literal[1]
+    manifest: PluginManifest
+    nodes: Annotated[list[IntegrationNode], Field(max_length=64, min_length=1)]
+    sentAt: AwareDatetime
+
+
+class AdapterHeartbeatFrame(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    frameType: Literal['adapter.heartbeat']
+    frameId: UUID
+    protocolVersion: Literal[1]
+    reports: Annotated[list[HealthReport], Field(max_length=64, min_length=1)]
+    sentAt: AwareDatetime
+
+
+class AdapterEventFrame(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    frameType: Literal['adapter.event']
+    frameId: UUID
+    protocolVersion: Literal[1]
+    event: FabricEventEnvelope
+    sentAt: AwareDatetime
+
+
+class AdapterCommandLifecycleFrame(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    frameType: Literal['adapter.command_lifecycle']
+    frameId: UUID
+    protocolVersion: Literal[1]
+    lifecycle: FabricCommandLifecycleEvent
+    sentAt: AwareDatetime
+
+
+class AdapterWelcomeFrame(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    frameType: Literal['adapter.welcome']
+    frameId: UUID
+    protocolVersion: Literal[1]
+    runtimeId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    heartbeatIntervalMs: Annotated[int, Field(ge=100, le=60000)]
+    sentAt: AwareDatetime
+
+
+class AdapterRegisteredFrame(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    frameType: Literal['adapter.registered']
+    frameId: UUID
+    protocolVersion: Literal[1]
+    registeredNodeIds: Annotated[list[Identifier], Field(max_length=64, min_length=1)]
+    sentAt: AwareDatetime
+
+
+class AdapterCommandFrame(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    frameType: Literal['adapter.command']
+    frameId: UUID
+    protocolVersion: Literal[1]
+    command: FabricResolvedCommand
+    sentAt: AwareDatetime
+
+
+class Status1(StrEnum):
+    accepted = 'accepted'
+    duplicate = 'duplicate'
+
+
+class AdapterAcknowledgementFrame(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    frameType: Literal['adapter.ack']
+    frameId: UUID
+    protocolVersion: Literal[1]
+    acknowledgedFrameId: UUID
+    status: Status1
+    streamSequence: Annotated[int | None, Field(ge=1)] = None
+    sentAt: AwareDatetime
+
+
+class AdapterStopFrame(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    frameType: Literal['adapter.stop']
+    frameId: UUID
+    protocolVersion: Literal[1]
+    nodeId: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    reason: Annotated[str, Field(max_length=256, min_length=1)]
+    sentAt: AwareDatetime
+
+
 class CitProtocolMessage(
     RootModel[
         CitEnvelope
         | DeviceCommandIntent
         | DeviceEvent
         | DeviceDescriptor
+        | PluginManifest
+        | IntegrationNode
+        | HealthReport
+        | FabricEventEnvelope
+        | FabricCommandRequest
+        | FabricResolvedCommand
+        | FabricCommandLifecycleEvent
+        | CreateInteractionSessionRequest
+        | InteractionSession
+        | CoursePack
+        | FlowRecipe
         | CommandResult
         | ProtocolError
+        | AdapterAuthenticationFrame
+        | AdapterRegistrationFrame
+        | AdapterHeartbeatFrame
+        | AdapterEventFrame
+        | AdapterCommandLifecycleFrame
+        | AdapterWelcomeFrame
+        | AdapterRegisteredFrame
+        | AdapterCommandFrame
+        | AdapterAcknowledgementFrame
+        | AdapterStopFrame
     ]
 ):
     root: Annotated[
@@ -357,8 +1340,29 @@ class CitProtocolMessage(
         | DeviceCommandIntent
         | DeviceEvent
         | DeviceDescriptor
+        | PluginManifest
+        | IntegrationNode
+        | HealthReport
+        | FabricEventEnvelope
+        | FabricCommandRequest
+        | FabricResolvedCommand
+        | FabricCommandLifecycleEvent
+        | CreateInteractionSessionRequest
+        | InteractionSession
+        | CoursePack
+        | FlowRecipe
         | CommandResult
-        | ProtocolError,
+        | ProtocolError
+        | AdapterAuthenticationFrame
+        | AdapterRegistrationFrame
+        | AdapterHeartbeatFrame
+        | AdapterEventFrame
+        | AdapterCommandLifecycleFrame
+        | AdapterWelcomeFrame
+        | AdapterRegisteredFrame
+        | AdapterCommandFrame
+        | AdapterAcknowledgementFrame
+        | AdapterStopFrame,
         Field(
             description='Language-neutral foundation messages. This schema does not authorize physical execution.',
             title='CIT Physical XR Protocol V1',

@@ -9,19 +9,19 @@
 The existing assets are strong reference and later integration candidates, but no source is copied into this Apache-2.0 repository in Milestone 0.
 
 - Agent CLI Mesh is private and its README says that no licence has been selected. CIT will integrate it through the optional authenticated bridge in Milestone 7 unless its owner later publishes compatible reusable packages.
-- The RoboMaster gesture repository is the correct S1/Leap behavior baseline and is pinned by the existing Agent Mesh RoboMaster work. It has no top-level licence for its original code, so Milestone 2 will wrap the owner-designated checkout rather than copy it.
+- The RoboMaster gesture repository is the selected S1/Leap behavior baseline. The owner authorized a private noncommercial process wrapper, now pinned at `3c213c1...`; no original implementation source is copied into CIT.
 - A working DJI SDK environment was found at `D:\dev\robomasterCITCourse\.venv-robot`; the Leap runtime expected by the gesture checkout was not found. This is an explicit discovery gap, not evidence that Leap is unavailable on the owner's other machines.
 - The alternate Agent Mesh RoboMaster branch allows confirmed wearable movement pulses. That behavior conflicts with the Physical XR v1 rule that wearables may stop but may not initiate movement, so it is reference-only for stop/status/expiry patterns.
 
 ## Repository inventory
 
-| Repository                          | Local path                                    | Branch / revision                                                             | Working tree                                                       | Licence finding                                                                                          |
-| ----------------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------- |
-| Agent CLI Mesh                      | `D:\dev\glasses2CLI`                          | `fix/g2-durable-alert-ack` / `79983dfadc378566168343e57814a046089c2047`       | Dirty before this audit: three owner-edited Meta phone files/tests | README: no licence selected; private                                                                     |
-| Agent CLI Mesh RoboMaster branch    | `D:\dev\glasses2CLI-robomaster`               | `agent/stabilize-g2-launcher-ci` / `644895966ad3e1f2011dcc83ed111cd2f12762b1` | Clean                                                              | Same unlicensed private repository                                                                       |
-| Agent CLI Mesh service branch       | `D:\dev\glasses2CLI-service-replace`          | `agent/windows-service-replace` / `75a16343ac597d8eaecc1fbb5ea6f6f297507875`  | Clean                                                              | Same unlicensed private repository; no unique Physical XR candidate found                                |
-| RoboMaster gesture control          | `D:\dev\robomaster-gesture-control-reference` | `main` / `e5a94865451dc8a9a266bb9223f8ed090ac11681`                           | Clean                                                              | No top-level project licence; an Apache-2.0 text covers the attributed Ultraleap-derived visualizer only |
-| RoboMaster classroom mission system | `D:\dev\robomasterCITCourse`                  | `main` / `2f54bc7f2de6925b1e388632c45cb4dd7296d660`                           | Clean                                                              | No top-level project licence found; third-party model notices exist                                      |
+| Repository                          | Local path                                    | Branch / revision                                                               | Working tree                                                       | Licence finding                                                                    |
+| ----------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Agent CLI Mesh                      | `D:\dev\glasses2CLI`                          | `fix/g2-durable-alert-ack` / `79983dfadc378566168343e57814a046089c2047`         | Dirty before this audit: three owner-edited Meta phone files/tests | README: no licence selected; private                                               |
+| Agent CLI Mesh RoboMaster branch    | `D:\dev\glasses2CLI-robomaster`               | `agent/stabilize-g2-launcher-ci` / `644895966ad3e1f2011dcc83ed111cd2f12762b1`   | Clean                                                              | Same unlicensed private repository                                                 |
+| Agent CLI Mesh service branch       | `D:\dev\glasses2CLI-service-replace`          | `agent/windows-service-replace` / `75a16343ac597d8eaecc1fbb5ea6f6f297507875`    | Clean                                                              | Same unlicensed private repository; no unique Physical XR candidate found          |
+| RoboMaster gesture control          | `D:\dev\robomaster-gesture-control-reference` | `integrate/cit-interaction-fabric` / `3c213c110b0cdf2912985bfcde442d67092b98f0` | Clean                                                              | Owner authorized private noncommercial wrapper; no original source copied into CIT |
+| RoboMaster classroom mission system | `D:\dev\robomasterCITCourse`                  | `main` / `2f54bc7f2de6925b1e388632c45cb4dd7296d660`                             | Clean                                                              | No top-level project licence found; third-party model notices exist                |
 
 ## Detailed module decisions
 
@@ -207,21 +207,21 @@ The existing assets are strong reference and later integration candidates, but n
 
 ### R-011 — Existing RoboMaster S1 and Leap Motion implementation
 
-| Field             | Finding                                                                                                                                                                                          |
-| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Source repository | RoboMaster gesture control, `D:\dev\robomaster-gesture-control-reference`                                                                                                                        |
-| Module            | `robomaster_gesture/robot_adapter.py`, `leap_source.py`, `gesture.py`, `app.py`, `models.py`, `control_lease.py`, and native LeapC bridge                                                        |
-| Purpose           | Dry-run or guarded S1 control from Leap input, SDK and stock-app transports, gesture dead-man state machine, stale tracking/command watchdogs, and cross-process controller lease                |
-| Language/runtime  | Python; C/LeapC on Windows; DJI SDK 0.1.1.68 for SDK mode; Win32 W/A/S/D for stock S1                                                                                                            |
-| Licence           | No top-level licence for original repository code. `LICENSES/Apache-2.0.txt` and notices apply to attributed Ultraleap-derived visualizer material, not automatically to all files               |
-| Current tests     | Eleven unit modules cover gestures, direction mapping, command pump/watchdog, controller lease, status, stock S1 app adapter, visualizer, scene speech, voice, and YOLO safety                   |
-| Dependencies      | Core requirement pins `robomaster==0.1.1.68`; optional Ultralytics 8.4.118 and Piper 1.6.0 have separate AGPL/GPL considerations; native LeapC SDK/service is proprietary runtime infrastructure |
-| Protocol          | In-process Python interfaces today; LeapC native polling; DJI SDK or guarded desktop-key transport                                                                                               |
-| Reusability       | Wrapper/subprocess reference integration; do not rewrite or copy before adapter contract/regression tests                                                                                        |
-| Required changes  | Define handshake/health IPC, record exact interpreter/build/service versions, normalize Leap events, and ensure CIT owns the only physical lease in Milestone 2                                  |
-| Risk              | High: hardware/environment fragility, unclear original-code licence, and missing local Leap runtime artifacts                                                                                    |
-| Decision          | Preserve and wrap the exact owner-designated checkout in Milestone 2 after contract fixtures exist                                                                                               |
-| Evidence          | Revision `e5a948...`; `GestureController`, `LeapSource`, `DjiRobotAdapter`, `S1AppKeyboardAdapter`, `CommandPump`, `ControllerLease`; dry-run default and watchdogs documented in README         |
+| Field             | Finding                                                                                                                                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source repository | RoboMaster gesture control, `D:\dev\robomaster-gesture-control-reference`                                                                                                                          |
+| Module            | `robomaster_gesture/robot_adapter.py`, `leap_source.py`, `gesture.py`, `app.py`, `models.py`, `control_lease.py`, and native LeapC bridge                                                          |
+| Purpose           | Dry-run or guarded S1 control from Leap input, SDK and stock-app transports, gesture dead-man state machine, stale tracking/command watchdogs, and cross-process controller lease                  |
+| Language/runtime  | Python; C/LeapC on Windows; DJI SDK 0.1.1.68 for SDK mode; Win32 W/A/S/D for stock S1                                                                                                              |
+| Licence           | No top-level licence for original repository code. `LICENSES/Apache-2.0.txt` and notices apply to attributed Ultraleap-derived visualizer material, not automatically to all files                 |
+| Current tests     | 176 upstream tests cover gestures, command pump/watchdog, controller lease, S1/SDK adapters, control center, visualizer, voice, vision, Whisper, and web launcher; CIT adds process/flow contracts |
+| Dependencies      | Core requirement pins `robomaster==0.1.1.68`; optional Ultralytics 8.4.118 and Piper 1.6.0 have separate AGPL/GPL considerations; native LeapC SDK/service is proprietary runtime infrastructure   |
+| Protocol          | In-process Python interfaces today; LeapC native polling; DJI SDK or guarded desktop-key transport                                                                                                 |
+| Reusability       | Implemented wrapper: separate Leap and robot Python 3.8 workers behind authenticated Fabric nodes; no vendor import in core                                                                        |
+| Required changes  | Complete physical Leap/S1 HIL, failure injection, and latency evidence; refresh fixtures before changing the pin                                                                                   |
+| Risk              | High hardware/environment fragility remains; native Leap runtime artifacts are missing locally                                                                                                     |
+| Decision          | Preserve and wrap revision `3c213c1...`; refuse an uncharacterized checkout at adapter startup                                                                                                     |
+| Evidence          | `fixtures/upstream-contract.json`, Python 3.8 dry-run JSONL test, CIT contract/flow tests, hardware launcher, upstream 176-test baseline                                                           |
 
 ### R-012 — Installed RoboMaster SDK environment and classroom code
 
@@ -259,6 +259,24 @@ The existing assets are strong reference and later integration candidates, but n
 | Decision          | Reference only; explicitly reject its movement route for Physical XR v1                                                                                   |
 | Evidence          | `robomasterCommandInputSchema`, `RoboMasterBridge`, `MotionController`, and `docs/ROBOMASTER.md`                                                          |
 
+### R-014 — Tuya-compatible smart-plug boundary
+
+| Field             | Finding                                                                                                                                                                               |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source repository | No existing implementation found in `CITPhysicalXR`, `brain2devices`, `glasses2CLI`, `robomasterCITCourse`, or the RoboMaster/Leap checkout; upstream library is `jasonacox/tinytuya` |
+| Module            | New `adapters/tuya-smart-plug`; external package `tinytuya==1.20.0`                                                                                                                   |
+| Purpose           | Exact local-LAN boolean outlet control and normalized verified state                                                                                                                  |
+| Language/runtime  | Python 3.11/3.13; authenticated Fabric WebSocket; Tuya LAN TCP                                                                                                                        |
+| Licence           | New CIT source is Apache-2.0; TinyTuya is MIT                                                                                                                                         |
+| Current tests     | Manifest/course parity, simulator idempotency, fake TinyTuya status/write verification, core electrical safety, UI state projection; physical HIL pending                             |
+| Dependencies      | TinyTuya 1.20.0 plus its locked dependencies; device ID/local key supplied only to the adapter process                                                                                |
+| Protocol          | Tuya LAN versions 3.1–3.5 at an exact private IPv4 address and configured boolean switch DPS                                                                                          |
+| Reusability       | No legacy module to wrap. Canonical `power.switch.*` contract and simulator are reusable; vendor protocol remains inside the adapter                                                  |
+| Required changes  | Run per-model Tuya/Gosund HIL and record firmware, DPS, disconnect, restore, latency, and safe-off behavior                                                                           |
+| Risk              | Gosund compatibility is model-specific; an on plug with unavailable Wi-Fi cannot receive a new off command                                                                            |
+| Decision          | LAN-only, exact boolean allowlist, DPAPI-protected profile, safe-off default; no scan, cloud command, or arbitrary DPS                                                                |
+| Evidence          | ADR-0011, `tests/adapters/test_tuya_smart_plug.py`, `tests/runtime/test_smart_plug_safety.py`, and the hardware runbook                                                               |
+
 ## Environment gaps and owner follow-up
 
 The following paths or runtime facts remain unresolved after local read-only discovery:
@@ -268,9 +286,11 @@ The following paths or runtime facts remain unresolved after local read-only dis
 3. No Ultraleap/Leap service, installed-program entry, or `LeapC.dll` was found in the standard Windows installation roots.
 4. The working DJI environment exists, but no local evidence links `robomasterCITCourse\.venv-robot` to the Leap gesture checkout.
 5. No owner-provided Linux clones or paths were found locally.
-6. Original-code licensing needs an owner decision for Agent CLI Mesh, RoboMaster gesture control, and RoboMaster classroom mission repositories before source extraction or redistribution.
+6. Original-code licensing still needs an owner decision before extraction or redistribution. The current RoboMaster integration is an external private/noncommercial process wrapper authorized by the owner.
 
-These gaps do not authorize an environment rebuild or hardware probe. Milestone 2 must begin with owner-confirmed paths and adapter contract fixtures.
+These gaps do not authorize an automatic native environment rebuild or physical
+movement. The adapter and contract fixtures now exist; the manual runbook is the
+only authorized path to the remaining HIL gate.
 
 ## Reuse guardrails
 
@@ -279,5 +299,5 @@ These gaps do not authorize an environment rebuild or hardware probe. Milestone 
 - Do not import Claude/Codex vendor adapters into the physical runtime.
 - Do not replay physical movement after reconnect, even if the transport supports replay.
 - Do not expose the alternate branch's wearable movement routes.
-- Keep the existing S1 and Leap repositories and environments read-only until Milestone 2 is approved.
+- Keep the existing S1 and Leap implementation external; update its integration branch only after refreshing the pinned characterization baseline.
 - Update this audit whenever a path, version, licence, or reuse decision changes.

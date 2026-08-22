@@ -1,6 +1,6 @@
 # Compatibility Matrix
 
-Status date: 2026-08-16
+Status date: 2026-08-21
 
 ## Foundation toolchain
 
@@ -14,19 +14,19 @@ Status date: 2026-08-16
 
 ## External reuse checkouts
 
-| Asset                             | Windows evidence                                            | Linux path | Revision/version                           | M0 status                                            |
-| --------------------------------- | ----------------------------------------------------------- | ---------- | ------------------------------------------ | ---------------------------------------------------- |
-| Agent CLI Mesh                    | `D:\dev\glasses2CLI`                                        | Unresolved | `79983dfadc378566168343e57814a046089c2047` | Audited read-only; owner-private-unlicensed          |
-| RoboMaster gesture/Leap reference | `D:\dev\robomaster-gesture-control-reference`               | Unresolved | `e5a94865451dc8a9a266bb9223f8ed090ac11681` | Audited read-only; expected built DLL/runtime absent |
-| RoboMaster classroom checkout     | `D:\dev\robomasterCITCourse`                                | Unresolved | `2f54bc7f2de6925b1e388632c45cb4dd7296d660` | Clean read-only checkout                             |
-| DJI Python environment            | `D:\dev\robomasterCITCourse\.venv-robot\Scripts\python.exe` | Unresolved | Python 3.8.10, `robomaster` 0.1.1.68       | Detected; not executed against hardware or modified  |
+| Asset                             | Windows evidence                                            | Linux path | Revision/version                           | M0 status                                                |
+| --------------------------------- | ----------------------------------------------------------- | ---------- | ------------------------------------------ | -------------------------------------------------------- |
+| Agent CLI Mesh                    | `D:\dev\glasses2CLI`                                        | Unresolved | `79983dfadc378566168343e57814a046089c2047` | Audited read-only; owner-private-unlicensed              |
+| RoboMaster gesture/Leap reference | `D:\dev\robomaster-gesture-control-reference`               | Unresolved | `3c213c110b0cdf2912985bfcde442d67092b98f0` | Wrapped on integration branch; native DLL/runtime absent |
+| RoboMaster classroom checkout     | `D:\dev\robomasterCITCourse`                                | Unresolved | `2f54bc7f2de6925b1e388632c45cb4dd7296d660` | Clean read-only checkout                                 |
+| DJI Python environment            | `D:\dev\robomasterCITCourse\.venv-robot\Scripts\python.exe` | Unresolved | Python 3.8.10, `robomaster` 0.1.1.68       | Detected; not executed against hardware or modified      |
 
 ## Hardware targets
 
 | Target                                 | Planned milestone                   | M0 evidence                                                                                                      |
 | -------------------------------------- | ----------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| RoboMaster S1                          | M2                                  | Fake contract only; no connection                                                                                |
-| Ultraleap/Leap Motion                  | M2                                  | Fake contract only; local runtime/service and bridge DLL unresolved                                              |
+| RoboMaster S1                          | M2                                  | Real upstream DryRunRobot/CommandPump process and Fabric flow pass; no physical connection                       |
+| Ultraleap/Leap Motion                  | M2                                  | Semantic adapter and launcher pass software tests; local runtime/service and bridge DLL unresolved               |
 | LEGO SPIKE / Robot Inventor            | M4                                  | Adapter, hub agent, and protocol built and tested against a simulated hub; no BLE, no hub, no firmware installed |
 | Quest 2 baseline / Quest 3 enhancement | M5                                  | Godot text scaffold only; no SDK, APK, or device test                                                            |
 | Even G2 / Meta glasses                 | M7 through existing Agent Mesh apps | Reuse audit and policy scaffold only                                                                             |

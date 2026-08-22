@@ -23,11 +23,18 @@ dependencies = [
   "websockets==17.0.1",
 ]
 
+[project.optional-dependencies]
+vision = [
+  "clip==1.0",
+  "ultralytics==8.4.126",
+]
+
 [tool.uv.sources]
 cit-device-simulator = { workspace = true }
 cit-lego-pybricks = { workspace = true }
 cit-protocol = { workspace = true }
 cit-safety-core = { workspace = true }
+clip = { git = "https://github.com/ultralytics/CLIP.git", rev = "68dce32140994dfcb645a1320c4ebdc034fc19fd" }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/cit_runtime"]
