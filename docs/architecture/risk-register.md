@@ -30,6 +30,9 @@ Status: active. Likelihood and impact use Low/Medium/High.
 | R-024 | A Tuya/Gosund model uses a different DPS/protocol or cannot reach off on loss | Medium     | Critical | Exact per-device profile, read-only probe, boolean DPS validation, state verification, approved nonessential loads, HIL checklist                               | Model/firmware-specific on/off/disconnect evidence                |
 | R-025 | Broad host discovery is mistaken for authenticated or controllable hardware   | Medium     | Critical | Separate candidate/node models, redacted report, fixed probe, no browser paths/credentials, adapter handshake required, no actuation during scan                | Discovery negative tests and manual no-packet inspection          |
 | R-026 | A convenient connect-all action arms or flies an aircraft                     | Low        | Critical | Closed action allowlist, instructor scope, grounded confirmation, Brain2Devices handshake-only endpoint, no flight capability in discovery API                  | Authorization/confirmation tests and grounded hardware checklist  |
+| R-027 | Camera discovery is mistaken for an active or recorded feed                   | Medium     | High     | Authenticated publisher registration, latest-frame in-memory plane, visible stale state, no persistence hook, explicit per-device HIL status                    | Restart/privacy tests and publisher-specific hardware evidence    |
+| R-028 | Object recognition directly actuates a physical device                        | Low        | Critical | On-demand bounded labels, display-only detections, explicit tutor action, normal command/safety pipeline, no automatic detector-to-command route                | UI/API tests and denial review                                    |
+| R-029 | Meta phone camera token or raw frame escapes its classroom scope              | Low        | High     | One-use pairing, publish-only site/room token, Android Keystore-backed storage, RFC1918-only origin, foreground-visible sharing, in-memory frames               | Pairing/restart tests and Android HIL                             |
 
 ## Open assumptions requiring owner or hardware evidence
 
@@ -39,4 +42,8 @@ Status: active. Likelihood and impact use Low/Medium/High.
   boundary and how each behaves when plug Wi-Fi is unavailable.
 - Exact G2 production plugin network and background-execution limits.
 - Exact Meta Ray-Ban features available through the deployed Android/vendor stack.
+- A GitHub Packages identity with `read:packages` is still required to compile
+  and hardware-test the optional Meta DAT 0.9.0 camera source.
+- RoboMaster and Tello have reusable camera implementations, but their Fabric
+  media publishers and physical multi-feed HIL remain open.
 - Classroom site/room identity provider strategy beyond first scoped local tokens.

@@ -4,7 +4,7 @@ This file covers the Milestone 0 development workspace. It is an inventory aid, 
 
 ## Licence families accepted by the automated gate
 
-The current resolved dependency graph contains software under `Apache-2.0`, `MIT`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, `MPL-2.0`, `PSF-2.0`, `Python-2.0`, and `BlueOak-1.0.0`. Dependency licence texts remain available in installed package distributions and their upstream source repositories.
+The default resolved dependency graph contains software under `Apache-2.0`, `MIT`, `BSD-2-Clause`, `BSD-3-Clause`, `ISC`, `MPL-2.0`, `PSF-2.0`, `Python-2.0`, and `BlueOak-1.0.0`. Dependency licence texts remain available in installed package distributions and their upstream source repositories.
 
 ## Direct JavaScript and TypeScript dependencies
 
@@ -37,6 +37,28 @@ The current resolved dependency graph contains software under `Apache-2.0`, `MIT
 | uvicorn and websockets    | Local runtime transport            | `BSD-3-Clause`         |
 | TinyTuya                  | Local Tuya-compatible LAN control  | `MIT`                  |
 | Requests                  | TinyTuya HTTP support (transitive) | `Apache-2.0`           |
+
+## Optional local vision runtime
+
+The root `vision` extra installs Ultralytics for tutor-requested YOLO-World
+inference. The resolved Ultralytics packages declare
+`AGPL-3.0-or-later` or `AGPL-3.0-only`; they are not relicensed as Apache 2.0
+and are loaded only when a tutor asks Classroom Control to recognize objects.
+Its upstream source and licence are available from
+<https://github.com/ultralytics/ultralytics>. Camera frames stay in the
+runtime's replace-only memory slot and are not added to the semantic recorder.
+Anyone distributing or offering a modified networked version must comply with
+the applicable AGPL source-availability terms. A separate Ultralytics
+enterprise licence may be required for deployments that do not use the AGPL
+terms.
+
+The locked inference stack also contains PyTorch, Torchvision, NumPy, Pillow,
+Matplotlib, tqdm, and their bundled components. Their installed metadata and
+licence files identify `Apache-2.0`, `BSD-2-Clause`, `BSD-3-Clause`, `MIT`,
+`MPL-2.0`, `PSF-2.0`, `0BSD`, `BSL-1.0`, `CC0-1.0`, `CNRI-Python`,
+`LLVM-exception`, `MIT-CMU`, and `Zlib`. These identifiers are allowlisted for
+the optional local vision graph; the distribution's own licence files remain
+authoritative.
 
 ## Optional hardware dependencies
 

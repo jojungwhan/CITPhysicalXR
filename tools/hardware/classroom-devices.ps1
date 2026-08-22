@@ -24,6 +24,7 @@ $discoveryScript = Join-Path $repositoryRoot "tools\hardware\find-classroom-devi
 
 function Start-ClassroomDevices([bool]$RestartSimulationHost) {
   $physicalEnabled = [bool]$AllowPhysical -or $RestartSimulationHost
+  $lanMediaEnabled = $physicalEnabled
   if ($RestartSimulationHost) {
     $health = $null
     try {
@@ -32,8 +33,14 @@ function Start-ClassroomDevices([bool]$RestartSimulationHost) {
       # No matching listener is the normal cold-start path. The fixed Fabric
       # launcher performs the authoritative credential/port validation below.
     }
-    if ($null -ne $health -and $health.physicalActuation -ne "enabled") {
-      Write-Host "Restarting the local simulation-only Fabric in disarmed physical-adapter mode."
+    $mediaIngressEnabled = $null -ne $health -and
+      $health.PSObject.Properties.Name -contains "mediaIngress" -and
+      $health.mediaIngress -eq "enabled"
+    if (
+      $null -ne $health -and
+      ($health.physicalActuation -ne "enabled" -or -not $mediaIngressEnabled)
+    ) {
+      Write-Host "Restarting the local Fabric with disarmed physical adapters and scoped phone-camera access."
       & $fabricLauncher -Mode Stop -FabricPort $FabricPort -StateRoot $StateRoot
     }
   }
@@ -45,6 +52,7 @@ function Start-ClassroomDevices([bool]$RestartSimulationHost) {
     NoOpenConsole = $true
   }
   if ($physicalEnabled) { $fabricParameters.AllowPhysical = $true }
+  if ($lanMediaEnabled) { $fabricParameters.AllowLanMedia = $true }
   & $fabricLauncher @fabricParameters
 
   $brainParameters = @{

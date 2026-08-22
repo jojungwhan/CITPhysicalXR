@@ -17,19 +17,25 @@ ALLOWED = set(
 CLASSIFIER_TO_SPDX = {
     "Apache Software License": "Apache-2.0",
     "BSD License": "BSD-3-Clause",
+    "GNU Affero General Public License v3 or later (AGPLv3+)": "AGPL-3.0-or-later",
     "ISC License (ISCL)": "ISC",
     "MIT License": "MIT",
     "Mozilla Public License 2.0 (MPL 2.0)": "MPL-2.0",
+    "Python Software Foundation License": "PSF-2.0",
 }
 LICENSE_TEXT_TO_SPDX = {
     "Apache Software License": "Apache-2.0",
     "Apache-2.0": "Apache-2.0",
+    "BSD": "BSD-3-Clause",
     "MIT": "MIT",
     "MIT License": "MIT",
     "MIT license": "MIT",
     "Modified BSD License": "BSD-3-Clause",
     "MPL 2.0": "MPL-2.0",
     "BSD-3-Clause": "BSD-3-Clause",
+}
+LICENSE_TEXT_EXPRESSIONS_TO_SPDX = {
+    "MPL-2.0 AND MIT": {"MIT", "MPL-2.0"},
 }
 
 
@@ -53,9 +59,13 @@ def detected_licences(metadata: importlib.metadata.PackageMetadata) -> set[str]:
 
     first_license_line = (metadata.get("License") or "").strip().splitlines()
     if first_license_line:
-        mapped = LICENSE_TEXT_TO_SPDX.get(first_license_line[0])
-        if mapped:
-            detected.add(mapped)
+        expression = LICENSE_TEXT_EXPRESSIONS_TO_SPDX.get(first_license_line[0])
+        if expression:
+            detected.update(expression)
+        else:
+            mapped = LICENSE_TEXT_TO_SPDX.get(first_license_line[0])
+            if mapped:
+                detected.add(mapped)
     return detected
 
 
@@ -91,10 +101,17 @@ for package in packages:
         errors.append(f"Malformed registry package entry: {package!r}")
         continue
     try:
-        metadata = importlib.metadata.metadata(name)
+        distribution = importlib.metadata.distribution(name)
     except importlib.metadata.PackageNotFoundError:
         skipped_conditionals += 1
         continue
+    if distribution.version != version:
+        # A lock may contain different versions for mutually exclusive Python
+        # or platform markers. importlib resolves only the installed version;
+        # never attribute its metadata to a different locked distribution.
+        skipped_conditionals += 1
+        continue
+    metadata = distribution.metadata
     licences = detected_licences(metadata)
     if not licences:
         errors.append(f"{name}=={version}: licence could not be normalized")

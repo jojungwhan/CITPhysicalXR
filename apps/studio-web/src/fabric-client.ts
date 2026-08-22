@@ -54,6 +54,65 @@ export interface FabricAuditRecord {
   details: Record<string, unknown>;
 }
 
+export type FabricMediaKind =
+  "meta_glasses" | "robomaster" | "tello" | "usb_camera" | "simulator";
+
+export interface FabricObjectDetection {
+  label: string;
+  confidence: number;
+  box: {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  };
+}
+
+export interface FabricVisionAnalysis {
+  sourceId: string;
+  frameSequence: number;
+  analyzedAt: string;
+  model: string;
+  labels: string[];
+  detections: FabricObjectDetection[];
+}
+
+export interface FabricMediaSource {
+  sourceId: string;
+  displayName: string;
+  kind: FabricMediaKind;
+  captureMode: "video" | "snapshot";
+  siteId: string;
+  roomId: string;
+  nodeId: string | null;
+  state: "online" | "waiting";
+  registeredAt: string;
+  lastFrameAt: string | null;
+  frameSequence: number;
+  width: number | null;
+  height: number | null;
+  contentType: string | null;
+  latestAnalysis: FabricVisionAnalysis | null;
+}
+
+export interface FabricMediaFrame {
+  unchanged: boolean;
+  blob?: Blob;
+  etag?: string;
+  sequence?: number;
+  capturedAt?: string;
+}
+
+export interface FabricMediaPairing {
+  pairingId: string;
+  pairingCode: string;
+  expiresAt: string;
+  fabricOrigin: string;
+  siteId: string;
+  roomId: string;
+  singleUse: true;
+}
+
 export type FabricDiscoveryStatus =
   | "not_scanned"
   | "connected"
@@ -327,6 +386,70 @@ export class FabricClient {
     return this.#request("/api/v1/fabric/audit?limit=50");
   }
 
+  listMediaSources(): Promise<FabricMediaSource[]> {
+    return this.#request("/api/v1/fabric/media/sources");
+  }
+
+  createMediaPairing(
+    siteId: string,
+    roomId: string,
+  ): Promise<FabricMediaPairing> {
+    return this.#request("/api/v1/fabric/media/pairings", {
+      method: "POST",
+      body: JSON.stringify({ siteId, roomId }),
+    });
+  }
+
+  analyzeMediaSource(sourceId: string): Promise<FabricVisionAnalysis> {
+    return this.#request(
+      `/api/v1/fabric/media/sources/${encodeURIComponent(sourceId)}/analyze`,
+      { method: "POST" },
+    );
+  }
+
+  async getMediaFrame(
+    sourceId: string,
+    etag?: string,
+  ): Promise<FabricMediaFrame> {
+    if (this.#credential === undefined) {
+      throw new Error("Enter a CIT Fabric credential before connecting.");
+    }
+    const response = await this.#fetch(
+      `${this.#baseUrl}/api/v1/fabric/media/sources/${encodeURIComponent(sourceId)}/frame`,
+      {
+        cache: "no-store",
+        credentials: "omit",
+        headers: {
+          Accept: "image/jpeg,image/png",
+          Authorization: `Bearer ${this.#credential}`,
+          ...(etag === undefined ? {} : { "If-None-Match": etag }),
+        },
+      },
+    );
+    if (response.status === 304) {
+      return {
+        unchanged: true,
+        ...(etag === undefined ? {} : { etag }),
+      };
+    }
+    if (!response.ok) {
+      return this.#readResponse<FabricMediaFrame>(response);
+    }
+    return {
+      unchanged: false,
+      blob: await response.blob(),
+      ...optionalString("etag", response.headers.get("etag")),
+      ...optionalNumber(
+        "sequence",
+        numericHeader(response.headers.get("x-cit-frame-sequence")),
+      ),
+      ...optionalString(
+        "capturedAt",
+        response.headers.get("x-cit-captured-at"),
+      ),
+    };
+  }
+
   async #request<ResponseBody>(
     path: string,
     init?: RequestInit,
@@ -368,3 +491,17 @@ export class FabricClient {
     return body as ResponseBody;
   }
 }
+
+const numericHeader = (value: string | null): number | undefined => {
+  if (value === null) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
+const optionalString = <Key extends string>(key: Key, value: string | null) =>
+  value === null ? {} : ({ [key]: value } as Record<Key, string>);
+
+const optionalNumber = <Key extends string>(
+  key: Key,
+  value: number | undefined,
+) => (value === undefined ? {} : ({ [key]: value } as Record<Key, number>));

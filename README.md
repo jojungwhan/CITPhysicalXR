@@ -92,6 +92,14 @@ without restarting any device. See
 `docs/operations/device-discovery.md` and
 `docs/operations/unified-fabric-console.md` for the complete workflow.
 
+The same page now includes an authenticated latest-frame camera wall, local
+on-demand YOLO object recognition, reviewed smart-plug actions, and normalized
+sensor cards. Meta snapshots use the optional existing Android companion;
+RoboMaster/Tello camera publishers and physical LEGO telemetry are still
+separate hardware gates. See
+`docs/operations/classroom-cameras-and-sensors.md` for the exact support matrix
+instead of assuming a discovered device already has a live feed.
+
 Source-checkout maintainers install the Desktop and Start menu shortcut once
 with `pnpm hardware:install-button:windows`. This is installation work, not a
 tutor startup step. Component-level PowerShell commands remain documented only

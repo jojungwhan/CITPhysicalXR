@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { isSmartPlugNode, latestSmartPlugState } from "./fabric-smart-plug.js";
+import {
+  isSmartPlugNode,
+  isSwitchableLoadVisionLabel,
+  latestSmartPlugState,
+} from "./fabric-smart-plug.js";
 
 describe("Fabric smart-plug presentation", () => {
   it("recognizes the canonical power switch without using a model allowlist", () => {
@@ -25,6 +29,14 @@ describe("Fabric smart-plug presentation", () => {
       source: "command",
     });
     expect(latestSmartPlugState(events, "missing")).toBeUndefined();
+  });
+
+  it("offers outlet actions only for explicitly switchable visual classes", () => {
+    expect(isSwitchableLoadVisionLabel("lamp")).toBe(true);
+    expect(isSwitchableLoadVisionLabel(" Light ")).toBe(true);
+    expect(isSwitchableLoadVisionLabel("smart plug")).toBe(true);
+    expect(isSwitchableLoadVisionLabel("drone")).toBe(false);
+    expect(isSwitchableLoadVisionLabel("robot")).toBe(false);
   });
 });
 

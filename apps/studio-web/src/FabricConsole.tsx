@@ -20,6 +20,8 @@ import {
   type FabricAuditRecord,
   type FabricDiscoveryReport,
   type FabricIntegrationDiscovery,
+  type FabricMediaPairing,
+  type FabricMediaSource,
   type FabricPrincipal,
   type StoredFabricEvent,
   type StoredFabricLifecycle,
@@ -33,9 +35,11 @@ import {
 import { countActiveFabricCommands } from "./fabric-lifecycle.js";
 import {
   isSmartPlugNode,
+  isSwitchableLoadVisionLabel,
   latestSmartPlugState,
   POWER_SET_CAPABILITY,
 } from "./fabric-smart-plug.js";
+import { latestSensorReadings } from "./fabric-sensors.js";
 import { tutorGuide } from "./fabric-tutor-guide.js";
 
 type BusyAction = string | null;
@@ -51,6 +55,10 @@ export function FabricConsole() {
   const [coursePacks, setCoursePacks] = useState<CoursePack[]>([]);
   const [sessions, setSessions] = useState<InteractionSession[]>([]);
   const [events, setEvents] = useState<StoredFabricEvent[]>([]);
+  const [mediaSources, setMediaSources] = useState<FabricMediaSource[]>([]);
+  const [mediaPairing, setMediaPairing] = useState<FabricMediaPairing | null>(
+    null,
+  );
   const [lifecycle, setLifecycle] = useState<StoredFabricLifecycle[]>([]);
   const [audit, setAudit] = useState<FabricAuditRecord[]>([]);
   const [selectedCourseKey, setSelectedCourseKey] = useState("");
@@ -94,6 +102,9 @@ export function FabricConsole() {
   const canManageSessions = hasPermission(principal, "fabric.sessions.manage");
   const canAssignRoles = hasPermission(principal, "fabric.roles.assign");
   const canSubmitCommands = hasPermission(principal, "fabric.commands.submit");
+  const canReadMedia = hasPermission(principal, "fabric.media.read");
+  const canPairMedia = hasPermission(principal, "fabric.media.manage");
+  const canAnalyzeVision = hasPermission(principal, "fabric.vision.analyze");
   const canConnectDevices = hasPermission(
     principal,
     "fabric.discovery.connect",
@@ -139,6 +150,13 @@ export function FabricConsole() {
     () => latestSmartPlugState(events, selectedSmartPlug?.nodeId),
     [events, selectedSmartPlug?.nodeId],
   );
+  const sensorReadings = useMemo(() => latestSensorReadings(events), [events]);
+  const canTurnSmartPlugOff =
+    canSubmitCommands && busy === null && smartPlugBinding !== undefined;
+  const canTurnSmartPlugOn =
+    canTurnSmartPlugOff &&
+    selectedSession?.state === "active" &&
+    (selectedSession.mode !== "physical" || selectedSession.armed === true);
   const requiredRoles = useMemo(
     () =>
       selectedCourse?.roles
@@ -168,17 +186,24 @@ export function FabricConsole() {
       if (principal === null || pollActive.current) return;
       pollActive.current = true;
       try {
-        const [nextNodes, nextDiscovery, nextCourses, nextSessions] =
-          await Promise.all([
-            client.listNodes(),
-            client.getDiscovery(),
-            client.listCoursePacks(),
-            client.listSessions(),
-          ]);
+        const [
+          nextNodes,
+          nextDiscovery,
+          nextCourses,
+          nextSessions,
+          nextMediaSources,
+        ] = await Promise.all([
+          client.listNodes(),
+          client.getDiscovery(),
+          client.listCoursePacks(),
+          client.listSessions(),
+          canReadMedia ? client.listMediaSources() : Promise.resolve([]),
+        ]);
         setNodes(nextNodes);
         setDiscovery(nextDiscovery);
         setCoursePacks(nextCourses);
         setSessions(nextSessions);
+        setMediaSources(nextMediaSources);
         setSelectedCourseKey(
           (current) =>
             current ||
@@ -227,7 +252,7 @@ export function FabricConsole() {
         pollActive.current = false;
       }
     },
-    [client, principal, selectedSessionId],
+    [canReadMedia, client, principal, selectedSessionId],
   );
 
   useLayoutEffect(() => {
@@ -331,6 +356,8 @@ export function FabricConsole() {
     setCoursePacks([]);
     setSessions([]);
     setEvents([]);
+    setMediaSources([]);
+    setMediaPairing(null);
     setLifecycle([]);
     setAudit([]);
     setGroundedConfirmations({});
@@ -519,6 +546,29 @@ export function FabricConsole() {
       );
     });
 
+  const startMetaCameraPairing = () =>
+    runAction("Preparing Meta camera pairing", async () => {
+      const pairing = await client.createMediaPairing(
+        siteId.trim(),
+        roomId.trim(),
+      );
+      setMediaPairing(pairing);
+      setNotice(
+        "Meta camera pairing is ready for five minutes. Enter the address and one-time code in the phone companion.",
+      );
+    });
+
+  const copyMediaPairingValue = (value: string, label: string) =>
+    runAction(`Copying ${label}`, async () => {
+      if (navigator.clipboard === undefined) {
+        throw new Error("Clipboard access is unavailable in this browser.");
+      }
+      await navigator.clipboard.writeText(value);
+      setNotice(
+        `${label} copied. Paste it into the CIT Meta Camera phone companion.`,
+      );
+    });
+
   const checkInput = () =>
     runAction("Testing input", async () => {
       if (selectedSession === undefined)
@@ -646,6 +696,24 @@ export function FabricConsole() {
           `Turning the classroom plug ${on ? "on" : "off"}`,
           terminal?.stage,
         ),
+      );
+    });
+
+  const analyzeMediaSource = (source: FabricMediaSource) =>
+    runAction(`Recognizing objects in ${source.displayName}`, async () => {
+      const analysis = await client.analyzeMediaSource(source.sourceId);
+      setMediaSources((current) =>
+        current.map((item) =>
+          item.sourceId === source.sourceId
+            ? { ...item, latestAnalysis: analysis }
+            : item,
+        ),
+      );
+      const labels = analysis.detections.map((item) => item.label);
+      setNotice(
+        labels.length === 0
+          ? `No configured objects were recognized in ${source.displayName}.`
+          : `Recognized ${labels.join(", ")} in ${source.displayName}. Review the boxes before choosing any device action.`,
       );
     });
 
@@ -1455,6 +1523,167 @@ export function FabricConsole() {
           </div>
         </section>
 
+        {canReadMedia && (
+          <section className="fabric-panel fabric-media-panel">
+            <PanelHeading
+              eyebrow="Classroom vision"
+              title="Live cameras and object recognition"
+            />
+            <p className="fabric-help">
+              Meta glasses, RoboMaster, Tello, and other approved local camera
+              publishers appear together here. Frames stay in memory, are not
+              added to lesson recordings, and are replaced by the next frame.
+            </p>
+            {canPairMedia && (
+              <div className="fabric-camera-pairing">
+                <div>
+                  <strong>Connect a Meta glasses camera</strong>
+                  <span>
+                    Keep the phone on the classroom Wi-Fi, then pair the CIT
+                    Meta Camera companion. Start live sharing on the phone;
+                    older glasses firmware can use the snapshot fallback.
+                  </span>
+                </div>
+                {mediaPairing === null ? (
+                  <button
+                    type="button"
+                    disabled={busy !== null}
+                    onClick={() => void startMetaCameraPairing()}
+                  >
+                    Create phone pairing
+                  </button>
+                ) : (
+                  <div className="fabric-camera-pairing-details">
+                    <ol>
+                      <li>Open CIT Meta Camera on the Android phone.</li>
+                      <li>
+                        Enter the classroom address and one-time code below.
+                      </li>
+                      <li>
+                        Tap Pair, approve Meta camera access, then tap Share
+                        live camera. Use snapshot fallback only if live frames
+                        fail.
+                      </li>
+                    </ol>
+                    <label>
+                      Classroom address
+                      <span>
+                        <input readOnly value={mediaPairing.fabricOrigin} />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void copyMediaPairingValue(
+                              mediaPairing.fabricOrigin,
+                              "Classroom address",
+                            )
+                          }
+                        >
+                          Copy
+                        </button>
+                      </span>
+                    </label>
+                    <label>
+                      One-time pairing code
+                      <span>
+                        <input readOnly value={mediaPairing.pairingCode} />
+                        <button
+                          type="button"
+                          onClick={() =>
+                            void copyMediaPairingValue(
+                              mediaPairing.pairingCode,
+                              "Pairing code",
+                            )
+                          }
+                        >
+                          Copy
+                        </button>
+                      </span>
+                    </label>
+                    <small>
+                      Expires {formatTime(mediaPairing.expiresAt)} and works
+                      once. The phone receives publish-only access for{" "}
+                      {mediaPairing.siteId}/{mediaPairing.roomId}; it cannot
+                      read cameras or control devices.
+                    </small>
+                    <button
+                      type="button"
+                      disabled={busy !== null}
+                      onClick={() => void startMetaCameraPairing()}
+                    >
+                      Replace with a new code
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {mediaSources.length === 0 ? (
+              <div className="fabric-empty fabric-media-empty">
+                <strong>No camera source is publishing yet.</strong>
+                <span>
+                  Start an approved camera bridge. Meta glasses require the CIT
+                  phone companion, camera permission, and visible camera-use
+                  indicator.
+                </span>
+              </div>
+            ) : (
+              <div className="fabric-media-grid">
+                {mediaSources.map((source) => (
+                  <MediaFeedCard
+                    key={source.sourceId}
+                    source={source}
+                    client={client}
+                    busy={busy !== null}
+                    canAnalyze={canAnalyzeVision}
+                    canTurnPlugOn={canTurnSmartPlugOn}
+                    canTurnPlugOff={canTurnSmartPlugOff}
+                    smartPlugName={selectedSmartPlug?.displayName}
+                    onAnalyze={() => void analyzeMediaSource(source)}
+                    onPower={(on) => void setSmartPlugPower(on)}
+                  />
+                ))}
+              </div>
+            )}
+            <p className="fabric-privacy-note">
+              Object recognition never operates a robot, drone, or plug by
+              itself. A tutor must review the detection and press an explicit
+              bounded control.
+            </p>
+          </section>
+        )}
+
+        <section className="fabric-panel fabric-sensor-panel">
+          <PanelHeading eyebrow="Live sensors" title="Classroom readings" />
+          <p className="fabric-help">
+            The latest normalized LEGO, robot, biosignal, and battery readings
+            appear automatically when an adapter publishes them.
+          </p>
+          {sensorReadings.length === 0 ? (
+            <div className="fabric-empty">
+              No sensor readings have arrived in the selected lesson yet.
+            </div>
+          ) : (
+            <div className="fabric-sensor-grid">
+              {sensorReadings.map((reading) => (
+                <article className="fabric-sensor-card" key={reading.key}>
+                  <header>
+                    <strong>{plainCapabilityName(reading.topic)}</strong>
+                    <span>{formatTime(reading.observedAt)}</span>
+                  </header>
+                  <div className="fabric-sensor-values">
+                    {reading.values.map((value) => (
+                      <div key={value.label}>
+                        <span>{value.label}</span>
+                        <strong>{value.value}</strong>
+                      </div>
+                    ))}
+                  </div>
+                  <small>{nodeDisplayName(nodes, reading.sourceNodeId)}</small>
+                </article>
+              ))}
+            </div>
+          )}
+        </section>
+
         {(smartPlugNodes.length > 0 ||
           selectedCourse?.roles.some(
             (requirement) => requirement.role === "classroom_plug",
@@ -1490,14 +1719,7 @@ export function FabricConsole() {
                 <button
                   className="fabric-power-on"
                   type="button"
-                  disabled={
-                    !canSubmitCommands ||
-                    busy !== null ||
-                    smartPlugBinding === undefined ||
-                    selectedSession?.state !== "active" ||
-                    (selectedSession.mode === "physical" &&
-                      selectedSession.armed !== true)
-                  }
+                  disabled={!canTurnSmartPlugOn}
                   onClick={() => void setSmartPlugPower(true)}
                 >
                   Turn on
@@ -1512,11 +1734,7 @@ export function FabricConsole() {
                 <button
                   className="fabric-power-off"
                   type="button"
-                  disabled={
-                    !canSubmitCommands ||
-                    busy !== null ||
-                    smartPlugBinding === undefined
-                  }
+                  disabled={!canTurnSmartPlugOff}
                   onClick={() => void setSmartPlugPower(false)}
                 >
                   Turn off
@@ -1816,6 +2034,208 @@ function FabricDiscoveryCard({
   );
 }
 
+function MediaFeedCard({
+  source,
+  client,
+  busy,
+  canAnalyze,
+  canTurnPlugOn,
+  canTurnPlugOff,
+  smartPlugName,
+  onAnalyze,
+  onPower,
+}: {
+  source: FabricMediaSource;
+  client: FabricClient;
+  busy: boolean;
+  canAnalyze: boolean;
+  canTurnPlugOn: boolean;
+  canTurnPlugOff: boolean;
+  smartPlugName: string | undefined;
+  onAnalyze: () => void;
+  onPower: (on: boolean) => void;
+}) {
+  const [frameUrl, setFrameUrl] = useState<string | null>(null);
+  const [visibleSequence, setVisibleSequence] = useState(0);
+  const [frameMessage, setFrameMessage] = useState("Waiting for first frame");
+  const etag = useRef<string | undefined>(undefined);
+  const frameUrlRef = useRef<string | null>(null);
+
+  useEffect(
+    () => () => {
+      if (frameUrlRef.current !== null) {
+        URL.revokeObjectURL(frameUrlRef.current);
+        frameUrlRef.current = null;
+      }
+    },
+    [],
+  );
+
+  useEffect(() => {
+    let active = true;
+    let timer: number | undefined;
+    const load = async () => {
+      try {
+        const frame = await client.getMediaFrame(source.sourceId, etag.current);
+        if (!active) return;
+        if (!frame.unchanged && frame.blob !== undefined) {
+          const nextUrl = URL.createObjectURL(frame.blob);
+          if (frameUrlRef.current !== null)
+            URL.revokeObjectURL(frameUrlRef.current);
+          frameUrlRef.current = nextUrl;
+          etag.current = frame.etag;
+          setFrameUrl(nextUrl);
+          setVisibleSequence(frame.sequence ?? 0);
+          setFrameMessage("");
+        }
+      } catch (caught) {
+        if (!active) return;
+        setFrameMessage(
+          caught instanceof FabricApiError && caught.status === 404
+            ? "Waiting for first frame"
+            : describeFabricError(caught),
+        );
+      } finally {
+        if (active) timer = window.setTimeout(() => void load(), 750);
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [client, source.sourceId]);
+
+  const analysis = source.latestAnalysis;
+  const overlayVisible =
+    analysis !== null &&
+    analysis.frameSequence === visibleSequence &&
+    source.width !== null &&
+    source.height !== null;
+  const switchableLoadDetected =
+    analysis?.detections.some((detection) =>
+      isSwitchableLoadVisionLabel(detection.label),
+    ) === true;
+  const droneDetected =
+    analysis?.detections.some(
+      (detection) => detection.label.trim().toLowerCase() === "drone",
+    ) === true;
+  return (
+    <article className="fabric-media-card">
+      <header>
+        <div>
+          <strong>{source.displayName}</strong>
+          <small>
+            {mediaKindName(source.kind)} ·{" "}
+            {mediaCaptureModeName(source.captureMode)}
+          </small>
+        </div>
+        <span className={`fabric-media-state is-${source.state}`}>
+          {source.state === "online" ? "Live" : "Waiting"}
+        </span>
+      </header>
+      <div className="fabric-media-frame">
+        {frameUrl === null ? (
+          <div className="fabric-media-placeholder">
+            <span aria-hidden="true">CAM</span>
+            <strong>{frameMessage}</strong>
+          </div>
+        ) : (
+          <img src={frameUrl} alt={`Latest view from ${source.displayName}`} />
+        )}
+        {overlayVisible &&
+          analysis !== null &&
+          analysis.detections.map((detection, index) => (
+            <span
+              className="fabric-detection-box"
+              key={`${detection.label}:${index}`}
+              style={{
+                left: `${(detection.box.x1 / (source.width ?? 1)) * 100}%`,
+                top: `${(detection.box.y1 / (source.height ?? 1)) * 100}%`,
+                width: `${((detection.box.x2 - detection.box.x1) / (source.width ?? 1)) * 100}%`,
+                height: `${((detection.box.y2 - detection.box.y1) / (source.height ?? 1)) * 100}%`,
+              }}
+            >
+              {detection.label} {Math.round(detection.confidence * 100)}%
+            </span>
+          ))}
+      </div>
+      <div className="fabric-media-meta">
+        <span>
+          {source.width === null
+            ? "No image dimensions yet"
+            : `${source.width} × ${source.height}`}
+        </span>
+        <span>
+          {source.lastFrameAt === null
+            ? "No frame received"
+            : `Updated ${formatTime(source.lastFrameAt)}`}
+        </span>
+      </div>
+      <button
+        className="fabric-analyze-button"
+        type="button"
+        disabled={!canAnalyze || busy || source.frameSequence === 0}
+        onClick={onAnalyze}
+      >
+        Recognize lamps, drones, and robots
+      </button>
+      {analysis !== null && (
+        <div className="fabric-detection-results" aria-live="polite">
+          <strong>
+            {analysis.detections.length === 0
+              ? "No configured object found"
+              : "Objects found"}
+          </strong>
+          {analysis.detections.length > 0 && (
+            <ul>
+              {analysis.detections.map((detection, index) => (
+                <li key={`${detection.label}:${index}`}>
+                  {detection.label}
+                  <span>{Math.round(detection.confidence * 100)}%</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {switchableLoadDetected ? (
+            <div className="fabric-detection-actions">
+              <small>
+                {smartPlugName === undefined
+                  ? "Assign a classroom plug session to control an approved lamp."
+                  : `Explicit tutor control for ${smartPlugName}`}
+              </small>
+              <div>
+                <button
+                  type="button"
+                  disabled={!canTurnPlugOn}
+                  onClick={() => onPower(true)}
+                >
+                  Turn linked plug on
+                </button>
+                <button
+                  type="button"
+                  disabled={!canTurnPlugOff}
+                  onClick={() => onPower(false)}
+                >
+                  Turn linked plug off
+                </button>
+              </div>
+            </div>
+          ) : analysis.detections.length > 0 ? (
+            <div className="fabric-detection-actions">
+              <small>
+                {droneDetected
+                  ? "Drone recognition is advisory. Use an assigned, armed flight lesson for bounded drone controls; vision cannot arm or fly it."
+                  : "No device action is mapped to this visual class. Use an assigned lesson control if one is available."}
+              </small>
+            </div>
+          ) : null}
+        </div>
+      )}
+    </article>
+  );
+}
+
 function FabricNodeCard({ node }: { node: IntegrationNode }) {
   const battery = metadataNumber(node, "batteryPercent");
   const agentType = metadataText(node, "agentType");
@@ -2013,6 +2433,31 @@ const metadataText = (
   const value = node.metadata[key];
   return typeof value === "string" ? value : undefined;
 };
+
+const mediaKindName = (kind: FabricMediaSource["kind"]) => {
+  const names: Record<FabricMediaSource["kind"], string> = {
+    meta_glasses: "Meta glasses",
+    robomaster: "RoboMaster",
+    tello: "Tello drone",
+    usb_camera: "USB camera",
+    simulator: "Simulated camera",
+  };
+  return names[kind];
+};
+
+const mediaCaptureModeName = (mode: FabricMediaSource["captureMode"]) =>
+  mode === "video" ? "Live frames" : "Snapshot fallback";
+
+const plainCapabilityName = (capability: string) =>
+  capability
+    .split(".")
+    .slice(1)
+    .join(" ")
+    .replaceAll("_", " ")
+    .replace(/^./, (first) => first.toUpperCase());
+
+const nodeDisplayName = (nodes: IntegrationNode[], nodeId: string) =>
+  nodes.find((node) => node.nodeId === nodeId)?.displayName ?? nodeId;
 
 const COURSE_SUMMARIES: Record<string, string> = {
   "glasses-agent-control": "Glasses + coding assistant",

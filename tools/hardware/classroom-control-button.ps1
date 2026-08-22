@@ -13,6 +13,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 $deviceLauncher = Join-Path $PSScriptRoot "classroom-devices.ps1"
+$metaCameraInstaller = Join-Path $PSScriptRoot "meta-camera-companion.ps1"
 if (-not $StateRoot) {
   $StateRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
 }
@@ -25,13 +26,27 @@ function Get-ClassroomHostState {
     if ($health.status -ne "ok") {
       throw "The local port belongs to another service."
     }
-    if ($health.physicalActuation -eq "enabled") {
+    $mediaIngressEnabled = $health.PSObject.Properties.Name -contains "mediaIngress" -and
+      $health.mediaIngress -eq "enabled"
+    if (
+      $health.physicalActuation -eq "enabled" -and
+      $mediaIngressEnabled
+    ) {
       return [ordered]@{
         state = "ready"
         heading = "Classroom devices are ready"
-        detail = "The local device host is running. Devices and lessons remain disarmed until you enable them in Classroom Control."
+        detail = "The local device host is running, including scoped phone-camera access. Devices and lessons remain disarmed until you enable them in Classroom Control."
         primaryAction = "Open"
         primaryLabel = "Open Classroom Control"
+      }
+    }
+    if ($health.physicalActuation -eq "enabled") {
+      return [ordered]@{
+        state = "camera_limited"
+        heading = "Phone cameras need a safe restart"
+        detail = "Choose Enable classroom devices to add scoped local-network camera access. Existing sessions will stop and every physical output will remain disarmed."
+        primaryAction = "Enable"
+        primaryLabel = "Enable phone cameras and devices"
       }
     }
     return [ordered]@{
@@ -72,8 +87,8 @@ Add-Type -AssemblyName System.Drawing
 $form = [Windows.Forms.Form]::new()
 $form.Text = "CIT Classroom Control"
 $form.StartPosition = "CenterScreen"
-$form.ClientSize = [Drawing.Size]::new(660, 430)
-$form.MinimumSize = [Drawing.Size]::new(676, 469)
+$form.ClientSize = [Drawing.Size]::new(660, 510)
+$form.MinimumSize = [Drawing.Size]::new(676, 549)
 $form.BackColor = [Drawing.Color]::FromArgb(15, 24, 18)
 $form.ForeColor = [Drawing.Color]::FromArgb(235, 244, 237)
 $form.Font = [Drawing.Font]::new("Segoe UI", 10)
@@ -130,16 +145,28 @@ $primaryButton.Font = [Drawing.Font]::new("Segoe UI Semibold", 12)
 $primaryButton.Cursor = [Windows.Forms.Cursors]::Hand
 $form.Controls.Add($primaryButton)
 
+$metaSetupButton = [Windows.Forms.Button]::new()
+$metaSetupButton.Text = "One-time setup: Meta glasses camera"
+$metaSetupButton.Location = [Drawing.Point]::new(42, 361)
+$metaSetupButton.Size = [Drawing.Size]::new(570, 44)
+$metaSetupButton.FlatStyle = "Flat"
+$metaSetupButton.ForeColor = [Drawing.Color]::FromArgb(185, 223, 255)
+$metaSetupButton.FlatAppearance.BorderColor = [Drawing.Color]::FromArgb(63, 91, 72)
+$metaSetupButton.Font = [Drawing.Font]::new("Segoe UI Semibold", 10)
+$metaSetupButton.Cursor = [Windows.Forms.Cursors]::Hand
+$metaSetupButton.Enabled = Test-Path -LiteralPath $metaCameraInstaller -PathType Leaf
+$form.Controls.Add($metaSetupButton)
+
 $safety = [Windows.Forms.Label]::new()
 $safety.Text = "Connection only: no robot movement, drone flight, plug switching, or agent session starts automatically."
-$safety.Location = [Drawing.Point]::new(42, 360)
-$safety.Size = [Drawing.Size]::new(455, 42)
+$safety.Location = [Drawing.Point]::new(42, 423)
+$safety.Size = [Drawing.Size]::new(455, 55)
 $safety.ForeColor = [Drawing.Color]::FromArgb(142, 159, 146)
 $form.Controls.Add($safety)
 
 $refreshButton = [Windows.Forms.Button]::new()
 $refreshButton.Text = "Check again"
-$refreshButton.Location = [Drawing.Point]::new(505, 365)
+$refreshButton.Location = [Drawing.Point]::new(505, 435)
 $refreshButton.Size = [Drawing.Size]::new(107, 31)
 $refreshButton.FlatStyle = "Flat"
 $refreshButton.ForeColor = [Drawing.Color]::FromArgb(185, 223, 255)
@@ -256,6 +283,44 @@ $primaryButton.Add_Click({
         $form,
         $_.Exception.Message,
         "CIT could not open Classroom Control",
+        [Windows.Forms.MessageBoxButtons]::OK,
+        [Windows.Forms.MessageBoxIcon]::Error
+      ) | Out-Null
+    }
+  })
+$metaSetupButton.Add_Click({
+    $choice = [Windows.Forms.MessageBox]::Show(
+      $form,
+      "This one-time technician setup installs the Meta-enabled CIT companion on an Android phone connected by USB. You will be asked for a GitHub package token; it is held only in that setup process. Continue?",
+      "Set up Meta glasses camera",
+      [Windows.Forms.MessageBoxButtons]::YesNo,
+      [Windows.Forms.MessageBoxIcon]::Information
+    )
+    if ($choice -ne [Windows.Forms.DialogResult]::Yes) { return }
+    try {
+      $startInfo = [Diagnostics.ProcessStartInfo]::new()
+      $startInfo.FileName = $pwshCommand.Source
+      $startInfo.WorkingDirectory = $repositoryRoot
+      $startInfo.UseShellExecute = $true
+      foreach ($argument in @(
+          "-NoProfile",
+          "-NoExit",
+          "-File",
+          $metaCameraInstaller,
+          "-Mode",
+          "Install",
+          "-DeveloperMode"
+        )) {
+        $startInfo.ArgumentList.Add($argument)
+      }
+      if ($null -eq [Diagnostics.Process]::Start($startInfo)) {
+        throw "The Meta camera setup window could not start."
+      }
+    } catch {
+      [Windows.Forms.MessageBox]::Show(
+        $form,
+        $_.Exception.Message,
+        "CIT could not start Meta camera setup",
         [Windows.Forms.MessageBoxButtons]::OK,
         [Windows.Forms.MessageBoxIcon]::Error
       ) | Out-Null

@@ -36,6 +36,12 @@ from .fabric_discovery import (
     PowerShellDiscoveryRunner,
     UnavailableDiscoveryRunner,
 )
+from .fabric_media import (
+    FabricMediaRegistry,
+    VisionDetector,
+    configured_vision_detector,
+)
+from .fabric_media_api import install_fabric_media_api
 from .fabric_repository import SQLiteFabricRepository
 
 
@@ -54,6 +60,9 @@ def create_fabric_app(
     studio_directory: str | Path | None = None,
     maintenance_interval: float | None = 5.0,
     discovery_service: FabricDiscoveryService | None = None,
+    media_registry: FabricMediaRegistry | None = None,
+    vision_detector: VisionDetector | None = None,
+    media_ingress_origin: str | None = None,
 ) -> FastAPI:
     """Create one independently authenticated Interaction Fabric process."""
 
@@ -71,6 +80,8 @@ def create_fabric_app(
         clock=wall_clock,
         physical_actuation_enabled=allow_physical_fabric,
     )
+    configured_media = media_registry or FabricMediaRegistry()
+    configured_detector = vision_detector or configured_vision_detector()
 
     repository: SQLiteFabricRepository | None = None
     fabric: InteractionFabric | None = None
@@ -239,7 +250,7 @@ def create_fabric_app(
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; base-uri 'none'; object-src 'none'; "
             "frame-ancestors 'none'; form-action 'self'; connect-src 'self'; "
-            "img-src 'self' data:; style-src 'self'; script-src 'self'"
+            "img-src 'self' data: blob:; style-src 'self'; script-src 'self'"
         )
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
@@ -262,12 +273,23 @@ def create_fabric_app(
         allowed_origins=configured_origins,
         stop_all=stop_all,
     )
+    install_fabric_media_api(
+        app,
+        registry=configured_media,
+        detector=configured_detector,
+        get_auth=active_auth,
+        get_repository=active_repository,
+        clock=wall_clock,
+        media_ingress_origin=media_ingress_origin,
+    )
 
     @app.get("/api/v1/fabric/healthz")
-    async def health() -> dict[str, str]:
+    async def health() -> dict[str, str | None]:
         return {
             "status": "ok",
             "physicalActuation": "enabled" if allow_physical_fabric else "disabled",
+            "mediaIngress": "enabled" if media_ingress_origin is not None else "disabled",
+            "mediaIngressOrigin": media_ingress_origin,
         }
 
     if configured_studio is not None:
@@ -346,6 +368,20 @@ def create_persistent_fabric_app() -> FastAPI:
     physical_setting = os.environ.get("CITXR_ALLOW_PHYSICAL_FABRIC", "false").casefold()
     if physical_setting not in {"true", "false"}:
         raise ValueError("CITXR_ALLOW_PHYSICAL_FABRIC must be 'true' or 'false'")
+    configured_media_ingress = os.environ.get("CITXR_MEDIA_INGRESS_ORIGIN")
+    if configured_media_ingress is not None:
+        parsed_media_ingress = urlsplit(configured_media_ingress)
+        if (
+            parsed_media_ingress.scheme not in {"http", "https"}
+            or parsed_media_ingress.hostname is None
+            or parsed_media_ingress.username is not None
+            or parsed_media_ingress.password is not None
+            or parsed_media_ingress.path not in {"", "/"}
+            or parsed_media_ingress.query
+            or parsed_media_ingress.fragment
+        ):
+            raise ValueError("CITXR_MEDIA_INGRESS_ORIGIN must be an exact HTTP(S) origin")
+        configured_media_ingress = configured_media_ingress.rstrip("/")
     repository_root = Path(__file__).resolve().parents[4]
     configured_discovery_root = os.environ.get("CITXR_DISCOVERY_STATE_ROOT")
     discovery_root = (
@@ -394,4 +430,5 @@ def create_persistent_fabric_app() -> FastAPI:
         allow_physical_fabric=physical_setting == "true",
         studio_directory=studio_directory,
         discovery_service=discovery,
+        media_ingress_origin=configured_media_ingress,
     )

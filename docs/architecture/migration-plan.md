@@ -1,18 +1,19 @@
 # Migration Plan
 
-Status: reconciled strangler plan as of 2026-08-21. Existing working paths remain available until their replacement slice passes end to end.
+Status: reconciled strangler plan as of 2026-08-22. Existing working paths remain available until their replacement slice passes end to end.
 
 ## Reconciliation checkpoint
 
-| Phase                   | State                                   | Evidence / remaining gate                                                                                                                |
-| ----------------------- | --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| A — inventory           | Complete                                | Required architecture documents and external integration scan retained                                                                   |
-| B — contracts           | Complete for the reference slice        | Generated Python/TypeScript Fabric and adapter contracts; legacy fixtures remain valid                                                   |
-| C — runtime/API         | Complete as a standalone service        | Scoped auth, SQLite, flow/lifecycle, adapter WebSocket, fail-closed physical default                                                     |
-| D — glasses/agents      | Software-complete in compatibility mode | Agent Mesh bridge and durable no-duplicate tests; owner G2/Meta hardware round trip pending                                              |
-| E — P0 console          | Complete for Fabric operations          | Same-origin five-stage `/fabric` route, launcher sign-in, safe host discovery, nodes/roles/sessions/safety/stop/lifecycle/audit          |
-| F — ground robot        | Software wrapper complete; HIL pending  | Pinned Leap/S1 workers, canonical flow, dual bounds, UI/launcher, and dry-run evidence; LEGO Fabric substitution and physical HIL remain |
-| G — remaining/hardening | Smart-plug software slice complete      | Tuya-LAN adapter/simulator/UI/launcher complete; all physical, network-loss, multi-host, privacy, and performance evidence remains       |
+| Phase                   | State                                    | Evidence / remaining gate                                                                                                                        |
+| ----------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A — inventory           | Complete                                 | Required architecture documents and external integration scan retained                                                                           |
+| B — contracts           | Complete for the reference slice         | Generated Python/TypeScript Fabric and adapter contracts; legacy fixtures remain valid                                                           |
+| C — runtime/API         | Complete as a standalone service         | Scoped auth, SQLite, flow/lifecycle, adapter WebSocket, fail-closed physical default                                                             |
+| D — glasses/agents      | Software-complete in compatibility mode  | Agent Mesh bridge and durable no-duplicate tests; owner G2/Meta hardware round trip pending                                                      |
+| E — P0 console          | Complete for Fabric operations           | Same-origin five-stage `/fabric` route, launcher sign-in, safe host discovery, nodes/roles/sessions/safety/stop/lifecycle/audit                  |
+| F — ground robot        | Software wrapper complete; HIL pending   | Pinned Leap/S1 workers, canonical flow, dual bounds, UI/launcher, and dry-run evidence; LEGO Fabric substitution and physical HIL remain         |
+| G — media/sensors       | UI and Meta live-frame software complete | Ephemeral authenticated wall, local reviewed YOLO, sensor cards, DAT 0.9.0/MockDeviceKit live video with snapshot fallback; physical HIL pending |
+| H — remaining/hardening | Smart-plug software slice complete       | Tuya-LAN adapter/simulator/UI/launcher complete; all physical, network-loss, multi-host, privacy, and performance evidence remains               |
 
 ## Phase A — Baseline and inventory
 
@@ -118,7 +119,30 @@ No upstream implementation source is copied into the core. The owner authorized
 the external private/noncommercial wrapper. Physical movement remains behind a
 separately enabled local Fabric, explicit arm/start, and the hardware checklist.
 
-## Phase G — Remaining integrations and hardening
+## Phase G — Camera and sensor presentation
+
+Implemented:
+
+- authenticated in-memory latest-frame sources, scoped one-use phone pairing,
+  camera wall, freshness state, ETag polling, and restart erasure;
+- optional Meta DAT Android live-frame source inside the existing glasses
+  companion, bounded to 2 FPS, with explicit phone permission/share controls,
+  a manual snapshot fallback, and no background capture;
+- fixed local YOLO-World model preparation, bounded labels, tutor-triggered
+  inference, overlays, and a separate reviewed smart-plug action restricted to
+  switchable-load labels;
+- normalized scalar sensor cards for LEGO, robot, biosignal, and telemetry
+  events.
+
+The optional APK compiles and builds against the official DAT 0.9.0 artifacts,
+and the official MockDeviceKit produces a frame accepted by the strict I420
+converter on an Android 16 emulator.
+Remaining gates are technician package credentials for repeatable installation and real glasses HIL,
+RoboMaster/Tello Fabric camera publishers, the physical LEGO event bridge, and
+multi-camera performance/privacy evidence. A contract-supported source kind is
+not physical-completion evidence.
+
+## Phase H — Remaining integrations and hardening
 
 - Complete canonical MindWave event and Tello command/telemetry adapters on top
   of the now-launched/discoverable Brain2Devices process boundary. The current

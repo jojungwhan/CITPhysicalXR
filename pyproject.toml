@@ -18,6 +18,7 @@ dependencies = [
 
 [project.optional-dependencies]
 smart-plug-lan = ["cit-tuya-smart-plug[lan]"]
+vision = ["cit-runtime[vision]"]
 
 [dependency-groups]
 dev = [

@@ -8,6 +8,8 @@ param(
   [int]$FabricPort = 8766,
   [string]$StateRoot = "",
   [switch]$AllowPhysical,
+  [switch]$AllowLanMedia,
+  [string]$LanAddress = "",
   [switch]$SkipBuild,
   [switch]$NoOpenConsole
 )
@@ -27,6 +29,48 @@ $runtimeDataRoot = Join-Path $StateRoot "runtime"
 $bootstrapSecretPath = Join-Path $secretRoot "fabric-bootstrap.dpapi"
 $fabricOrigin = "http://127.0.0.1:$FabricPort"
 $fabricProcessMarker = "cit_runtime.fabric_service:create_persistent_fabric_app"
+
+function Test-PrivateIPv4([string]$Address) {
+  $parsed = $null
+  if (-not [Net.IPAddress]::TryParse($Address, [ref]$parsed)) { return $false }
+  $bytes = $parsed.GetAddressBytes()
+  if ($bytes.Count -ne 4) { return $false }
+  return $bytes[0] -eq 10 -or
+    ($bytes[0] -eq 172 -and $bytes[1] -ge 16 -and $bytes[1] -le 31) -or
+    ($bytes[0] -eq 192 -and $bytes[1] -eq 168)
+}
+
+function Resolve-LanAddress {
+  if ($LanAddress) {
+    if (-not (Test-PrivateIPv4 $LanAddress)) {
+      throw "-LanAddress must be an RFC1918 IPv4 address assigned to this computer"
+    }
+    $assigned = Get-NetIPAddress -AddressFamily IPv4 -IPAddress $LanAddress -ErrorAction SilentlyContinue
+    if ($null -eq $assigned) { throw "$LanAddress is not assigned to this computer" }
+    return $LanAddress
+  }
+  $profiles = @(
+    Get-NetConnectionProfile -ErrorAction SilentlyContinue |
+      Where-Object { $_.IPv4Connectivity -in @("Internet", "LocalNetwork") } |
+      Sort-Object @{ Expression = { if ($_.IPv4Connectivity -eq "Internet") { 0 } else { 1 } } }
+  )
+  foreach ($profile in $profiles) {
+    $candidate = Get-NetIPAddress `
+      -AddressFamily IPv4 `
+      -InterfaceIndex $profile.InterfaceIndex `
+      -ErrorAction SilentlyContinue |
+      Where-Object { -not $_.SkipAsSource -and (Test-PrivateIPv4 $_.IPAddress) } |
+      Select-Object -First 1
+    if ($null -ne $candidate) { return [string]$candidate.IPAddress }
+  }
+  $fallback = Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
+    Where-Object { -not $_.SkipAsSource -and (Test-PrivateIPv4 $_.IPAddress) } |
+    Select-Object -First 1
+  if ($null -eq $fallback) {
+    throw "No private classroom-network IPv4 address is available for the phone camera bridge"
+  }
+  return [string]$fallback.IPAddress
+}
 
 function Assert-Path([string]$Path, [string]$Description) {
   if (-not (Test-Path -LiteralPath $Path)) {
@@ -184,11 +228,32 @@ function Show-Preflight {
   Write-Host $(if ($null -eq $listener) { "PASS Fabric port $FabricPort is available" } else { "INFO Fabric port $FabricPort is already in use by PID $listener" })
   Write-Host "PASS one console will accept input, output, bidirectional, simulator, and coding-agent nodes"
   Write-Host "Physical adapter dispatch: $(if ($AllowPhysical) { 'explicitly enabled; sessions remain disarmed by default' } else { 'disabled' })"
+  Write-Host "Phone camera ingress: $(if ($AllowLanMedia) { "enabled at http://$(Resolve-LanAddress):$FabricPort" } else { 'loopback only' })"
 }
 
 function Build-Systems {
   if ($SkipBuild) { return }
-  Invoke-External (Resolve-Executable "uv") @("sync", "--all-packages", "--frozen") $repositoryRoot
+  $uv = Resolve-Executable "uv"
+  try {
+    # The classroom button prepares the optional local YOLO runtime as part of
+    # the same guided startup. It never captures or analyzes a camera frame;
+    # inference remains an explicit tutor action in Classroom Control.
+    Invoke-External $uv @("sync", "--all-packages", "--frozen", "--extra", "vision") $repositoryRoot
+    Invoke-External `
+      (Join-Path $repositoryRoot ".venv\Scripts\python.exe") `
+      @(
+        (Join-Path $repositoryRoot "tools\hardware\prepare-local-vision.py"),
+        "--state-root", $StateRoot
+      ) `
+      $repositoryRoot
+  } catch {
+    # Camera display and every safety function remain useful without YOLO.
+    # The authenticated UI reports the same setup error if recognition is used.
+    Write-Warning "Local object recognition could not be prepared: $($_.Exception.Message)"
+    # Restore the deterministic default environment after an interrupted or
+    # rejected optional dependency install.
+    Invoke-External $uv @("sync", "--all-packages", "--frozen") $repositoryRoot
+  }
   Invoke-External (Resolve-Executable "pnpm.cmd") @("install", "--frozen-lockfile") $repositoryRoot
   Invoke-External (Resolve-Executable "pnpm.cmd") @("build") $repositoryRoot
 }
@@ -203,6 +268,10 @@ function Ensure-BootstrapCredential {
 }
 
 function Start-Fabric([hashtable]$State, [string]$Credential) {
+  $resolvedLanAddress = if ($AllowLanMedia) { Resolve-LanAddress } else { "" }
+  $mediaIngressOrigin = if ($resolvedLanAddress) {
+    "http://$resolvedLanAddress`:$FabricPort"
+  } else { "" }
   $listenerId = Get-ListeningProcessId $FabricPort
   if ($null -ne $listenerId) {
     try {
@@ -210,6 +279,12 @@ function Start-Fabric([hashtable]$State, [string]$Credential) {
       $health = Invoke-RestMethod -Uri "$fabricOrigin/api/v1/fabric/healthz" -TimeoutSec 5
       if ($AllowPhysical -and $health.physicalActuation -ne "enabled") {
         throw "physical actuation is disabled"
+      }
+      $mediaIngressEnabled =
+        $health.PSObject.Properties.Name -contains "mediaIngress" -and
+        $health.mediaIngress -eq "enabled"
+      if ($AllowLanMedia -and -not $mediaIngressEnabled) {
+        throw "local-network camera ingress is disabled; restart Classroom Control"
       }
     } catch {
       throw "Port $FabricPort does not host the matching shared Fabric: $($_.Exception.Message)"
@@ -223,29 +298,46 @@ function Start-Fabric([hashtable]$State, [string]$Credential) {
     $State.fabricPid = $listenerId
     $State.fabricOwned = [bool]$alreadyOwned
     $State.allowPhysical = ($health.physicalActuation -eq "enabled")
+    $State.mediaIngressOrigin = if (
+      $health.PSObject.Properties.Name -contains "mediaIngressOrigin"
+    ) { [string]$health.mediaIngressOrigin } else { "" }
     Save-State $State
     return
   }
 
   $runtimePython = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
   Assert-Path $runtimePython "CIT virtual-environment Python"
+  $allowedHosts = @("127.0.0.1", "localhost", $env:COMPUTERNAME, $resolvedLanAddress) |
+    Where-Object { $_ } |
+    Select-Object -Unique |
+    Join-String -Separator ","
+  $processEnvironment = @{
+    CITXR_DATA_DIRECTORY = $runtimeDataRoot
+    CITXR_PUBLIC_ORIGIN = $fabricOrigin
+    CITXR_ALLOWED_HOSTS = $allowedHosts
+    CITXR_FABRIC_BOOTSTRAP_TOKEN = $Credential
+    CITXR_ALLOW_PHYSICAL_FABRIC = if ($AllowPhysical) { "true" } else { "false" }
+    CITXR_DISCOVERY_STATE_ROOT = $StateRoot
+    CITXR_VISION_MODEL = (Join-Path $StateRoot "vision\yolov8s-worldv2.pt")
+    YOLO_AUTOINSTALL = "false"
+    YOLO_VERBOSE = "false"
+    ULTRALYTICS_SAFE_LOAD = "true"
+  }
+  if ($mediaIngressOrigin) {
+    $processEnvironment.CITXR_MEDIA_INGRESS_ORIGIN = $mediaIngressOrigin
+  }
   $process = Start-HiddenProcess `
     -Executable $runtimePython `
     -Arguments @(
       "-m", "uvicorn", "cit_runtime.fabric_service:create_persistent_fabric_app", "--factory",
-      "--host", "127.0.0.1", "--port", [string]$FabricPort
+      "--host", $(if ($AllowLanMedia) { "0.0.0.0" } else { "127.0.0.1" }),
+      "--port", [string]$FabricPort
     ) `
-    -Environment @{
-      CITXR_DATA_DIRECTORY = $runtimeDataRoot
-      CITXR_PUBLIC_ORIGIN = $fabricOrigin
-      CITXR_ALLOWED_HOSTS = "127.0.0.1,localhost"
-    CITXR_FABRIC_BOOTSTRAP_TOKEN = $Credential
-    CITXR_ALLOW_PHYSICAL_FABRIC = if ($AllowPhysical) { "true" } else { "false" }
-    CITXR_DISCOVERY_STATE_ROOT = $StateRoot
-  }
+    -Environment $processEnvironment
   $State.fabricLauncherPid = $process.Id
   $State.fabricOwned = $true
   $State.allowPhysical = [bool]$AllowPhysical
+  $State.mediaIngressOrigin = $mediaIngressOrigin
   Save-State $State
   Wait-Until {
     try {
@@ -280,6 +372,14 @@ function Show-Status([hashtable]$State, [string]$Credential) {
   }
   $health = Invoke-RestMethod -Uri "$fabricOrigin/api/v1/fabric/healthz" -TimeoutSec 5
   Write-Host "Physical actuation: $($health.physicalActuation)"
+  $mediaIngressEnabled =
+    $health.PSObject.Properties.Name -contains "mediaIngress" -and
+    $health.mediaIngress -eq "enabled"
+  $mediaIngressOrigin = if (
+    $mediaIngressEnabled -and
+    $health.PSObject.Properties.Name -contains "mediaIngressOrigin"
+  ) { [string]$health.mediaIngressOrigin } else { "" }
+  Write-Host "Phone camera ingress: $(if ($mediaIngressEnabled) { $mediaIngressOrigin } else { 'disabled — choose Start classroom devices in the desktop launcher' })"
   $registeredNodes = @(Expand-Sequence (Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/nodes" -Credential $Credential))
   $nodes = @(
     $registeredNodes |
@@ -383,6 +483,9 @@ $credential = Ensure-BootstrapCredential
 Start-Fabric $state $credential
 Show-Status $state $credential
 Write-Host "READY one Fabric UI is available at $fabricOrigin/fabric"
+if ($AllowLanMedia) {
+  Write-Host "READY scoped camera publishers can pair through $($state.mediaIngressOrigin)"
+}
 Write-Host "Attach integrations with -SharedFabricRoot `"$StateRoot`" -FabricPort $FabricPort"
 Write-Host "Reopen tutor controls with: pnpm hardware:fabric:windows -- -Mode Open -FabricPort $FabricPort -StateRoot `"$StateRoot`""
 if (-not $NoOpenConsole) { Open-TutorConsole $credential }

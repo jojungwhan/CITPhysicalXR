@@ -22,7 +22,7 @@ export const tutorGuide = (
   requiredRoles: readonly string[],
   discoveryScanned: boolean,
 ): TutorGuide => {
-  if (!discoveryScanned) {
+  if (!discoveryScanned && session === undefined) {
     return {
       stage: "find_devices",
       step: 1,

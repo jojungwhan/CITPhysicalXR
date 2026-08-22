@@ -985,6 +985,8 @@ main.fabric-main {
 }
 
 .fabric-test-panel,
+.fabric-media-panel,
+.fabric-sensor-panel,
 .fabric-smart-plug-panel,
 .fabric-audit-panel,
 .fabric-node-panel {
@@ -1061,6 +1063,281 @@ main.fabric-main {
 
 .fabric-power-off {
   border-color: rgb(117 199 255 / 40%) !important;
+}
+
+.fabric-camera-pairing {
+  display: grid;
+  margin-bottom: 14px;
+  padding: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 14px;
+  border: 1px solid rgb(117 199 255 / 24%);
+  border-radius: 12px;
+  background: rgb(117 199 255 / 5%);
+}
+
+.fabric-camera-pairing > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.fabric-camera-pairing > div:first-child span,
+.fabric-camera-pairing-details small {
+  color: #9daba2;
+  font-size: 0.82rem;
+}
+
+.fabric-camera-pairing-details {
+  display: grid;
+  min-width: min(100%, 430px);
+  gap: 10px;
+}
+
+.fabric-camera-pairing-details ol {
+  margin: 0;
+  padding-left: 20px;
+  color: #c8d3cb;
+  font-size: 0.82rem;
+}
+
+.fabric-camera-pairing-details label {
+  display: grid;
+  gap: 4px;
+  color: #b7c4ba;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.fabric-camera-pairing-details label > span {
+  display: flex;
+  gap: 7px;
+}
+
+.fabric-camera-pairing-details input {
+  min-width: 0;
+  flex: 1;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.78rem;
+}
+
+.fabric-camera-pairing-details label button {
+  flex: 0 0 auto;
+}
+
+.fabric-media-grid,
+.fabric-sensor-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 14px;
+}
+
+.fabric-media-empty {
+  display: grid;
+  gap: 4px;
+}
+
+.fabric-media-card,
+.fabric-sensor-card {
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 12px;
+  background: rgb(0 0 0 / 18%);
+}
+
+.fabric-media-card > header,
+.fabric-sensor-card > header {
+  display: flex;
+  padding: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fabric-media-card > header strong,
+.fabric-media-card > header small {
+  display: block;
+}
+
+.fabric-media-card > header small,
+.fabric-sensor-card > header span,
+.fabric-media-meta,
+.fabric-sensor-card > small {
+  color: #84938a;
+  font-size: 0.78rem;
+}
+
+@media (max-width: 760px) {
+  .fabric-camera-pairing {
+    grid-template-columns: 1fr;
+  }
+}
+
+.fabric-media-state {
+  padding: 4px 8px;
+  border-radius: 999px;
+  color: #c7d1ca;
+  background: #39433d;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.fabric-media-state.is-online {
+  color: #102013;
+  background: var(--fabric-green);
+}
+
+.fabric-media-frame {
+  position: relative;
+  display: grid;
+  aspect-ratio: 16 / 9;
+  place-items: center;
+  overflow: hidden;
+  background: #070a08;
+}
+
+.fabric-media-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.fabric-media-placeholder {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  color: #718078;
+  text-align: center;
+}
+
+.fabric-media-placeholder span {
+  display: grid;
+  width: 54px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 9px;
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+}
+
+.fabric-detection-box {
+  position: absolute;
+  min-width: 2px;
+  min-height: 2px;
+  border: 2px solid #9eea64;
+  color: #102013;
+  background: rgb(158 234 100 / 82%);
+  font-size: 0.68rem;
+  font-weight: 900;
+  line-height: 1.25;
+  pointer-events: none;
+}
+
+.fabric-media-meta {
+  display: flex;
+  padding: 8px 12px;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fabric-analyze-button {
+  width: calc(100% - 24px);
+  margin: 2px 12px 12px;
+  border-color: rgb(158 234 100 / 36%) !important;
+}
+
+.fabric-detection-results {
+  padding: 12px;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+  background: rgb(158 234 100 / 4%);
+}
+
+.fabric-detection-results ul {
+  display: flex;
+  margin: 8px 0 0;
+  padding: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+}
+
+.fabric-detection-results li {
+  display: flex;
+  padding: 5px 8px;
+  gap: 6px;
+  border-radius: 999px;
+  color: #dfe9e1;
+  background: rgb(255 255 255 / 8%);
+  font-size: 0.78rem;
+}
+
+.fabric-detection-results li span {
+  color: var(--fabric-green);
+}
+
+.fabric-detection-actions {
+  display: grid;
+  margin-top: 12px;
+  gap: 8px;
+}
+
+.fabric-detection-actions small {
+  color: #9daba2;
+}
+
+.fabric-detection-actions > div {
+  display: flex;
+  gap: 8px;
+}
+
+.fabric-detection-actions button {
+  flex: 1;
+  font-size: 0.76rem;
+}
+
+.fabric-privacy-note {
+  margin: 12px 0 0;
+  color: #9daba2;
+  font-size: 0.82rem;
+}
+
+.fabric-sensor-card {
+  padding-bottom: 10px;
+}
+
+.fabric-sensor-card > header {
+  border-bottom: 1px solid rgb(255 255 255 / 7%);
+}
+
+.fabric-sensor-values {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 8px;
+  padding: 12px;
+}
+
+.fabric-sensor-values > div {
+  display: grid;
+  gap: 2px;
+}
+
+.fabric-sensor-values span {
+  color: #84938a;
+  font-size: 0.72rem;
+}
+
+.fabric-sensor-values strong {
+  color: #edf5ef;
+  font-size: 1.2rem;
+}
+
+.fabric-sensor-card > small {
+  padding: 0 12px;
+  overflow-wrap: anywhere;
 }
 
 .fabric-io-groups {

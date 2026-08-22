@@ -16,3 +16,5 @@ ADRs are immutable decision snapshots. A superseding decision adds a new ADR and
 - [0012 — Launcher-assisted tutor access](0012-launcher-assisted-tutor-access.md)
 - [0013 — Safe host discovery and connection actions](0013-safe-host-discovery-and-connection-actions.md)
 - [0014 — Native Windows classroom start button](0014-native-windows-classroom-start-button.md)
+- [0015 — Ephemeral media and reviewed vision](0015-ephemeral-media-and-reviewed-vision.md)
+- [0016 — Bounded Meta live frames with snapshot fallback](0016-bounded-meta-live-frames.md)

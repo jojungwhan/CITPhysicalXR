@@ -31,6 +31,7 @@
     "hardware:button:windows": "pwsh -WindowStyle Hidden -NoProfile -STA -File tools/hardware/classroom-control-button.ps1",
     "hardware:brain:windows": "pwsh -NoProfile -File tools/hardware/brain2devices-hardware.ps1",
     "hardware:glasses:windows": "pwsh -NoProfile -File tools/hardware/glasses-agent-hardware-test.ps1",
+    "hardware:meta-camera:windows": "pwsh -NoProfile -File tools/hardware/meta-camera-companion.ps1",
     "hardware:robot:windows": "pwsh -NoProfile -File tools/hardware/robomaster-leap-hardware-test.ps1",
     "hardware:plug:windows": "pwsh -NoProfile -File tools/hardware/smart-plug-hardware-test.ps1"
   },

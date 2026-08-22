@@ -25,6 +25,11 @@ export const isSmartPlugNode = (node: SmartPlugNodeCapabilities): boolean =>
     (capability) => capability.name === POWER_SET_CAPABILITY,
   );
 
+const SWITCHABLE_LOAD_VISION_LABELS = new Set(["lamp", "light", "smart plug"]);
+
+export const isSwitchableLoadVisionLabel = (label: string): boolean =>
+  SWITCHABLE_LOAD_VISION_LABELS.has(label.trim().toLowerCase());
+
 export const latestSmartPlugState = (
   events: readonly SmartPlugStoredEvent[],
   nodeId: string | undefined,

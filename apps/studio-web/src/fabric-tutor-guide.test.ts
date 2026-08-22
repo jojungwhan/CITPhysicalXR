@@ -33,6 +33,19 @@ describe("tutor next-step guide", () => {
     });
     expect(tutorGuide(active, ["student_robot"], true).stage).toBe("teach");
   });
+
+  it("resumes an existing lesson at its real stage after a page reload", () => {
+    const active = session({
+      state: "active",
+      roleBindings: [binding("student_robot")],
+    });
+    expect(tutorGuide(active, ["student_robot"], false).stage).toBe("teach");
+
+    const draft = session({ state: "draft" });
+    expect(tutorGuide(draft, ["student_robot"], false).stage).toBe(
+      "connect_devices",
+    );
+  });
 });
 
 const binding = (role: string) => ({

@@ -24,12 +24,16 @@ FABRIC_PERMISSIONS = frozenset(
         "fabric.discovery.connect",
         "fabric.events.publish",
         "fabric.events.read",
+        "fabric.media.manage",
+        "fabric.media.publish",
+        "fabric.media.read",
         "fabric.nodes.read",
         "fabric.nodes.write",
         "fabric.roles.assign",
         "fabric.sessions.manage",
         "fabric.sessions.read",
         "fabric.stop_all",
+        "fabric.vision.analyze",
     }
 )
 INSTRUCTOR_PERMISSIONS = frozenset(
@@ -40,11 +44,14 @@ INSTRUCTOR_PERMISSIONS = frozenset(
         "fabric.course.read",
         "fabric.discovery.connect",
         "fabric.events.read",
+        "fabric.media.manage",
+        "fabric.media.read",
         "fabric.nodes.read",
         "fabric.roles.assign",
         "fabric.sessions.manage",
         "fabric.sessions.read",
         "fabric.stop_all",
+        "fabric.vision.analyze",
     }
 )
 OBSERVER_PERMISSIONS = frozenset(
@@ -60,6 +67,7 @@ ADAPTER_PERMISSIONS = frozenset(
     {
         "fabric.adapters.connect",
         "fabric.events.publish",
+        "fabric.media.publish",
         "fabric.nodes.write",
     }
 )

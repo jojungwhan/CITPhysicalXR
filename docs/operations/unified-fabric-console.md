@@ -60,6 +60,14 @@ steps:
    events, command lifecycle, identifiers, and audit records are collapsed
    under **Technical diagnostics**.
 
+Below the teaching controls, the same page contains a camera wall and live
+sensor cards. Authenticated Meta, robot, drone, simulator, and future camera
+publishers receive one latest-frame tile. Normalized LEGO, robot, biosignal,
+and battery events receive one latest-reading card. The UI support does not
+claim that every physical publisher is complete; see
+`classroom-cameras-and-sensors.md` for the exact hardware matrix and Meta phone
+setup.
+
 If automatic sign-in cannot complete, expand **Use an access code instead** on
 the welcome screen and use `-Mode CopyCredential` as a recovery-only path.
 Clear the clipboard immediately afterward. Tutors should normally use the
@@ -119,14 +127,13 @@ profile once from PowerShell. See `device-discovery.md`.
 
 ## Physical devices
 
-Simulation is the default. To run a physical motor adapter, stop the shared
-Fabric, restart it with physical dispatch explicitly enabled, and follow that
-adapter's hardware runbook:
+Simulation is the default. To run physical adapters, use the installed **CIT
+Classroom Control** Windows button and choose **Enable classroom devices**. The
+button safely restarts the shared Fabric with physical dispatch and scoped
+phone-camera access; tutors do not type an `-AllowPhysical` command.
 
-```powershell
-pnpm hardware:fabric:windows -- -Mode Stop
-pnpm hardware:fabric:windows -- -Mode Start -AllowPhysical
-```
+The equivalent commands remain available only for technicians diagnosing the
+launcher.
 
 `-AllowPhysical` only enables the policy path. Every physical session remains
 disarmed until its explicit arm transition, and the UI emergency stop remains

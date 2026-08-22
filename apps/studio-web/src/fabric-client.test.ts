@@ -75,6 +75,44 @@ describe("Fabric client credentials", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it("creates a bounded Meta camera pairing without accepting device credentials", async () => {
+    const pairing = {
+      pairingId: "media-pairing-a",
+      pairingCode: "pairing-code-abcdefghijkl",
+      expiresAt: "2026-08-22T03:05:00Z",
+      fabricOrigin: "http://192.168.10.20:8766",
+      siteId: "cit-site",
+      roomId: "room-a",
+      singleUse: true as const,
+    };
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(pairing), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+    const tutorToken = "cit-tutor-" + "m".repeat(40);
+    client.setCredential(tutorToken);
+
+    await expect(
+      client.createMediaPairing("cit-site", "room-a"),
+    ).resolves.toEqual(pairing);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(
+      "https://runtime.example.test/api/v1/fabric/media/pairings",
+    );
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      siteId: "cit-site",
+      roomId: "room-a",
+    });
+    expect(new Headers(init?.headers).get("Authorization")).toBe(
+      `Bearer ${tutorToken}`,
+    );
+  });
+
   it("redeems a launcher ticket once without sending it as a bearer credential", async () => {
     const accessToken = "cit-tutor-" + "c".repeat(40);
     const fetchMock = vi
