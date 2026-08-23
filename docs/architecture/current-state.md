@@ -50,7 +50,7 @@ Shared CIT Interaction Fabric (one FastAPI process + SQLite + UI)
 ```
 
 The Windows shared launcher owns this single Fabric process. Glasses/agent,
-Leap, RoboMaster, Tello, MindWave, LEGO, and Matter launchers attach with
+Leap, RoboMaster, Tello, MindWave, LEGO, Dash/Dot, and Matter launchers attach with
 dedicated scoped adapter identities while
 retaining ownership only of their own adapter processes and sessions. The
 launcher opens the tutor UI through a one-use
@@ -144,6 +144,12 @@ cross-repository cutover.
   actions attach input-only nodes to the existing monitoring session.
 - Quest: upstream contains authoring/runtime placeholders and simulators, not a
   production headset application.
+- Dash and Dot: an independent optional-Bleak adapter performs read-only exact
+  candidate discovery and registers one node/process/credential per selected
+  robot. Both models publish sanitized semantic sensors and consume RGB/fixed
+  sound commands; only Dash advertises bounded drive and head capabilities.
+  The software simulator, API, UI, idempotency, and deadman tests pass; physical
+  Bluetooth/firmware HIL remains open.
 
 The media UI accepts explicit RoboMaster and Tello publishers. Tello now has an
 authenticated Brain2Devices MJPEG-to-latest-frame bridge and a simulated camera

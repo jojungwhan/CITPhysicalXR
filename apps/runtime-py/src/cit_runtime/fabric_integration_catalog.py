@@ -48,6 +48,7 @@ class IntegrationDescriptor(BaseModel):
         "robot",
         "sphero",
         "terminal",
+        "wonder",
     ]
     connectionMethod: str = Field(min_length=1, max_length=160)
     setupSteps: list[str] = Field(min_length=1, max_length=8)

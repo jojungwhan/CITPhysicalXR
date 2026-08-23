@@ -25,3 +25,4 @@ ADRs are immutable decision snapshots. A superseding decision adds a new ADR and
 - [0021 — Instructor-armed multi-input Tello fleet sequence](0021-instructor-armed-multi-input-tello-fleet.md)
 - [0022 — Separate wearable profiles and Matter-only plug support](0022-separate-wearables-and-retire-legacy-plugs.md)
 - [0023 — Capability-derived I/O direction and safe parallel fan-out](0023-io-direction-and-safe-parallel-fanout.md)
+- [0024 — Independent exact-selection Dash and Dot BLE boundary](0024-wonder-workshop-dash-dot-boundary.md)

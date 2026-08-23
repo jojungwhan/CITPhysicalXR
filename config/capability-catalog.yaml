@@ -198,3 +198,36 @@ capabilities:
     latencyClass: ui_feedback
     safetyClassification: informational
     dataClassification: operational
+  robot_light_set:
+    name: robot.light.set
+    version: "1.0"
+    maximumRateHz: 4
+    latencyClass: interactive
+    safetyClassification: informational
+    dataClassification: operational
+    constraints:
+      arguments:
+        red: { minimum: 0, maximum: 255 }
+        green: { minimum: 0, maximum: 255 }
+        blue: { minimum: 0, maximum: 255 }
+  robot_sound_cue:
+    name: media.audio.cue.play
+    version: "1.0"
+    maximumRateHz: 1
+    latencyClass: interactive
+    safetyClassification: bounded_physical
+    dataClassification: operational
+    constraints:
+      arguments:
+        cueIndex: { minimum: 0, maximum: 2 }
+  robot_head_pose:
+    name: robot.head.set_pose
+    version: "1.0"
+    maximumRateHz: 4
+    latencyClass: interactive
+    safetyClassification: bounded_physical
+    dataClassification: operational
+    constraints:
+      arguments:
+        panDegrees: { minimum: -53, maximum: 53 }
+        tiltDegrees: { minimum: -5, maximum: 10 }

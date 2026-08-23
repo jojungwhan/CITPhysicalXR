@@ -3,7 +3,8 @@
 This repository contains the completed **Milestone 6 classroom foundation**, the
 Milestone 4 LEGO adapter, an additive Interaction Fabric compatibility slice,
 independent RoboMaster/Leap, Tello, MindWave, and LEGO Fabric adapters,
-and a cloud-independent Matter smart-plug path. On top of the
+an independent Wonder Workshop Dash/Dot Bluetooth adapter, and a
+cloud-independent Matter smart-plug path. On top of the
 Milestone 0 foundation it provides the local runtime,
 authoring environment, instructor/student isolation, projects, simulation,
 record/replay, safety controls, and a loopback-first HTTP/WebSocket API.
@@ -128,7 +129,7 @@ pwsh -NoProfile -STA -File .\tools\hardware\install-business-site.ps1 `
 ```
 
 The installer adds the local Matter controller, exact-pinned Brain2Devices,
-the LEGO Bluetooth transport, asks once for classroom Wi-Fi, and creates the
+the LEGO and Dash/Dot Bluetooth transports, asks once for classroom Wi-Fi, and creates the
 same tutor button. See
 `docs/operations/matter-smart-plug-windows.md`.
 Brain2Devices is cloned into CIT's per-user application-data directory and that
@@ -137,7 +138,8 @@ not repoint tutors at a developer checkout.
 
 The device scan reuses Brain2Devices' Windows multi-radio Tello scanner, checks
 MindWave/TGC, Ultraleap USB/service state, incoming RoboMaster STA broadcasts,
-Windows-visible Sphero BOLT `SB-XXXX` devices, Agent Mesh, coding-agent
+Windows-visible Sphero BOLT `SB-XXXX` devices, exact Dash/Dot BLE advertisements,
+Agent Mesh, coding-agent
 executables, commissioned Matter plug endpoints, and paired LEGO candidates. It sends no actuator, flight, power, agent, media,
 or SDK command. Instructor-only Tello and MindWave connection buttons use a
 closed Brain2Devices allowlist and then register separate canonical Fabric
@@ -211,6 +213,20 @@ joins only the shared unarmed monitoring session; it advertises ground mobility
 only when at least two ports are motors. No motor command is issued during
 setup.
 
+## Wonder Workshop Dash and Dot in the same UI
+
+Switch on the robots, close any Wonder/Blockly app that is connected to them,
+then choose **Find devices**. The Dash and Dot card lists exact visible names
+and signal levels. Select up to four robots and choose **Connect selected
+robots**; no shell command, vendor account, or cloud service is required.
+
+The shared monitoring lesson starts with controls locked. Dot shows lights,
+three fixed sound cues, and sensors. Dash additionally shows short movement
+nudges, an always-visible stop, and bounded head controls. Physical sound,
+movement, and head motion require the tutor to enable physical controls; every
+Dash movement expires at the adapter after 350 ms. See
+`docs/operations/wonder-workshop-dash-dot.md` for real-hardware checks.
+
 ## RoboMaster S1 and Leap Motion
 
 The latest owner-selected
@@ -267,6 +283,7 @@ Platform paths are stored separately and never translated between Windows and Li
 - `adapters/mindwave-mobile2`: publish-only, vendor-labelled Brain2Devices MindWave adapter
 - `apps/matter-controller`: pinned loopback-only Open Home Foundation Matter controller
 - `adapters/matter-smart-plug`: cloud-independent Matter `0x010A` plug adapter and safe-off boundary
+- `adapters/wonder-workshop`: exact-selection Dash/Dot BLE adapter, simulator, sensors, and model-specific bounded controls
 - `firmware/lego-hub-agent`: the Pybricks program that runs on a hub
 - `packages/test-harness`: reusable adapter shape assertion
 - `apps/runtime-py`: the local runtime -- sessions, device registry, safety supervisor, command pipeline, event router, record/replay, audit, and the loopback API

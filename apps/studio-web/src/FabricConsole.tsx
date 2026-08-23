@@ -23,6 +23,7 @@ import {
   type FabricMediaPairing,
   type FabricMediaSource,
   type LegoConnectionConfiguration,
+  type WonderRobotSelection,
   type FabricPrincipal,
   type FabricSessionStartPolicy,
   type StoredFabricEvent,
@@ -92,6 +93,9 @@ import { FabricDronePanel } from "./FabricDronePanel.js";
 import { FabricFleetSequencePanel } from "./FabricFleetSequencePanel.js";
 import { FabricLegoSetup } from "./FabricLegoSetup.js";
 import { FabricMatterSetup } from "./FabricMatterSetup.js";
+import { FabricWonderWorkshopPanel } from "./FabricWonderWorkshopPanel.js";
+import { FabricWonderWorkshopSetup } from "./FabricWonderWorkshopSetup.js";
+import { isWonderNode } from "./fabric-wonder-workshop.js";
 
 type BusyAction = {
   key: FabricMessageKey;
@@ -226,6 +230,17 @@ export function FabricConsole() {
           (item): item is { role: string; node: IntegrationNode } =>
             item.node !== undefined,
         ),
+    [availableNodes, selectedSession?.roleBindings],
+  );
+  const assignedWonderRobots = useMemo(
+    () =>
+      (selectedSession?.roleBindings ?? []).flatMap((binding) => {
+        const node = availableNodes.find(
+          (candidate) =>
+            candidate.nodeId === binding.nodeId && isWonderNode(candidate),
+        );
+        return node === undefined ? [] : [{ role: binding.role, node }];
+      }),
     [availableNodes, selectedSession?.roleBindings],
   );
   const brainDemoBinding = selectedSession?.roleBindings.find(
@@ -681,6 +696,35 @@ export function FabricConsole() {
       setNotice(t("notice.legoConnected"));
     });
 
+  const connectWonderWorkshop = (robots: WonderRobotSelection[]) =>
+    runAction("busy.connectingWonder", async () => {
+      const result = await client.connectWonderWorkshop(robots);
+      setDiscovery(result.report);
+      const [nextNodes, nextSessions] = await Promise.all([
+        client.listNodes(),
+        client.listSessions(),
+      ]);
+      setNodes(nextNodes);
+      setSessions(nextSessions);
+      const connectedIds = new Set(
+        result.report.integrations.find(
+          (integration) =>
+            integration.integrationId === "wonder-workshop-dash-dot",
+        )?.connectedNodeIds ?? [],
+      );
+      const monitoringSession = [...nextSessions]
+        .reverse()
+        .find((session) =>
+          session.roleBindings.some((binding) =>
+            connectedIds.has(binding.nodeId),
+          ),
+        );
+      if (monitoringSession !== undefined) {
+        setSelectedSessionId(monitoringSession.sessionId);
+      }
+      setNotice(t("notice.wonderConnected", { count: robots.length }));
+    });
+
   const connectAllDiscovered = () =>
     runAction("busy.connectingAll", async () => {
       if (connectableIntegrations.length === 0) {
@@ -937,6 +981,38 @@ export function FabricConsole() {
         );
       },
     );
+
+  const sendWonderCommand = (
+    role: string,
+    action: string,
+    parameters: Record<string, number>,
+    label: string,
+  ) =>
+    runAction("busy.wonderCommand", async () => {
+      if (selectedSession === undefined)
+        throw new Error(t("error.monitoringSession"));
+      if (
+        !selectedSession.roleBindings.some((binding) => binding.role === role)
+      )
+        throw new Error(t("error.wonderUnassigned"));
+      const correlationId = crypto.randomUUID();
+      const result = await client.submitCommand({
+        messageId: crypto.randomUUID(),
+        schemaVersion: "1.0",
+        messageType: "command.requested",
+        action,
+        target: { role },
+        sessionId: selectedSession.sessionId,
+        parameters,
+        priority: "instructor_override",
+        idempotencyKey: `console-wonder:${role}:${action}:${correlationId}`,
+        requestedAt: new Date().toISOString(),
+        ttlMs: action === "mobility.ground.stop" ? 1_000 : 2_000,
+        safetyProfile: selectedSession.safetyProfile,
+        correlationId,
+      });
+      setNotice(commandResultNotice(label, result.lifecycle.at(-1)?.stage, t));
+    });
 
   const armBrainDemo = (settings: BrainDemoSettings) =>
     runAction("busy.brainArm", async () => {
@@ -1479,6 +1555,9 @@ export function FabricConsole() {
                         onMatterCommission={commissionMatterPlug}
                         onLegoConnect={(configuration) =>
                           void connectLegoHub(configuration)
+                        }
+                        onWonderConnect={(robots) =>
+                          void connectWonderWorkshop(robots)
                         }
                       />
                     ))}
@@ -2169,6 +2248,20 @@ export function FabricConsole() {
           t={t}
         />
 
+        {selectedSession !== undefined && (
+          <FabricWonderWorkshopPanel
+            robots={assignedWonderRobots}
+            sessionState={selectedSession.state}
+            sessionArmed={selectedSession.armed === true}
+            busy={busy !== null}
+            canSubmit={canSubmitCommands}
+            onCommand={(role, action, parameters, label) =>
+              void sendWonderCommand(role, action, parameters, label)
+            }
+            t={t}
+          />
+        )}
+
         {(smartPlugNodes.length > 0 ||
           selectedCourse?.roles.some(
             (requirement) => requirement.role === "classroom_plug",
@@ -2518,6 +2611,7 @@ function FabricDiscoveryCard({
   onCopySetup,
   onMatterCommission,
   onLegoConnect,
+  onWonderConnect,
 }: {
   integration: FabricIntegrationDiscovery;
   t: FabricTranslate;
@@ -2529,6 +2623,7 @@ function FabricDiscoveryCard({
   onCopySetup: () => void;
   onMatterCommission: (setupCode: string) => Promise<boolean>;
   onLegoConnect: (configuration: LegoConnectionConfiguration) => void;
+  onWonderConnect: (robots: WonderRobotSelection[]) => void;
 }) {
   const status = discoveryStatus(integration.status, t);
   const connected = integration.status === "connected";
@@ -2575,36 +2670,48 @@ function FabricDiscoveryCard({
         />
       )}
 
-      {integration.candidates.length > 0 && (
-        <ul className="fabric-candidate-list">
-          {integration.candidates.map((candidate, index) => (
-            <li key={`${candidate.candidateId}:${index}`}>
-              <span
-                className={`status-dot ${candidate.status === "found" ? "status-ok" : "status-muted"}`}
-              />
-              <div>
-                <div className="fabric-candidate-title">
-                  <strong>{candidate.displayName}</strong>
-                  {discoveryLinkLabel(candidate, t) !== undefined && (
-                    <span
-                      className={`fabric-link-state is-${candidate.linkState?.replaceAll("_", "-")}`}
-                    >
-                      {discoveryLinkLabel(candidate, t)}
-                    </span>
-                  )}
+      {integration.integrationId === "wonder-workshop-dash-dot" &&
+        !connected && (
+          <FabricWonderWorkshopSetup
+            candidates={integration.candidates}
+            busy={busy?.key === "busy.connectingWonder"}
+            canConnect={canConnect}
+            onConnect={onWonderConnect}
+            t={t}
+          />
+        )}
+
+      {integration.candidates.length > 0 &&
+        integration.integrationId !== "wonder-workshop-dash-dot" && (
+          <ul className="fabric-candidate-list">
+            {integration.candidates.map((candidate, index) => (
+              <li key={`${candidate.candidateId}:${index}`}>
+                <span
+                  className={`status-dot ${candidate.status === "found" ? "status-ok" : "status-muted"}`}
+                />
+                <div>
+                  <div className="fabric-candidate-title">
+                    <strong>{candidate.displayName}</strong>
+                    {discoveryLinkLabel(candidate, t) !== undefined && (
+                      <span
+                        className={`fabric-link-state is-${candidate.linkState?.replaceAll("_", "-")}`}
+                      >
+                        {discoveryLinkLabel(candidate, t)}
+                      </span>
+                    )}
+                  </div>
+                  <small>
+                    {candidate.transport}
+                    {candidate.signalPercent === undefined
+                      ? ""
+                      : ` · ${t("discovery.signal", { percent: candidate.signalPercent })}`}
+                  </small>
+                  <p>{candidate.detail}</p>
                 </div>
-                <small>
-                  {candidate.transport}
-                  {candidate.signalPercent === undefined
-                    ? ""
-                    : ` · ${t("discovery.signal", { percent: candidate.signalPercent })}`}
-                </small>
-                <p>{candidate.detail}</p>
-              </div>
-            </li>
-          ))}
-        </ul>
-      )}
+              </li>
+            ))}
+          </ul>
+        )}
 
       {integration.requiresGroundedConfirmation &&
         integration.actionId !== undefined &&
@@ -3060,6 +3167,7 @@ const DISCOVERY_ICONS: Record<string, string> = {
   plug: "PL",
   lego: "LE",
   sphero: "SB",
+  wonder: "DD",
 };
 
 const discoveryStatus = (

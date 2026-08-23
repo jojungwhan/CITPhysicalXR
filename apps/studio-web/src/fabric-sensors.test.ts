@@ -4,6 +4,21 @@ import type { StoredFabricEvent } from "./fabric-client.js";
 import { latestSensorReadings } from "./fabric-sensors.js";
 
 describe("Fabric sensor presentation", () => {
+  it("includes canonical robot sensor events", () => {
+    const readings = latestSensorReadings([
+      event(1, "wonder-dash-a", "robot.sensor.state", {
+        values: { proximityLeft: 42, pickedUp: false },
+      }),
+    ]);
+
+    expect(readings).toHaveLength(1);
+    expect(readings[0]?.sourceNodeId).toBe("wonder-dash-a");
+    expect(readings[0]?.values).toEqual([
+      { label: "Proximity Left", value: "42" },
+      { label: "Picked Up", value: "Off" },
+    ]);
+  });
+
   it("keeps the latest value for every source and semantic sensor", () => {
     const readings = latestSensorReadings([
       event(1, "lego-a", "sensor.distance", { value: 320, unit: "mm" }),

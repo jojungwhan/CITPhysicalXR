@@ -44,6 +44,7 @@ from .fabric_discovery import (
     FabricDiscoveryReport,
     FabricDiscoveryService,
     LegoConnectionConfiguration,
+    WonderWorkshopConnectionConfiguration,
 )
 from .fabric_persistence import FABRIC_PAGE_LIMIT, FabricIdentityRecord
 from .fabric_repository import SQLiteFabricRepository
@@ -462,7 +463,7 @@ def install_fabric_api(
             result = await get_discovery().perform(
                 action_id,
                 confirm_grounded=request.confirmGrounded,
-                nodes=visible_nodes(principal),
+                nodes=lambda: visible_nodes(principal),
             )
         except FabricDiscoveryError as error:
             _audit(
@@ -489,6 +490,51 @@ def install_fabric_api(
         return result
 
     @app.post(
+        "/api/v1/fabric/wonder-workshop/connect",
+        response_model=FabricDiscoveryActionResult,
+        response_model_exclude_none=True,
+    )
+    async def connect_wonder_workshop_robots(
+        request: WonderWorkshopConnectionConfiguration,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.discovery.connect")),
+        ],
+    ) -> FabricDiscoveryActionResult:
+        try:
+            result = await get_discovery().connect_wonder_workshop(
+                request,
+                nodes=lambda: visible_nodes(principal),
+            )
+        except FabricDiscoveryError as error:
+            _audit(
+                get_repository(),
+                principal,
+                action="fabric.wonder_workshop.connect",
+                resource_type="integration_action",
+                resource_id="cit.wonder-workshop",
+                at=current_time(),
+                outcome="denied",
+                details={"code": error.code},
+            )
+            raise
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.wonder_workshop.connect",
+            resource_type="integration_action",
+            resource_id="cit.wonder-workshop",
+            at=current_time(),
+            outcome="succeeded",
+            details={
+                "candidateCount": len(request.robots),
+                "candidateIds": [robot.candidateId for robot in request.robots],
+                "movementCommandIssued": False,
+            },
+        )
+        return result
+
+    @app.post(
         "/api/v1/fabric/matter/commission",
         response_model=FabricDiscoveryActionResult,
         response_model_exclude_none=True,
@@ -503,7 +549,7 @@ def install_fabric_api(
         try:
             result = await get_discovery().commission_matter(
                 request.setupCode.get_secret_value(),
-                nodes=visible_nodes(principal),
+                nodes=lambda: visible_nodes(principal),
             )
         except FabricDiscoveryError as error:
             _audit(
@@ -544,7 +590,7 @@ def install_fabric_api(
         try:
             result = await get_discovery().connect_lego(
                 request,
-                nodes=visible_nodes(principal),
+                nodes=lambda: visible_nodes(principal),
             )
         except FabricDiscoveryError as error:
             _audit(

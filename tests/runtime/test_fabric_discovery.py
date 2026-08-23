@@ -15,6 +15,7 @@ from cit_runtime.fabric_discovery import (
     FabricDiscoveryService,
     LegoConnectionConfiguration,
     PowerShellDiscoveryRunner,
+    WonderWorkshopConnectionConfiguration,
     _ProcessOutputTooLarge,
     _read_bounded_stream,
     initial_discovery_report,
@@ -33,6 +34,7 @@ class FakeDiscoveryRunner:
         self.actions: list[tuple[str, bool]] = []
         self.matter_codes: list[str] = []
         self.lego_configurations: list[LegoConnectionConfiguration] = []
+        self.wonder_configurations: list[WonderWorkshopConnectionConfiguration] = []
 
     async def scan(self) -> FabricDiscoveryReport:
         self.scans += 1
@@ -79,6 +81,12 @@ class FakeDiscoveryRunner:
     async def connect_lego(self, configuration: LegoConnectionConfiguration) -> str:
         self.lego_configurations.append(configuration)
         return "LEGO hub connected for sensor monitoring."
+
+    async def connect_wonder_workshop(
+        self, configuration: WonderWorkshopConnectionConfiguration
+    ) -> str:
+        self.wonder_configurations.append(configuration)
+        return "Selected Dash and Dot robots connected for sensor monitoring."
 
 
 def admin_identity() -> FabricBootstrapIdentity:
@@ -383,7 +391,7 @@ def test_authenticated_scan_and_allowlisted_connection_are_audited(tmp_path: Pat
     assert "setupCommand" not in not_scanned.json()["integrations"][0]
     assert scanned.status_code == 200
     assert scanned.json()["scanId"] == "scan-1"
-    assert len(scanned.json()["integrations"]) == 11
+    assert len(scanned.json()["integrations"]) == 12
     assert unconfirmed.status_code == 409
     assert unconfirmed.json()["code"] == "GROUNDED_CONFIRMATION_REQUIRED"
     assert connected.status_code == 200
@@ -525,6 +533,54 @@ def test_lego_profile_allows_sensor_only_monitoring() -> None:
     )
 
     assert configuration.ports == {"A": "distance", "B": "empty"}
+
+
+def test_dash_dot_connection_accepts_only_exact_opaque_candidates(tmp_path: Path) -> None:
+    runner = FakeDiscoveryRunner()
+    discovery = FabricDiscoveryService(runner, clock=lambda: NOW)
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "fabric.sqlite3",
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=(admin_identity(),),
+            maintenance_interval=None,
+            discovery_service=discovery,
+        )
+    ) as client:
+        connected = client.post(
+            "/api/v1/fabric/wonder-workshop/connect",
+            headers=ADMIN_HEADERS,
+            json={
+                "robots": [
+                    {"candidateId": "wonder-aabbccddeeff", "model": "dash"},
+                    {"candidateId": "wonder-001122334455", "model": "dot"},
+                ]
+            },
+        )
+        invalid = client.post(
+            "/api/v1/fabric/wonder-workshop/connect",
+            headers=ADMIN_HEADERS,
+            json={"robots": [{"candidateId": "nearest-bluetooth-robot", "model": "dash"}]},
+        )
+        duplicate = client.post(
+            "/api/v1/fabric/wonder-workshop/connect",
+            headers=ADMIN_HEADERS,
+            json={
+                "robots": [
+                    {"candidateId": "wonder-001122334455", "model": "dot"},
+                    {"candidateId": "wonder-001122334455", "model": "dot"},
+                ]
+            },
+        )
+
+    assert connected.status_code == 200
+    assert connected.json()["actionId"] == "cit.wonder-workshop.configure-connect"
+    assert [robot.candidateId for robot in runner.wonder_configurations[0].robots] == [
+        "wonder-aabbccddeeff",
+        "wonder-001122334455",
+    ]
+    assert invalid.status_code == 422
+    assert duplicate.status_code == 422
 
 
 def test_observer_can_scan_but_cannot_start_a_connection(tmp_path: Path) -> None:

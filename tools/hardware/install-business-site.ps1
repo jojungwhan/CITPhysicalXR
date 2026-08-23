@@ -206,6 +206,14 @@ function Prepare-LegoBluetooth {
   )
 }
 
+function Prepare-WonderWorkshopBluetooth {
+  $uv = Resolve-Executable "uv"
+  Write-Host "Preparing the independent Dash and Dot Bluetooth transport..."
+  Invoke-Checked $uv @(
+    "sync", "--package", "cit-wonder-workshop", "--extra", "hardware", "--frozen", "--inexact"
+  )
+}
+
 function Save-SiteProfile {
   foreach ($entry in @(@("SiteId", $SiteId), @("RoomId", $RoomId))) {
     if ([string]$entry[1] -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
@@ -288,6 +296,7 @@ Invoke-Checked $corepackPath @("pnpm@10.28.2", "install", "--frozen-lockfile")
 Invoke-Checked $corepackPath @("pnpm@10.28.2", "build")
 Prepare-Brain2Devices
 Prepare-LegoBluetooth
+Prepare-WonderWorkshopBluetooth
 Save-SiteProfile
 
 & $matterLauncher -Mode ControllerStart -SiteId $SiteId -RoomId $RoomId -SkipBuild

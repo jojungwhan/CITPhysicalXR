@@ -13,6 +13,7 @@ dependencies = [
   "cit-mindwave-mobile2",
   "cit-robomaster-leap",
   "cit-tello",
+  "cit-wonder-workshop",
   "cit-runtime",
   "cit-protocol",
   "cit-safety-core",
@@ -51,6 +52,7 @@ members = [
   "adapters/mindwave-mobile2",
   "adapters/robomaster-leap",
   "adapters/tello",
+  "adapters/wonder-workshop",
   "apps/runtime-py",
   "packages/device-simulator",
   "packages/integration-sdk-py",
@@ -69,6 +71,7 @@ cit-matter-smart-plug = { workspace = true }
 cit-mindwave-mobile2 = { workspace = true }
 cit-robomaster-leap = { workspace = true }
 cit-tello = { workspace = true }
+cit-wonder-workshop = { workspace = true }
 cit-runtime = { workspace = true }
 cit-protocol = { workspace = true }
 cit-safety-core = { workspace = true }
@@ -101,6 +104,12 @@ exclude = ["packages/protocol-py/src/cit_protocol/generated.py"]
 # default environment, so the one module that imports it has no stubs to check.
 [[tool.mypy.overrides]]
 module = ["pybricksdev.*"]
+ignore_missing_imports = true
+
+# Bleak is installed only with the independent Dash/Dot hardware extra. Its
+# imports are lazy so simulation and ordinary CI remain radio-independent.
+[[tool.mypy.overrides]]
+module = ["bleak", "bleak.*"]
 ignore_missing_imports = true
 
 # OpenCV and NumPy are loaded only by the optional local vision extra. The

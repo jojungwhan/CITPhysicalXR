@@ -93,6 +93,24 @@ integrations:
       capabilityAny: [mobility.ground.set_velocity, robot.sensor.state]
       models: [sphero-bolt]
 
+  - integrationId: wonder-workshop-dash-dot
+    displayName: Wonder Workshop Dash and Dot
+    category: robot
+    ioType: bidirectional
+    icon: wonder
+    connectionMethod: Local Bluetooth Low Energy (BLE)
+    setupSteps:
+      - Charge and switch on Dash or Dot, then place it near this Windows computer.
+      - Close Wonder, Blockly, or any other app that is currently connected to the robot.
+      - Choose Find devices, select each exact named Dash or Dot, and choose Connect selected.
+      - Sensor monitoring starts unarmed. Dash movement, head motion, and sound remain locked until a tutor arms the physical lesson.
+    safetyNote: Discovery is read-only and never selects the nearest robot. Dash movement is bounded and has a 350 ms local deadman stop; Dot never advertises movement.
+    selectors:
+      pluginIds: [cit.wonder-workshop]
+      capabilityAny:
+        [robot.sensor.state, robot.light.set, mobility.ground.set_velocity]
+      models: [dash, dot]
+
   - integrationId: tello-drones
     displayName: DJI / Ryze Tello drones
     category: drone

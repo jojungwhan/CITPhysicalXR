@@ -13,7 +13,13 @@ export interface FabricSensorReading {
   values: FabricSensorValue[];
 }
 
-const SENSOR_PREFIXES = ["sensor.", "telemetry.", "biosignal.", "mindwave."];
+const SENSOR_PREFIXES = [
+  "sensor.",
+  "telemetry.",
+  "biosignal.",
+  "mindwave.",
+  "robot.sensor.",
+];
 const HIDDEN_PAYLOAD_KEYS = new Set([
   "audio",
   "camera",
@@ -56,8 +62,16 @@ const sensorValues = (payload: unknown): FabricSensorValue[] => {
     return [{ label: "value", value: displayValue(payload) }];
   }
   const object = payload as Record<string, unknown>;
-  const unit = typeof object["unit"] === "string" ? object["unit"] : undefined;
-  const values = Object.entries(object)
+  const nested = object["values"];
+  const visibleObject =
+    typeof nested === "object" && nested !== null && !Array.isArray(nested)
+      ? (nested as Record<string, unknown>)
+      : object;
+  const unit =
+    typeof visibleObject["unit"] === "string"
+      ? visibleObject["unit"]
+      : undefined;
+  const values = Object.entries(visibleObject)
     .filter(
       ([key, value]) =>
         key !== "unit" &&
