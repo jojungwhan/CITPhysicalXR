@@ -164,7 +164,11 @@ class FakeHubTransport:
             return
         if operation is Operation.SENSOR_READ:
             port, kind = frame.argument(0), frame.argument(1)
-            if port not in self.ports:
+            if port == "HUB":
+                if kind not in {"battery", "gyro", "imu", "button"}:
+                    self._error(frame, HubErrorCode.BAD_PORT)
+                    return
+            elif port not in self.ports:
                 self._error(frame, HubErrorCode.BAD_PORT)
                 return
             self._ack(frame)

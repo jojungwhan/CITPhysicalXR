@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-brain2devices-demo"
+version = "0.1.0"
+description = "Bounded Brain2Devices MindWave-to-Tello demonstration adapter"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "cit-integration-sdk",
+  "cit-protocol",
+]
+
+[project.scripts]
+cit-brain2devices-demo = "cit_brain2devices_demo.__main__:main"
+cit-brain2devices-fleet = "cit_brain2devices_demo.fleet_main:main"
+
+[tool.uv.sources]
+cit-integration-sdk = { workspace = true }
+cit-protocol = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cit_brain2devices_demo"]

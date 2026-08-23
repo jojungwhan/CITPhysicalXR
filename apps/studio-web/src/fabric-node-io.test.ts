@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   classifyFabricNodeIo,
+  groupFabricCourseRolesByIo,
+  groupFabricIntegrationsByIo,
   isAvailableFabricNode,
 } from "./fabric-node-io.js";
 
@@ -42,5 +44,33 @@ describe("Fabric node I/O classification", () => {
     expect(isAvailableFabricNode({ connectionState: "unavailable" })).toBe(
       false,
     );
+  });
+
+  it("groups setup cards by their declared direction before nodes connect", () => {
+    const grouped = groupFabricIntegrationsByIo([
+      { integrationId: "leap", ioType: "input" as const },
+      { integrationId: "display", ioType: "output" as const },
+      { integrationId: "glasses", ioType: "bidirectional" as const },
+    ]);
+
+    expect(grouped.input.map((item) => item.integrationId)).toEqual(["leap"]);
+    expect(grouped.output.map((item) => item.integrationId)).toEqual([
+      "display",
+    ]);
+    expect(grouped.bidirectional.map((item) => item.integrationId)).toEqual([
+      "glasses",
+    ]);
+  });
+
+  it("groups course roles and preserves legacy recipes as bidirectional", () => {
+    const grouped = groupFabricCourseRolesByIo([
+      { role: "gesture", ioType: "input" as const },
+      { role: "robot", ioType: "output" as const },
+      { role: "legacy" },
+    ]);
+
+    expect(grouped.input.map((item) => item.role)).toEqual(["gesture"]);
+    expect(grouped.output.map((item) => item.role)).toEqual(["robot"]);
+    expect(grouped.bidirectional.map((item) => item.role)).toEqual(["legacy"]);
   });
 });

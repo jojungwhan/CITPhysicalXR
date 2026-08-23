@@ -17,6 +17,8 @@ param(
   [string]$RoomId = "hardware-lab",
   [string]$BridgeHostId = "",
   [string]$AgentMeshSessionId = "",
+  [string]$FabricSessionId = "",
+  [switch]$FleetInputOnly,
   [switch]$SelectMostRecentAgentSession,
   [switch]$ProvisionWearables,
   [switch]$SkipBuild,
@@ -55,6 +57,15 @@ foreach ($entry in @{
 }
 if ($AgentMeshSessionId -and $AgentMeshSessionId -notmatch $identifierPattern) {
   throw "AgentMeshSessionId must be an Agent Mesh identifier"
+}
+if ($FabricSessionId -and $FabricSessionId -notmatch $identifierPattern) {
+  throw "FabricSessionId must be a CIT identifier"
+}
+if ($FleetInputOnly -and -not $FabricSessionId) {
+  throw "FleetInputOnly requires the exact shared FabricSessionId"
+}
+if ($FleetInputOnly -and ($AgentMeshSessionId -or $SelectMostRecentAgentSession)) {
+  throw "FleetInputOnly does not select or dispatch to a coding-agent session"
 }
 if ($AgentMeshHubUrl -ne "http://127.0.0.1:7342") {
   throw "This hardware-test launcher currently requires the loopback Agent Mesh Hub URL"
@@ -441,6 +452,22 @@ function Start-Fabric([hashtable]$State, [string]$BootstrapCredential) {
 }
 
 function Ensure-FabricSession([hashtable]$State, [string]$BootstrapCredential) {
+  if ($FabricSessionId) {
+    $existing = Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/sessions/$FabricSessionId" -Credential $BootstrapCredential
+    if ([string]$existing.coursePackId -ne "device-monitoring") {
+      throw "FabricSessionId must identify the shared device-monitoring session"
+    }
+    if ([string]$existing.siteId -ne $SiteId -or [string]$existing.roomId -ne $RoomId) {
+      throw "FabricSessionId does not belong to the requested CIT site and room"
+    }
+    if ([string]$existing.state -in @("stopped", "emergency_stopped", "failed")) {
+      throw "FabricSessionId is no longer available for input attachment"
+    }
+    $State.sessionId = $FabricSessionId
+    $State.fleetInputOnly = [bool]$FleetInputOnly
+    Save-State $State
+    return $existing
+  }
   if ($State.ContainsKey("sessionId") -and $State.sessionId) {
     try {
       $existing = Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/sessions/$($State.sessionId)" -Credential $BootstrapCredential
@@ -460,6 +487,7 @@ function Ensure-FabricSession([hashtable]$State, [string]$BootstrapCredential) {
     mode = "simulation"
   }
   $State.sessionId = $session.sessionId
+  $State.fleetInputOnly = $false
   foreach ($key in @("agentNodeId", "agentMeshSessionId", "wearableNodeId")) {
     $State.Remove($key)
   }
@@ -513,7 +541,12 @@ function Start-Bridge(
       $null -ne $savedBridgeCommandLine -and
       $savedBridgeCommandLine.Contains("agent-mesh-bridge/dist/main.js", [StringComparison]::OrdinalIgnoreCase)
     )
-    if ($isRunningBridge -and -not ($AgentMeshSessionId -or $SelectMostRecentAgentSession)) { return }
+    if (
+      $isRunningBridge -and
+      $State.ContainsKey("bridgeSessionId") -and
+      $State.bridgeSessionId -eq $SessionId -and
+      -not ($AgentMeshSessionId -or $SelectMostRecentAgentSession)
+    ) { return }
     if ($isRunningBridge) {
       Stop-ExactProcess $savedBridgePid "agent-mesh-bridge/dist/main.js"
     } elseif ($null -ne $savedBridgeCommandLine) {
@@ -541,6 +574,7 @@ function Start-Bridge(
     -LogPrefix "agent-mesh-bridge" `
     -Environment $environment
   $State.bridgePid = $bridgeProcess.Id
+  $State.bridgeSessionId = $SessionId
   Save-State $State
 }
 
@@ -557,6 +591,13 @@ function Bind-ReadyNodes([hashtable]$State, [string]$BootstrapCredential) {
       $script:nodes = @(Expand-Sequence $response)
       $registered = @($script:nodes | Where-Object { $_.pluginId -eq "cit.agent-mesh-bridge" })
       if ($registered.Count -eq 0) { return $false }
+      if ($FleetInputOnly) {
+        $readyInputs = @($registered | Where-Object {
+            (Get-CapabilityNames $_ "publishedCapabilities") -contains "interaction.intent.flight_sequence_start" -and
+            $_.connectionState -eq "connected"
+          })
+        return $readyInputs.Count -gt 0
+      }
       if (-not $agentSelectionRequested) { return $true }
       $readyAgents = @($registered | Where-Object {
           (Get-CapabilityNames $_ "consumedCapabilities") -contains "agent.prompt.submit" -and
@@ -571,7 +612,7 @@ function Bind-ReadyNodes([hashtable]$State, [string]$BootstrapCredential) {
 
   $wearables = @($script:nodes | Where-Object {
       $_.pluginId -eq "cit.agent-mesh-bridge" -and
-      (Get-CapabilityNames $_ "publishedCapabilities") -contains "interaction.intent.agent_prompt" -and
+      (Get-CapabilityNames $_ "publishedCapabilities") -contains $(if ($FleetInputOnly) { "interaction.intent.flight_sequence_start" } else { "interaction.intent.agent_prompt" }) -and
       $_.connectionState -eq "connected"
     } | Sort-Object lastSeenAt -Descending)
   $agents = @($script:nodes | Where-Object {
@@ -579,6 +620,48 @@ function Bind-ReadyNodes([hashtable]$State, [string]$BootstrapCredential) {
       (Get-CapabilityNames $_ "consumedCapabilities") -contains "agent.prompt.submit" -and
       $_.connectionState -in @("connected", "degraded")
     } | Sort-Object { $_.metadata.agentMeshLastActivityAt } -Descending)
+
+  if ($FleetInputOnly) {
+    $session = Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/sessions/$($State.sessionId)" -Credential $BootstrapCredential
+    $roleBindings = @(Expand-Sequence $session.roleBindings)
+    $occupiedRoles = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($binding in $roleBindings) { $null = $occupiedRoles.Add([string]$binding.role) }
+    $assignedWearables = @()
+    foreach ($candidate in $wearables) {
+      $existingRole = @($roleBindings | Where-Object {
+          $_.nodeId -eq $candidate.nodeId -and $_.role -like "fleet_sequence_input_*"
+        } | Select-Object -First 1)
+      $role = if ($existingRole.Count -gt 0) {
+        [string]$existingRole[0].role
+      } else {
+        @(1..4 | ForEach-Object { "fleet_sequence_input_$_" } | Where-Object {
+            -not $occupiedRoles.Contains($_)
+          } | Select-Object -First 1)[0]
+      }
+      if (-not $role) { continue }
+      if ($existingRole.Count -eq 0) {
+        $null = Invoke-JsonApi -Method PUT -Uri "$fabricOrigin/api/v1/fabric/sessions/$($State.sessionId)/roles/$role" -Credential $BootstrapCredential -Body @{ nodeId = $candidate.nodeId }
+        $roleBindings += @{ role = $role; nodeId = $candidate.nodeId }
+      }
+      $null = $occupiedRoles.Add($role)
+      $assignedWearables += $candidate
+    }
+    if ($assignedWearables.Count -eq 0) {
+      throw "No free fleet input role is available for the connected G2 or Meta node"
+    }
+    $State.fleetInputNodeIds = @($assignedWearables | ForEach-Object { $_.nodeId })
+    $State.Remove("agentNodeId")
+    $State.Remove("agentMeshSessionId")
+    Save-State $State
+    $session = Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/sessions/$($State.sessionId)" -Credential $BootstrapCredential
+    return @{
+      session = $session
+      wearable = $assignedWearables | Select-Object -First 1
+      wearables = $assignedWearables
+      agent = $null
+      allNodes = @($script:nodes | Where-Object { $_.pluginId -eq "cit.agent-mesh-bridge" })
+    }
+  }
 
   $wearable = $wearables | Select-Object -First 1
   $agent = $null
@@ -688,7 +771,8 @@ function Show-Verification([hashtable]$State, [string]$BootstrapCredential) {
 
 function Stop-Test([hashtable]$State) {
   $bootstrap = if (Test-Path -LiteralPath $bootstrapSecretPath) { Read-ProtectedSecret $bootstrapSecretPath } else { "" }
-  if ($bootstrap -and $State.ContainsKey("sessionId") -and (Get-ListeningProcessId $FabricPort)) {
+  $ownsLessonSession = -not ($State.ContainsKey("fleetInputOnly") -and $State.fleetInputOnly)
+  if ($ownsLessonSession -and $bootstrap -and $State.ContainsKey("sessionId") -and (Get-ListeningProcessId $FabricPort)) {
     try {
       $null = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/sessions/$($State.sessionId)/stop" -Credential $bootstrap
     } catch {
@@ -729,7 +813,7 @@ function Stop-Test([hashtable]$State) {
     Start-ScheduledTask -TaskName $HubTaskName
     Wait-Until { $null -ne (Get-ListeningProcessId 7342) } "The normal Agent Mesh Hub task did not restart"
   }
-  foreach ($key in @("bridgePid", "fabricPid", "fabricLauncherPid", "fabricOwned", "hubPid")) {
+  foreach ($key in @("bridgePid", "bridgeSessionId", "fabricPid", "fabricLauncherPid", "fabricOwned", "hubPid")) {
     $State.Remove($key)
   }
   $State.hubTransient = $false
@@ -804,6 +888,11 @@ Write-Host ""
 Write-Host "CIT glasses hardware test is prepared."
 Write-Host "Console: $fabricOrigin/fabric"
 Write-Host "Fabric session: $($binding.session.sessionId) [$($binding.session.state)]"
+if ($FleetInputOnly) {
+  Write-Host "Fleet inputs: $(@($binding.wearables).Count) connected G2/Meta node(s)"
+  Write-Host "Say exactly 'start drone sequence', 'launch drone sequence', 'take off drones', '드론 순차 이륙', or '드론 이륙 시작'."
+  Write-Host "The phrase only submits a bounded start request after the tutor arms the one-shot sequence in the UI."
+} else {
 if ($null -eq $binding.wearable) {
   Write-Host "ACTION REQUIRED: open/wear G2 or open the Meta phone bridge, wait for it to poll, then rerun this Start command."
 } else {
@@ -819,6 +908,7 @@ if ($null -eq $binding.agent) {
   Write-Host "Agent session: $($binding.agent.metadata.agentMeshSessionId)"
 }
 Write-Host "Expected safe prompt: Reply exactly CIT_HARDWARE_OK. Do not use tools or modify files."
+}
 Write-Host "Stop/rollback: pwsh -NoProfile -File `"$PSCommandPath`" -Mode Stop"
 if (-not $NoOpenConsole) {
   $consoleStateRoot = if ($SharedFabricRoot) { $SharedFabricRoot } else { $StateRoot }

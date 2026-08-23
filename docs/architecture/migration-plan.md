@@ -1,19 +1,19 @@
 # Migration Plan
 
-Status: reconciled strangler plan as of 2026-08-22. Existing working paths remain available until their replacement slice passes end to end.
+Status: reconciled strangler plan as of 2026-08-23. Existing working paths remain available until their replacement slice passes end to end.
 
 ## Reconciliation checkpoint
 
-| Phase                   | State                                    | Evidence / remaining gate                                                                                                                        |
-| ----------------------- | ---------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A — inventory           | Complete                                 | Required architecture documents and external integration scan retained                                                                           |
-| B — contracts           | Complete for the reference slice         | Generated Python/TypeScript Fabric and adapter contracts; legacy fixtures remain valid                                                           |
-| C — runtime/API         | Complete as a standalone service         | Scoped auth, SQLite, flow/lifecycle, adapter WebSocket, fail-closed physical default                                                             |
-| D — glasses/agents      | Software-complete in compatibility mode  | Agent Mesh bridge and durable no-duplicate tests; owner G2/Meta hardware round trip pending                                                      |
-| E — P0 console          | Complete for Fabric operations           | Same-origin five-stage `/fabric` route, launcher sign-in, safe host discovery, nodes/roles/sessions/safety/stop/lifecycle/audit                  |
-| F — ground robot        | Software wrapper complete; HIL pending   | Pinned Leap/S1 workers, canonical flow, dual bounds, UI/launcher, and dry-run evidence; LEGO Fabric substitution and physical HIL remain         |
-| G — media/sensors       | UI and Meta live-frame software complete | Ephemeral authenticated wall, local reviewed YOLO, sensor cards, DAT 0.9.0/MockDeviceKit live video with snapshot fallback; physical HIL pending |
-| H — remaining/hardening | Smart-plug software slice complete       | Tuya-LAN adapter/simulator/UI/launcher complete; all physical, network-loss, multi-host, privacy, and performance evidence remains               |
+| Phase                   | State                                                 | Evidence / remaining gate                                                                                                                                     |
+| ----------------------- | ----------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| A — inventory           | Complete                                              | Required architecture documents and external integration scan retained                                                                                        |
+| B — contracts           | Complete for the reference slice                      | Generated Python/TypeScript Fabric and adapter contracts; legacy fixtures remain valid                                                                        |
+| C — runtime/API         | Complete as a standalone service                      | Scoped auth, SQLite, flow/lifecycle, adapter WebSocket, fail-closed physical default                                                                          |
+| D — glasses/agents      | Software-complete in compatibility mode               | Agent Mesh bridge and durable no-duplicate tests; owner G2/Meta hardware round trip pending                                                                   |
+| E — P0 console          | Complete for Fabric operations                        | Same-origin five-stage `/fabric` route, launcher sign-in, safe host discovery, nodes/roles/sessions/safety/stop/lifecycle/audit                               |
+| F — ground robot        | Software wrappers complete; HIL pending               | Separate pinned Leap/S1 processes plus canonical LEGO bridge, role substitution, dual bounds, UI/launchers, and simulated evidence                            |
+| G — media/sensors       | UI and Meta live-frame software complete              | Ephemeral authenticated wall, local reviewed YOLO, sensor cards, DAT 0.9.0/MockDeviceKit live video with snapshot fallback; physical HIL pending              |
+| H — remaining/hardening | Device software slices complete; physical HIL pending | Matter, exact-pinned Brain Tello/MindWave adapters, bounded multi-input Tello fleet, installer, catalogs, and shared SDK; clean-machine/hardware gates remain |
 
 ## Phase A — Baseline and inventory
 
@@ -111,9 +111,11 @@ declarative `gesture-ground-robot` flow to
 bounds; the upstream 200 ms stale watchdog, Fabric exclusive lease, instructor
 emergency stop, disconnect disarm, simulator, UI, and launcher are present.
 
-Remaining Phase F work is to expose the existing LEGO Pybricks adapter through
-the same canonical Fabric capability, run real Leap/S1 and LEGO HIL, and record
-local p95 latency. Software-only evidence must not be reported as physical.
+The existing LEGO Pybricks adapter is now exposed through a separate canonical
+Fabric bridge. It publishes sensor/battery state for any configured hub and
+advertises the same ground capability only when two motors are present. The
+remaining Phase F work is real Leap/S1 and LEGO HIL plus local p95 latency.
+Software-only evidence must not be reported as physical.
 
 No upstream implementation source is copied into the core. The owner authorized
 the external private/noncommercial wrapper. Physical movement remains behind a
@@ -137,22 +139,33 @@ Implemented:
 The optional APK compiles and builds against the official DAT 0.9.0 artifacts,
 and the official MockDeviceKit produces a frame accepted by the strict I420
 converter on an Android 16 emulator.
-Remaining gates are technician package credentials for repeatable installation and real glasses HIL,
-RoboMaster/Tello Fabric camera publishers, the physical LEGO event bridge, and
-multi-camera performance/privacy evidence. A contract-supported source kind is
-not physical-completion evidence.
+Tello's Brain2Devices MJPEG feed now has a scoped latest-frame publisher and
+simulator. Remaining gates are technician package credentials for repeatable
+Meta installation and real glasses HIL, the RoboMaster camera publisher,
+physical Tello video/firewall evidence, physical LEGO bridge HIL, and
+multi-camera performance/privacy evidence. A
+contract-supported source kind is not physical-completion evidence.
 
 ## Phase H — Remaining integrations and hardening
 
-- Complete canonical MindWave event and Tello command/telemetry adapters on top
-  of the now-launched/discoverable Brain2Devices process boundary. The current
-  connection-only actions are not the flight-control slice.
-- Complete the approved LEGO transport/licensing split.
-- Run the implemented TinyTuya LAN adapter against each approved Tuya or
-  compatible Gosund model; record exact model, firmware, DPS, loss behavior,
-  and safe-off evidence before classroom use.
+- Run the implemented independent MindWave and Tello adapters against physical
+  hardware at exact Brain2Devices revision `536a256...`. Tello intentionally
+  remains a telemetry/land/emergency slice, not a general flight-control slice.
+  Validate the separately bounded one-shot demo node and ephemeral Tello video
+  using the documented instructor, flight-area, cancellation, firewall, and
+  rapid-handoff checks.
+- Validate the separate two-to-eight-aircraft fleet controller with one stable
+  route per Tello, exact ordered airborne confirmation, cancel/land on partial
+  failure, and each tutor/Leap/G2/Meta trigger. The three-drone process and real
+  browser simulation are complete; physical fleet evidence is not.
+- Validate the implemented LEGO Fabric/Pybricks bridge on each approved hub and
+  record the optional transport's distribution/licence decision separately.
+- Commission each approved Matter model through a clean Windows 11 business
+  install; record firmware, Bluetooth/Wi-Fi behavior, restart/network-loss,
+  verified state, and safe-off evidence.
 - Add multimodal state windows after calibration semantics stabilize.
-- Integrate Tello only after simulator, ground robot, console, and safety evidence pass.
+- Add any generic Tello takeoff or movement only under a new drone safety ADR;
+  ADRs 0020 and 0021 authorize only their exact bounded one-shot workflows.
 - Run Windows/Linux, multi-host, crash, network-loss, restart, privacy, security, performance, and hardware-in-loop gates.
 
 ## Change discipline

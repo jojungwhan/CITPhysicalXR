@@ -583,6 +583,7 @@ class FabricPersistenceMixin:
         session_id: str | None = None,
         after_stream_sequence: int = 0,
         limit: int = FABRIC_PAGE_LIMIT,
+        latest: bool = False,
     ) -> tuple[StoredFabricEvent, ...]:
         if not 1 <= limit <= FABRIC_PAGE_LIMIT:
             raise ValueError(f"limit must be between 1 and {FABRIC_PAGE_LIMIT}")
@@ -592,16 +593,19 @@ class FabricPersistenceMixin:
             clauses.append("session_id = ?")
             parameters.append(session_id)
         parameters.append(limit)
+        order = "DESC" if latest else "ASC"
         rows = self._connection.execute(
             f"""
             SELECT stream_sequence, event_json
             FROM fabric_events
             WHERE {" AND ".join(clauses)}
-            ORDER BY stream_sequence
+            ORDER BY stream_sequence {order}
             LIMIT ?
             """,
             parameters,
         ).fetchall()
+        if latest:
+            rows.reverse()
         return tuple(
             StoredFabricEvent(
                 stream_sequence=int(row["stream_sequence"]),

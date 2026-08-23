@@ -5,6 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from cit_matter_smart_plug import build_manifest, build_node
 from cit_protocol import (
     CreateInteractionSessionRequest,
     FabricCommandRequest,
@@ -14,7 +15,6 @@ from cit_protocol import (
 from cit_runtime.fabric import FabricDispatchOutcome, InteractionFabric
 from cit_runtime.fabric_course import smart_plug_course_pack
 from cit_runtime.fabric_repository import SQLiteFabricRepository
-from cit_tuya_smart_plug import build_manifest, build_node
 
 NOW = datetime(2026, 8, 21, 3, 0, 0, tzinfo=UTC)
 
@@ -58,12 +58,11 @@ async def setup_physical_plug(
         site_id="local-site",
         room_id="local-room",
         node_id="plug-a",
-        simulated=False,
-        vendor_brand="tuya",
-        model="approved-load-plug",
-        protocol_version="3.3",
-        switch_dps=1,
-        device_address="192.168.1.40",
+        matter_node_id=11,
+        endpoint_id=1,
+        display_name="Approved classroom plug",
+        vendor_name="Matter",
+        product_name="approved-load-plug",
     )
     fabric.register_plugin_and_nodes(build_manifest(), (node,))
     fabric.install_course_pack(smart_plug_course_pack(), actor_id="instructor-a")

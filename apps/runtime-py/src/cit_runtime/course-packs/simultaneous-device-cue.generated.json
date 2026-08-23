@@ -1,0 +1,240 @@
+{
+  "schemaVersion": "1.0",
+  "coursePackId": "simultaneous-device-cue",
+  "version": "1.0.0",
+  "displayName": "Simultaneous multi-device cue",
+  "description": "Routes one approved Leap, G2, or Meta cue to every assigned classroom output at once. Ground robots receive one bounded watchdog-limited movement, G2 and Meta receive the same text, and an optional Tello fleet controller starts only when its independent tutor flight checklist is already armed.",
+  "roles": [
+    {
+      "role": "fleet_sequence_input_1",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": false
+    },
+    {
+      "role": "fleet_sequence_input_2",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_input_3",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_input_4",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_1",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.set_velocity"],
+      "optional": false
+    },
+    {
+      "role": "ground_output_2",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.set_velocity"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_controller",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.flight.fleet_sequence.start"],
+      "optional": true
+    },
+    {
+      "role": "message_output_1",
+      "ioType": "output",
+      "oneOfCapabilities": ["display.text.render"],
+      "optional": true
+    },
+    {
+      "role": "message_output_2",
+      "ioType": "output",
+      "oneOfCapabilities": ["display.text.render"],
+      "optional": true
+    }
+  ],
+  "flows": [
+    {
+      "flowId": "cue-to-ground-output-1",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.flight_sequence_start",
+        "minimumConfidence": 0.8,
+        "debounceMs": 1000,
+        "payloadEquals": {
+          "intent": "start"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_1"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_1"],
+      "parallelGroup": "simultaneous-classroom-cue",
+      "enabled": true
+    },
+    {
+      "flowId": "cue-to-ground-output-2",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.flight_sequence_start",
+        "minimumConfidence": 0.8,
+        "debounceMs": 1000,
+        "payloadEquals": {
+          "intent": "start"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_2"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_2"],
+      "parallelGroup": "simultaneous-classroom-cue",
+      "enabled": true
+    },
+    {
+      "flowId": "cue-to-armed-tello-fleet",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.flight_sequence_start",
+        "minimumConfidence": 0.8,
+        "debounceMs": 1000,
+        "payloadEquals": {
+          "intent": "start"
+        }
+      },
+      "command": {
+        "action": "mobility.flight.fleet_sequence.start",
+        "fixedParameters": {},
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "fleet_sequence_controller"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["fleet_sequence_controller"],
+      "parallelGroup": "simultaneous-classroom-cue",
+      "enabled": true
+    },
+    {
+      "flowId": "cue-to-message-output-1",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.flight_sequence_start",
+        "minimumConfidence": 0.8,
+        "debounceMs": 1000,
+        "payloadEquals": {
+          "intent": "start"
+        }
+      },
+      "command": {
+        "action": "display.text.render",
+        "fixedParameters": {
+          "text": "Simultaneous classroom cue received"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "message_output_1"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["message_output_1"],
+      "parallelGroup": "simultaneous-classroom-cue",
+      "enabled": true
+    },
+    {
+      "flowId": "cue-to-message-output-2",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.flight_sequence_start",
+        "minimumConfidence": 0.8,
+        "debounceMs": 1000,
+        "payloadEquals": {
+          "intent": "start"
+        }
+      },
+      "command": {
+        "action": "display.text.render",
+        "fixedParameters": {
+          "text": "Simultaneous classroom cue received"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "message_output_2"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["message_output_2"],
+      "parallelGroup": "simultaneous-classroom-cue",
+      "enabled": true
+    }
+  ],
+  "safetyProfile": "classroom-drone-monitoring",
+  "simulatorRequired": true,
+  "assessmentEvents": [
+    "interaction.intent.flight_sequence_start",
+    "telemetry.motion.commanded",
+    "telemetry.flight.fleet_sequence.status"
+  ],
+  "fallbackBehavior": "Report each unavailable or rejected output independently. Ground adapters enter their watchdog stop state; the fleet remains dormant unless separately armed; display failures do not block physical safe-state handling."
+}

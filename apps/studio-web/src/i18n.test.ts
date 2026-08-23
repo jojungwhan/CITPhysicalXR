@@ -1,15 +1,25 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  DEFAULT_LOCALE,
   LOCALES,
   catalog,
   messageKeys,
+  resolveLocale,
   translate,
   translatorFor,
   type Locale,
 } from "./i18n.js";
 
 describe("interface language (UI 11.5)", () => {
+  it("defaults new classroom browsers to Korean and preserves a valid choice", () => {
+    expect(DEFAULT_LOCALE).toBe("ko");
+    expect(resolveLocale(null)).toBe("ko");
+    expect(resolveLocale("ko")).toBe("ko");
+    expect(resolveLocale("en")).toBe("en");
+    expect(resolveLocale("unsupported")).toBe("ko");
+  });
+
   it("has the same keys in every language", () => {
     const expected = new Set(messageKeys());
     for (const locale of LOCALES) {

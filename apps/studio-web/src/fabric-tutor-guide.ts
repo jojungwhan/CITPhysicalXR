@@ -1,5 +1,7 @@
 import type { InteractionSession } from "@citxr/protocol";
 
+import { fabricTranslatorFor, type FabricTranslate } from "./fabric-i18n.js";
+
 export type TutorStage =
   | "find_devices"
   | "choose_lesson"
@@ -21,14 +23,14 @@ export const tutorGuide = (
   session: InteractionSession | undefined,
   requiredRoles: readonly string[],
   discoveryScanned: boolean,
+  t: FabricTranslate = fabricTranslatorFor("en"),
 ): TutorGuide => {
   if (!discoveryScanned && session === undefined) {
     return {
       stage: "find_devices",
       step: 1,
-      title: "Find the classroom devices",
-      description:
-        "Power on today’s equipment, plug in USB devices, then let CIT check this computer and its local connections.",
+      title: t("guide.find.title"),
+      description: t("guide.find.description"),
       targetId: "device-discovery",
     };
   }
@@ -36,9 +38,8 @@ export const tutorGuide = (
     return {
       stage: "choose_lesson",
       step: 2,
-      title: "Choose today’s lesson",
-      description:
-        "Pick an experience below. CIT will create a safe classroom session and find matching devices.",
+      title: t("guide.choose.title"),
+      description: t("guide.choose.description"),
       targetId: "lesson-setup",
     };
   }
@@ -46,9 +47,8 @@ export const tutorGuide = (
     return {
       stage: "lesson_ended",
       step: 2,
-      title: "This lesson has ended",
-      description:
-        "Choose a lesson to create a fresh session. Connected devices remain available.",
+      title: t("guide.ended.title"),
+      description: t("guide.ended.description"),
       targetId: "lesson-setup",
     };
   }
@@ -58,9 +58,8 @@ export const tutorGuide = (
     return {
       stage: "connect_devices",
       step: 3,
-      title: `Connect ${missing.length} more ${missing.length === 1 ? "device" : "devices"}`,
-      description:
-        "Choose a connected device for each empty slot. If nothing is listed, start that device’s CIT adapter and refresh.",
+      title: t("guide.connect.title", { count: missing.length }),
+      description: t("guide.connect.description"),
       targetId: "device-setup",
     };
   }
@@ -68,9 +67,8 @@ export const tutorGuide = (
     return {
       stage: "review_safety",
       step: 4,
-      title: "Review safety before enabling devices",
-      description:
-        "Check the room, keep the emergency stop visible, then confirm that physical control can be enabled.",
+      title: t("guide.safety.title"),
+      description: t("guide.safety.description"),
       targetId: "lesson-safety",
     };
   }
@@ -78,18 +76,16 @@ export const tutorGuide = (
     return {
       stage: "teach",
       step: 5,
-      title: "Lesson running",
-      description:
-        "Devices are ready. Use the lesson controls below and end the session when class is finished.",
+      title: t("guide.teach.title"),
+      description: t("guide.teach.description"),
       targetId: "live-controls",
     };
   }
   return {
     stage: "start_lesson",
     step: 4,
-    title: "Everything is ready",
-    description:
-      "Review the summary, then start the lesson when your students are ready.",
+    title: t("guide.ready.title"),
+    description: t("guide.ready.description"),
     targetId: "lesson-safety",
   };
 };

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0",
+  "coursePackIds": [
+    "device-monitoring",
+    "gesture-ground-robot",
+    "glasses-agent-control",
+    "simultaneous-device-cue",
+    "smart-plug-control"
+  ]
+}

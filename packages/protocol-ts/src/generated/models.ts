@@ -91,6 +91,10 @@ export type FlowGuard =
   | "instructor_override_is_clear"
   | "target_is_armed"
   | "approval_is_present";
+/**
+ * Flows with the same non-empty group are authorized independently and dispatched concurrently for one source event.
+ */
+export type Identifier1 = string;
 export type AdapterClientFrame =
   | AdapterAuthenticationFrame
   | AdapterRegistrationFrame
@@ -515,6 +519,10 @@ export interface CourseRoleRequirement {
    * @maxItems 32
    */
   oneOfCapabilities: [CapabilityIdentifier, ...CapabilityIdentifier[]];
+  /**
+   * The role's direction within this course. Registered node capabilities remain authoritative for the device itself.
+   */
+  ioType?: "input" | "output" | "bidirectional";
   optional: boolean;
 }
 export interface FlowRecipe {
@@ -816,6 +824,7 @@ export interface FlowRecipe {
         Identifier,
         Identifier,
       ];
+  parallelGroup?: Identifier1;
   enabled: boolean;
 }
 export interface FlowTrigger {

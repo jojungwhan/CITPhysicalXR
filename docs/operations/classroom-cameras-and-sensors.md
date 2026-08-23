@@ -12,13 +12,15 @@ the Fabric event database or semantic recording.
 
 ## Current hardware truth
 
-| Source                  | Single-UI presentation                                                            | Physical publisher status                                                                                                            |
-| ----------------------- | --------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| Meta Ray-Ban            | Live glasses frames (2 FPS), snapshot fallback, freshness, dimensions, YOLO boxes | Optional Android companion compiles and builds against DAT 0.9.0; real glasses HIL still requires the technician prerequisites below |
-| RoboMaster              | Camera tile and YOLO endpoint accept `robomaster` sources                         | The preserved upstream has SDK and stock-app camera readers, but they are not yet attached to the Fabric media publisher             |
-| Tello / RoboMaster TT   | Camera tile and YOLO endpoint accept `tello` sources                              | Existing Tello programs show video independently; a Fabric frame publisher is not yet connected                                      |
-| USB or simulator camera | Same tile and analysis path                                                       | Contract-tested publisher path; add the approved camera adapter for the room                                                         |
-| LEGO / robot sensors    | Distance, color, reflection, force, IMU, battery, and other scalar cards          | UI/event presentation is implemented; physical Pybricks-to-Fabric telemetry wiring and hub HIL remain pending                        |
+| Source                  | Single-UI presentation                                                            | Physical publisher status                                                                                                               |
+| ----------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Meta Ray-Ban            | Live glasses frames (2 FPS), snapshot fallback, freshness, dimensions, YOLO boxes | Optional Android companion compiles and builds against DAT 0.9.0; real glasses HIL still requires the technician prerequisites below    |
+| RoboMaster              | Camera tile and YOLO endpoint accept `robomaster` sources                         | The preserved upstream has SDK and stock-app camera readers, but they are not yet attached to the Fabric media publisher                |
+| Tello / RoboMaster TT   | Latest live frame, freshness, dimensions, and optional YOLO boxes                 | Brain2Devices v0.6.35 MJPEG is copied by the independent Tello adapter into ephemeral Fabric memory; Windows firewall/video HIL remains |
+| USB or simulator camera | Same tile and analysis path                                                       | Contract-tested publisher path; add the approved camera adapter for the room                                                            |
+| LEGO / robot sensors    | Distance, color, reflection, force, IMU, battery, and other scalar cards          | Canonical Pybricks-to-Fabric bridge and exact-name UI setup are implemented; physical hub HIL remains pending                           |
+| MindWave Mobile 2       | Vendor-labelled eSense, signal-quality, blink, connection, and health cards       | Independent canonical adapter and simulator are implemented; TGC/headset HIL remains pending; raw EEG is excluded                       |
+| Tello telemetry         | Battery, temperature, height, attitude, time-of-flight, and connection cards      | Independent safe adapter and simulator are implemented; physical multi-radio HIL remains pending                                        |
 
 This distinction is deliberate: finding a robot, camera, or sensor never causes
 the console to invent a live feed. A tile appears only after an authenticated
@@ -35,13 +37,17 @@ validated semantic event in the selected lesson.
 3. For Meta glasses, open **Connect a Meta glasses camera**, create the one-use
    code, and enter the displayed classroom address and code in the Android
    companion.
-4. On the phone, connect through Meta AI, approve Meta camera access, and choose
+4. For Tello, no separate camera pairing is required: after **Connect grounded
+   drones**, the scoped Tello adapter registers its own media source and copies
+   the latest local Brain2Devices JPEG. The first physical run may request UAC
+   for Brain2Devices' exact-program, local-subnet UDP 11111 firewall rule.
+5. On the phone, connect through Meta AI, approve Meta camera access, and choose
    **Share live camera (2 frames/second)**. If the phone reports repeated raw
    frame failures, stop sharing and choose **Use snapshot fallback**. Either mode
    stops when that phone screen is no longer visible.
-5. In the camera tile choose **Recognize lamps, drones, and robots**. YOLO runs
+6. In the camera tile choose **Recognize lamps, drones, and robots**. YOLO runs
    locally on that exact latest frame. It does not run continuously.
-6. Review the label, confidence, and box. If a compatible smart plug is assigned
+7. Review the label, confidence, and box. If a compatible smart plug is assigned
    to an active lesson, use the separate **Turn linked plug on/off** control.
 
 Only the exact `lamp`, `light`, and `smart plug` labels expose the reviewed
@@ -128,6 +134,8 @@ be repackaged as sensor cards.
 
 - **No camera tile:** the publisher has not registered. For Meta, create a new
   one-use pairing code and keep the phone on the same private classroom LAN.
+  For Tello, confirm Brain2Devices reports a current video `session_id`, check
+  its UDP 11111/firewall diagnostic, and inspect the Tello adapter log.
 - **Live video stops after three frame failures:** choose **Use snapshot
   fallback**. The bridge rejects unexpected decoded-frame layouts instead of
   uploading a corrupt image.
@@ -141,4 +149,7 @@ be repackaged as sensor cards.
   corrected.
 - **No LEGO readings:** verify that a real adapter node is registered, the
   lesson is active, and the adapter is publishing `sensor.*` or `telemetry.*`
-  events. Merely pairing the hub is not a reading.
+  events. In **Find devices**, configure the exact advertised name and port map;
+  merely pairing the hub is not a reading.
+- **No MindWave/Tello readings:** verify that the relevant card says Connected,
+  not merely Found, and that the unarmed Device monitoring session is active.

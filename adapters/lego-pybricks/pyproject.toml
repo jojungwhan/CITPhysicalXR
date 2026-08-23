@@ -10,6 +10,7 @@ requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
 dependencies = [
   "cit-device-simulator",
+  "cit-integration-sdk",
   "cit-protocol",
   "cit-safety-core",
 ]
@@ -21,8 +22,12 @@ dependencies = [
 [project.optional-dependencies]
 hardware = ["pybricksdev>=1.0.0,<2"]
 
+[project.scripts]
+cit-lego-pybricks = "cit_lego_pybricks.fabric_main:main"
+
 [tool.uv.sources]
 cit-device-simulator = { workspace = true }
+cit-integration-sdk = { workspace = true }
 cit-protocol = { workspace = true }
 cit-safety-core = { workspace = true }
 

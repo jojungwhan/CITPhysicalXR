@@ -1498,6 +1498,11 @@ export const protocolSchema = {
             $ref: "#/$defs/Identifier",
           },
         },
+        parallelGroup: {
+          $ref: "#/$defs/Identifier",
+          description:
+            "Flows with the same non-empty group are authorized independently and dispatched concurrently for one source event.",
+        },
         enabled: {
           type: "boolean",
         },
@@ -1520,6 +1525,12 @@ export const protocolSchema = {
           items: {
             $ref: "#/$defs/CapabilityIdentifier",
           },
+        },
+        ioType: {
+          type: "string",
+          enum: ["input", "output", "bidirectional"],
+          description:
+            "The role's direction within this course. Registered node capabilities remain authoritative for the device itself.",
         },
         optional: {
           type: "boolean",

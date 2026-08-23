@@ -6,11 +6,13 @@
   "roles": [
     {
       "role": "primary_glasses",
+      "ioType": "bidirectional",
       "oneOfCapabilities": ["interaction.intent.agent_prompt"],
       "optional": false
     },
     {
       "role": "coding_agent",
+      "ioType": "bidirectional",
       "oneOfCapabilities": ["agent.prompt.submit"],
       "optional": false
     }

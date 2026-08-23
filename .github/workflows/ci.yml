@@ -69,9 +69,15 @@ jobs:
           uv build --package cit-protocol
           uv build --package cit-safety-core
           uv build --package cit-device-simulator
+          uv build --package cit-integration-sdk
           uv build --package cit-test-harness
           uv build --package cit-runtime
-          uv build --package cit-tuya-smart-plug
+          uv build --package cit-brain2devices-demo
+          uv build --package cit-lego-pybricks
+          uv build --package cit-matter-smart-plug
+          uv build --package cit-mindwave-mobile2
+          uv build --package cit-robomaster-leap
+          uv build --package cit-tello
 
       - name: Run tests and compliance gates
         run: |

@@ -32,16 +32,17 @@ from .backend import (
     VendorLeapProcess,
     VendorProcessError,
     demo_gesture_signals,
-    validate_velocity_parameters,
 )
 from .contract import (
+    FLIGHT_SEQUENCE_INTENT_CAPABILITY,
     GESTURE_CAPABILITY,
-    ROBOT_STOP_CAPABILITY,
     ROBOT_TELEMETRY_CAPABILITY,
     ROBOT_VELOCITY_CAPABILITY,
     build_manifest,
     build_nodes,
 )
+from .independent_bridges import LeapFlightSequenceIntentProjector
+from .robot_commands import RobotCommandHandler as RobotCommandHandler
 
 
 class AdapterSocket(Protocol):
@@ -67,63 +68,6 @@ class BridgeConfiguration:
     preferred_hand: str
 
 
-@dataclass(frozen=True, slots=True)
-class CommandExecution:
-    duplicate: bool
-    details: Mapping[str, object]
-
-
-class RobotCommandHandler:
-    """Fail-closed adapter-level validation and duplicate suppression."""
-
-    def __init__(self, backend: RobotBackend, *, robot_node_id: str) -> None:
-        self._backend = backend
-        self._robot_node_id = robot_node_id
-        self._seen_command_ids: set[str] = set()
-
-    def has_seen(self, command_id: str) -> bool:
-        return command_id in self._seen_command_ids
-
-    def validate(self, command: FabricResolvedCommand) -> None:
-        if command.targetNodeId != self._robot_node_id:
-            raise ValueError("Command target is not this RoboMaster node")
-        if command.expiresAt <= datetime.now(UTC):
-            raise ValueError("Command expired before adapter execution")
-        parameters = command.parameters.model_dump(mode="json")
-        if command.action == ROBOT_STOP_CAPABILITY:
-            if parameters:
-                raise ValueError("Ground-robot stop does not accept parameters")
-            return
-        if command.action == ROBOT_VELOCITY_CAPABILITY:
-            validate_velocity_parameters(parameters)
-            return
-        raise ValueError(f"Unsupported RoboMaster action {command.action!r}")
-
-    async def execute(self, command: FabricResolvedCommand) -> CommandExecution:
-        command_id = str(command.commandId)
-        if command_id in self._seen_command_ids:
-            return CommandExecution(duplicate=True, details={"duplicatePrevented": True})
-        self.validate(command)
-        parameters = command.parameters.model_dump(mode="json")
-        if command.action == ROBOT_STOP_CAPABILITY:
-            if parameters:
-                raise ValueError("Ground-robot stop does not accept parameters")
-            await self._backend.stop(reason="fabric_command")
-            details: Mapping[str, object] = {"stopped": True}
-        elif command.action == ROBOT_VELOCITY_CAPABILITY:
-            forward, right, clockwise = validate_velocity_parameters(parameters)
-            details = await self._backend.set_velocity(
-                forward=forward,
-                right=right,
-                clockwise=clockwise,
-                idempotency_key=command.idempotencyKey,
-            )
-        else:
-            raise ValueError(f"Unsupported RoboMaster action {command.action!r}")
-        self._seen_command_ids.add(command_id)
-        return CommandExecution(duplicate=False, details=details)
-
-
 class FabricRobotLeapBridge:
     def __init__(
         self,
@@ -140,6 +84,7 @@ class FabricRobotLeapBridge:
         self._robot = robot
         self._leap = leap
         self._handler = RobotCommandHandler(robot, robot_node_id=configuration.robot_node_id)
+        self._flight_sequence_projector = LeapFlightSequenceIntentProjector()
         self._send_lock = asyncio.Lock()
         base_sequence = time.time_ns()
         self._sequences = {
@@ -314,13 +259,15 @@ class FabricRobotLeapBridge:
 
     async def _publish_gesture(self, socket: AdapterSocket, signal: GestureSignal) -> None:
         now = datetime.now(UTC)
+        message_id = str(uuid4())
+        correlation_id = str(uuid4())
         frame = AdapterEventFrame.model_validate(
             {
                 "frameType": "adapter.event",
                 "frameId": str(uuid4()),
                 "protocolVersion": 1,
                 "event": {
-                    "messageId": str(uuid4()),
+                    "messageId": message_id,
                     "schemaVersion": "1.0",
                     "messageType": "event",
                     "topic": GESTURE_CAPABILITY,
@@ -332,7 +279,7 @@ class FabricRobotLeapBridge:
                     "timestamp": now,
                     "monotonicTimestamp": time.monotonic_ns(),
                     "sequence": self._next_sequence(self.configuration.leap_node_id),
-                    "correlationId": str(uuid4()),
+                    "correlationId": correlation_id,
                     "confidence": signal.confidence,
                     "ttlMs": 250,
                     "dataClassification": "operational",
@@ -345,6 +292,55 @@ class FabricRobotLeapBridge:
                         "tracking": signal.tracking,
                         "vendorSequence": signal.sequence,
                     },
+                },
+                "sentAt": now,
+            }
+        )
+        await self._send(socket, frame)
+        intent = self._flight_sequence_projector.observe(signal)
+        if intent is not None:
+            await self._publish_flight_sequence_intent(
+                socket,
+                signal=signal,
+                payload=intent,
+                causation_id=message_id,
+                correlation_id=correlation_id,
+            )
+
+    async def _publish_flight_sequence_intent(
+        self,
+        socket: AdapterSocket,
+        *,
+        signal: GestureSignal,
+        payload: Mapping[str, object],
+        causation_id: str,
+        correlation_id: str,
+    ) -> None:
+        now = datetime.now(UTC)
+        frame = AdapterEventFrame.model_validate(
+            {
+                "frameType": "adapter.event",
+                "frameId": str(uuid4()),
+                "protocolVersion": 1,
+                "event": {
+                    "messageId": str(uuid4()),
+                    "schemaVersion": "1.0",
+                    "messageType": "event",
+                    "topic": FLIGHT_SEQUENCE_INTENT_CAPABILITY,
+                    "sourceNodeId": self.configuration.leap_node_id,
+                    "sourceCapability": FLIGHT_SEQUENCE_INTENT_CAPABILITY,
+                    "siteId": self.configuration.site_id,
+                    "roomId": self.configuration.room_id,
+                    "sessionId": self.configuration.session_id,
+                    "timestamp": now,
+                    "monotonicTimestamp": time.monotonic_ns(),
+                    "sequence": self._next_sequence(self.configuration.leap_node_id),
+                    "correlationId": correlation_id,
+                    "causationId": causation_id,
+                    "confidence": signal.confidence,
+                    "ttlMs": 2_000,
+                    "dataClassification": "operational",
+                    "payload": dict(payload),
                 },
                 "sentAt": now,
             }

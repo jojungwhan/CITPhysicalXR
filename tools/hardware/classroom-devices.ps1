@@ -14,12 +14,31 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+$siteProfilePath = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\site\site.json"
+if (-not $Brain2DevicesRoot -and (Test-Path -LiteralPath $siteProfilePath -PathType Leaf)) {
+  try {
+    $siteProfile = [IO.File]::ReadAllText($siteProfilePath, [Text.Encoding]::UTF8) |
+      ConvertFrom-Json
+    if (
+      $siteProfile.PSObject.Properties.Name -contains "brain2devicesRoot" -and
+      $siteProfile.brain2devicesRoot
+    ) {
+      $Brain2DevicesRoot = [string]$siteProfile.brain2devicesRoot
+    }
+  } catch {
+    throw "The CIT business-site profile is invalid; run the business installer again."
+  }
+}
+if ($Brain2DevicesRoot) {
+  $Brain2DevicesRoot = [IO.Path]::GetFullPath($Brain2DevicesRoot)
+}
 if (-not $StateRoot) {
   $StateRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
 }
 $StateRoot = [IO.Path]::GetFullPath($StateRoot)
 $fabricLauncher = Join-Path $repositoryRoot "tools\hardware\interaction-fabric-console.ps1"
 $brainLauncher = Join-Path $repositoryRoot "tools\hardware\brain2devices-hardware.ps1"
+$matterLauncher = Join-Path $repositoryRoot "tools\hardware\matter-smart-plug.ps1"
 $discoveryScript = Join-Path $repositoryRoot "tools\hardware\find-classroom-devices.ps1"
 
 function Start-ClassroomDevices([bool]$RestartSimulationHost) {
@@ -33,14 +52,8 @@ function Start-ClassroomDevices([bool]$RestartSimulationHost) {
       # No matching listener is the normal cold-start path. The fixed Fabric
       # launcher performs the authoritative credential/port validation below.
     }
-    $mediaIngressEnabled = $null -ne $health -and
-      $health.PSObject.Properties.Name -contains "mediaIngress" -and
-      $health.mediaIngress -eq "enabled"
-    if (
-      $null -ne $health -and
-      ($health.physicalActuation -ne "enabled" -or -not $mediaIngressEnabled)
-    ) {
-      Write-Host "Restarting the local Fabric with disarmed physical adapters and scoped phone-camera access."
+    if ($null -ne $health) {
+      Write-Host "Restarting the local Fabric with the managed device paths, disarmed physical adapters, and scoped phone-camera access."
       & $fabricLauncher -Mode Stop -FabricPort $FabricPort -StateRoot $StateRoot
     }
   }
@@ -53,7 +66,19 @@ function Start-ClassroomDevices([bool]$RestartSimulationHost) {
   }
   if ($physicalEnabled) { $fabricParameters.AllowPhysical = $true }
   if ($lanMediaEnabled) { $fabricParameters.AllowLanMedia = $true }
+  if ($Brain2DevicesRoot) { $fabricParameters.Brain2DevicesRoot = $Brain2DevicesRoot }
   & $fabricLauncher @fabricParameters
+
+  try {
+    & $matterLauncher `
+      -Mode ControllerStart `
+      -SharedFabricRoot $StateRoot `
+      -FabricPort $FabricPort `
+      -SkipBuild `
+      -NoOpenConsole
+  } catch {
+    Write-Warning "The local Matter controller is unavailable: $($_.Exception.Message)"
+  }
 
   $brainParameters = @{
     Mode = "Start"
@@ -63,7 +88,11 @@ function Start-ClassroomDevices([bool]$RestartSimulationHost) {
   }
   if ($Brain2DevicesRoot) { $brainParameters.Brain2DevicesRoot = $Brain2DevicesRoot }
   if ($physicalEnabled) { $brainParameters.AllowPhysical = $true }
-  & $brainLauncher @brainParameters
+  try {
+    & $brainLauncher @brainParameters
+  } catch {
+    Write-Warning "The optional Brain2Devices integration is unavailable: $($_.Exception.Message)"
+  }
 
   Write-Host "READY. In Classroom Control, choose Find devices."
   Write-Host "CIT will show connected, found, ready, and setup-needed hardware separately."

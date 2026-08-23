@@ -1,7 +1,7 @@
 # Reuse Audit
 
-- Status: Milestone 0 discovery baseline
-- Audited: 2026-08-16
+- Status: discovery baseline plus exact-pinned integration updates
+- Audited: 2026-08-23
 - Method: read-only source, manifest, Git, test, and installed-environment inspection. No hardware discovery or connection was attempted, and none of the audited repositories was modified.
 
 ## Executive decision
@@ -10,6 +10,14 @@ The existing assets are strong reference and later integration candidates, but n
 
 - Agent CLI Mesh is private and its README says that no licence has been selected. CIT will integrate it through the optional authenticated bridge in Milestone 7 unless its owner later publishes compatible reusable packages.
 - The RoboMaster gesture repository is the selected S1/Leap behavior baseline. The owner authorized a private noncommercial process wrapper, now pinned at `3c213c1...`; no original implementation source is copied into CIT.
+- Brain2Devices is the selected MindWave/Tello behavior baseline. Its latest
+  `origin/main` revision was verified at `536a256...` (v0.6.35), all 198
+  upstream tests pass, and CIT wraps it without copying source into this
+  repository.
+- Brain2Devices PR 3 merged during this implementation. CIT re-characterized
+  the merged revision, retained independent MindWave and Tello nodes, added an
+  ephemeral Tello camera publisher, and isolated the optional automatic
+  EEG-to-flight workflow in a third bounded one-shot compatibility plugin.
 - A working DJI SDK environment was found at `D:\dev\robomasterCITCourse\.venv-robot`; the Leap runtime expected by the gesture checkout was not found. This is an explicit discovery gap, not evidence that Leap is unavailable on the owner's other machines.
 - The alternate Agent Mesh RoboMaster branch allows confirmed wearable movement pulses. That behavior conflicts with the Physical XR v1 rule that wearables may stop but may not initiate movement, so it is reference-only for stop/status/expiry patterns.
 
@@ -20,6 +28,7 @@ The existing assets are strong reference and later integration candidates, but n
 | Agent CLI Mesh                      | `D:\dev\glasses2CLI`                          | `fix/g2-durable-alert-ack` / `79983dfadc378566168343e57814a046089c2047`         | Dirty before this audit: three owner-edited Meta phone files/tests | README: no licence selected; private                                               |
 | Agent CLI Mesh RoboMaster branch    | `D:\dev\glasses2CLI-robomaster`               | `agent/stabilize-g2-launcher-ci` / `644895966ad3e1f2011dcc83ed111cd2f12762b1`   | Clean                                                              | Same unlicensed private repository                                                 |
 | Agent CLI Mesh service branch       | `D:\dev\glasses2CLI-service-replace`          | `agent/windows-service-replace` / `75a16343ac597d8eaecc1fbb5ea6f6f297507875`    | Clean                                                              | Same unlicensed private repository; no unique Physical XR candidate found          |
+| Brain2Devices                       | `D:\dev\brain2devices`                        | `main` / `536a256ef3f4b3182a74891b5971e9124ed051b0`                             | Clean merged v0.6.35 checkout characterized                        | No top-level licence file found; external-process boundary                         |
 | RoboMaster gesture control          | `D:\dev\robomaster-gesture-control-reference` | `integrate/cit-interaction-fabric` / `3c213c110b0cdf2912985bfcde442d67092b98f0` | Clean                                                              | Owner authorized private noncommercial wrapper; no original source copied into CIT |
 | RoboMaster classroom mission system | `D:\dev\robomasterCITCourse`                  | `main` / `2f54bc7f2de6925b1e388632c45cb4dd7296d660`                             | Clean                                                              | No top-level project licence found; third-party model notices exist                |
 
@@ -259,7 +268,7 @@ The existing assets are strong reference and later integration candidates, but n
 | Decision          | Reference only; explicitly reject its movement route for Physical XR v1                                                                                   |
 | Evidence          | `robomasterCommandInputSchema`, `RoboMasterBridge`, `MotionController`, and `docs/ROBOMASTER.md`                                                          |
 
-### R-014 — Tuya-compatible smart-plug boundary
+### R-014 — Retired Tuya-compatible smart-plug boundary
 
 | Field             | Finding                                                                                                                                                                               |
 | ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -272,10 +281,47 @@ The existing assets are strong reference and later integration candidates, but n
 | Dependencies      | TinyTuya 1.20.0 plus its locked dependencies; device ID/local key supplied only to the adapter process                                                                                |
 | Protocol          | Tuya LAN versions 3.1–3.5 at an exact private IPv4 address and configured boolean switch DPS                                                                                          |
 | Reusability       | No legacy module to wrap. Canonical `power.switch.*` contract and simulator are reusable; vendor protocol remains inside the adapter                                                  |
-| Required changes  | Run per-model Tuya/Gosund HIL and record firmware, DPS, disconnect, restore, latency, and safe-off behavior                                                                           |
-| Risk              | Gosund compatibility is model-specific; an on plug with unavailable Wi-Fi cannot receive a new off command                                                                            |
-| Decision          | LAN-only, exact boolean allowlist, DPAPI-protected profile, safe-off default; no scan, cloud command, or arbitrary DPS                                                                |
-| Evidence          | ADR-0011, `tests/adapters/test_tuya_smart_plug.py`, `tests/runtime/test_smart_plug_safety.py`, and the hardware runbook                                                               |
+| Required changes  | None. This boundary is no longer deployable.                                                                                                                                          |
+| Risk              | Historical only; retained data must follow the site's retention policy.                                                                                                               |
+| Decision          | ADR-0022 removed the adapter, dependency, setup path, and runtime routes. Matter is the supported plug boundary.                                                                      |
+| Evidence          | ADR-0011 and ADR-0022 preserve the decision history.                                                                                                                                  |
+
+### R-015 — Open Home Foundation Matter smart-plug boundary
+
+| Field             | Finding                                                                                                                                       |
+| ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source repository | Open Home Foundation `matter-js/matterjs-server`; no existing Matter implementation was found in the scanned CIT repositories                 |
+| Module            | Pinned `matter-server==1.4.0` process in `apps/matter-controller`; new `adapters/matter-smart-plug` protocol boundary                         |
+| Purpose           | Vendor-account-independent Wi-Fi commissioning and exact local boolean outlet control                                                         |
+| Language/runtime  | Node.js 22 local controller plus Python 3.11/3.13 authenticated Fabric adapter                                                                |
+| Licence           | Controller and new CIT source use Apache-2.0; native BLE dependencies declare compatible MIT-family terms                                     |
+| Current tests     | Windows controller/BLE startup, loopback inventory and Wi-Fi-stdin smoke tests, endpoint/command/API/UI unit tests; physical plug HIL pending |
+| Dependencies      | Open Home Foundation Matter Server 1.4.0 and its pinned Matter.js, WebSocket, Bluetooth/HCI, USB, and serial graph                            |
+| Protocol          | Matter over local IPv6; BLE commissioning; strict On/Off Plug-in Unit device type `0x010A` and OnOff cluster only                             |
+| Reusability       | Canonical `power.switch.*` remains shared; Matter commissioning and node identifiers stay in this adapter boundary                            |
+| Required changes  | Run clean-machine and per-model commissioning, network-loss, restart, state-verification, and safe-off HIL                                    |
+| Risk              | Brand/model may not contain Matter firmware; Windows native BLE build/driver behavior varies                                                  |
+| Decision          | Default business-site path; loopback controller, stdin-only setup values, no vendor account/cloud/key, legacy adapter preserved               |
+| Evidence          | ADR-0012, `tests/adapters/test_matter_smart_plug.py`, runtime commissioning tests, and the Windows Matter runbook                             |
+
+### R-016 — Brain2Devices MindWave and Tello implementation
+
+| Field             | Finding                                                                                                                                                                       |
+| ----------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Source repository | `https://github.com/jojungwhan/brain2devices.git`; the local checkout may remain on an owner feature branch because CIT never switches it                                     |
+| Revision          | `536a256ef3f4b3182a74891b5971e9124ed051b0`, fetched and equal to default `origin/main` on 2026-08-23 after PR 3 merged; characterized in a clean checkout                     |
+| Module            | MindWave/Tello hardware ports, fleet/API state, one-shot EEG demo gate, Tello MJPEG/video firewall support, Windows radio tooling, simulators, and safety services            |
+| Purpose           | MindWave/TGC metrics and DJI Tello connection/fleet behavior without rebuilding proven vendor integration code                                                                |
+| Language/runtime  | Python 3.10–3.12; CIT business install selects isolated Python 3.12; TGC loopback TCP and DJITelloPy UDP/Wi-Fi                                                                |
+| Licence           | No top-level licence file found at the inspected revision. Source remains an external process checkout and is not copied or packaged as CIT source                            |
+| Current tests     | 198 upstream tests pass; CIT adds contract/backend/API/media/launcher/safety/UI tests and isolated simulated adapter-to-Fabric process evidence; physical HIL remains pending |
+| Dependencies      | Brain2Devices 0.6.35 plus exact-pinned Windows requirements in `config/brain2devices-windows-requirements.txt`                                                                |
+| Protocol          | Existing Python hardware ports or loopback compatibility API behind a strict JSONL child boundary; canonical authenticated Fabric WebSocket outside                           |
+| Reusability       | Separate Tello and MindWave processes retain their own contracts; a third compatibility process alone wraps the legacy combined demo; shared SDK remains transport-only       |
+| Required changes  | Grounded Tello/headset/video HIL, firewall/link/process loss, one-shot/cancel behavior, truthful async lifecycle, latency, and clean-machine installer evidence               |
+| Risk              | Vendor/native/network dependencies are fragile; API receipt is not device completion; rapid handoff can release aircraft; eSense is not objective cognition                   |
+| Decision          | Exact clean external pin; Tello telemetry/land/emergency plus ephemeral video; MindWave publish-only/no raw EEG; separate instructor-gated one-shot demo node                 |
+| Evidence          | ADR-0018/0020, generated catalogs, adapter/media/core/UI tests, process-slice launcher, business installer, and the Brain2Devices runbook                                     |
 
 ## Environment gaps and owner follow-up
 

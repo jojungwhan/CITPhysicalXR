@@ -7,6 +7,7 @@ param(
   [ValidateRange(1024, 65535)]
   [int]$FabricPort = 8766,
   [string]$StateRoot = "",
+  [string]$Brain2DevicesRoot = "",
   [switch]$AllowPhysical,
   [switch]$AllowLanMedia,
   [string]$LanAddress = "",
@@ -18,6 +19,26 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+if (-not $Brain2DevicesRoot) {
+  $siteProfilePath = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\site\site.json"
+  if (Test-Path -LiteralPath $siteProfilePath -PathType Leaf) {
+    try {
+      $siteProfile = [IO.File]::ReadAllText($siteProfilePath, [Text.Encoding]::UTF8) |
+        ConvertFrom-Json
+      if (
+        $siteProfile.PSObject.Properties.Name -contains "brain2devicesRoot" -and
+        $siteProfile.brain2devicesRoot
+      ) {
+        $Brain2DevicesRoot = [string]$siteProfile.brain2devicesRoot
+      }
+    } catch {
+      throw "The CIT business-site profile is invalid; run the business installer again."
+    }
+  }
+}
+if ($Brain2DevicesRoot) {
+  $Brain2DevicesRoot = [IO.Path]::GetFullPath($Brain2DevicesRoot)
+}
 if (-not $StateRoot) {
   $StateRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
 }
@@ -238,7 +259,11 @@ function Build-Systems {
     # The classroom button prepares the optional local YOLO runtime as part of
     # the same guided startup. It never captures or analyzes a camera frame;
     # inference remains an explicit tutor action in Classroom Control.
-    Invoke-External $uv @("sync", "--all-packages", "--frozen", "--extra", "vision") $repositoryRoot
+    Invoke-External $uv @(
+      "sync", "--all-packages", "--frozen",
+      "--extra", "vision",
+      "--extra", "smart-plug-lan"
+    ) $repositoryRoot
     Invoke-External `
       (Join-Path $repositoryRoot ".venv\Scripts\python.exe") `
       @(
@@ -252,7 +277,7 @@ function Build-Systems {
     Write-Warning "Local object recognition could not be prepared: $($_.Exception.Message)"
     # Restore the deterministic default environment after an interrupted or
     # rejected optional dependency install.
-    Invoke-External $uv @("sync", "--all-packages", "--frozen") $repositoryRoot
+    Invoke-External $uv @("sync", "--all-packages", "--frozen", "--extra", "smart-plug-lan") $repositoryRoot
   }
   Invoke-External (Resolve-Executable "pnpm.cmd") @("install", "--frozen-lockfile") $repositoryRoot
   Invoke-External (Resolve-Executable "pnpm.cmd") @("build") $repositoryRoot
@@ -285,6 +310,17 @@ function Start-Fabric([hashtable]$State, [string]$Credential) {
         $health.mediaIngress -eq "enabled"
       if ($AllowLanMedia -and -not $mediaIngressEnabled) {
         throw "local-network camera ingress is disabled; restart Classroom Control"
+      }
+      if ($Brain2DevicesRoot) {
+        $runningBrainRoot = if ($State.ContainsKey("brain2devicesRoot")) {
+          [string]$State.brain2devicesRoot
+        } else { "" }
+        if (-not $runningBrainRoot -or -not $runningBrainRoot.Equals(
+            $Brain2DevicesRoot,
+            [StringComparison]::OrdinalIgnoreCase
+          )) {
+          throw "Brain2Devices discovery source changed; restart Classroom Control"
+        }
       }
     } catch {
       throw "Port $FabricPort does not host the matching shared Fabric: $($_.Exception.Message)"
@@ -326,6 +362,9 @@ function Start-Fabric([hashtable]$State, [string]$Credential) {
   if ($mediaIngressOrigin) {
     $processEnvironment.CITXR_MEDIA_INGRESS_ORIGIN = $mediaIngressOrigin
   }
+  if ($Brain2DevicesRoot) {
+    $processEnvironment.CITXR_BRAIN2DEVICES_ROOT = $Brain2DevicesRoot
+  }
   $process = Start-HiddenProcess `
     -Executable $runtimePython `
     -Arguments @(
@@ -338,6 +377,7 @@ function Start-Fabric([hashtable]$State, [string]$Credential) {
   $State.fabricOwned = $true
   $State.allowPhysical = [bool]$AllowPhysical
   $State.mediaIngressOrigin = $mediaIngressOrigin
+  $State.brain2devicesRoot = $Brain2DevicesRoot
   Save-State $State
   Wait-Until {
     try {

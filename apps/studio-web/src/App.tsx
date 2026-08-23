@@ -8,7 +8,12 @@ import {
   useState,
 } from "react";
 
-import { translatorFor, type Locale } from "./i18n.js";
+import {
+  readSavedLocale,
+  saveLocale,
+  translatorFor,
+  type Locale,
+} from "./i18n.js";
 import { FabricConsole } from "./FabricConsole.js";
 import {
   RuntimeClient,
@@ -56,7 +61,7 @@ function ClassroomApp() {
   const clientRef = useRef(new RuntimeClient());
   const client = clientRef.current;
 
-  const [locale, setLocale] = useState<Locale>("en");
+  const [locale, setLocaleState] = useState<Locale>(readSavedLocale);
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [route, setRoute] = useState<Route>(() =>
     routeFromHash(typeof window === "undefined" ? "" : window.location.hash),
@@ -71,6 +76,14 @@ function ClassroomApp() {
   const [busy, setBusy] = useState(false);
 
   const t = useMemo(() => translatorFor(locale), [locale]);
+  const setLocale = useCallback((nextLocale: Locale) => {
+    saveLocale(nextLocale);
+    setLocaleState(nextLocale);
+  }, []);
+
+  useEffect(() => {
+    saveLocale(locale);
+  }, [locale]);
 
   const run = useCallback(async (work: () => Promise<void>) => {
     setBusy(true);

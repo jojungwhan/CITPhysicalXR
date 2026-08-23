@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Awaitable, Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -39,6 +40,11 @@ _NODE_LEASE_TTL = timedelta(seconds=15)
 _MAX_CLOCK_SKEW = timedelta(seconds=30)
 _MAX_FLOW_COMMAND_TTL = timedelta(seconds=2)
 _ARM_INACTIVITY_TTL = timedelta(minutes=2)
+_BRAIN_FLIGHT_DEMO_ARM = "mobility.flight.brain_demo.arm"
+_BRAIN_FLIGHT_DEMO_SAFETY_PROFILE = "classroom-drone-monitoring"
+_FLEET_SEQUENCE_ARM = "mobility.flight.fleet_sequence.arm"
+_FLEET_SEQUENCE_START = "mobility.flight.fleet_sequence.start"
+_FLEET_SEQUENCE_SAFETY_PROFILE = "classroom-drone-monitoring"
 _COMMAND_TRANSITIONS: dict[
     FabricCommandLifecycleStage,
     frozenset[FabricCommandLifecycleStage],
@@ -313,6 +319,63 @@ class InteractionFabric:
         )
         return self._repository.create_interaction_session(session)
 
+    def ensure_monitoring_session(
+        self,
+        course_pack: CoursePack,
+        *,
+        site_id: str,
+        room_id: str,
+        mode: FabricSessionMode,
+        actor_id: str,
+    ) -> tuple[InteractionSession, bool]:
+        """Reuse one active-preferred monitoring session with dormant safe flows."""
+
+        if not self._monitoring_flows_are_dormant_when_unarmed(course_pack):
+            raise ValueError(
+                "A monitoring session flow must target an optional role and include "
+                "every deterministic unarmed-safety guard"
+            )
+        reusable_states = {
+            FabricSessionState.active,
+            FabricSessionState.paused,
+            FabricSessionState.ready,
+            FabricSessionState.draft,
+        }
+        state_order = {
+            FabricSessionState.active: 0,
+            FabricSessionState.paused: 1,
+            FabricSessionState.ready: 2,
+            FabricSessionState.draft: 3,
+        }
+        candidates = [
+            session
+            for session in self.list_sessions()
+            if session.coursePackId == course_pack.coursePackId
+            and session.coursePackVersion == course_pack.version
+            and session.siteId == site_id
+            and session.roomId == room_id
+            and session.mode is mode
+            and session.state in reusable_states
+            and not session.armed
+        ]
+        if candidates:
+            return min(candidates, key=lambda item: state_order[item.state]), True
+        return (
+            self.create_session(
+                CreateInteractionSessionRequest.model_validate(
+                    {
+                        "coursePackId": course_pack.coursePackId,
+                        "coursePackVersion": course_pack.version,
+                        "siteId": site_id,
+                        "roomId": room_id,
+                        "mode": mode.value,
+                    }
+                ),
+                actor_id=actor_id,
+            ),
+            False,
+        )
+
     def assign_role(
         self,
         session_id: str,
@@ -322,15 +385,6 @@ class InteractionFabric:
         actor_id: str,
     ) -> InteractionSession:
         session = self._require_session(session_id)
-        if session.state not in {
-            FabricSessionState.draft,
-            FabricSessionState.ready,
-            FabricSessionState.paused,
-        }:
-            raise FabricConflictError(
-                "SESSION_ACTIVE",
-                "Roles can be changed only while a session is not active",
-            )
         node = self._require_node(node_id)
         if node.siteId != session.siteId or node.roomId != session.roomId:
             raise FabricPolicyError(
@@ -349,6 +403,31 @@ class InteractionFabric:
             raise FabricConflictError(
                 "CAPABILITY_MISMATCH",
                 f"Node {node_id!r} does not satisfy role {role!r}",
+            )
+        ordinary_role_change_states = {
+            FabricSessionState.draft,
+            FabricSessionState.ready,
+            FabricSessionState.paused,
+        }
+        active_monitoring_extension = (
+            session.state is FabricSessionState.active
+            and not session.armed
+            and self._monitoring_flows_are_dormant_when_unarmed(course_pack)
+            and requirement.optional
+            and all(
+                _capability_descriptor(node, capability).safetyClassification
+                in {
+                    FabricSafetyClassification.none,
+                    FabricSafetyClassification.informational,
+                }
+                for capability in compatible
+            )
+        )
+        if session.state not in ordinary_role_change_states and not active_monitoring_extension:
+            raise FabricConflictError(
+                "SESSION_ACTIVE",
+                "Roles can be changed during an active session only for an unarmed, "
+                "no-flow, optional informational monitoring role",
             )
         if session.mode is FabricSessionMode.simulation:
             unsafe_capabilities = [
@@ -382,6 +461,8 @@ class InteractionFabric:
             }
         )
         updated = self._repository.bind_interaction_role(session, binding)
+        if active_monitoring_extension:
+            return updated
         if self._required_roles_are_bound(updated, course_pack):
             updated = updated.model_copy(
                 update={"state": FabricSessionState.ready, "updatedAt": at}
@@ -437,7 +518,11 @@ class InteractionFabric:
                     f"Cannot start a session from {session.state.value!r}",
                 )
             self._validate_bound_nodes(session)
-            if session.mode is FabricSessionMode.physical and not session.armed:
+            if (
+                session.mode is FabricSessionMode.physical
+                and not session.armed
+                and not self._is_unarmed_monitoring_session(session)
+            ):
                 raise FabricPolicyError(
                     "SESSION_NOT_ARMED",
                     "A physical session must be explicitly armed before start",
@@ -510,10 +595,13 @@ class InteractionFabric:
         if timestamp + timedelta(milliseconds=event.ttlMs) <= now:
             raise FabricPolicyError("EVENT_EXPIRED", "Event TTL has expired")
         session = self._require_session(event.sessionId)
-        if session.state is not FabricSessionState.active:
+        if session.state not in {
+            FabricSessionState.active,
+            FabricSessionState.paused,
+        }:
             raise FabricConflictError(
                 "SESSION_NOT_ACTIVE",
-                "Semantic events require an active session",
+                "Semantic events require an active or paused session",
             )
         node = self._require_node(event.sourceNodeId)
         if node.siteId != event.siteId or node.roomId != event.roomId:
@@ -546,6 +634,14 @@ class InteractionFabric:
                 "DATA_CLASSIFICATION_MISMATCH",
                 "Event data classification is not advertised by the source node",
             )
+        if session.state is FabricSessionState.paused:
+            # Keep the adapter transport healthy while a tutor pauses a lesson,
+            # but do not persist, replay, or route observations made while paused.
+            return FabricIngestResult(
+                stored_event=None,
+                duplicate=False,
+                command_lifecycle=(),
+            )
         try:
             stored = self._repository.append_fabric_event(event, received_at=now)
         except FabricSequenceConflict as error:
@@ -563,11 +659,32 @@ class InteractionFabric:
             )
         course_pack = self._require_course_pack(session)
         lifecycles: list[FabricCommandLifecycleEvent] = []
+        routed: list[tuple[FlowRecipe, FabricCommandRequest]] = []
         for flow in course_pack.flows:
             request = self._request_from_flow(flow, event, session, now=now)
             if request is None:
                 continue
-            lifecycles.extend(await self.submit_command(request))
+            routed.append((flow, request))
+
+        completed_parallel_groups: set[str] = set()
+        for flow, request in routed:
+            parallel_group = flow.parallelGroup
+            if parallel_group is None:
+                lifecycles.extend(await self.submit_command(request))
+                continue
+            if parallel_group in completed_parallel_groups:
+                continue
+            completed_parallel_groups.add(parallel_group)
+            group_requests = [
+                candidate_request
+                for candidate_flow, candidate_request in routed
+                if candidate_flow.parallelGroup == parallel_group
+            ]
+            group_results = await asyncio.gather(
+                *(self.submit_command(candidate) for candidate in group_requests)
+            )
+            for result in group_results:
+                lifecycles.extend(result)
         return FabricIngestResult(
             stored_event=stored,
             duplicate=False,
@@ -746,11 +863,13 @@ class InteractionFabric:
         session_id: str | None,
         after_sequence: int,
         limit: int,
+        latest: bool = False,
     ) -> tuple[StoredFabricEvent, ...]:
         return self._repository.list_fabric_events(
             session_id=session_id,
             after_stream_sequence=after_sequence,
             limit=limit,
+            latest=latest,
         )
 
     def list_lifecycle(
@@ -771,6 +890,12 @@ class InteractionFabric:
 
     def list_sessions(self) -> tuple[InteractionSession, ...]:
         return self._repository.list_interaction_sessions()
+
+    def can_start_unarmed(self, session_id: str) -> bool:
+        session = self._require_session(session_id)
+        if session.mode is FabricSessionMode.simulation:
+            return True
+        return self._is_unarmed_monitoring_session(session)
 
     def _validate_command(
         self,
@@ -810,10 +935,14 @@ class InteractionFabric:
             if command.priority is FabricCommandPriority.autonomous_agent:
                 return "AGENT_PHYSICAL_CONTROL_DENIED", "Autonomous agents cannot command hardware"
             if capability.safetyClassification is FabricSafetyClassification.flight:
-                return (
-                    "SAFETY_PROFILE_NOT_IMPLEMENTED",
-                    "Flight command profiles are not enabled in this slice",
-                )
+                if not (
+                    _is_bounded_brain_flight_demo_arm(command)
+                    or _is_bounded_fleet_sequence_command(command)
+                ):
+                    return (
+                        "SAFETY_PROFILE_NOT_IMPLEMENTED",
+                        "Only explicitly confirmed bounded flight workflows are enabled",
+                    )
             if (
                 capability.safetyClassification is FabricSafetyClassification.electrical
                 and command.action != "power.switch.set"
@@ -1106,6 +1235,50 @@ class InteractionFabric:
                     f"Role {binding.role!r} no longer has its required capability",
                 )
 
+    def _is_unarmed_monitoring_session(self, session: InteractionSession) -> bool:
+        """Allow observation without silently authorizing physical actuation.
+
+        A physical session may run unarmed only when every assigned role uses an
+        informational capability and every enabled flow is deterministically
+        dormant until the target is armed. Safe-state commands such as land remain
+        available through the ordinary command gate; takeoff, movement, and
+        electrical activation remain denied.
+        """
+
+        course_pack = self._require_course_pack(session)
+        if not session.roleBindings or not self._monitoring_flows_are_dormant_when_unarmed(
+            course_pack
+        ):
+            return False
+        for binding in session.roleBindings:
+            node = self._require_node(binding.nodeId)
+            descriptor = _capability_descriptor(node, binding.requiredCapability)
+            if descriptor.safetyClassification not in {
+                FabricSafetyClassification.none,
+                FabricSafetyClassification.informational,
+            }:
+                return False
+        return True
+
+    @staticmethod
+    def _monitoring_flows_are_dormant_when_unarmed(course_pack: CoursePack) -> bool:
+        required_guards = {
+            "session_is_active",
+            "role_is_assigned",
+            "target_is_connected",
+            "target_is_armed",
+            "instructor_override_is_clear",
+        }
+        roles = {requirement.role: requirement for requirement in course_pack.roles}
+        for flow in course_pack.flows:
+            if not flow.enabled:
+                continue
+            target = roles.get(flow.target.role)
+            guards = {guard.value for guard in flow.guards}
+            if target is None or not target.optional or not required_guards <= guards:
+                return False
+        return True
+
 
 def legacy_simulation_manifest_and_nodes(
     descriptors: Iterable[DeviceDescriptor],
@@ -1248,6 +1421,101 @@ def _is_safe_state_command(command: FabricResolvedCommand) -> bool:
         return True
     parameters = command.parameters.model_dump(mode="json")
     return bool(command.action == "power.switch.set" and parameters == {"on": False})
+
+
+def _is_bounded_brain_flight_demo_arm(command: FabricResolvedCommand) -> bool:
+    if (
+        command.action != _BRAIN_FLIGHT_DEMO_ARM
+        or command.safetyProfile != _BRAIN_FLIGHT_DEMO_SAFETY_PROFILE
+        or command.priority is not FabricCommandPriority.instructor_override
+    ):
+        return False
+    parameters = command.parameters.model_dump(mode="json")
+    return all(
+        parameters.get(name) is True
+        for name in ("instructorPresent", "flightAreaClear", "emergencyPlanReady")
+    )
+
+
+def _is_bounded_fleet_sequence_command(command: FabricResolvedCommand) -> bool:
+    if command.safetyProfile != _FLEET_SEQUENCE_SAFETY_PROFILE:
+        return False
+    parameters = command.parameters.model_dump(mode="json")
+    if command.action == _FLEET_SEQUENCE_START:
+        return (
+            not parameters
+            and command.priority
+            in {
+                FabricCommandPriority.instructor_override,
+                FabricCommandPriority.lesson_automation,
+            }
+            and (
+                command.priority is FabricCommandPriority.instructor_override
+                or command.sourceNodeId is not None
+            )
+        )
+    if (
+        command.action != _FLEET_SEQUENCE_ARM
+        or command.priority is not FabricCommandPriority.instructor_override
+    ):
+        return False
+    required = {
+        "droneIds",
+        "allowedSourceNodeIds",
+        "launchIntervalSeconds",
+        "minimumBatteryPercent",
+        "instructorPresent",
+        "flightAreaClear",
+        "emergencyPlanReady",
+        "independentRoutesConfirmed",
+    }
+    launch_interval = parameters.get("launchIntervalSeconds")
+    minimum_battery = parameters.get("minimumBatteryPercent")
+    return (
+        set(parameters) == required
+        and all(
+            parameters.get(name) is True
+            for name in (
+                "instructorPresent",
+                "flightAreaClear",
+                "emergencyPlanReady",
+                "independentRoutesConfirmed",
+            )
+        )
+        and _is_bounded_identifier_list(parameters.get("droneIds"), minimum=2, maximum=8)
+        and _is_bounded_identifier_list(
+            parameters.get("allowedSourceNodeIds"), minimum=0, maximum=8
+        )
+        and not isinstance(launch_interval, bool)
+        and isinstance(launch_interval, (int, float))
+        and 1 <= launch_interval <= 15
+        and not isinstance(minimum_battery, bool)
+        and isinstance(minimum_battery, int)
+        and 20 <= minimum_battery <= 100
+    )
+
+
+def _is_bounded_identifier_list(
+    value: object,
+    *,
+    minimum: int,
+    maximum: int,
+) -> bool:
+    if not isinstance(value, list) or not minimum <= len(value) <= maximum:
+        return False
+    if len(value) != len(set(item for item in value if isinstance(item, str))):
+        return False
+    return all(
+        isinstance(item, str)
+        and 1 <= len(item) <= 128
+        and item[0].isascii()
+        and item[0].isalnum()
+        and all(
+            character.isascii() and (character.isalnum() or character in "._-")
+            for character in item
+        )
+        for item in value
+    )
 
 
 def _validate_command_parameters(

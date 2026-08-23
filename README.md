@@ -2,8 +2,9 @@
 
 This repository contains the completed **Milestone 6 classroom foundation**, the
 Milestone 4 LEGO adapter, an additive Interaction Fabric compatibility slice,
-the first RoboMaster/Leap ground-robot slice, and a Tuya-compatible smart-plug
-slice. On top of the Milestone 0 foundation it provides the local runtime,
+independent RoboMaster/Leap, Tello, MindWave, and LEGO Fabric adapters,
+and a cloud-independent Matter smart-plug path. On top of the
+Milestone 0 foundation it provides the local runtime,
 authoring environment, instructor/student isolation, projects, simulation,
 record/replay, safety controls, and a loopback-first HTTP/WebSocket API.
 
@@ -18,13 +19,20 @@ and MINDSTORMS Robot Inventor over Pybricks firmware. A bounded framed protocol,
 a hub agent that stops itself when the computer goes quiet, capability discovery
 from the hub's own port report, and instructor-gated autonomous programs.
 
-**No LEGO hub has been connected.** The adapter is written behind an injectable
-Bluetooth boundary and every test runs against a hub simulated in memory; the
-development host has no Bluetooth adapter. RoboMaster S1 and Leap now have an
-out-of-process Fabric adapter and simulator-backed course flow, but this host is
-missing the native Leap runtime artifacts, so physical HIL remains pending.
-The smart-plug adapter has simulator evidence but has not contacted a physical
-outlet. There is no Quest application (M5).
+**No LEGO hub has been connected during this implementation.** Its existing
+adapter is now exposed as an independently supervised Fabric process with
+single-UI exact-name/port setup, normalized sensor telemetry, optional bounded
+ground mobility, and an in-memory simulator. RoboMaster S1 and Leap run as
+separate out-of-process Fabric nodes and have a simulator-backed course flow,
+but this host is missing the native Leap runtime artifacts, so physical HIL
+remains pending. Tello and MindWave independently wrap the exact latest
+Brain2Devices revision described below; their software-only Fabric paths are
+tested, but no aircraft or headset was connected.
+The Matter controller has passed a Windows/Bluetooth process smoke test. A real
+controller-to-adapter-to-Fabric process slice also registered a simulated
+`0x010A` outlet, completed a bounded active-session `off` lifecycle, stored its
+normalized state event, and shut down cleanly. No physical outlet has been
+commissioned yet. There is no Quest application (M5).
 
 ## Development setup
 
@@ -95,8 +103,9 @@ without restarting any device. See
 The same page now includes an authenticated latest-frame camera wall, local
 on-demand YOLO object recognition, reviewed smart-plug actions, and normalized
 sensor cards. Meta snapshots use the optional existing Android companion;
-RoboMaster/Tello camera publishers and physical LEGO telemetry are still
-separate hardware gates. See
+Brain2Devices Tello feeds now publish through the same in-memory camera wall,
+while RoboMaster camera publishing and physical device HIL remain separate
+hardware gates. See
 `docs/operations/classroom-cameras-and-sensors.md` for the exact support matrix
 instead of assuming a discovered device already has a live feed.
 
@@ -105,58 +114,102 @@ with `pnpm hardware:install-button:windows`. This is installation work, not a
 tutor startup step. Component-level PowerShell commands remain documented only
 for hardware technicians and developers.
 
+For a new Windows computer at a classroom or business site, use the guided
+business installer instead. The simplest path is to double-click
+`install-cit-business-site.cmd`; it installs PowerShell 7 when needed, uses the
+initial names `business-site` / `classroom-a`, and opens Classroom Control when
+setup finishes.
+
+Technicians can choose different logical names in PowerShell 7:
+
+```powershell
+pwsh -NoProfile -STA -File .\tools\hardware\install-business-site.ps1 `
+  -SiteId cit-business -RoomId classroom-a -InstallPrerequisites
+```
+
+The installer adds the local Matter controller, exact-pinned Brain2Devices,
+the LEGO Bluetooth transport, asks once for classroom Wi-Fi, and creates the
+same tutor button. See
+`docs/operations/matter-smart-plug-windows.md`.
+Brain2Devices is cloned into CIT's per-user application-data directory and that
+managed path is saved in the site profile, so moving the CIT repository does
+not repoint tutors at a developer checkout.
+
 The device scan reuses Brain2Devices' Windows multi-radio Tello scanner, checks
 MindWave/TGC, Ultraleap USB/service state, incoming RoboMaster STA broadcasts,
-Agent Mesh, coding-agent executables, configured encrypted smart-plug profiles,
-and paired LEGO candidates. It sends no actuator, flight, power, agent, media,
+Windows-visible Sphero BOLT `SB-XXXX` devices, Agent Mesh, coding-agent
+executables, commissioned Matter plug endpoints, and paired LEGO candidates. It sends no actuator, flight, power, agent, media,
 or SDK command. Instructor-only Tello and MindWave connection buttons use a
-closed Brain2Devices allowlist; Tello additionally requires a grounded-aircraft
-confirmation and still sends no flight command.
+closed Brain2Devices allowlist and then register separate canonical Fabric
+nodes; Tello additionally requires a grounded-aircraft confirmation. It
+exposes telemetry, land, and emergency stop only—never takeoff or movement.
 
-Real G2/Meta acceptance still requires the owner hardware procedure in
+Even G2 and Meta Ray-Ban have separate setup and status cards because their
+companion and media features differ. They intentionally share the authenticated
+Agent Mesh transport. Real glasses acceptance still requires the owner hardware procedure in
 `docs/operations/agent-mesh-bridge.md`; simulator and software tests are not
 reported as physical evidence.
 
-## Tuya and Gosund smart plugs
+## Cloud-free Matter smart plugs
 
-The smart-plug adapter exposes only `power.switch.set { on: boolean }` and
-`power.switch.state`. It uses local Tuya LAN control through pinned TinyTuya
-1.20.0; vendor cloud commands and arbitrary datapoint writes are absent.
-Gosund is supported only for a specific model that passes the Tuya-LAN
-preflight—not by brand name alone.
+New sites should use a Wi-Fi plug that explicitly carries the Matter logo and a
+Matter setup code. The **Matter smart plugs (cloud-free)** card in Classroom
+Control commissions it into the CIT-owned local fabric and exposes only
+`power.switch.set { on: boolean }` and `power.switch.state`. This path uses no
+proprietary vendor app, account, API, cloud, device ID, or local key.
 
-Run the simulator in the shared UI first:
+The plug must actually run Matter firmware; branding alone is not enough. See
+`docs/operations/matter-smart-plug-windows.md` for installation, real-hardware
+testing, and moving the setup to another Windows computer.
+
+## Tello and MindWave through the latest Brain2Devices
+
+The external source is pinned once in `config/external-sources.yaml` to
+`jojungwhan/brain2devices` commit
+`536a256ef3f4b3182a74891b5971e9124ed051b0`, verified as the latest
+`origin/main` revision on 2026-08-23. The business installer checks out exactly
+that revision into its own Python 3.12 environment; every launcher fails closed
+if the revision drifts or the checkout has local/untracked changes. The source
+stays outside this repository and vendor imports stay in a child process.
+
+That v0.6.35 revision adds upstream blink feedback, Tello video with the Windows
+UDP 11111 firewall fix, and an optional EEG-triggered Tello demo. MindWave stays
+a vendor-labelled, publish-only node and Tello stays a telemetry/land/emergency
+node. A third independent compatibility plugin exposes only the upstream
+one-shot demo arm/stop/status contract through deterministic Fabric safety,
+explicit lesson arming, instructor priority, and the on-screen flight checks.
+
+Tutors do not run the commands below. Open **CIT Classroom Control**, choose
+**Start classroom devices**, then **Find devices**. Use the Tello or MindWave
+card's connect button. The software-only technician equivalent is:
 
 ```powershell
-pnpm hardware:plug:windows -- -Mode Preflight -SharedFabricRoot $fabricRoot
-pnpm hardware:plug:windows -- -Mode Start -SharedFabricRoot $fabricRoot
-pnpm hardware:plug:windows -- -Mode Verify -SharedFabricRoot $fabricRoot
-pnpm hardware:plug:windows -- -Mode Stop -SharedFabricRoot $fabricRoot
-```
-
-Physical setup uses a DPAPI-protected local profile, an exact private IPv4
-address, explicit `-Live`, a physical Fabric session, and the UI's Arm/Start
-safety state. The adapter starts and shuts down in **off** state; it never
-automatically turns a load on. Follow
-`docs/operations/tuya-smart-plug-hardware.md` before connecting a real outlet.
-
-## Tello and MindWave discovery
-
-The preserved `brain2devices` implementation now has a CIT service launcher
-and appears in the single classroom discovery screen:
-
-```powershell
-pnpm hardware:brain:windows -- -Mode Preflight
-pnpm hardware:brain:windows -- -Mode Start
-pnpm hardware:devices:windows -- -Mode Scan
+pnpm hardware:brain:fabric:windows -- -Mode Preflight -Device All -Simulation
+pnpm hardware:brain:fabric:windows -- -Mode Start -Device All -Simulation
+pnpm hardware:brain:fabric:windows -- -Mode Stop -Device All
 ```
 
 Two or more stock Tellos require one physical USB Wi-Fi adapter per aircraft;
 the screen lists radios separately from currently visible `TELLO-*`/`RMTT-*`
-networks. The connection action performs only radio setup and SDK handshakes.
-Canonical Fabric flight nodes and flight controls remain behind the later drone
-safety slice. MindWave connection continues through ThinkGear Connector and no
-raw biosignal is recorded by discovery.
+networks. The Tello action performs radio setup and SDK handshakes, registers
+one node per connected aircraft, and joins one shared unarmed monitoring
+session used by the MindWave and LEGO sensor adapters as well.
+Only land and emergency stop can dispatch while unarmed; takeoff and movement
+are neither advertised nor accepted. MindWave uses ThinkGear Connector and
+publishes only explicitly vendor-labelled eSense/signal/blink values. Raw EEG
+is never emitted or recorded. See
+`docs/operations/brain2devices-fabric.md` for installation, simulation, and the
+physical evidence checklist.
+
+## LEGO hub setup in the same UI
+
+Install Pybricks firmware once using the normal Pybricks tooling and give every
+hub a unique classroom Bluetooth name. In **Find devices**, open the LEGO card,
+enter that exact name, select the model, and describe each connected port. A
+sensor-only hub is valid. CIT never connects to the nearest anonymous hub and
+joins only the shared unarmed monitoring session; it advertises ground mobility
+only when at least two ports are motors. No motor command is issued during
+setup.
 
 ## RoboMaster S1 and Leap Motion
 
@@ -207,9 +260,13 @@ Platform paths are stored separately and never translated between Windows and Li
 - `packages/protocol-schema`, `protocol-ts`, and `protocol-py`: protocol v1 source and generated bindings
 - `packages/safety-core`: command ledger, expiry, leases, and foundation denial policy
 - `packages/device-simulator`: non-hardware adapter contract and fake S1, Leap, LEGO, and Quest devices
+- `packages/integration-sdk-py`: adapter transport/lifecycle helpers plus generated capability/source catalogs
 - `adapters/lego-pybricks`: the LEGO hub adapter, framed protocol, capability discovery, and injectable Bluetooth boundary
-- `adapters/robomaster-leap`: authenticated Fabric wrapper plus isolated Python 3.8 Leap and S1 workers
-- `adapters/tuya-smart-plug`: authenticated Tuya-LAN adapter, simulator, exact boolean command, and safe-off boundary
+- `adapters/robomaster-leap`: independently supervised Leap and S1 Fabric processes plus isolated Python 3.8 vendor workers
+- `adapters/tello`: safe Tello telemetry/land/emergency adapter around Brain2Devices
+- `adapters/mindwave-mobile2`: publish-only, vendor-labelled Brain2Devices MindWave adapter
+- `apps/matter-controller`: pinned loopback-only Open Home Foundation Matter controller
+- `adapters/matter-smart-plug`: cloud-independent Matter `0x010A` plug adapter and safe-off boundary
 - `firmware/lego-hub-agent`: the Pybricks program that runs on a hub
 - `packages/test-harness`: reusable adapter shape assertion
 - `apps/runtime-py`: the local runtime -- sessions, device registry, safety supervisor, command pipeline, event router, record/replay, audit, and the loopback API
@@ -224,10 +281,13 @@ Platform paths are stored separately and never translated between Windows and Li
 ## Current limitations
 
 - Read-only host discovery was exercised on Windows, but no physical actuator,
-  headset, smart plug, or aircraft was connected or commanded. LEGO,
-  RoboMaster/Leap, and smart-plug control paths still have simulator evidence
-  only.
-- Installing the current LEGO `hardware` extra breaks `pnpm license:check`; ADR-023 selected a transport split, which is not implemented yet and still blocks hardware bring-up.
+  headset, smart plug, or aircraft was connected or commanded in this change.
+  Tello, MindWave, LEGO, RoboMaster/Leap, and smart-plug paths therefore still
+  have software/simulator evidence only.
+- The business installer places Pybricks Bluetooth dependencies in the local
+  hardware environment. Their optional transitive licence metadata remains a
+  documented distribution concern; it does not weaken the runtime boundary or
+  justify claiming physical HIL.
 - The runtime listens on loopback only. The new subprocess bridge executes one fixed worker path with an allowlisted JSON-lines contract; there is no arbitrary shell, eval endpoint, or public endpoint.
 - Fake-device tests are contract evidence only; they are not Milestone 1 simulation or hardware evidence.
 - The working DJI Python environment and pinned upstream checkout are integrated, but the built Leap bridge DLL, adjacent LeapC runtime, and tracking service are still absent on this host.

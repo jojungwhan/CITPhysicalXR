@@ -13,7 +13,7 @@ export interface FabricSensorReading {
   values: FabricSensorValue[];
 }
 
-const SENSOR_PREFIXES = ["sensor.", "telemetry.", "biosignal."];
+const SENSOR_PREFIXES = ["sensor.", "telemetry.", "biosignal.", "mindwave."];
 const HIDDEN_PAYLOAD_KEYS = new Set([
   "audio",
   "camera",

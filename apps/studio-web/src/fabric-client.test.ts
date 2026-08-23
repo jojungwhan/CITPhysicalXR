@@ -63,6 +63,64 @@ describe("Fabric client credentials", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("sends a Matter setup code only in the authenticated request body", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          actionId: "cit.matter-smart-plug.commission",
+          accepted: true,
+          message: "Commissioned.",
+          report: {},
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const client = new FabricClient("http://127.0.0.1:8766", fetchMock);
+    client.setCredential("cit-instructor-" + "m".repeat(40));
+
+    await client.commissionMatterPlug("MT:Y.K9042C00KA0648G00");
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("http://127.0.0.1:8766/api/v1/fabric/matter/commission");
+    expect(String(url)).not.toContain("MT:");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      setupCode: "MT:Y.K9042C00KA0648G00",
+    });
+  });
+
+  it("sends a bounded LEGO profile to the fixed same-origin route", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          actionId: "cit.lego-pybricks.configure-connect",
+          accepted: true,
+          message: "Connected.",
+          report: {},
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const client = new FabricClient("http://127.0.0.1:8766", fetchMock);
+    client.setCredential("cit-instructor-" + "l".repeat(40));
+    const configuration = {
+      hubName: "CIT LEGO A",
+      hubModel: "spike-prime" as const,
+      ports: {
+        A: "motor" as const,
+        B: "motor" as const,
+        C: "distance" as const,
+      },
+    };
+
+    await client.connectLegoHub(configuration);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("http://127.0.0.1:8766/api/v1/fabric/lego/connect");
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual(configuration);
+  });
+
   it("forgets the in-memory credential when signed out", async () => {
     const fetchMock = vi.fn<typeof fetch>();
     const client = new FabricClient("", fetchMock);
@@ -73,6 +131,46 @@ describe("Fabric client credentials", () => {
       "Enter a CIT Fabric credential",
     );
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("reads server-derived session start safety policy", async () => {
+    const policy = {
+      sessionId: "session-a",
+      requiresArming: false,
+    };
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(policy), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = new FabricClient("http://127.0.0.1:8766", fetchMock);
+    client.setCredential("cit-instructor-" + "p".repeat(40));
+
+    await expect(client.getSessionStartPolicy("session-a")).resolves.toEqual(
+      policy,
+    );
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "http://127.0.0.1:8766/api/v1/fabric/sessions/session-a/start-policy",
+    );
+  });
+
+  it("requests the latest chronological event window for the live console", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify([]), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = new FabricClient("http://127.0.0.1:8766", fetchMock);
+    client.setCredential("cit-instructor-" + "e".repeat(40));
+
+    await client.listEvents("session-a");
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "http://127.0.0.1:8766/api/v1/fabric/events?sessionId=session-a&afterSequence=0&limit=100&latest=true",
+    );
   });
 
   it("creates a bounded Meta camera pairing without accepting device credentials", async () => {

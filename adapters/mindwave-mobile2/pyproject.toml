@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-mindwave-mobile2"
+version = "0.1.0"
+description = "Independent CIT Interaction Fabric adapter for MindWave Mobile 2 via Brain2Devices"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "cit-integration-sdk",
+  "cit-protocol",
+]
+
+[project.scripts]
+cit-mindwave-mobile2 = "cit_mindwave_mobile2.__main__:main"
+
+[tool.uv.sources]
+cit-integration-sdk = { workspace = true }
+cit-protocol = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cit_mindwave_mobile2"]

@@ -13,6 +13,7 @@ from cit_protocol import (
     FabricCommandPriority,
     FabricCommandRequest,
     FabricEventEnvelope,
+    FabricSessionMode,
     IntegrationNode,
     InteractionSession,
     PluginManifest,
@@ -20,7 +21,7 @@ from cit_protocol import (
 )
 from fastapi import Depends, FastAPI, Header, Query, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from .fabric import (
     FabricConflictError,
@@ -36,11 +37,13 @@ from .fabric_auth import (
     FabricAuthService,
     FabricPrincipal,
 )
+from .fabric_course import device_monitoring_course_pack
 from .fabric_discovery import (
     FabricDiscoveryActionResult,
     FabricDiscoveryError,
     FabricDiscoveryReport,
     FabricDiscoveryService,
+    LegoConnectionConfiguration,
 )
 from .fabric_persistence import FABRIC_PAGE_LIMIT, FabricIdentityRecord
 from .fabric_repository import SQLiteFabricRepository
@@ -90,10 +93,31 @@ class AssignRoleRequest(BaseModel):
     nodeId: Annotated[str, Field(min_length=1, max_length=128, pattern=_IDENTIFIER_PATTERN)]
 
 
+class EnsureMonitoringSessionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    siteId: Annotated[str, Field(min_length=1, max_length=128, pattern=_IDENTIFIER_PATTERN)]
+    roomId: Annotated[str, Field(min_length=1, max_length=128, pattern=_IDENTIFIER_PATTERN)]
+    mode: Literal["simulation", "physical"]
+
+
+class SessionStartPolicyResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sessionId: str
+    requiresArming: bool
+
+
 class DiscoveryActionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     confirmGrounded: bool = False
+
+
+class MatterCommissioningRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    setupCode: SecretStr
 
 
 class FabricStreamAuthentication(BaseModel):
@@ -464,7 +488,97 @@ def install_fabric_api(
         )
         return result
 
-    @app.get("/api/v1/fabric/course-packs", response_model=list[CoursePack])
+    @app.post(
+        "/api/v1/fabric/matter/commission",
+        response_model=FabricDiscoveryActionResult,
+        response_model_exclude_none=True,
+    )
+    async def commission_matter_plug(
+        request: MatterCommissioningRequest,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.discovery.connect")),
+        ],
+    ) -> FabricDiscoveryActionResult:
+        try:
+            result = await get_discovery().commission_matter(
+                request.setupCode.get_secret_value(),
+                nodes=visible_nodes(principal),
+            )
+        except FabricDiscoveryError as error:
+            _audit(
+                get_repository(),
+                principal,
+                action="fabric.matter.commission",
+                resource_type="integration_action",
+                resource_id="cit.matter-smart-plug",
+                at=current_time(),
+                outcome="denied",
+                details={"code": error.code},
+            )
+            raise
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.matter.commission",
+            resource_type="integration_action",
+            resource_id="cit.matter-smart-plug",
+            at=current_time(),
+            outcome="succeeded",
+            details={"inputRetained": False, "vendorAccountUsed": False},
+        )
+        return result
+
+    @app.post(
+        "/api/v1/fabric/lego/connect",
+        response_model=FabricDiscoveryActionResult,
+        response_model_exclude_none=True,
+    )
+    async def connect_lego_hub(
+        request: LegoConnectionConfiguration,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.discovery.connect")),
+        ],
+    ) -> FabricDiscoveryActionResult:
+        try:
+            result = await get_discovery().connect_lego(
+                request,
+                nodes=visible_nodes(principal),
+            )
+        except FabricDiscoveryError as error:
+            _audit(
+                get_repository(),
+                principal,
+                action="fabric.lego.connect",
+                resource_type="integration_action",
+                resource_id="cit.lego-pybricks",
+                at=current_time(),
+                outcome="denied",
+                details={"code": error.code},
+            )
+            raise
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.lego.connect",
+            resource_type="integration_action",
+            resource_id="cit.lego-pybricks",
+            at=current_time(),
+            outcome="succeeded",
+            details={
+                "hubModel": request.hubModel,
+                "configuredPortCount": len(request.ports),
+                "motorCommandIssued": False,
+            },
+        )
+        return result
+
+    @app.get(
+        "/api/v1/fabric/course-packs",
+        response_model=list[CoursePack],
+        response_model_exclude_none=True,
+    )
     async def course_packs(
         _principal: Annotated[
             FabricPrincipal,
@@ -473,7 +587,12 @@ def install_fabric_api(
     ) -> list[CoursePack]:
         return list(get_fabric().list_course_packs())
 
-    @app.post("/api/v1/fabric/course-packs", response_model=CoursePack, status_code=201)
+    @app.post(
+        "/api/v1/fabric/course-packs",
+        response_model=CoursePack,
+        response_model_exclude_none=True,
+        status_code=201,
+    )
     async def install_course_pack(
         course_pack: CoursePack,
         principal: Annotated[
@@ -524,6 +643,43 @@ def install_fabric_api(
         )
         return session
 
+    @app.post(
+        "/api/v1/fabric/monitoring/session",
+        response_model=InteractionSession,
+    )
+    async def ensure_monitoring_session(
+        request: EnsureMonitoringSessionRequest,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.sessions.manage")),
+        ],
+    ) -> InteractionSession:
+        """Reuse one unarmed monitoring session across independent adapters."""
+
+        get_auth().require(
+            principal,
+            "fabric.sessions.manage",
+            site_id=request.siteId,
+            room_id=request.roomId,
+        )
+        session, reused = get_fabric().ensure_monitoring_session(
+            device_monitoring_course_pack(),
+            site_id=request.siteId,
+            room_id=request.roomId,
+            mode=FabricSessionMode(request.mode),
+            actor_id=principal.identity_id,
+        )
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.monitoring_session.ensure",
+            resource_type="session",
+            resource_id=session.sessionId,
+            at=current_time(),
+            details={"reused": reused},
+        )
+        return session
+
     @app.get("/api/v1/fabric/sessions", response_model=list[InteractionSession])
     async def sessions(
         principal: Annotated[
@@ -562,6 +718,31 @@ def install_fabric_api(
             session_id=session.sessionId,
         )
         return session
+
+    @app.get(
+        "/api/v1/fabric/sessions/{session_id}/start-policy",
+        response_model=SessionStartPolicyResponse,
+    )
+    async def get_session_start_policy(
+        session_id: str,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.sessions.read")),
+        ],
+    ) -> SessionStartPolicyResponse:
+        session = get_fabric().get_session(session_id)
+        get_auth().require(
+            principal,
+            "fabric.sessions.read",
+            site_id=session.siteId,
+            room_id=session.roomId,
+            session_id=session.sessionId,
+        )
+        can_start_unarmed = get_fabric().can_start_unarmed(session_id)
+        return SessionStartPolicyResponse(
+            sessionId=session.sessionId,
+            requiresArming=not can_start_unarmed,
+        )
 
     @app.put(
         "/api/v1/fabric/sessions/{session_id}/roles/{role}",
@@ -655,6 +836,7 @@ def install_fabric_api(
         session_id: Annotated[str | None, Query(alias="sessionId")] = None,
         after_sequence: Annotated[int, Query(alias="afterSequence", ge=0)] = 0,
         limit: Annotated[int, Query(ge=1, le=FABRIC_PAGE_LIMIT)] = FABRIC_PAGE_LIMIT,
+        latest: Annotated[bool, Query()] = False,
     ) -> list[dict[str, object]]:
         if session_id is not None:
             session = get_fabric().get_session(session_id)
@@ -675,6 +857,7 @@ def install_fabric_api(
                 session_id=session_id,
                 after_sequence=after_sequence,
                 limit=limit,
+                latest=latest,
             )
         ]
 

@@ -37,14 +37,50 @@ def test_shared_launcher_hides_disconnected_adapter_history_from_live_status() -
 
 def test_component_launchers_reopen_the_single_shared_tutor_console() -> None:
     for name in (
+        "brain2devices-fabric-adapters.ps1",
         "glasses-agent-hardware-test.ps1",
+        "lego-pybricks.ps1",
+        "matter-smart-plug.ps1",
         "robomaster-leap-hardware-test.ps1",
-        "smart-plug-hardware-test.ps1",
     ):
         launcher = _launcher(name)
 
         assert "interaction-fabric-console.ps1" in launcher
         assert "-Mode Open" in launcher
+
+
+def test_classroom_launcher_isolates_optional_brain2devices_failure() -> None:
+    launcher = _launcher("classroom-devices.ps1")
+
+    assert "try {\n    & $brainLauncher @brainParameters\n  } catch {" in launcher
+    assert "The optional Brain2Devices integration is unavailable" in launcher
+    assert 'Write-Host "READY. In Classroom Control, choose Find devices."' in launcher
+
+
+def test_lego_launcher_uses_exact_profile_input_and_unarmed_monitoring() -> None:
+    launcher = _launcher("lego-pybricks.ps1")
+
+    assert "[Console]::In.ReadToEnd()" in launcher
+    assert "/api/v1/fabric/monitoring/session" in launcher
+    assert "/roles/$sensorRole" in launcher
+    assert '"robot_sensor_$_"' in launcher
+    assert "cit_lego_pybricks.fabric_main" in launcher
+    assert "--ports-base64" in launcher
+    assert "ConvertTo-StartProcessArgument" in launcher
+    assert "Invoke-Expression" not in launcher
+    assert "download_program" not in launcher
+    assert '"/arm"' not in launcher
+
+
+def test_independent_monitoring_launchers_join_one_shared_session() -> None:
+    for name in ("brain2devices-fabric-adapters.ps1", "lego-pybricks.ps1"):
+        launcher = _launcher(name)
+
+        assert "/api/v1/fabric/monitoring/session" in launcher
+        assert 'coursePackId = "device-monitoring"' not in launcher
+        assert "must not stop LEGO or another monitoring node" in launcher or (
+            "This component owns only its adapter process" in launcher
+        )
 
 
 def test_classroom_device_launcher_starts_discovery_hosts_without_actuation() -> None:
@@ -70,6 +106,19 @@ def test_classroom_device_launcher_starts_discovery_hosts_without_actuation() ->
     assert ".Send(" not in probe
 
 
+def test_business_install_uses_one_profiled_managed_brain2devices_checkout() -> None:
+    installer = _launcher("install-business-site.ps1")
+    devices = _launcher("classroom-devices.ps1")
+    fabric = _launcher("interaction-fabric-console.ps1")
+
+    assert "brainSource.localDirectory" in installer
+    assert "brain2devicesRoot" in installer
+    assert "brain2devicesRoot" in devices
+    assert "$fabricParameters.Brain2DevicesRoot" in devices
+    assert "CITXR_BRAIN2DEVICES_ROOT" in fabric
+    assert "$classroomLauncher -Mode Enable -AllowPhysical" in installer
+
+
 def test_classroom_start_button_runs_only_the_fixed_disarmed_host_launcher() -> None:
     button = _launcher("classroom-control-button.ps1")
     devices = _launcher("classroom-devices.ps1")
@@ -90,8 +139,13 @@ def test_classroom_start_button_runs_only_the_fixed_disarmed_host_launcher() -> 
     console = (REPOSITORY_ROOT / "apps" / "studio-web" / "src" / "FabricConsole.tsx").read_text(
         encoding="utf-8"
     )
-    assert "Windows Desktop or" in console
-    assert "Start classroom devices" in console
+    catalog = (REPOSITORY_ROOT / "apps" / "studio-web" / "src" / "fabric-i18n.ts").read_text(
+        encoding="utf-8"
+    )
+    assert 't("login.useButtonHelp")' in console
+    assert "Windows Desktop or" in catalog
+    assert "Start classroom devices" in catalog
+    assert "Windows 바탕 화면이나 시작 메뉴" in catalog
     assert "pnpm hardware:fabric:windows -- -Mode Open" not in console
 
 
@@ -162,16 +216,36 @@ def test_classroom_button_installer_creates_user_shortcuts_in_exact_roots(
 
 def test_ui_started_physical_adapters_support_a_disarmed_connect_only_mode() -> None:
     robot = _launcher("robomaster-leap-hardware-test.ps1")
-    plug = _launcher("smart-plug-hardware-test.ps1")
     probe = _launcher("find-classroom-devices.ps1")
 
-    for launcher in (robot, plug):
-        assert "[switch]$ConnectOnly" in launcher
-        assert "CONNECTED AND DISARMED" in launcher
-        assert "[IO.File]::Delete" in launcher
+    assert "[switch]$ConnectOnly" in robot
+    assert "CONNECTED AND DISARMED" in robot
+    assert "[IO.File]::Delete" in robot
     assert '"cit.robomaster-leap.connect"' in probe
-    assert '"cit.smart-plug.connect"' in probe
-    assert "-ConnectOnly" in probe
+
+
+def test_legacy_smart_plug_launchers_are_removed() -> None:
+    hardware = REPOSITORY_ROOT / "tools" / "hardware"
+
+    assert not (hardware / "smart-plug-hardware-test.ps1").exists()
+    assert not (hardware / "tasmota-smart-plug.ps1").exists()
+
+
+def test_glasses_and_leap_launchers_can_attach_inputs_to_a_shared_fleet_session() -> None:
+    glasses = _launcher("glasses-agent-hardware-test.ps1")
+    leap = _launcher("robomaster-leap-hardware-test.ps1")
+
+    for launcher in (glasses, leap):
+        assert "[string]$FabricSessionId" in launcher
+        assert "[switch]$FleetInputOnly" in launcher
+        assert 'coursePackId -ne "device-monitoring"' in launcher
+        assert '"fleet_sequence_input_$_"' in launcher
+        assert "interaction.intent.flight_sequence_start" in launcher
+
+    assert "$State.bridgeSessionId -eq $SessionId" in glasses
+    assert "cit_robomaster_leap.robot_main" in leap
+    assert "if (-not $FleetInputOnly)" in leap
+    assert leap.count("Start-Sleep -Milliseconds 1200") >= 2
 
 
 @pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows probe")
@@ -225,9 +299,165 @@ if ($ResultPath) {
     report = json.loads(completed.stdout)
 
     assert report["schemaVersion"] == "1.0"
-    assert len(report["integrations"]) == 8
+    assert len(report["integrations"]) == 10
+    sphero = next(item for item in report["integrations"] if item["integrationId"] == "sphero-bolt")
+    assert sphero["connectionMethod"] == "Bluetooth Low Energy (BLE)"
+    assert "actionId" not in sphero
+    assert "roll" in sphero["safetyNote"]
     coding_agents = next(
         item for item in report["integrations"] if item["integrationId"] == "coding-agents"
     )
     assert "actionId" not in coding_agents
+    assert completed.stderr == ""
+
+
+@pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows probe")
+def test_device_probe_reports_one_authorized_android_usb_phone_without_exposing_serial(
+    tmp_path: Path,
+) -> None:
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    (tools / "adb.cmd").write_text(
+        """
+@echo off
+if "%~1"=="devices" (
+  echo List of devices attached
+  echo CIT-PRIVATE-SERIAL device usb:1-2 product:cit model:CIT_Test_Phone transport_id:1
+  exit /b 0
+)
+if "%~1"=="-s" if "%~4"=="getprop" (
+  echo CIT Test Phone
+  exit /b 0
+)
+if "%~1"=="-s" if "%~4"=="pm" if "%~5"=="path" if "%~6"=="com.even.sg" (
+  echo package:/data/app/com.even.sg/base.apk
+  exit /b 0
+)
+if "%~1"=="-s" if "%~4"=="pidof" if "%~5"=="com.even.sg" (
+  echo 1234
+  exit /b 0
+)
+exit /b 1
+""".strip(),
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    environment["PATH"] = f"{tools}{os.pathsep}{environment['PATH']}"
+    probe = REPOSITORY_ROOT / "tools" / "hardware" / "find-classroom-devices.ps1"
+
+    completed = subprocess.run(
+        [
+            "pwsh",
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(probe),
+            "-StateRoot",
+            str(tmp_path / "state" / "interaction-fabric"),
+            "-Brain2DevicesRoot",
+            str(tmp_path / "brain2devices"),
+            "-RoboMasterRoot",
+            str(tmp_path / "robomaster"),
+            "-AgentMeshRoot",
+            str(tmp_path / "agent-mesh"),
+            "-SkipWifiScan",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=environment,
+    )
+
+    report = json.loads(completed.stdout)
+    g2 = next(
+        item for item in report["integrations"] if item["integrationId"] == "even-realities-g2"
+    )
+    android = next(
+        candidate for candidate in g2["candidates"] if candidate["candidateId"] == "g2-android-1"
+    )
+
+    assert android["connectionPath"] == "android_usb"
+    assert android["linkState"] == "attached"
+    assert android["status"] == "found"
+    assert "Even app is installed" in android["detail"]
+    assert "CIT-PRIVATE-SERIAL" not in completed.stdout
+    assert completed.stderr == ""
+
+
+@pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows probe")
+def test_device_probe_distinguishes_a_meta_companion_over_wifi_adb(
+    tmp_path: Path,
+) -> None:
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    (tools / "adb.cmd").write_text(
+        """
+@echo off
+if "%~1"=="devices" (
+  echo List of devices attached
+  echo 192.168.50.44:5555 device product:cit model:CIT_Meta_Phone transport_id:2
+  exit /b 0
+)
+if "%~1"=="-s" if "%~4"=="getprop" (
+  echo CIT Meta Phone
+  exit /b 0
+)
+if "%~1"=="-s" if "%~4"=="pm" if "%~5"=="path" if "%~6"=="dev.agentmesh.mobile" (
+  echo package:/data/app/dev.agentmesh.mobile/base.apk
+  exit /b 0
+)
+if "%~1"=="-s" if "%~4"=="pidof" if "%~5"=="dev.agentmesh.mobile" (
+  echo 2345
+  exit /b 0
+)
+exit /b 1
+""".strip(),
+        encoding="utf-8",
+    )
+    environment = os.environ.copy()
+    environment["PATH"] = f"{tools}{os.pathsep}{environment['PATH']}"
+    probe = REPOSITORY_ROOT / "tools" / "hardware" / "find-classroom-devices.ps1"
+
+    completed = subprocess.run(
+        [
+            "pwsh",
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(probe),
+            "-StateRoot",
+            str(tmp_path / "state" / "interaction-fabric"),
+            "-Brain2DevicesRoot",
+            str(tmp_path / "brain2devices"),
+            "-RoboMasterRoot",
+            str(tmp_path / "robomaster"),
+            "-AgentMeshRoot",
+            str(tmp_path / "agent-mesh"),
+            "-SkipWifiScan",
+        ],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+        env=environment,
+    )
+
+    report = json.loads(completed.stdout)
+    meta = next(item for item in report["integrations"] if item["integrationId"] == "meta-rayban")
+    android = next(
+        candidate
+        for candidate in meta["candidates"]
+        if candidate["candidateId"] == "meta-android-1"
+    )
+    g2 = next(
+        item for item in report["integrations"] if item["integrationId"] == "even-realities-g2"
+    )
+
+    assert android["connectionPath"] == "android_wifi"
+    assert android["linkState"] == "connected"
+    assert android["status"] == "found"
+    assert "Agent Mesh companion running" in android["detail"]
+    assert g2["candidates"][0]["status"] == "setup_required"
+    assert "192.168.50.44" not in completed.stdout
     assert completed.stderr == ""

@@ -43,15 +43,26 @@ steps:
 
 1. **Find devices** — power on today's equipment, plug in USB devices, then
    choose **Find devices**. Review Connected, Found, Ready, or Setup needed on
-   each supported integration card. Choose **Connect all available** to run
+   each supported integration card. Cards are grouped as **Inputs**, **Inputs +
+   outputs**, and **Outputs**. Leap and MindWave are input-only; a connected
+   node's published and consumed capabilities determine its final group. Choose
+   **Connect all available** to run
    every verified connect-only adapter; aircraft require the grounded safety
-   confirmation first. Discovery and connection cannot arm or actuate hardware.
+   confirmation first. Discovery never actuates hardware. Connection cannot arm
+   a lesson; approved smart-plug adapters may place their outlet in the declared
+   off safe state.
 2. **Choose lesson** — select the large card that matches the activity and
    choose **Set up this lesson**. If exactly one compatible device is connected
    for a role, CIT assigns it automatically.
 3. **Assign devices** — use the card's fixed setup step where needed, select a device
    for each missing role, and choose **Use this device**. The screen explains
-   what each role does; protocol names are hidden under **Technical details**.
+   what each role does and groups lesson jobs under **Inputs**, **Inputs +
+   outputs**, and **Outputs**; protocol names are hidden under **Technical
+   details**.
+   The **Simultaneous multi-device cue** lesson lets the tutor assign one or
+   more Leap/G2/Meta inputs and independently select RoboMaster or LEGO ground
+   outputs, G2/Meta message outputs, and the optional bounded Tello fleet. Its
+   **Simultaneous output plan** shows exactly which assigned outputs will run.
 4. **Safety check** — simulation remains locked from real hardware. Physical
    lessons require the tutor acknowledgement and **Enable physical controls**
    before **Start lesson** becomes available.
@@ -60,7 +71,16 @@ steps:
    events, command lifecycle, identifiers, and audit records are collapsed
    under **Technical diagnostics**.
 
-Below the teaching controls, the same page contains a camera wall and live
+For the simultaneous cue, start and arm the physical lesson, then separately
+complete **Arm this one sequence** in the fleet panel if drones are assigned.
+The approved Leap pinch or exact G2/Meta fleet phrase sends one semantic event.
+Assigned ground and display actions are dispatched concurrently; the fleet
+starts only if its one-shot controller is still armed. “Concurrent” is not a
+hard-real-time guarantee, and each output can independently succeed, reject, or
+enter its adapter safe state.
+
+Below the teaching controls, the same page contains a camera wall, a guided
+MindWave one-shot demonstration panel, and live
 sensor cards. Authenticated Meta, robot, drone, simulator, and future camera
 publishers receive one latest-frame tile. Normalized LEGO, robot, biosignal,
 and battery events receive one latest-reading card. The UI support does not
@@ -94,17 +114,23 @@ separate component state directory:
 ```powershell
 $fabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric"
 
-# Preserved Tello/MindWave host; connection buttons then appear in this UI
+# Preserved Tello/MindWave host; UI buttons attach independent Fabric nodes
 pnpm hardware:brain:windows -- -Mode Start -SharedFabricRoot $fabricRoot
 
-# Existing G2/Meta and Codex/Claude bridge
+# Software-only independent Tello and MindWave nodes
+pnpm hardware:brain:fabric:windows -- -Mode Start -Device All -Simulation -SharedFabricRoot $fabricRoot -FabricPort 8766
+
+# Shared transport for distinct Even G2, Meta Ray-Ban, Codex, and Claude profiles
 pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766 -SelectMostRecentAgentSession
 
 # Leap and RoboMaster using semantic demo input and the real upstream dry-run robot
 pnpm hardware:robot:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
 
-# Tuya-compatible smart-plug simulator (same UI, no outlet contacted)
-pnpm hardware:plug:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
+# Cloud-free Matter controller/adapters (business installer and UI are preferred)
+pnpm hardware:matter:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766
+
+# LEGO simulator or a previously saved physical exact-name profile
+pnpm hardware:lego:windows -- -Mode Start -Simulation -SharedFabricRoot $fabricRoot -FabricPort 8766
 ```
 
 Each component launcher reopens the same tutor screen after attaching. Choose
@@ -119,11 +145,18 @@ course pack, assign connected capability-compatible nodes to logical roles,
 then start the session. One UI can monitor multiple rooms without allowing one
 session to commandeer another room's node.
 
-The Tello card can associate discovered USB Wi-Fi radios and start grounded
-SDK handshakes through Brain2Devices. It cannot fly an aircraft. The MindWave
-card can start the preserved headset connection. Smart plugs cannot be
-authenticated from network presence: configure each exact DPAPI-protected
-profile once from PowerShell. See `device-discovery.md`.
+The Tello card can associate discovered USB Wi-Fi radios, start grounded SDK
+handshakes through exact-pinned Brain2Devices, and register one independent
+Fabric node per connected aircraft. The teaching panel offers only land and a
+confirmed emergency motor stop—no ordinary takeoff or movement. Its latest
+Brain2Devices video frame appears in the common camera wall. The MindWave card
+starts an independent publish-only node. A third bounded-demo node is assigned
+automatically and shows one explicit instructor-gated arm plus stop control; it
+does not change either ordinary adapter contract. The LEGO card accepts its exact hub name,
+model, and port map directly in this UI and starts unarmed sensor monitoring.
+Smart plugs cannot be authenticated from network presence: new sites should
+use the Matter card, which commissions compatible plugs locally from their
+printed setup code. See `device-discovery.md`.
 
 ## Physical devices
 
@@ -144,8 +177,10 @@ higher priority than every lesson, student, or agent command.
 ```powershell
 pnpm hardware:fabric:windows -- -Mode Status
 pnpm hardware:robot:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:brain:fabric:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:lego:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
 pnpm hardware:glasses:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
-pnpm hardware:plug:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
+pnpm hardware:matter:windows -- -Mode Stop -SharedFabricRoot $fabricRoot -FabricPort 8766
 pnpm hardware:fabric:windows -- -Mode Stop
 ```
 

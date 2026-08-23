@@ -1,0 +1,281 @@
+{
+  "schemaVersion": "1.0",
+  "capabilities": {
+    "power_switch_set": {
+      "name": "power.switch.set",
+      "version": "1.0",
+      "maximumRateHz": 1,
+      "latencyClass": "interactive",
+      "safetyClassification": "electrical",
+      "dataClassification": "operational",
+      "constraints": {
+        "arguments": {
+          "on": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "power_switch_state": {
+      "name": "power.switch.state",
+      "version": "1.0",
+      "maximumRateHz": 1,
+      "latencyClass": "ui_feedback",
+      "safetyClassification": "informational",
+      "dataClassification": "operational",
+      "constraints": {
+        "payload": {
+          "on": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "gesture_velocity": {
+      "name": "interaction.gesture.velocity",
+      "version": "1.0",
+      "maximumRateHz": 15,
+      "latencyClass": "interactive",
+      "safetyClassification": "informational",
+      "dataClassification": "operational",
+      "constraints": {
+        "payload": {
+          "forwardMetersPerSecond": {
+            "minimum": -0.35,
+            "maximum": 0.35
+          },
+          "rightMetersPerSecond": {
+            "minimum": -0.35,
+            "maximum": 0.35
+          },
+          "clockwiseRadiansPerSecond": {
+            "minimum": -0.6108652382,
+            "maximum": 0.6108652382
+          }
+        }
+      }
+    },
+    "tracking_status": {
+      "name": "telemetry.tracking.status",
+      "version": "1.0",
+      "maximumRateHz": 2,
+      "latencyClass": "ui_feedback",
+      "safetyClassification": "informational",
+      "dataClassification": "operational"
+    },
+    "ground_velocity": {
+      "name": "mobility.ground.set_velocity",
+      "version": "1.0",
+      "maximumRateHz": 15,
+      "latencyClass": "interactive",
+      "safetyClassification": "bounded_physical",
+      "dataClassification": "operational",
+      "constraints": {
+        "arguments": {
+          "forwardMetersPerSecond": {
+            "minimum": -0.35,
+            "maximum": 0.35
+          },
+          "rightMetersPerSecond": {
+            "minimum": -0.35,
+            "maximum": 0.35
+          },
+          "clockwiseRadiansPerSecond": {
+            "minimum": -0.6108652382,
+            "maximum": 0.6108652382
+          }
+        }
+      }
+    },
+    "ground_stop": {
+      "name": "mobility.ground.stop",
+      "version": "1.0",
+      "maximumRateHz": 20,
+      "latencyClass": "safety_critical",
+      "safetyClassification": "bounded_physical",
+      "dataClassification": "operational"
+    },
+    "ground_commanded": {
+      "name": "telemetry.motion.commanded",
+      "version": "1.0",
+      "maximumRateHz": 15,
+      "latencyClass": "ui_feedback",
+      "safetyClassification": "informational",
+      "dataClassification": "operational"
+    },
+    "flight_land": {
+      "name": "mobility.flight.land",
+      "version": "1.0",
+      "maximumRateHz": 2,
+      "latencyClass": "safety_critical",
+      "safetyClassification": "flight",
+      "dataClassification": "operational"
+    },
+    "flight_emergency_stop": {
+      "name": "mobility.flight.emergency_stop",
+      "version": "1.0",
+      "maximumRateHz": 5,
+      "latencyClass": "safety_critical",
+      "safetyClassification": "flight",
+      "dataClassification": "operational"
+    },
+    "flight_telemetry": {
+      "name": "telemetry.flight.state",
+      "version": "1.0",
+      "maximumRateHz": 2,
+      "latencyClass": "ui_feedback",
+      "safetyClassification": "informational",
+      "dataClassification": "operational"
+    },
+    "flight_brain_demo_arm": {
+      "name": "mobility.flight.brain_demo.arm",
+      "version": "1.0",
+      "maximumRateHz": 0.2,
+      "latencyClass": "interactive",
+      "safetyClassification": "flight",
+      "dataClassification": "biosignal_derived",
+      "constraints": {
+        "arguments": {
+          "attentionEnabled": {
+            "type": "boolean"
+          },
+          "attentionThreshold": {
+            "minimum": 1,
+            "maximum": 100
+          },
+          "meditationEnabled": {
+            "type": "boolean"
+          },
+          "meditationThreshold": {
+            "minimum": 1,
+            "maximum": 100
+          },
+          "blinkEnabled": {
+            "type": "boolean"
+          },
+          "blinkThreshold": {
+            "minimum": 0,
+            "maximum": 254
+          },
+          "dwellSeconds": {
+            "minimum": 0,
+            "maximum": 10
+          },
+          "instructorPresent": {
+            "type": "boolean"
+          },
+          "flightAreaClear": {
+            "type": "boolean"
+          },
+          "emergencyPlanReady": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "flight_brain_demo_stop": {
+      "name": "mobility.flight.brain_demo.stop",
+      "version": "1.0",
+      "maximumRateHz": 2,
+      "latencyClass": "safety_critical",
+      "safetyClassification": "flight",
+      "dataClassification": "operational"
+    },
+    "flight_brain_demo_status": {
+      "name": "telemetry.flight.brain_demo.status",
+      "version": "1.0",
+      "maximumRateHz": 2,
+      "latencyClass": "ui_feedback",
+      "safetyClassification": "informational",
+      "dataClassification": "biosignal_derived"
+    },
+    "flight_sequence_intent": {
+      "name": "interaction.intent.flight_sequence_start",
+      "version": "1.0",
+      "maximumRateHz": 0.2,
+      "latencyClass": "interactive",
+      "safetyClassification": "informational",
+      "dataClassification": "operational"
+    },
+    "flight_fleet_sequence_arm": {
+      "name": "mobility.flight.fleet_sequence.arm",
+      "version": "1.0",
+      "maximumRateHz": 0.2,
+      "latencyClass": "interactive",
+      "safetyClassification": "flight",
+      "dataClassification": "operational"
+    },
+    "flight_fleet_sequence_start": {
+      "name": "mobility.flight.fleet_sequence.start",
+      "version": "1.0",
+      "maximumRateHz": 0.2,
+      "latencyClass": "interactive",
+      "safetyClassification": "flight",
+      "dataClassification": "operational"
+    },
+    "flight_fleet_sequence_stop": {
+      "name": "mobility.flight.fleet_sequence.stop",
+      "version": "1.0",
+      "maximumRateHz": 2,
+      "latencyClass": "safety_critical",
+      "safetyClassification": "flight",
+      "dataClassification": "operational"
+    },
+    "flight_fleet_sequence_status": {
+      "name": "telemetry.flight.fleet_sequence.status",
+      "version": "1.0",
+      "maximumRateHz": 2,
+      "latencyClass": "ui_feedback",
+      "safetyClassification": "informational",
+      "dataClassification": "operational"
+    },
+    "mindwave_attention": {
+      "name": "mindwave.esense.attention",
+      "version": "1.0",
+      "maximumRateHz": 10,
+      "latencyClass": "interactive",
+      "safetyClassification": "informational",
+      "dataClassification": "biosignal_derived"
+    },
+    "mindwave_meditation": {
+      "name": "mindwave.esense.meditation",
+      "version": "1.0",
+      "maximumRateHz": 10,
+      "latencyClass": "interactive",
+      "safetyClassification": "informational",
+      "dataClassification": "biosignal_derived"
+    },
+    "mindwave_signal_quality": {
+      "name": "mindwave.signal.quality",
+      "version": "1.0",
+      "maximumRateHz": 10,
+      "latencyClass": "ui_feedback",
+      "safetyClassification": "informational",
+      "dataClassification": "biosignal_derived"
+    },
+    "mindwave_blink": {
+      "name": "mindwave.blink",
+      "version": "1.0",
+      "maximumRateHz": 10,
+      "latencyClass": "interactive",
+      "safetyClassification": "informational",
+      "dataClassification": "biosignal_derived"
+    },
+    "robot_sensor_state": {
+      "name": "robot.sensor.state",
+      "version": "1.0",
+      "maximumRateHz": 10,
+      "latencyClass": "ui_feedback",
+      "safetyClassification": "informational",
+      "dataClassification": "operational"
+    },
+    "robot_battery_state": {
+      "name": "telemetry.battery.state",
+      "version": "1.0",
+      "maximumRateHz": 2,
+      "latencyClass": "ui_feedback",
+      "safetyClassification": "informational",
+      "dataClassification": "operational"
+    }
+  }
+}

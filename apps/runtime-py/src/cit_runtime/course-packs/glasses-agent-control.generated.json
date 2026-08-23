@@ -1,0 +1,99 @@
+{
+  "schemaVersion": "1.0",
+  "coursePackId": "glasses-agent-control",
+  "version": "1.0.0",
+  "displayName": "Glasses and coding agents",
+  "description": "Routes one semantic G2 or Meta prompt intent to an assigned existing Agent Mesh session and returns normalized display output.",
+  "roles": [
+    {
+      "role": "primary_glasses",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["interaction.intent.agent_prompt"],
+      "optional": false
+    },
+    {
+      "role": "coding_agent",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["agent.prompt.submit"],
+      "optional": false
+    },
+    {
+      "role": "feedback_display",
+      "ioType": "output",
+      "oneOfCapabilities": ["display.text.render"],
+      "optional": true
+    },
+    {
+      "role": "instructor_console",
+      "ioType": "output",
+      "oneOfCapabilities": ["display.text.render"],
+      "optional": true
+    }
+  ],
+  "flows": [
+    {
+      "flowId": "glasses-agent-prompt",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.agent_prompt",
+        "minimumConfidence": 0.5,
+        "debounceMs": 250
+      },
+      "command": {
+        "action": "agent.prompt.submit",
+        "fixedParameters": {},
+        "parameterBindings": [
+          {
+            "payloadField": "text",
+            "parameter": "prompt"
+          }
+        ]
+      },
+      "target": {
+        "role": "coding_agent"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "agent-session",
+      "outputRoles": ["primary_glasses", "instructor_console"],
+      "enabled": true
+    },
+    {
+      "flowId": "agent-output-to-glasses",
+      "version": 1,
+      "trigger": {
+        "event": "agent.output.completed"
+      },
+      "command": {
+        "action": "display.text.render",
+        "fixedParameters": {},
+        "parameterBindings": [
+          {
+            "payloadField": "displayText",
+            "parameter": "text"
+          }
+        ]
+      },
+      "target": {
+        "role": "primary_glasses"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "agent-session",
+      "outputRoles": ["primary_glasses", "instructor_console"],
+      "enabled": true
+    }
+  ],
+  "safetyProfile": "agent-session",
+  "simulatorRequired": true,
+  "assessmentEvents": ["agent.output.completed"],
+  "fallbackBehavior": "Keep the prompt pending and show a retryable bridge error."
+}

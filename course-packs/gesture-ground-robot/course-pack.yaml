@@ -8,11 +8,13 @@ description: >-
 
 roles:
   - role: gesture_input
+    ioType: input
     oneOfCapabilities:
       - interaction.gesture.velocity
     optional: false
 
   - role: student_robot
+    ioType: output
     oneOfCapabilities:
       - mobility.ground.set_velocity
     optional: false

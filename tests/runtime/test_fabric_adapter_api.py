@@ -410,3 +410,90 @@ def test_adapter_protocol_closes_cleanly_for_unknown_session_state(tmp_path: Pat
                 websocket.receive_json()
 
     assert disconnected.value.code == 4404
+
+
+def test_paused_session_discards_events_without_disconnecting_adapter(
+    tmp_path: Path,
+) -> None:
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "runtime.sqlite3",
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=bootstrap_identities(),
+        )
+    ) as client:
+        with client.websocket_connect("/api/v1/adapters/connect") as websocket:
+            websocket.send_json(
+                {
+                    "frameType": "adapter.authenticate",
+                    "frameId": str(uuid4()),
+                    "protocolVersion": 1,
+                    "credential": ADAPTER_TOKEN,
+                    "sentAt": NOW.isoformat(),
+                }
+            )
+            assert websocket.receive_json()["frameType"] == "adapter.welcome"
+            websocket.send_json(registration_frame())
+            assert websocket.receive_json()["frameType"] == "adapter.registered"
+
+            session_id = create_started_session(client)
+            paused = client.post(
+                f"/api/v1/fabric/sessions/{session_id}/pause",
+                headers=ADMIN_HEADERS,
+            )
+            assert paused.status_code == 200
+
+            paused_frame_id = str(uuid4())
+            websocket.send_json(
+                adapter_event(
+                    frame_id=paused_frame_id,
+                    message_id=str(uuid4()),
+                    session_id=session_id,
+                    node_id="g2-sim-a",
+                    capability_name="interaction.intent.agent_prompt",
+                    sequence=1,
+                    data_classification="voice_transcript",
+                    payload={"text": "Discard this observation while paused."},
+                    correlation_id="paused-observation",
+                )
+            )
+            paused_ack = websocket.receive_json()
+            assert paused_ack["frameType"] == "adapter.ack"
+            assert paused_ack["acknowledgedFrameId"] == paused_frame_id
+            assert paused_ack["status"] == "accepted"
+            assert paused_ack.get("streamSequence") is None
+
+            recorded = client.get(
+                "/api/v1/fabric/events",
+                headers=ADMIN_HEADERS,
+                params={"sessionId": session_id},
+            )
+            assert recorded.status_code == 200
+            assert recorded.json() == []
+            nodes = client.get("/api/v1/fabric/nodes", headers=ADMIN_HEADERS)
+            assert nodes.status_code == 200
+            assert {item["connectionState"] for item in nodes.json()} == {"connected"}
+
+            resumed = client.post(
+                f"/api/v1/fabric/sessions/{session_id}/start",
+                headers=ADMIN_HEADERS,
+            )
+            assert resumed.status_code == 200
+            active_frame_id = str(uuid4())
+            websocket.send_json(
+                adapter_event(
+                    frame_id=active_frame_id,
+                    message_id=str(uuid4()),
+                    session_id=session_id,
+                    node_id="g2-sim-a",
+                    capability_name="interaction.intent.agent_prompt",
+                    sequence=2,
+                    data_classification="voice_transcript",
+                    payload={"text": "Route this observation after resume."},
+                    correlation_id="resumed-observation",
+                )
+            )
+            assert websocket.receive_json()["frameType"] == "adapter.command"
+            active_ack = websocket.receive_json()
+            assert active_ack["acknowledgedFrameId"] == active_frame_id
+            assert active_ack["streamSequence"] >= 1

@@ -1113,7 +1113,23 @@ class FlowRecipe(BaseModel):
         ),
     ]
     outputRoles: Annotated[list[Identifier] | None, Field(max_length=16)] = None
+    parallelGroup: Annotated[
+        str | None,
+        Field(
+            description='Flows with the same non-empty group are authorized independently and dispatched concurrently for one source event.',
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ] = None
     enabled: bool
+
+
+class IoType(StrEnum):
+    input = 'input'
+    output = 'output'
+    bidirectional = 'bidirectional'
 
 
 class CourseRoleRequirement(BaseModel):
@@ -1132,6 +1148,12 @@ class CourseRoleRequirement(BaseModel):
     oneOfCapabilities: Annotated[
         list[CapabilityIdentifier], Field(max_length=32, min_length=1)
     ]
+    ioType: Annotated[
+        IoType | None,
+        Field(
+            description="The role's direction within this course. Registered node capabilities remain authoritative for the device itself."
+        ),
+    ] = None
     optional: bool
 
 

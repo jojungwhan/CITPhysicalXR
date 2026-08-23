@@ -18,6 +18,13 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
+$sourceCatalogPath = Join-Path $PSScriptRoot "external-sources.generated.json"
+if (-not (Test-Path -LiteralPath $sourceCatalogPath -PathType Leaf)) {
+  throw "Generated external-source catalog is missing; run pnpm generate"
+}
+$sourceCatalog = [IO.File]::ReadAllText($sourceCatalogPath, [Text.Encoding]::UTF8) |
+  ConvertFrom-Json
+$expectedRevision = [string]$sourceCatalog.sources.brain2devices.revision
 if (-not $Brain2DevicesRoot) {
   $Brain2DevicesRoot = Join-Path (Split-Path $repositoryRoot -Parent) "brain2devices"
 }
@@ -87,10 +94,18 @@ function Show-Preflight {
   if (-not (Test-Path -LiteralPath $brainExecutable)) {
     throw "Brain2Devices hardware executable was not found at $brainExecutable"
   }
+  $revision = (& git -C $Brain2DevicesRoot rev-parse HEAD 2>$null | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0 -or $revision -ne $expectedRevision) {
+    throw "Brain2Devices must be the characterized revision $expectedRevision; found '$revision'"
+  }
+  $dirty = (& git -C $Brain2DevicesRoot status --porcelain=v1 --untracked-files=normal 2>$null | Out-String).Trim()
+  if ($LASTEXITCODE -ne 0 -or $dirty) {
+    throw "Brain2Devices must be a clean checkout before hardware starts; use a separate checkout at $expectedRevision"
+  }
   if (-not (Test-Path -LiteralPath $discoveryScript)) {
     throw "CIT device discovery script was not found"
   }
-  Write-Host "PASS preserved Brain2Devices checkout $Brain2DevicesRoot"
+  Write-Host "PASS Brain2Devices $expectedRevision at $Brain2DevicesRoot"
   & $brainExecutable --self-test
   if ($LASTEXITCODE -ne 0) { throw "Brain2Devices hardware self-test failed" }
   Write-Host "PASS self-test imports the packaged Tello and MindWave dependencies"

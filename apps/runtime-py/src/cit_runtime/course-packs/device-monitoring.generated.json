@@ -1,0 +1,192 @@
+{
+  "schemaVersion": "1.0",
+  "coursePackId": "device-monitoring",
+  "version": "1.0.0",
+  "displayName": "Devices, sensors, cameras, and safe demos",
+  "description": "Displays Tello telemetry, vendor-labelled MindWave signals, and LEGO sensor readings. It exposes deterministic drone land/emergency-stop commands and, when separately assigned and armed by an instructor, the bounded one-shot Brain2Devices MindWave demonstration.",
+  "roles": [
+    {
+      "role": "safety_drone_1",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["telemetry.flight.state"],
+      "optional": true
+    },
+    {
+      "role": "safety_drone_2",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["telemetry.flight.state"],
+      "optional": true
+    },
+    {
+      "role": "safety_drone_3",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["telemetry.flight.state"],
+      "optional": true
+    },
+    {
+      "role": "safety_drone_4",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["telemetry.flight.state"],
+      "optional": true
+    },
+    {
+      "role": "safety_drone_5",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["telemetry.flight.state"],
+      "optional": true
+    },
+    {
+      "role": "safety_drone_6",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["telemetry.flight.state"],
+      "optional": true
+    },
+    {
+      "role": "safety_drone_7",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["telemetry.flight.state"],
+      "optional": true
+    },
+    {
+      "role": "safety_drone_8",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["telemetry.flight.state"],
+      "optional": true
+    },
+    {
+      "role": "biosignal_input",
+      "ioType": "input",
+      "oneOfCapabilities": ["mindwave.esense.attention"],
+      "optional": true
+    },
+    {
+      "role": "brain_flight_demo",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["telemetry.flight.brain_demo.status"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_controller",
+      "ioType": "bidirectional",
+      "oneOfCapabilities": ["telemetry.flight.fleet_sequence.status"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_input_1",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_input_2",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_input_3",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_input_4",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": true
+    },
+    {
+      "role": "robot_sensor_1",
+      "ioType": "input",
+      "oneOfCapabilities": ["robot.sensor.state"],
+      "optional": true
+    },
+    {
+      "role": "robot_sensor_2",
+      "ioType": "input",
+      "oneOfCapabilities": ["robot.sensor.state"],
+      "optional": true
+    },
+    {
+      "role": "robot_sensor_3",
+      "ioType": "input",
+      "oneOfCapabilities": ["robot.sensor.state"],
+      "optional": true
+    },
+    {
+      "role": "robot_sensor_4",
+      "ioType": "input",
+      "oneOfCapabilities": ["robot.sensor.state"],
+      "optional": true
+    },
+    {
+      "role": "robot_sensor_5",
+      "ioType": "input",
+      "oneOfCapabilities": ["robot.sensor.state"],
+      "optional": true
+    },
+    {
+      "role": "robot_sensor_6",
+      "ioType": "input",
+      "oneOfCapabilities": ["robot.sensor.state"],
+      "optional": true
+    },
+    {
+      "role": "robot_sensor_7",
+      "ioType": "input",
+      "oneOfCapabilities": ["robot.sensor.state"],
+      "optional": true
+    },
+    {
+      "role": "robot_sensor_8",
+      "ioType": "input",
+      "oneOfCapabilities": ["robot.sensor.state"],
+      "optional": true
+    }
+  ],
+  "flows": [
+    {
+      "flowId": "approved-input-to-fleet-sequence",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.flight_sequence_start",
+        "minimumConfidence": 0.8,
+        "debounceMs": 1000,
+        "payloadEquals": {
+          "intent": "start"
+        }
+      },
+      "command": {
+        "action": "mobility.flight.fleet_sequence.start",
+        "fixedParameters": {},
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "fleet_sequence_controller"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": [],
+      "enabled": true
+    }
+  ],
+  "safetyProfile": "classroom-drone-monitoring",
+  "simulatorRequired": true,
+  "assessmentEvents": [
+    "telemetry.flight.state",
+    "mindwave.esense.attention",
+    "mindwave.esense.meditation",
+    "telemetry.flight.brain_demo.status",
+    "interaction.intent.flight_sequence_start",
+    "telemetry.flight.fleet_sequence.status",
+    "robot.sensor.state",
+    "telemetry.battery.state"
+  ],
+  "fallbackBehavior": "Stop publishing sensor data and disarm or cancel bounded demos when the session ends. On adapter or Fabric shutdown, request local Tello landing and retain no raw biosignal data."
+}
