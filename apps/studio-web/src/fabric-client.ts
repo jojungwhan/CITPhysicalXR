@@ -133,6 +133,7 @@ export interface FabricDiscoveryCandidate {
   transport: string;
   status: "found" | "ready" | "setup_required" | "not_found";
   detail: string;
+  model?: string;
   signalPercent?: number;
   connectionPath?:
     | "usb"
@@ -172,7 +173,8 @@ export interface FabricIntegrationDiscovery {
     | "plug"
     | "robot"
     | "sphero"
-    | "terminal";
+    | "terminal"
+    | "wonder";
   status: FabricDiscoveryStatus;
   summary: string;
   connectionMethod: string;
@@ -208,6 +210,15 @@ export interface LegoConnectionConfiguration {
   hubName: string;
   hubModel: "spike-prime" | "spike-essential" | "robot-inventor";
   ports: Record<string, "empty" | "motor" | "distance" | "color" | "force">;
+}
+
+export interface WonderWorkshopConnectionConfiguration {
+  robots: WonderRobotSelection[];
+}
+
+export interface WonderRobotSelection {
+  candidateId: string;
+  model: "dash" | "dot";
 }
 
 interface FabricErrorBody {
@@ -362,6 +373,28 @@ export class FabricClient {
     return this.#request("/api/v1/fabric/lego/connect", {
       method: "POST",
       body: JSON.stringify(configuration),
+    });
+  }
+
+  connectWonderWorkshop(
+    robots: WonderRobotSelection[],
+  ): Promise<FabricDiscoveryActionResult> {
+    const candidateIds = robots.map((robot) => robot.candidateId);
+    if (
+      robots.length < 1 ||
+      robots.length > 4 ||
+      new Set(candidateIds).size !== candidateIds.length ||
+      robots.some(
+        (robot) =>
+          !/^wonder-[a-f0-9]{12}$/.test(robot.candidateId) ||
+          (robot.model !== "dash" && robot.model !== "dot"),
+      )
+    ) {
+      throw new Error("Select between one and four exact Dash/Dot robots.");
+    }
+    return this.#request("/api/v1/fabric/wonder-workshop/connect", {
+      method: "POST",
+      body: JSON.stringify({ robots }),
     });
   }
 

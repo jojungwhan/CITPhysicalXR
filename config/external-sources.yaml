@@ -10,3 +10,8 @@ sources:
     revision: 3c213c110b0cdf2912985bfcde442d67092b98f0
     localDirectory: robomaster-gesture-control-reference
     licenseBoundary: external-process
+  bleak-dash:
+    repository: https://github.com/mewmix/bleak-dash.git
+    revision: 290f74e35a7c49206ba4bb8fa473708f9be85dc0
+    localDirectory: bleak-dash-reference
+    licenseBoundary: adapted-protocol

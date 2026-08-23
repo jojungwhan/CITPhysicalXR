@@ -79,7 +79,11 @@ authoritative.
 
 ## Optional hardware dependencies
 
-`adapters/lego-pybricks` declares an optional `hardware` extra. It is not installed by default, is not required to build, test, or run this repository, and is needed only on a machine that will connect to a LEGO hub over Bluetooth.
+`adapters/lego-pybricks` and `adapters/wonder-workshop` declare optional
+`hardware` extras. They are not installed by default and are not required for
+ordinary build, test, or simulation. The Dash/Dot extra adds only Bleak; its
+small packet subset is implemented at the adapter boundary rather than pulling
+an unofficial robot package into the runtime.
 
 | Component                      | Purpose                                               | Licence                                                             |
 | ------------------------------ | ----------------------------------------------------- | ------------------------------------------------------------------- |
@@ -89,6 +93,14 @@ authoritative.
 | `cffi`                         | Transitive                                            | `MIT-0`                                                             |
 | `mpy-cross-v5`, `mpy-cross-v6` | Transitive: MicroPython compilers                     | no licence metadata published — **not allowlisted**                 |
 | `aioserial`, `tqdm`            | Transitive                                            | `MPL-2.0`, `MPL-2.0 AND MIT` (allowed; metadata does not normalize) |
+| `bleak`                        | Direct optional Dash/Dot BLE transport                | `MIT`                                                               |
+
+The Dash/Dot byte-level subset is adapted with attribution from
+[`mewmix/bleak-dash`](https://github.com/mewmix/bleak-dash) at revision
+`290f74e35a7c49206ba4bb8fa473708f9be85dc0`, whose notice applies Apache
+License 2.0 to code adapted from `IlyaSukhanov/morseapi` and
+`havnfun/python-dash-robot`. CIT does not install or redistribute that package;
+the exact reference pin is maintained in `config/external-sources.yaml`.
 
 Installing the extra therefore makes `pnpm license:check` fail on that machine. This is recorded, not resolved: see ADR-023 in `docs/DECISIONS.md`. No LEGO hardware work should proceed until the owner decides which way it goes.
 
@@ -113,5 +125,8 @@ RoboMaster repositories listed in `docs/REUSE_AUDIT.md` are external checkouts.
 Their original code is not copied, packaged, or relicensed here. At the audited
 revisions each lacks a top-level owner licence; CIT uses only explicit
 external-process boundaries and records the exact source revision.
+
+Unlike those unlicensed owner checkouts, the Dash/Dot protocol reference has
+an explicit Apache-2.0 notice and is used only as an attributed protocol source.
 
 The DJI RoboMaster SDK/runtime, Ultraleap runtime, Godot/OpenXR tooling, Meta/Quest tooling, Pybricks firmware/runtime, and smart-glasses SDKs are not distributed by Milestone 0. Future milestones must add their exact versions, source, and licence terms before distribution.

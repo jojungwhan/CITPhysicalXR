@@ -268,6 +268,7 @@ function New-Candidate(
   [string]$Status,
   [string]$Detail,
   [Nullable[int]]$SignalPercent = $null,
+  [string]$Model = "",
   [ValidateSet("", "usb", "bluetooth", "wifi", "android", "android_usb", "android_wifi", "local_service")]
   [string]$ConnectionPath = "",
   [ValidateSet("", "attached", "connected", "recently_active", "visible", "paired", "provisioned", "ready")]
@@ -281,6 +282,7 @@ function New-Candidate(
     detail = $Detail
   }
   if ($null -ne $SignalPercent) { $candidate.signalPercent = [int]$SignalPercent }
+  if ($Model) { $candidate.model = $Model }
   if ($ConnectionPath) { $candidate.connectionPath = $ConnectionPath }
   if ($LinkState) { $candidate.linkState = $LinkState }
   return $candidate
@@ -741,6 +743,77 @@ $integrations.Add((New-Integration `
     "Scan again, then select the exact SB-XXXX name through the CIT Sphero adapter when available."
   ) `
   -SafetyNote "Discovery reads Windows Bluetooth presence only. It never connects, wakes, rolls, aims, or changes LEDs."))
+
+# Dash and Dot are scanned with the independent Bleak adapter. The scanner is
+# read-only and returns opaque candidate IDs, never Bluetooth addresses. PnP is
+# retained only as setup evidence when the optional radio package is missing.
+$wonderCandidates = @()
+$wonderScanAvailable = $false
+$wonderDevices = @()
+$wonderPython = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
+if (Test-Path -LiteralPath $wonderPython) {
+  & $wonderPython -c "import bleak, cit_wonder_workshop.discovery" 2>$null
+  if ($LASTEXITCODE -eq 0) {
+    try {
+      $wonderRaw = & $wonderPython -m cit_wonder_workshop.discovery --duration 4 --json 2>$null
+      if ($LASTEXITCODE -eq 0) {
+        $wonderDevices = @($wonderRaw | ConvertFrom-Json)
+        $wonderScanAvailable = $true
+      }
+    } catch {
+      $script:warnings.Add("Dash/Dot read-only BLE scan failed; no robot was connected or commanded.")
+    }
+  }
+}
+foreach ($robot in $wonderDevices) {
+  $wonderCandidates += New-Candidate `
+    -Id ([string]$robot.candidateId) `
+    -Name ([string]$robot.displayName) `
+    -Transport "Bluetooth Low Energy" `
+    -Status "found" `
+    -SignalPercent $robot.signalPercent `
+    -Model ([string]$robot.model) `
+    -ConnectionPath "bluetooth" `
+    -LinkState "visible" `
+    -Detail "Exact $($robot.model) advertisement found. Selection still performs a fresh exact-ID handshake and sends no command."
+}
+$wonderPnp = @(
+  if (-not $wonderScanAvailable) {
+    Get-PresentDevices '(?i)(Wonder Workshop|Dash|Dashet|Dot)'
+  }
+)
+for ($index = 0; $index -lt $wonderPnp.Count; $index++) {
+  $wonderCandidates += New-Candidate `
+    -Id "wonder-paired-$($index + 1)" `
+    -Name $(if ($wonderPnp[$index].FriendlyName) { [string]$wonderPnp[$index].FriendlyName } else { "Dash/Dot $($index + 1)" }) `
+    -Transport "Windows Bluetooth presence" `
+    -Status "setup_required" `
+    -ConnectionPath "bluetooth" `
+    -LinkState "paired" `
+    -Detail "Windows sees a possible robot, but the CIT Bleak scanner is required before exact selection is safe."
+}
+$wonderStatus = if ($wonderDevices.Count -gt 0) { "found" } elseif ($wonderScanAvailable) { "ready" } else { "setup_required" }
+$wonderSummary = if ($wonderDevices.Count -gt 0) {
+  "$($wonderDevices.Count) exact Dash/Dot BLE advertisement(s) found; no connection or command was sent."
+} elseif ($wonderScanAvailable) {
+  "Dash/Dot Bluetooth scanning is ready, but no awake robot is visible."
+} else {
+  "Install the CIT Dash/Dot Bluetooth component, then switch on the robots and scan again."
+}
+$integrations.Add((New-Integration `
+  -Id "wonder-workshop-dash-dot" `
+  -Name "Wonder Workshop Dash and Dot" `
+  -Category "robot" `
+  -Status $wonderStatus `
+  -Summary $wonderSummary `
+  -ConnectionMethod "Local Bluetooth Low Energy (BLE)" `
+  -Candidates $wonderCandidates `
+  -SetupSteps @(
+    "Charge and switch on Dash or Dot, then place it near this computer.",
+    "Close Wonder, Blockly, or any other app that is connected to the robot.",
+    "Scan again, select each exact named robot, and connect it while controls remain unarmed."
+  ) `
+  -SafetyNote "Discovery is read-only and never selects the nearest robot. Dot exposes no movement; Dash uses bounded commands and a local deadman stop."))
 
 # Reuse Brain2Devices' characterized, credential-free Windows radio scan. It
 # performs netsh/PnP inspection only and explicitly sends no SDK/flight packet.

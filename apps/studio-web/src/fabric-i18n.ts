@@ -77,6 +77,8 @@ const EN = {
     "Connection started for {name}. Physical outputs remain disarmed.",
   "notice.matterAdded": "The Matter plug was added locally and remains off.",
   "notice.legoConnected": "The LEGO hub was connected for unarmed monitoring.",
+  "notice.wonderConnected":
+    "Connected {count} selected Dash/Dot robot(s) for unarmed monitoring.",
   "notice.noneConnected": "No connection completed.",
   "notice.groupsConnected":
     "Connection completed for {count} device group(s): {names}.",
@@ -104,6 +106,8 @@ const EN = {
   "busy.connectingDevice": "Connecting {name}",
   "busy.addingMatter": "Adding Matter smart plug",
   "busy.connectingLego": "Connecting LEGO hub",
+  "busy.connectingWonder": "Connecting selected Dash and Dot robots",
+  "busy.wonderCommand": "Sending a bounded Dash/Dot control",
   "busy.connectingAll": "Connecting available devices",
   "busy.copyingSetup": "Copying setup instructions",
   "busy.cameraPairing": "Preparing Meta camera pairing",
@@ -125,6 +129,8 @@ const EN = {
   "error.selectPhysicalSession": "Select a physical lesson first.",
   "error.selectNode": "Select a compatible device for {role}.",
   "error.setupFirst": "This integration needs its setup step first.",
+  "error.wonderUnassigned":
+    "Assign this Dash or Dot to a Wonder robot role first.",
   "error.grounded":
     "Confirm that every aircraft is grounded before connecting.",
   "error.noConnection":
@@ -502,6 +508,44 @@ const EN = {
   "lego.safety":
     "Starts unarmed sensor monitoring only. A sensor-only hub is supported. If motors are connected, keep wheels raised for the first test; a separate armed lesson is required for movement.",
 
+  "wonder.setup": "Choose the exact robots to connect",
+  "wonder.setupHelp":
+    "Only robots found in this scan can be selected. Names and signal levels help you match the physical robot; CIT never chooses the nearest one automatically.",
+  "wonder.noneVisible":
+    "No exact robot advertisement is selectable yet. Switch on Dash or Dot, close other robot apps, then choose Find devices again.",
+  "wonder.selectExact": "Visible Dash and Dot robots",
+  "wonder.dash": "Dash · drive, head, lights, sound, sensors",
+  "wonder.dot": "Dot · lights, sound, sensors (no drive)",
+  "wonder.connecting": "Connecting selected robots…",
+  "wonder.connectSelected": "Connect selected robots",
+  "wonder.connectSafety":
+    "Connection starts sensor monitoring only. No movement, head, light, or sound command is sent.",
+  "wonder.eyebrow": "Robot controls",
+  "wonder.title": "Wonder Workshop Dash and Dot",
+  "wonder.help":
+    "Lights are available in a running lesson. Sound, Dash head motion, and short drive nudges require a running, armed physical lesson. Dot has no drive controls.",
+  "wonder.lights": "Lights",
+  "wonder.sounds": "Fixed classroom sounds",
+  "wonder.color.blue": "Blue",
+  "wonder.color.orange": "Orange",
+  "wonder.color.green": "Green",
+  "wonder.color.off": "Lights off",
+  "wonder.soundLabel": "Sound {number}",
+  "wonder.drive": "Dash short movement",
+  "wonder.forward": "Forward",
+  "wonder.backward": "Backward",
+  "wonder.left": "Left",
+  "wonder.right": "Right",
+  "wonder.stop": "Stop",
+  "wonder.nudge":
+    "Each arrow is a short nudge. Dash stops locally within 350 ms unless another approved command arrives.",
+  "wonder.head": "Dash head",
+  "wonder.center": "Center",
+  "wonder.up": "Up",
+  "wonder.down": "Down",
+  "wonder.locked":
+    "Locked: start the monitoring lesson, choose Enable physical controls, and confirm the clear-area safety check.",
+
   "drone.eyebrow": "Safety controls",
   "drone.title": "Tello safe-state controls",
   "drone.help":
@@ -748,6 +792,8 @@ const KO: Record<FabricMessageKey, string> = {
     "Matter 플러그를 로컬로 추가했습니다. 전원은 꺼진 안전 상태입니다.",
   "notice.legoConnected":
     "LEGO 허브를 모터 잠금 상태의 모니터링용으로 연결했습니다.",
+  "notice.wonderConnected":
+    "선택한 Dash/Dot 로봇 {count}대를 제어 잠금 상태의 모니터링용으로 연결했습니다.",
   "notice.noneConnected": "완료된 연결이 없습니다.",
   "notice.groupsConnected": "장치 그룹 {count}개를 연결했습니다: {names}.",
   "notice.outputsLocked":
@@ -773,6 +819,8 @@ const KO: Record<FabricMessageKey, string> = {
   "busy.connectingDevice": "{name} 연결 중",
   "busy.addingMatter": "Matter 스마트 플러그 추가 중",
   "busy.connectingLego": "LEGO 허브 연결 중",
+  "busy.connectingWonder": "선택한 Dash/Dot 로봇 연결 중",
+  "busy.wonderCommand": "제한된 Dash/Dot 제어 전송 중",
   "busy.connectingAll": "사용 가능한 장치 연결 중",
   "busy.copyingSetup": "설정 안내 복사 중",
   "busy.cameraPairing": "Meta 카메라 페어링 준비 중",
@@ -793,6 +841,8 @@ const KO: Record<FabricMessageKey, string> = {
   "error.selectPhysicalSession": "먼저 실제 장치를 사용하는 수업을 선택하세요.",
   "error.selectNode": "{role} 역할에 맞는 장치를 선택하세요.",
   "error.setupFirst": "먼저 이 통합의 설정 단계를 완료하세요.",
+  "error.wonderUnassigned":
+    "먼저 이 Dash 또는 Dot을 Wonder 로봇 역할에 배정하세요.",
   "error.grounded": "연결하기 전에 모든 드론이 바닥에 있는지 확인하세요.",
   "error.noConnection":
     "지금 바로 연결할 수 있는 장치가 없습니다. ‘설정 필요’ 카드를 따른 뒤 장치를 다시 찾으세요.",
@@ -1144,6 +1194,43 @@ const KO: Record<FabricMessageKey, string> = {
   "lego.connect": "저장하고 허브 연결",
   "lego.safety":
     "처음에는 모터가 잠긴 센서 모니터링만 시작합니다. 센서 전용 허브도 지원합니다. 모터가 연결되어 있으면 첫 시험에서 바퀴를 들어 두세요. 움직이려면 별도로 실제 장치를 허용한 수업이 필요합니다.",
+  "wonder.setup": "연결할 정확한 로봇 선택",
+  "wonder.setupHelp":
+    "이번 검색에서 발견된 로봇만 선택할 수 있습니다. 이름과 신호 세기로 실제 로봇을 확인하세요. CIT는 가장 가까운 로봇을 자동 선택하지 않습니다.",
+  "wonder.noneVisible":
+    "아직 정확히 선택할 수 있는 로봇이 없습니다. Dash 또는 Dot 전원을 켜고 다른 로봇 앱을 닫은 뒤 ‘장치 찾기’를 다시 선택하세요.",
+  "wonder.selectExact": "보이는 Dash 및 Dot 로봇",
+  "wonder.dash": "Dash · 주행, 머리, 조명, 소리, 센서",
+  "wonder.dot": "Dot · 조명, 소리, 센서(주행 없음)",
+  "wonder.connecting": "선택한 로봇 연결 중…",
+  "wonder.connectSelected": "선택한 로봇 연결",
+  "wonder.connectSafety":
+    "연결하면 센서 모니터링만 시작합니다. 이동, 머리, 조명 또는 소리 명령은 보내지 않습니다.",
+  "wonder.eyebrow": "로봇 제어",
+  "wonder.title": "Wonder Workshop Dash 및 Dot",
+  "wonder.help":
+    "실행 중인 수업에서는 조명을 사용할 수 있습니다. 소리, Dash 머리 이동 및 짧은 주행은 실행 중이며 실제 장치 제어가 허용된 수업에서만 가능합니다. Dot에는 주행 제어가 없습니다.",
+  "wonder.lights": "조명",
+  "wonder.sounds": "고정 교실 소리",
+  "wonder.color.blue": "파랑",
+  "wonder.color.orange": "주황",
+  "wonder.color.green": "초록",
+  "wonder.color.off": "조명 끄기",
+  "wonder.soundLabel": "소리 {number}",
+  "wonder.drive": "Dash 짧은 이동",
+  "wonder.forward": "앞으로",
+  "wonder.backward": "뒤로",
+  "wonder.left": "왼쪽",
+  "wonder.right": "오른쪽",
+  "wonder.stop": "정지",
+  "wonder.nudge":
+    "화살표를 누를 때마다 짧게 이동합니다. 승인된 다음 명령이 없으면 Dash가 350ms 이내에 로컬에서 정지합니다.",
+  "wonder.head": "Dash 머리",
+  "wonder.center": "가운데",
+  "wonder.up": "위",
+  "wonder.down": "아래",
+  "wonder.locked":
+    "잠김: 모니터링 수업을 시작하고 ‘실제 장치 제어 허용’을 선택한 뒤 주변 공간 안전 확인을 완료하세요.",
   "drone.eyebrow": "안전 제어",
   "drone.title": "Tello 안전 상태 제어",
   "drone.help":
@@ -1427,6 +1514,18 @@ const KO_INTEGRATIONS: Record<string, IntegrationCopy> = {
     ],
     safetyNote:
       "검색은 Windows Bluetooth 존재 여부만 읽습니다. 연결, 깨우기, 굴리기, 방향 지정 또는 LED 변경을 하지 않습니다. 실제 이동에는 제한된 CIT 어댑터와 허용된 수업이 필요합니다.",
+  },
+  "wonder-workshop-dash-dot": {
+    displayName: "Wonder Workshop Dash 및 Dot",
+    connectionMethod: "로컬 Bluetooth 저전력(BLE)",
+    setupSteps: [
+      "Dash 또는 Dot을 충전하고 전원을 켠 뒤 이 Windows 컴퓨터 가까이에 두세요.",
+      "현재 로봇에 연결된 Wonder, Blockly 또는 다른 앱을 닫으세요.",
+      "‘장치 찾기’를 선택하고 정확한 이름의 Dash 또는 Dot을 고른 뒤 ‘선택한 로봇 연결’을 선택하세요.",
+      "센서 모니터링은 제어 잠금 상태로 시작합니다. Dash 이동, 머리 이동 및 소리는 강사가 실제 장치 제어를 허용할 때까지 잠겨 있습니다.",
+    ],
+    safetyNote:
+      "검색은 읽기 전용이며 가장 가까운 로봇을 자동 선택하지 않습니다. Dash 이동에는 제한과 350ms 로컬 자동 정지가 적용되며 Dot에는 이동 기능이 표시되지 않습니다.",
   },
   "tello-drones": {
     displayName: "DJI / Ryze Tello 드론",
@@ -1783,6 +1882,9 @@ export const fabricCapabilityName = (
     "display.text.render": "텍스트 표시",
     "agent.prompt.submit": "코딩 에이전트 요청",
     "robot.sensor.state": "로봇 센서 상태",
+    "robot.light.set": "로봇 조명 설정",
+    "media.audio.cue.play": "로봇 고정 소리 재생",
+    "robot.head.set_pose": "로봇 머리 위치 설정",
     "telemetry.flight.state": "드론 비행 상태",
   };
   if (locale === "ko") return ko[capability] ?? capability;

@@ -121,6 +121,40 @@ describe("Fabric client credentials", () => {
     expect(JSON.parse(String(init?.body))).toEqual(configuration);
   });
 
+  it("sends only exact opaque Dash/Dot selections to the fixed route", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          actionId: "cit.wonder-workshop.configure-connect",
+          accepted: true,
+          message: "Connected.",
+          report: {},
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const client = new FabricClient("http://127.0.0.1:8766", fetchMock);
+    client.setCredential("cit-instructor-" + "w".repeat(40));
+    const robots = [
+      { candidateId: "wonder-aabbccddeeff", model: "dash" as const },
+      { candidateId: "wonder-001122334455", model: "dot" as const },
+    ];
+
+    await client.connectWonderWorkshop(robots);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(
+      "http://127.0.0.1:8766/api/v1/fabric/wonder-workshop/connect",
+    );
+    expect(JSON.parse(String(init?.body))).toEqual({ robots });
+    expect(() =>
+      client.connectWonderWorkshop([
+        { candidateId: "nearest-robot", model: "dash" },
+      ]),
+    ).toThrow("exact Dash/Dot");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("forgets the in-memory credential when signed out", async () => {
     const fetchMock = vi.fn<typeof fetch>();
     const client = new FabricClient("", fetchMock);

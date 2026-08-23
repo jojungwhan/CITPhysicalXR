@@ -93,6 +93,11 @@ def test_integration_catalog_has_no_duplicate_ids_and_matches_split_plugins() ->
     assert sphero.icon == "sphero"
     assert sphero.selectors.pluginIds == ["cit.sphero-bolt"]
     assert sphero.selectors.models == ["sphero-bolt"]
+    wonder = catalog.require("wonder-workshop-dash-dot")
+    assert wonder.ioType == "bidirectional"
+    assert wonder.icon == "wonder"
+    assert wonder.selectors.pluginIds == ["cit.wonder-workshop"]
+    assert wonder.selectors.models == ["dash", "dot"]
     assert catalog.require("tello-drones").selectors.pluginIds == [
         "cit.tello",
         "cit.brain2devices-fleet",
@@ -111,7 +116,7 @@ def test_external_source_revisions_are_generated_once_for_python_and_windows() -
             encoding="utf-8"
         )
     )
-    for key in ("brain2devices", "robomaster-gesture-control"):
+    for key in ("brain2devices", "robomaster-gesture-control", "bleak-dash"):
         source = external_source(key)
         assert generated["sources"][key]["revision"] == source.revision
         assert generated["sources"][key]["repository"] == source.repository

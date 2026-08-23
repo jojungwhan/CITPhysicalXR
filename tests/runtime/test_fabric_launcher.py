@@ -299,16 +299,31 @@ if ($ResultPath) {
     report = json.loads(completed.stdout)
 
     assert report["schemaVersion"] == "1.0"
-    assert len(report["integrations"]) == 10
+    assert len(report["integrations"]) == 11
     sphero = next(item for item in report["integrations"] if item["integrationId"] == "sphero-bolt")
     assert sphero["connectionMethod"] == "Bluetooth Low Energy (BLE)"
     assert "actionId" not in sphero
     assert "roll" in sphero["safetyNote"]
+    wonder = next(
+        item
+        for item in report["integrations"]
+        if item["integrationId"] == "wonder-workshop-dash-dot"
+    )
+    assert wonder["connectionMethod"] == "Local Bluetooth Low Energy (BLE)"
+    assert "actionId" not in wonder
+    assert "nearest" in wonder["safetyNote"]
     coding_agents = next(
         item for item in report["integrations"] if item["integrationId"] == "coding-agents"
     )
     assert "actionId" not in coding_agents
     assert completed.stderr == ""
+
+
+def test_wonder_launcher_tolerates_transient_non_node_api_values() -> None:
+    launcher = _launcher("wonder-workshop.ps1")
+
+    assert '.PSObject.Properties["nodeId"]' in launcher
+    assert '.PSObject.Properties["connectionState"]' in launcher
 
 
 @pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows probe")

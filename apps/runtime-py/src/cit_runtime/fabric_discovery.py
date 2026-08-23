@@ -122,6 +122,12 @@ class FabricDiscoveryCandidate(BaseModel):
     transport: str = Field(min_length=1, max_length=80)
     status: Literal["found", "ready", "setup_required", "not_found"]
     detail: str = Field(min_length=1, max_length=500)
+    model: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
     signalPercent: int | None = Field(default=None, ge=0, le=100)
     connectionPath: (
         Literal[
@@ -174,6 +180,7 @@ class FabricIntegrationDiscovery(BaseModel):
             "robot",
             "sphero",
             "terminal",
+            "wonder",
         ]
         | None
     ) = None
@@ -242,6 +249,28 @@ class LegoConnectionConfiguration(BaseModel):
         return self
 
 
+class WonderRobotSelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    candidateId: str = Field(pattern=r"^wonder-[a-f0-9]{12}$")
+    model: Literal["dash", "dot"]
+
+
+class WonderWorkshopConnectionConfiguration(BaseModel):
+    """Exact opaque BLE candidates selected by a tutor in the local UI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    robots: list[WonderRobotSelection] = Field(min_length=1, max_length=4)
+
+    @model_validator(mode="after")
+    def validate_candidate_ids(self) -> WonderWorkshopConnectionConfiguration:
+        candidate_ids = [robot.candidateId for robot in self.robots]
+        if len(candidate_ids) != len(set(candidate_ids)):
+            raise ValueError("Dash/Dot candidates must be unique")
+        return self
+
+
 class FabricDiscoveryError(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -256,6 +285,13 @@ class DiscoveryRunner(Protocol):
     async def commission_matter(self, setup_code: str) -> str: ...
 
     async def connect_lego(self, configuration: LegoConnectionConfiguration) -> str: ...
+
+    async def connect_wonder_workshop(
+        self, configuration: WonderWorkshopConnectionConfiguration
+    ) -> str: ...
+
+
+NodeProvider = Callable[[], Iterable[IntegrationNode]]
 
 
 class FabricDiscoveryService:
@@ -296,14 +332,14 @@ class FabricDiscoveryService:
         action_id: str,
         *,
         confirm_grounded: bool,
-        nodes: Iterable[IntegrationNode],
+        nodes: NodeProvider,
     ) -> FabricDiscoveryActionResult:
         async with self._connection_lock:
             message = await self._runner.perform(
                 action_id,
                 confirm_grounded=confirm_grounded,
             )
-        report = await self.scan(nodes)
+        report = await self.scan(nodes())
         return FabricDiscoveryActionResult(
             actionId=action_id,
             accepted=True,
@@ -315,7 +351,7 @@ class FabricDiscoveryService:
         self,
         setup_code: str,
         *,
-        nodes: Iterable[IntegrationNode],
+        nodes: NodeProvider,
     ) -> FabricDiscoveryActionResult:
         if (
             setup_code != setup_code.strip()
@@ -328,7 +364,7 @@ class FabricDiscoveryService:
             )
         async with self._connection_lock:
             message = await self._runner.commission_matter(setup_code)
-        report = await self.scan(nodes)
+        report = await self.scan(nodes())
         return FabricDiscoveryActionResult(
             actionId="cit.matter-smart-plug.commission",
             accepted=True,
@@ -340,13 +376,29 @@ class FabricDiscoveryService:
         self,
         configuration: LegoConnectionConfiguration,
         *,
-        nodes: Iterable[IntegrationNode],
+        nodes: NodeProvider,
     ) -> FabricDiscoveryActionResult:
         async with self._connection_lock:
             message = await self._runner.connect_lego(configuration)
-        report = await self.scan(nodes)
+        report = await self.scan(nodes())
         return FabricDiscoveryActionResult(
             actionId="cit.lego-pybricks.configure-connect",
+            accepted=True,
+            message=message,
+            report=report,
+        )
+
+    async def connect_wonder_workshop(
+        self,
+        configuration: WonderWorkshopConnectionConfiguration,
+        *,
+        nodes: NodeProvider,
+    ) -> FabricDiscoveryActionResult:
+        async with self._connection_lock:
+            message = await self._runner.connect_wonder_workshop(configuration)
+        report = await self.scan(nodes())
+        return FabricDiscoveryActionResult(
+            actionId="cit.wonder-workshop.configure-connect",
             accepted=True,
             message=message,
             report=report,
@@ -381,6 +433,15 @@ class UnavailableDiscoveryRunner:
         raise FabricDiscoveryError(
             "LEGO_CONNECTION_UNAVAILABLE",
             "Local LEGO connection is unavailable in this runtime",
+        )
+
+    async def connect_wonder_workshop(
+        self, configuration: WonderWorkshopConnectionConfiguration
+    ) -> str:
+        del configuration
+        raise FabricDiscoveryError(
+            "WONDER_CONNECTION_UNAVAILABLE",
+            "Local Dash and Dot connection is unavailable in this runtime",
         )
 
 
@@ -710,6 +771,40 @@ class PowerShellDiscoveryRunner:
         return (
             f"{configuration.hubName} connected for unarmed sensor monitoring. "
             "CIT selected no anonymous hub and issued no motor command."
+        )
+
+    async def connect_wonder_workshop(
+        self, configuration: WonderWorkshopConnectionConfiguration
+    ) -> str:
+        await self._run_input_launcher(
+            "wonder-workshop.ps1",
+            "-Mode",
+            "ConfigureStart",
+            "-SharedFabricRoot",
+            str(self._state_root),
+            "-StateRoot",
+            str(self._state_root.parent / "wonder-workshop"),
+            "-FabricPort",
+            str(self._fabric_port),
+            "-SkipBuild",
+            "-NoOpenConsole",
+            input_text=configuration.model_dump_json(),
+            redactions=(),
+            timeout_seconds=120,
+            error_prefix="WONDER_CONNECTION",
+            operation_name="Dash/Dot connection",
+            timeout_message=(
+                "Dash/Dot connection timed out; keep the selected robots awake, nearby, "
+                "and disconnected from other apps"
+            ),
+            failure_message=(
+                "Dash/Dot connection failed; check Bluetooth, robot power, and exact selection"
+            ),
+        )
+        count = len(configuration.robots)
+        return (
+            f"{count} selected Dash/Dot robot(s) connected for unarmed sensor monitoring. "
+            "CIT issued no movement command."
         )
 
     async def _run_launcher(self, script_name: str, *arguments: str) -> None:

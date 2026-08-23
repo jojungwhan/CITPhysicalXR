@@ -755,6 +755,7 @@ main.fabric-main {
 
 .fabric-matter-setup,
 .fabric-lego-setup,
+.fabric-wonder-setup,
 .fabric-smart-plug-setup {
   display: grid;
   margin: 11px 0;
@@ -767,6 +768,7 @@ main.fabric-main {
 
 .fabric-matter-setup > strong,
 .fabric-lego-setup > strong,
+.fabric-wonder-setup > strong,
 .fabric-smart-plug-setup > strong {
   color: #e8f5ea;
 }
@@ -775,6 +777,8 @@ main.fabric-main {
 .fabric-matter-setup > small,
 .fabric-lego-setup p,
 .fabric-lego-setup > small,
+.fabric-wonder-setup p,
+.fabric-wonder-setup > small,
 .fabric-smart-plug-setup p,
 .fabric-smart-plug-setup > small {
   margin: 0;
@@ -785,6 +789,7 @@ main.fabric-main {
 
 .fabric-matter-setup label,
 .fabric-lego-setup label,
+.fabric-wonder-setup label,
 .fabric-smart-plug-setup label {
   margin: 0;
   font-size: 0.76rem;
@@ -792,6 +797,7 @@ main.fabric-main {
 
 .fabric-matter-setup button,
 .fabric-lego-setup button,
+.fabric-wonder-setup button,
 .fabric-smart-plug-setup button {
   min-height: 40px;
 }
@@ -878,6 +884,32 @@ main.fabric-main {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 7px;
+}
+
+.fabric-wonder-setup fieldset {
+  display: grid;
+  margin: 2px 0;
+  padding: 9px;
+  gap: 7px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 8px;
+}
+
+.fabric-wonder-setup legend {
+  padding: 0 5px;
+  color: #94a69a;
+  font-size: 0.74rem;
+}
+
+.fabric-wonder-setup fieldset label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fabric-wonder-setup fieldset label span,
+.fabric-wonder-setup fieldset label small {
+  display: block;
 }
 
 .fabric-device-help {
@@ -1430,6 +1462,7 @@ main.fabric-main {
 .fabric-brain-demo-panel,
 .fabric-fleet-sequence-panel,
 .fabric-smart-plug-panel,
+.fabric-wonder-panel,
 .fabric-audit-panel,
 .fabric-node-panel {
   margin-top: 16px;
@@ -1543,6 +1576,116 @@ main.fabric-main {
   border-color: rgb(255 100 100 / 55%) !important;
   color: #ffd7d7 !important;
   background: rgb(130 26 26 / 18%) !important;
+}
+
+.fabric-wonder-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.fabric-wonder-card {
+  display: grid;
+  padding: 13px;
+  gap: 12px;
+  border: 1px solid rgb(117 199 255 / 20%);
+  border-radius: 11px;
+  background: rgb(0 0 0 / 16%);
+}
+
+.fabric-wonder-card > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fabric-wonder-card header strong,
+.fabric-wonder-card header small {
+  display: block;
+}
+
+.fabric-wonder-card header small,
+.fabric-wonder-control-group > small,
+.fabric-wonder-lock {
+  color: #84938a;
+  font-size: 0.74rem;
+}
+
+.fabric-wonder-card header > span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  color: #b9dfff;
+  background: rgb(117 199 255 / 10%);
+  font-size: 0.67rem;
+  font-weight: 800;
+}
+
+.fabric-wonder-control-group {
+  display: grid;
+  gap: 7px;
+}
+
+.fabric-wonder-control-group > strong {
+  color: #b9c8bd;
+  font-size: 0.77rem;
+}
+
+.fabric-wonder-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fabric-wonder-buttons button {
+  min-height: 36px;
+  flex: 1 1 auto;
+}
+
+.fabric-wonder-pad {
+  display: grid;
+  grid-template-columns: repeat(3, 46px);
+  grid-template-areas:
+    ". forward ."
+    "left stop right"
+    ". backward .";
+  justify-content: center;
+  gap: 6px;
+}
+
+.fabric-wonder-pad button {
+  width: 46px;
+  min-height: 42px;
+  padding: 7px;
+}
+
+.fabric-wonder-pad button:nth-child(1) {
+  grid-area: forward;
+}
+.fabric-wonder-pad button:nth-child(2) {
+  grid-area: left;
+}
+.fabric-wonder-pad button:nth-child(3) {
+  grid-area: stop;
+}
+.fabric-wonder-pad button:nth-child(4) {
+  grid-area: right;
+}
+.fabric-wonder-pad button:nth-child(5) {
+  grid-area: backward;
+}
+
+.fabric-wonder-pad .is-stop {
+  color: #ffd7d7;
+  border-color: rgb(255 100 100 / 48%);
+  background: rgb(130 26 26 / 18%);
+}
+
+.fabric-wonder-lock {
+  margin: 0;
+  padding: 8px;
+  border-left: 3px solid rgb(255 194 71 / 55%);
+  background: rgb(255 194 71 / 6%);
 }
 
 .fabric-demo-mode {

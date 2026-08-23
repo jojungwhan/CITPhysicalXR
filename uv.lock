@@ -28,6 +28,7 @@ members = [
     "cit-student-sdk",
     "cit-tello",
     "cit-test-harness",
+    "cit-wonder-workshop",
 ]
 
 [[package]]
@@ -495,6 +496,7 @@ dependencies = [
     { name = "cit-student-sdk", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-tello", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-test-harness", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "cit-wonder-workshop", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
 ]
 
 [package.optional-dependencies]
@@ -535,6 +537,7 @@ requires-dist = [
     { name = "cit-student-sdk", editable = "packages/student-sdk-py" },
     { name = "cit-tello", editable = "adapters/tello" },
     { name = "cit-test-harness", editable = "packages/test-harness" },
+    { name = "cit-wonder-workshop", editable = "adapters/wonder-workshop" },
 ]
 
 [package.metadata.requires-dev]
@@ -664,6 +667,27 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "cit-device-simulator", editable = "packages/device-simulator" }]
+
+[[package]]
+name = "cit-wonder-workshop"
+version = "0.0.0"
+source = { editable = "adapters/wonder-workshop" }
+dependencies = [
+    { name = "cit-integration-sdk", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "cit-protocol", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+]
+
+[package.optional-dependencies]
+hardware = [
+    { name = "bleak", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "bleak", marker = "extra == 'hardware'", specifier = "==3.0.2" },
+    { name = "cit-integration-sdk", editable = "packages/integration-sdk-py" },
+    { name = "cit-protocol", editable = "packages/protocol-py" },
+]
 
 [[package]]
 name = "click"

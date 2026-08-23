@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-wonder-workshop"
+version = "0.0.0"
+description = "Independent Wonder Workshop Dash and Dot adapter for CIT Physical XR"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "cit-integration-sdk",
+  "cit-protocol",
+]
+
+# The radio stack is deliberately optional: ordinary CI and simulation do not
+# need host Bluetooth access. The Windows business installer enables this extra.
+[project.optional-dependencies]
+hardware = ["bleak==3.0.2"]
+
+[project.scripts]
+cit-wonder-workshop = "cit_wonder_workshop.fabric_main:main"
+cit-wonder-workshop-discover = "cit_wonder_workshop.discovery:main"
+
+[tool.uv.sources]
+cit-integration-sdk = { workspace = true }
+cit-protocol = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cit_wonder_workshop"]

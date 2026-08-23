@@ -78,6 +78,7 @@ jobs:
           uv build --package cit-mindwave-mobile2
           uv build --package cit-robomaster-leap
           uv build --package cit-tello
+          uv build --package cit-wonder-workshop
 
       - name: Run tests and compliance gates
         run: |
