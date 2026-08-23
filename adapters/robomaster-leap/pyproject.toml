@@ -9,14 +9,18 @@ description = "CIT Interaction Fabric wrapper for the existing RoboMaster S1 and
 requires-python = ">=3.11,<3.14"
 license = "Apache-2.0"
 dependencies = [
+  "cit-integration-sdk",
   "cit-protocol",
   "websockets==17.0.1",
 ]
 
 [project.scripts]
 cit-robomaster-leap = "cit_robomaster_leap.__main__:main"
+cit-leap-motion = "cit_robomaster_leap.leap_main:main"
+cit-robomaster-s1 = "cit_robomaster_leap.robot_main:main"
 
 [tool.uv.sources]
+cit-integration-sdk = { workspace = true }
 cit-protocol = { workspace = true }
 
 [tool.hatch.build.targets.wheel]

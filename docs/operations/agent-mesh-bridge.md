@@ -31,6 +31,25 @@ menu button to reopen the screen without restarting either service.
 
 Prefer `-AgentMeshSessionId <exact-id>` over `-SelectMostRecentAgentSession` when the intended G2 or Meta session is already known. `-ProvisionWearables` invokes Agent Mesh's existing phone/G2 provisioner and therefore requires one authorized Android phone attached through ADB. Without that switch, a previously provisioned G2 or Meta phone bridge can reconnect normally.
 
+For the multi-drone lesson, tutors do not run that command. Connect at least two
+Tellos in Classroom Control first, choose **Find devices**, then choose **Connect**
+on the G2/Meta card. The fixed launcher detects the existing bounded fleet
+session, restarts the bridge against that exact session if necessary, and binds
+up to four connected wearables as input-only nodes. It neither selects a coding
+agent nor creates a glasses-agent lesson. Saying an approved exact phrase emits
+only `{ intent: "start" }`; the raw transcript is not copied into the fleet
+event and the current tutor arm is still mandatory.
+
+The current Agent Mesh compatibility feed exposes an intent only after Agent
+Mesh has dispatched the original phrase to the session selected by the
+wearable. The fleet launcher does not select or grant a coding-agent role, but
+an already selected Agent Mesh session may therefore also receive that phrase
+as an ordinary prompt. That compatibility behavior cannot command aircraft:
+coding-agent nodes have no fleet capability, the semantic fleet event contains
+no transcript, and deterministic role, source, session-arm, controller-arm,
+and safety checks still gate launch. A future native wearable-intent endpoint
+should intercept these exact phrases before coding-agent dispatch.
+
 Runtime state, logs, SQLite files, and DPAPI ciphertext default to `%LOCALAPPDATA%\CITPhysicalXR\glasses-hardware-test`; no plaintext credential is retained. On a clean start the launcher deliberately uses this order: create the draft Fabric session, start the bridge so nodes can register, bind connected nodes, then start the session. If no glasses client has polled Agent Mesh within two minutes, it remains visible but disconnected and cannot be bound until the owner opens or wears it and reruns `Start`.
 
 ### Owner-hardware acceptance check

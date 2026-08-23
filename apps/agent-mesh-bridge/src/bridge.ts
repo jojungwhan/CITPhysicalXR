@@ -15,6 +15,7 @@ import { MirrorCommandHandler } from "./command-handler.js";
 import type { BridgeConfig } from "./config.js";
 import {
   completionEventFrame,
+  flightSequenceIntentFrame,
   healthReports,
   intentEventFrame,
   mapDiscovery,
@@ -224,6 +225,28 @@ export class CitAgentMeshBridge {
         legacyDisplayDelivered: false,
         semanticSha256: semanticSha256(intent.prompt),
       });
+      const flightIntent = flightSequenceIntentFrame(
+        intent,
+        node,
+        this.#config,
+        this.#outbox,
+      );
+      if (flightIntent !== undefined) {
+        this.#outbox.enqueueEvent(
+          `fleet-intent:${intent.intentId}`,
+          flightIntent,
+          {
+            kind: "intent",
+            agentMeshIntentId: intent.intentId,
+            agentMeshCommandId: intent.agentMeshCommandId,
+            agentMeshSessionId: intent.requestedSessionId,
+            agentMeshDispatchedSessionId: intent.dispatchedSessionId,
+            alreadyDispatched: false,
+            legacyDisplayDelivered: false,
+            semanticSha256: semanticSha256("flight_sequence_start"),
+          },
+        );
+      }
       await this.#source.acknowledgeIntent(intent.intentId);
       this.#outbox.setStateNumber("agent-mesh-intent-cursor", intent.sequence);
     }

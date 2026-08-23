@@ -1,0 +1,26 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-matter-smart-plug"
+version = "0.1.0"
+description = "Cloud-independent Matter smart-plug adapter for the CIT Interaction Fabric"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "cit-integration-sdk",
+  "cit-protocol",
+  "websockets==17.0.1",
+]
+
+[project.scripts]
+cit-matter-smart-plug = "cit_matter_smart_plug.__main__:main"
+cit-matter-admin = "cit_matter_smart_plug.admin:main"
+
+[tool.uv.sources]
+cit-integration-sdk = { workspace = true }
+cit-protocol = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cit_matter_smart_plug"]

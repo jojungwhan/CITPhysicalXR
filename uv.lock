@@ -14,16 +14,20 @@ resolution-markers = [
 
 [manifest]
 members = [
+    "cit-brain2devices-demo",
     "cit-device-simulator",
+    "cit-integration-sdk",
     "cit-lego-pybricks",
+    "cit-matter-smart-plug",
+    "cit-mindwave-mobile2",
     "cit-physical-xr-workspace",
     "cit-protocol",
     "cit-robomaster-leap",
     "cit-runtime",
     "cit-safety-core",
     "cit-student-sdk",
+    "cit-tello",
     "cit-test-harness",
-    "cit-tuya-smart-plug",
 ]
 
 [[package]]
@@ -372,6 +376,21 @@ wheels = [
 ]
 
 [[package]]
+name = "cit-brain2devices-demo"
+version = "0.1.0"
+source = { editable = "adapters/brain2devices-demo" }
+dependencies = [
+    { name = "cit-integration-sdk", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "cit-protocol", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cit-integration-sdk", editable = "packages/integration-sdk-py" },
+    { name = "cit-protocol", editable = "packages/protocol-py" },
+]
+
+[[package]]
 name = "cit-device-simulator"
 version = "0.0.0"
 source = { editable = "packages/device-simulator" }
@@ -387,11 +406,27 @@ requires-dist = [
 ]
 
 [[package]]
+name = "cit-integration-sdk"
+version = "0.1.0"
+source = { editable = "packages/integration-sdk-py" }
+dependencies = [
+    { name = "cit-protocol", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "websockets", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cit-protocol", editable = "packages/protocol-py" },
+    { name = "websockets", specifier = "==17.0.1" },
+]
+
+[[package]]
 name = "cit-lego-pybricks"
 version = "0.0.0"
 source = { editable = "adapters/lego-pybricks" }
 dependencies = [
     { name = "cit-device-simulator", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "cit-integration-sdk", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-protocol", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-safety-core", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
 ]
@@ -404,9 +439,42 @@ hardware = [
 [package.metadata]
 requires-dist = [
     { name = "cit-device-simulator", editable = "packages/device-simulator" },
+    { name = "cit-integration-sdk", editable = "packages/integration-sdk-py" },
     { name = "cit-protocol", editable = "packages/protocol-py" },
     { name = "cit-safety-core", editable = "packages/safety-core" },
     { name = "pybricksdev", marker = "extra == 'hardware'", specifier = ">=1.0.0,<2" },
+]
+
+[[package]]
+name = "cit-matter-smart-plug"
+version = "0.1.0"
+source = { editable = "adapters/matter-smart-plug" }
+dependencies = [
+    { name = "cit-integration-sdk", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "cit-protocol", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "websockets", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cit-integration-sdk", editable = "packages/integration-sdk-py" },
+    { name = "cit-protocol", editable = "packages/protocol-py" },
+    { name = "websockets", specifier = "==17.0.1" },
+]
+
+[[package]]
+name = "cit-mindwave-mobile2"
+version = "0.1.0"
+source = { editable = "adapters/mindwave-mobile2" }
+dependencies = [
+    { name = "cit-integration-sdk", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "cit-protocol", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cit-integration-sdk", editable = "packages/integration-sdk-py" },
+    { name = "cit-protocol", editable = "packages/protocol-py" },
 ]
 
 [[package]]
@@ -414,21 +482,22 @@ name = "cit-physical-xr-workspace"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
+    { name = "cit-brain2devices-demo", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-device-simulator", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "cit-integration-sdk", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-lego-pybricks", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "cit-matter-smart-plug", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "cit-mindwave-mobile2", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-protocol", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-robomaster-leap", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-runtime", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-safety-core", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-student-sdk", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "cit-tello", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-test-harness", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
-    { name = "cit-tuya-smart-plug", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
 ]
 
 [package.optional-dependencies]
-smart-plug-lan = [
-    { name = "cit-tuya-smart-plug", extra = ["lan"], marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
-]
 vision = [
     { name = "cit-runtime", extra = ["vision"], marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
 ]
@@ -452,17 +521,20 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "cit-brain2devices-demo", editable = "adapters/brain2devices-demo" },
     { name = "cit-device-simulator", editable = "packages/device-simulator" },
+    { name = "cit-integration-sdk", editable = "packages/integration-sdk-py" },
     { name = "cit-lego-pybricks", editable = "adapters/lego-pybricks" },
+    { name = "cit-matter-smart-plug", editable = "adapters/matter-smart-plug" },
+    { name = "cit-mindwave-mobile2", editable = "adapters/mindwave-mobile2" },
     { name = "cit-protocol", editable = "packages/protocol-py" },
     { name = "cit-robomaster-leap", editable = "adapters/robomaster-leap" },
     { name = "cit-runtime", editable = "apps/runtime-py" },
     { name = "cit-runtime", extras = ["vision"], marker = "extra == 'vision'", editable = "apps/runtime-py" },
     { name = "cit-safety-core", editable = "packages/safety-core" },
     { name = "cit-student-sdk", editable = "packages/student-sdk-py" },
+    { name = "cit-tello", editable = "adapters/tello" },
     { name = "cit-test-harness", editable = "packages/test-harness" },
-    { name = "cit-tuya-smart-plug", editable = "adapters/tuya-smart-plug" },
-    { name = "cit-tuya-smart-plug", extras = ["lan"], marker = "extra == 'smart-plug-lan'", editable = "adapters/tuya-smart-plug" },
 ]
 
 [package.metadata.requires-dev]
@@ -502,12 +574,14 @@ name = "cit-robomaster-leap"
 version = "0.1.0"
 source = { editable = "adapters/robomaster-leap" }
 dependencies = [
+    { name = "cit-integration-sdk", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "cit-protocol", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
     { name = "websockets", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "cit-integration-sdk", editable = "packages/integration-sdk-py" },
     { name = "cit-protocol", editable = "packages/protocol-py" },
     { name = "websockets", specifier = "==17.0.1" },
 ]
@@ -566,6 +640,21 @@ version = "0.0.0"
 source = { editable = "packages/student-sdk-py" }
 
 [[package]]
+name = "cit-tello"
+version = "0.1.0"
+source = { editable = "adapters/tello" }
+dependencies = [
+    { name = "cit-integration-sdk", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+    { name = "cit-protocol", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "cit-integration-sdk", editable = "packages/integration-sdk-py" },
+    { name = "cit-protocol", editable = "packages/protocol-py" },
+]
+
+[[package]]
 name = "cit-test-harness"
 version = "0.0.0"
 source = { editable = "packages/test-harness" }
@@ -575,27 +664,6 @@ dependencies = [
 
 [package.metadata]
 requires-dist = [{ name = "cit-device-simulator", editable = "packages/device-simulator" }]
-
-[[package]]
-name = "cit-tuya-smart-plug"
-version = "0.1.0"
-source = { editable = "adapters/tuya-smart-plug" }
-dependencies = [
-    { name = "cit-protocol", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
-    { name = "websockets", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
-]
-
-[package.optional-dependencies]
-lan = [
-    { name = "tinytuya", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "cit-protocol", editable = "packages/protocol-py" },
-    { name = "tinytuya", marker = "extra == 'lan'", specifier = "==1.20.0" },
-    { name = "websockets", specifier = "==17.0.1" },
-]
 
 [[package]]
 name = "click"
@@ -2588,20 +2656,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/83/d3/803453b36afefb7c2bb238361cd4ae6125a569b4db67cd9e79846ba2d68c/sympy-1.14.0.tar.gz", hash = "sha256:d3d3fe8df1e5a0b42f0e7bdf50541697dbe7d23746e894990c030e2b05e72517", size = 7793921 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/a2/09/77d55d46fd61b4a135c444fc97158ef34a095e5681d0a6c10b75bf356191/sympy-1.14.0-py3-none-any.whl", hash = "sha256:e091cc3e99d2141a0ba2847328f5479b05d94a6635cb96148ccb3f34671bd8f5", size = 6299353 },
-]
-
-[[package]]
-name = "tinytuya"
-version = "1.20.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "colorama", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
-    { name = "cryptography", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
-    { name = "requests", marker = "sys_platform != 'win32' or (python_full_version >= '3.11' and python_full_version < '3.14') or platform_system == 'Linux'" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/68/ba/4199064373d6aa310e32e69b2c397937b4c25f5f8862a514ecdaeb34fe36/tinytuya-1.20.0.tar.gz", hash = "sha256:54bfcd0b3411ae4c94cf473e1ca28a2ffa4d376ed2d8e7e4e4adfcdf4ca1657c", size = 190632 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d7/87/3b1ac3cae266e82bf40cbc5cccb7a80e0c28b9a0b65a4ad9b088e190d507/tinytuya-1.20.0-py3-none-any.whl", hash = "sha256:ac5650c30f1153b1eae0b8d75f67043fb2397a168d3834e47da2d88d2c08c722", size = 170518 },
 ]
 
 [[package]]

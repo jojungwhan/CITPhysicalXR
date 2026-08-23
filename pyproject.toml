@@ -6,9 +6,13 @@ license = "Apache-2.0"
 requires-python = ">=3.11,<3.14"
 dependencies = [
   "cit-device-simulator",
+  "cit-brain2devices-demo",
+  "cit-integration-sdk",
   "cit-lego-pybricks",
+  "cit-matter-smart-plug",
+  "cit-mindwave-mobile2",
   "cit-robomaster-leap",
-  "cit-tuya-smart-plug",
+  "cit-tello",
   "cit-runtime",
   "cit-protocol",
   "cit-safety-core",
@@ -17,7 +21,6 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-smart-plug-lan = ["cit-tuya-smart-plug[lan]"]
 vision = ["cit-runtime[vision]"]
 
 [dependency-groups]
@@ -42,11 +45,15 @@ package = false
 
 [tool.uv.workspace]
 members = [
+  "adapters/brain2devices-demo",
   "adapters/lego-pybricks",
+  "adapters/matter-smart-plug",
+  "adapters/mindwave-mobile2",
   "adapters/robomaster-leap",
-  "adapters/tuya-smart-plug",
+  "adapters/tello",
   "apps/runtime-py",
   "packages/device-simulator",
+  "packages/integration-sdk-py",
   "packages/protocol-py",
   "packages/safety-core",
   "packages/student-sdk-py",
@@ -55,9 +62,13 @@ members = [
 
 [tool.uv.sources]
 cit-device-simulator = { workspace = true }
+cit-brain2devices-demo = { workspace = true }
+cit-integration-sdk = { workspace = true }
 cit-lego-pybricks = { workspace = true }
+cit-matter-smart-plug = { workspace = true }
+cit-mindwave-mobile2 = { workspace = true }
 cit-robomaster-leap = { workspace = true }
-cit-tuya-smart-plug = { workspace = true }
+cit-tello = { workspace = true }
 cit-runtime = { workspace = true }
 cit-protocol = { workspace = true }
 cit-safety-core = { workspace = true }

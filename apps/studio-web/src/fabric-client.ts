@@ -33,6 +33,11 @@ export interface FabricCommandSubmission {
   lifecycle: FabricCommandLifecycleEvent[];
 }
 
+export interface FabricSessionStartPolicy {
+  sessionId: string;
+  requiresArming: boolean;
+}
+
 export interface FabricStopAllResult {
   status: "completed" | "partial";
   stoppedSessionIds: string[];
@@ -129,6 +134,22 @@ export interface FabricDiscoveryCandidate {
   status: "found" | "ready" | "setup_required" | "not_found";
   detail: string;
   signalPercent?: number;
+  connectionPath?:
+    | "usb"
+    | "bluetooth"
+    | "wifi"
+    | "android"
+    | "android_usb"
+    | "android_wifi"
+    | "local_service";
+  linkState?:
+    | "attached"
+    | "connected"
+    | "recently_active"
+    | "visible"
+    | "paired"
+    | "provisioned"
+    | "ready";
 }
 
 export interface FabricIntegrationDiscovery {
@@ -141,6 +162,17 @@ export interface FabricIntegrationDiscovery {
     | "drone"
     | "smart_device"
     | "coding_agent";
+  ioType: "input" | "output" | "bidirectional";
+  icon?:
+    | "brain"
+    | "drone"
+    | "glasses"
+    | "hand"
+    | "lego"
+    | "plug"
+    | "robot"
+    | "sphero"
+    | "terminal";
   status: FabricDiscoveryStatus;
   summary: string;
   connectionMethod: string;
@@ -170,6 +202,12 @@ export interface FabricDiscoveryActionResult {
   accepted: boolean;
   message: string;
   report: FabricDiscoveryReport;
+}
+
+export interface LegoConnectionConfiguration {
+  hubName: string;
+  hubModel: "spike-prime" | "spike-essential" | "robot-inventor";
+  ports: Record<string, "empty" | "motor" | "distance" | "color" | "force">;
 }
 
 interface FabricErrorBody {
@@ -295,12 +333,50 @@ export class FabricClient {
     );
   }
 
+  commissionMatterPlug(
+    setupCode: string,
+  ): Promise<FabricDiscoveryActionResult> {
+    const normalized = setupCode.trim();
+    if (
+      normalized !== setupCode ||
+      normalized.length < 11 ||
+      normalized.length > 103 ||
+      Array.from(normalized).some((character) => {
+        const code = character.charCodeAt(0);
+        return code < 32 || code === 127;
+      })
+    ) {
+      throw new Error(
+        "Enter the Matter QR or manual setup code printed on the plug.",
+      );
+    }
+    return this.#request("/api/v1/fabric/matter/commission", {
+      method: "POST",
+      body: JSON.stringify({ setupCode: normalized }),
+    });
+  }
+
+  connectLegoHub(
+    configuration: LegoConnectionConfiguration,
+  ): Promise<FabricDiscoveryActionResult> {
+    return this.#request("/api/v1/fabric/lego/connect", {
+      method: "POST",
+      body: JSON.stringify(configuration),
+    });
+  }
+
   listCoursePacks(): Promise<CoursePack[]> {
     return this.#request("/api/v1/fabric/course-packs");
   }
 
   listSessions(): Promise<InteractionSession[]> {
     return this.#request("/api/v1/fabric/sessions");
+  }
+
+  getSessionStartPolicy(sessionId: string): Promise<FabricSessionStartPolicy> {
+    return this.#request(
+      `/api/v1/fabric/sessions/${encodeURIComponent(sessionId)}/start-policy`,
+    );
   }
 
   createSession(
@@ -355,6 +431,7 @@ export class FabricClient {
       sessionId,
       afterSequence: String(afterSequence),
       limit: "100",
+      latest: "true",
     });
     return this.#request(`/api/v1/fabric/events?${parameters.toString()}`);
   }

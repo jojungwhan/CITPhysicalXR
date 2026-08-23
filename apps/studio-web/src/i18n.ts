@@ -15,6 +15,25 @@
 export type Locale = "en" | "ko";
 
 export const LOCALES: readonly Locale[] = ["en", "ko"];
+export const DEFAULT_LOCALE: Locale = "ko";
+export const LOCALE_STORAGE_KEY = "citxr.locale";
+
+export const resolveLocale = (stored: string | null | undefined): Locale =>
+  stored === "en" || stored === "ko" ? stored : DEFAULT_LOCALE;
+
+export const readSavedLocale = (): Locale =>
+  typeof window === "undefined"
+    ? DEFAULT_LOCALE
+    : resolveLocale(window.localStorage.getItem(LOCALE_STORAGE_KEY));
+
+export const saveLocale = (locale: Locale): void => {
+  if (typeof window !== "undefined") {
+    window.localStorage.setItem(LOCALE_STORAGE_KEY, locale);
+  }
+  if (typeof document !== "undefined") {
+    document.documentElement.lang = locale;
+  }
+};
 
 const EN = {
   "app.title": "CIT Physical XR Studio",

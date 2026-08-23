@@ -35,6 +35,8 @@ param(
   [string]$HostId = "",
   [string]$LeapNodeId = "leap-motion-01",
   [string]$RobotNodeId = "robomaster-s1-01",
+  [string]$FabricSessionId = "",
+  [switch]$FleetInputOnly,
   [switch]$SkipBuild,
   [switch]$NoOpenConsole
 )
@@ -45,8 +47,20 @@ $ErrorActionPreference = "Stop"
 if ($ConnectOnly -and -not $Live) {
   throw "ConnectOnly is available only for the physical Live adapter"
 }
+if ($FleetInputOnly -and -not $Live) {
+  throw "FleetInputOnly requires the physical Live Leap adapter"
+}
+if ($FleetInputOnly -and (-not $FabricSessionId -or $ConnectOnly)) {
+  throw "FleetInputOnly requires FabricSessionId and cannot be combined with ConnectOnly"
+}
 
-$expectedRevision = "3c213c110b0cdf2912985bfcde442d67092b98f0"
+$sourceCatalogPath = Join-Path $PSScriptRoot "external-sources.generated.json"
+if (-not (Test-Path -LiteralPath $sourceCatalogPath -PathType Leaf)) {
+  throw "Generated external-source catalog is missing; run pnpm generate"
+}
+$sourceCatalog = [IO.File]::ReadAllText($sourceCatalogPath, [Text.Encoding]::UTF8) |
+  ConvertFrom-Json
+$expectedRevision = [string]$sourceCatalog.sources.'robomaster-gesture-control'.revision
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
 if (-not $ExternalRepositoryRoot) {
   $ExternalRepositoryRoot = Join-Path (Split-Path $repositoryRoot -Parent) "robomaster-gesture-control-reference"
@@ -83,6 +97,9 @@ foreach ($entry in @{
     throw "$($entry.Key) must be a CIT identifier"
   }
 }
+if ($FabricSessionId -and $FabricSessionId -notmatch $identifierPattern) {
+  throw "FabricSessionId must be a CIT identifier"
+}
 
 $statePath = Join-Path $StateRoot "state.json"
 $secretRoot = Join-Path $StateRoot "secrets"
@@ -93,7 +110,8 @@ $bootstrapSecretPath = if ($SharedFabricRoot) {
 } else {
   Join-Path $secretRoot "fabric-bootstrap.dpapi"
 }
-$adapterSecretPath = Join-Path $secretRoot "robomaster-leap-adapter.dpapi"
+$leapAdapterSecretPath = Join-Path $secretRoot "leap-adapter.dpapi"
+$robotAdapterSecretPath = Join-Path $secretRoot "robomaster-adapter.dpapi"
 $activationPath = Join-Path $StateRoot "input-active.signal"
 $leapStopPath = Join-Path $StateRoot "leap-stop.request"
 $fabricOrigin = "http://127.0.0.1:$FabricPort"
@@ -289,13 +307,13 @@ function Show-Preflight {
       throw "The Ultraleap tracking service is not running"
     }
     Write-Host "PASS Ultraleap service $($leapService.DisplayName) is running"
-    if ($RobotTransport -eq "sdk") {
+    if (-not $FleetInputOnly -and $RobotTransport -eq "sdk") {
       & $ExternalPython -c "import robomaster; print('PASS DJI SDK import')"
       if ($LASTEXITCODE -ne 0) { throw "The DJI RoboMaster SDK is unavailable" }
-    } elseif ($env:OS -ne "Windows_NT") {
+    } elseif (-not $FleetInputOnly -and $env:OS -ne "Windows_NT") {
       throw "The stock S1 app transport is Windows-only"
     }
-    Write-Host "PASS LIVE was explicitly selected; Fabric will still require arm then start"
+    Write-Host $(if ($FleetInputOnly) { "PASS Leap input-only mode; no RoboMaster process or motor capability will start" } else { "PASS LIVE was explicitly selected; Fabric will still require arm then start" })
   } else {
     Write-Host "PASS simulation mode: demo input and upstream DryRunRobot; no motor command can leave this machine"
     if (-not (Test-Path -LiteralPath $BridgeDll)) {
@@ -384,6 +402,22 @@ function Start-Fabric([hashtable]$State, [string]$BootstrapCredential) {
 }
 
 function New-FabricSession([hashtable]$State, [string]$BootstrapCredential) {
+  if ($FabricSessionId) {
+    $session = Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/sessions/$FabricSessionId" -Credential $BootstrapCredential
+    if ([string]$session.coursePackId -ne "device-monitoring") {
+      throw "FabricSessionId must identify the shared device-monitoring session"
+    }
+    if ([string]$session.siteId -ne $SiteId -or [string]$session.roomId -ne $RoomId) {
+      throw "FabricSessionId does not belong to the requested CIT site and room"
+    }
+    if ([string]$session.state -in @("stopped", "emergency_stopped", "failed")) {
+      throw "FabricSessionId is no longer available for Leap input attachment"
+    }
+    $State.sessionId = $FabricSessionId
+    $State.fleetInputOnly = [bool]$FleetInputOnly
+    Save-State $State
+    return $session
+  }
   $session = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/sessions" -Credential $BootstrapCredential -Body @{
     coursePackId = "gesture-ground-robot"
     coursePackVersion = "1.0.0"
@@ -392,6 +426,7 @@ function New-FabricSession([hashtable]$State, [string]$BootstrapCredential) {
     mode = if ($Live) { "physical" } else { "simulation" }
   }
   $State.sessionId = $session.sessionId
+  $State.fleetInputOnly = $false
   Save-State $State
   return $session
 }
@@ -399,76 +434,115 @@ function New-FabricSession([hashtable]$State, [string]$BootstrapCredential) {
 function New-AdapterCredential(
   [hashtable]$State,
   [string]$BootstrapCredential,
-  [string]$SessionId
+  [string]$SessionId,
+  [string]$PluginId,
+  [string]$IdentityPrefix,
+  [string]$SecretPath
 ) {
-  $identityId = "cit-robot-$($SessionId.Substring(0, [Math]::Min(16, $SessionId.Length)))"
+  $identityId = "$IdentityPrefix-$($SessionId.Substring(0, [Math]::Min(16, $SessionId.Length)))"
   $response = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/auth/identities" -Credential $BootstrapCredential -Body @{
     identityId = $identityId
     actorType = "adapter"
-    roles = @("plugin.cit.robomaster-gesture-control")
+    roles = @("plugin.$PluginId")
     permissions = @("fabric.adapters.connect", "fabric.events.publish", "fabric.nodes.write")
     siteId = $SiteId
     roomId = $RoomId
     sessionId = $SessionId
     ttlSeconds = 86400
   }
-  Save-ProtectedSecret $adapterSecretPath ([string]$response.token)
-  $State.adapterIdentityId = $identityId
+  Save-ProtectedSecret $SecretPath ([string]$response.token)
   Save-State $State
   return [string]$response.token
 }
 
 function Start-Adapter(
   [hashtable]$State,
-  [string]$Credential,
+  [string]$LeapCredential,
+  [string]$RobotCredential,
   [string]$SessionId
 ) {
   foreach ($path in @($activationPath, $leapStopPath)) {
     if (Test-Path -LiteralPath $path) { [IO.File]::Delete($path) }
   }
+  if ($FleetInputOnly) {
+    if ($State.ContainsKey("robotAdapterPid") -or $State.ContainsKey("leapAdapterPid")) {
+      # Removing the activation file asks the owned robot bridge to execute its
+      # bounded stop before process replacement. Do not race that watchdog.
+      Start-Sleep -Milliseconds 1200
+    }
+    Stop-ExactProcess $(if ($State.ContainsKey("robotAdapterPid")) { $State.robotAdapterPid } else { $null }) "cit_robomaster_leap.robot_main"
+    Stop-ExactProcess $(if ($State.ContainsKey("leapAdapterPid")) { $State.leapAdapterPid } else { $null }) "cit_robomaster_leap.leap_main"
+    $State.Remove("robotAdapterPid")
+    $State.Remove("leapAdapterPid")
+  }
   $runtimePython = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
-  $arguments = @(
-    "-m", "cit_robomaster_leap",
+  $commonArguments = @(
     "--adapter-url", $fabricAdapterUrl,
     "--fabric-origin", $fabricOrigin,
     "--session-id", $SessionId,
     "--site-id", $SiteId,
     "--room-id", $RoomId,
     "--host-id", $HostId,
-    "--leap-node-id", $LeapNodeId,
-    "--robot-node-id", $RobotNodeId,
     "--activation-file", $activationPath,
     "--repository", $ExternalRepositoryRoot,
     "--external-python", $ExternalPython,
-    "--input-mode", $(if ($Live) { "leap" } else { "demo" }),
-    "--robot-mode", $(if ($Live) { $RobotTransport } else { "dry-run" }),
-    "--hand", $Hand,
-    "--connection", $Connection,
-    "--protocol", $Protocol,
     "--max-speed", $MaxSpeed.ToString([Globalization.CultureInfo]::InvariantCulture),
-    "--max-yaw", $MaxYaw.ToString([Globalization.CultureInfo]::InvariantCulture),
-    "--leap-stop-file", $leapStopPath
+    "--max-yaw", $MaxYaw.ToString([Globalization.CultureInfo]::InvariantCulture)
   )
-  if ($Live) { $arguments += @("--bridge-dll", $BridgeDll) }
-  if ($RobotIp) { $arguments += @("--robot-ip", $RobotIp) }
-  if ($LocalIp) { $arguments += @("--local-ip", $LocalIp) }
-  if ($SerialNumber) { $arguments += @("--serial-number", $SerialNumber) }
-  if ($InvertStrafe) { $arguments += "--invert-strafe" }
-  if ($InvertYaw) { $arguments += "--invert-yaw" }
-  $process = Start-HiddenProcess `
+  $expectedNodeIds = @($LeapNodeId)
+  if (-not $FleetInputOnly) {
+    $robotArguments = @(
+      "-m", "cit_robomaster_leap.robot_main"
+    ) + $commonArguments + @(
+      "--node-id", $RobotNodeId,
+      "--robot-mode", $(if ($Live) { $RobotTransport } else { "dry-run" }),
+      "--connection", $Connection,
+      "--protocol", $Protocol
+    )
+    if ($RobotIp) { $robotArguments += @("--robot-ip", $RobotIp) }
+    if ($LocalIp) { $robotArguments += @("--local-ip", $LocalIp) }
+    if ($SerialNumber) { $robotArguments += @("--serial-number", $SerialNumber) }
+    $robotProcess = Start-HiddenProcess `
+      -Executable $runtimePython `
+      -Arguments $robotArguments `
+      -WorkingDirectory $repositoryRoot `
+      -LogPrefix "robomaster-adapter" `
+      -Environment @{ CIT_FABRIC_ADAPTER_TOKEN = $RobotCredential }
+    $State.robotAdapterPid = $robotProcess.Id
+    $expectedNodeIds += $RobotNodeId
+  }
+  $leapArguments = @(
+    "-m", "cit_robomaster_leap.leap_main"
+  ) + $commonArguments + @(
+    "--node-id", $LeapNodeId,
+    "--input-mode", $(if ($Live) { "leap" } else { "demo" }),
+    "--hand", $Hand,
+    "--stop-file", $leapStopPath
+  )
+  if ($Live) { $leapArguments += @("--bridge-dll", $BridgeDll) }
+  if ($InvertStrafe) { $leapArguments += "--invert-strafe" }
+  if ($InvertYaw) { $leapArguments += "--invert-yaw" }
+  $leapProcess = Start-HiddenProcess `
     -Executable $runtimePython `
-    -Arguments $arguments `
+    -Arguments $leapArguments `
     -WorkingDirectory $repositoryRoot `
-    -LogPrefix "robomaster-leap-adapter" `
-    -Environment @{ CIT_FABRIC_ADAPTER_TOKEN = $Credential }
-  $State.adapterPid = $process.Id
+    -LogPrefix "leap-adapter" `
+    -Environment @{ CIT_FABRIC_ADAPTER_TOKEN = $LeapCredential }
+  $State.leapAdapterPid = $leapProcess.Id
   Save-State $State
   Wait-Until {
     try {
       $nodes = @(Expand-Sequence (Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/nodes" -Credential (Read-ProtectedSecret $bootstrapSecretPath)))
-      return @($nodes | Where-Object { $_.nodeId -in @($LeapNodeId, $RobotNodeId) -and $_.connectionState -eq "connected" }).Count -eq 2
+      $connected = @($nodes | Where-Object { $_.nodeId -in $expectedNodeIds -and $_.connectionState -eq "connected" })
+      if ($connected.Count -ne $expectedNodeIds.Count) { return $false }
+      if ($FleetInputOnly) {
+        return @($connected | Where-Object {
+            @($_.publishedCapabilities | ForEach-Object { $_.name }) -contains "interaction.intent.flight_sequence_start"
+          }).Count -eq 1
+      }
+      return $true
     } catch { return $false }
-  } "The RoboMaster/Leap adapter did not register both nodes; inspect $logRoot" 45
+  } "The selected independent Leap/RoboMaster adapters did not register; inspect $logRoot" 45
 }
 
 function Bind-Roles(
@@ -476,6 +550,31 @@ function Bind-Roles(
   [string]$BootstrapCredential,
   [string]$SessionId
 ) {
+  if ($FleetInputOnly) {
+    $session = Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/sessions/$SessionId" -Credential $BootstrapCredential
+    $roleBindings = @(Expand-Sequence $session.roleBindings)
+    $existingRole = @($roleBindings | Where-Object {
+        $_.nodeId -eq $LeapNodeId -and $_.role -like "fleet_sequence_input_*"
+      } | Select-Object -First 1)
+    $occupiedRoles = @($roleBindings | ForEach-Object { [string]$_.role })
+    $role = if ($existingRole.Count -gt 0) {
+      [string]$existingRole[0].role
+    } else {
+      @(1..4 | ForEach-Object { "fleet_sequence_input_$_" } | Where-Object {
+          $_ -notin $occupiedRoles
+        } | Select-Object -First 1)[0]
+    }
+    if (-not $role) { throw "No free fleet input role is available for Leap Motion" }
+    if ($existingRole.Count -eq 0) {
+      $null = Invoke-JsonApi -Method PUT -Uri "$fabricOrigin/api/v1/fabric/sessions/$SessionId/roles/$role" -Credential $BootstrapCredential -Body @{
+        nodeId = $LeapNodeId
+      }
+    }
+    $State.fleetInputRole = $role
+    $State.fleetInputOnly = $true
+    Save-State $State
+    return Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/sessions/$SessionId" -Credential $BootstrapCredential
+  }
   foreach ($binding in @(
       @{ role = "gesture_input"; nodeId = $LeapNodeId },
       @{ role = "student_robot"; nodeId = $RobotNodeId }
@@ -559,13 +658,21 @@ function Stop-Test([hashtable]$State, [string]$BootstrapCredential) {
     try {
       if ($State.ContainsKey("fabricOwned") -and $State.fabricOwned) {
         $null = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/safety/stop-all" -Credential $BootstrapCredential
-      } elseif ($State.ContainsKey("sessionId") -and $State.sessionId) {
+      } elseif (
+        -not ($State.ContainsKey("fleetInputOnly") -and $State.fleetInputOnly) -and
+        $State.ContainsKey("sessionId") -and
+        $State.sessionId
+      ) {
         $null = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/sessions/$($State.sessionId)/stop" -Credential $BootstrapCredential
       }
     } catch {
       Write-Warning "Fabric session/global stop failed: $($_.Exception.Message)"
     }
   }
+  Start-Sleep -Milliseconds 1200
+  Stop-ExactProcess $(if ($State.ContainsKey("leapAdapterPid")) { $State.leapAdapterPid } else { $null }) "cit_robomaster_leap.leap_main"
+  Stop-ExactProcess $(if ($State.ContainsKey("robotAdapterPid")) { $State.robotAdapterPid } else { $null }) "cit_robomaster_leap.robot_main"
+  # Compatibility with state created before independent process migration.
   Stop-ExactProcess $(if ($State.ContainsKey("adapterPid")) { $State.adapterPid } else { $null }) "cit_robomaster_leap"
   if ($State.ContainsKey("fabricOwned") -and $State.fabricOwned) {
     $processIds = @()
@@ -620,10 +727,22 @@ $bootstrap = if ($SharedFabricRoot) {
 }
 Start-Fabric $state $bootstrap
 $session = New-FabricSession $state $bootstrap
-$adapterCredential = New-AdapterCredential $state $bootstrap $session.sessionId
+$leapCredential = New-AdapterCredential $state $bootstrap $session.sessionId "cit.leap-motion" "cit-leap" $leapAdapterSecretPath
+$robotCredential = if ($FleetInputOnly) {
+  ""
+} else {
+  New-AdapterCredential $state $bootstrap $session.sessionId "cit.robomaster-s1" "cit-robot" $robotAdapterSecretPath
+}
 try {
-  Start-Adapter $state $adapterCredential $session.sessionId
-  if ($ConnectOnly) {
+  Start-Adapter $state $leapCredential $robotCredential $session.sessionId
+  if ($FleetInputOnly) {
+    $active = Bind-Roles $state $bootstrap $session.sessionId
+    [IO.File]::WriteAllText($activationPath, "active`n", [Text.Encoding]::ASCII)
+    $state.live = $true
+    $state.connectOnly = $false
+    $state.inputActivatedAt = [DateTimeOffset]::UtcNow.ToString('o')
+    Save-State $state
+  } elseif ($ConnectOnly) {
     $active = Bind-Roles $state $bootstrap $session.sessionId
     $state.live = $true
     $state.connectOnly = $true
@@ -641,7 +760,7 @@ try {
 Write-Host "READY session $($active.sessionId) [$($active.state)]"
 Write-Host "UI $fabricOrigin/fabric"
 Write-Host "Classroom controls open with automatic local sign-in."
-Write-Host $(if ($ConnectOnly) { "CONNECTED AND DISARMED: no activation file was created and no movement command can run until the tutor starts the lesson." } elseif ($Live) { "LIVE: robot is armed; release pinch or use Emergency stop immediately to halt." } else { "SIMULATION: a bounded demo pulse and stop are running through the upstream DryRunRobot." })
+Write-Host $(if ($FleetInputOnly) { "FLEET INPUT ONLY: open hand then pinch publishes one start intent; no RoboMaster process was started and the fleet still requires tutor arming." } elseif ($ConnectOnly) { "CONNECTED AND DISARMED: no activation file was created and no movement command can run until the tutor starts the lesson." } elseif ($Live) { "LIVE: robot is armed; release pinch or use Emergency stop immediately to halt." } else { "SIMULATION: a bounded demo pulse and stop are running through the upstream DryRunRobot." })
 if (-not $NoOpenConsole) {
   $consoleStateRoot = if ($SharedFabricRoot) { $SharedFabricRoot } else { $StateRoot }
   & (Join-Path $repositoryRoot "tools\hardware\interaction-fabric-console.ps1") `

@@ -41,6 +41,24 @@ describe("Fabric sensor presentation", () => {
 
     expect(reading?.values).toEqual([{ label: "Battery", value: "71" }]);
   });
+
+  it("shows normalized vendor-labelled MindWave readings", () => {
+    const readings = latestSensorReadings([
+      event(1, "mindwave-a", "mindwave.esense.attention", {
+        value: 64,
+        vendor: "NeuroSky",
+      }),
+      event(2, "mindwave-a", "mindwave.signal.quality", {
+        value: 96,
+        unit: "percent",
+      }),
+    ]);
+
+    expect(readings.map((reading) => reading.topic)).toEqual([
+      "mindwave.signal.quality",
+      "mindwave.esense.attention",
+    ]);
+  });
 });
 
 const event = (

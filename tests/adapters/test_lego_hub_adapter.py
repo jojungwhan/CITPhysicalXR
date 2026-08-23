@@ -352,6 +352,21 @@ async def test_a_sensor_read_arrives_as_a_sensor_event() -> None:
 
 
 @pytest.mark.asyncio
+async def test_hub_battery_read_matches_the_firmware_hub_port() -> None:
+    adapter, transport = build_pair()
+    await adapter.connect(at=NOW)
+    adapter.drain_events()
+
+    result = await adapter.execute(command_for(adapter, capability="hub.battery"), now=NOW)
+    events = adapter.drain_events()
+
+    assert result.status == "completed"
+    assert sent(transport, Operation.SENSOR_READ) == [("HUB", "battery")]
+    assert [event.name for event in events] == ["telemetry.battery"]
+    assert events[0].values.model_dump() == {"value": 87}
+
+
+@pytest.mark.asyncio
 async def test_a_sensor_with_no_port_says_so_instead_of_reading_nothing() -> None:
     adapter, _ = build_pair()
     await adapter.connect(at=NOW)

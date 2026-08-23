@@ -2,113 +2,56 @@
 
 from __future__ import annotations
 
+import json
 from datetime import datetime
-from typing import Any
+from importlib.resources import files
 
+from cit_integration_sdk import capability_descriptor, capability_name, external_source
 from cit_protocol import CoursePack, IntegrationNode, PluginManifest
 
 PLUGIN_ID = "cit.robomaster-gesture-control"
+LEAP_PLUGIN_ID = "cit.leap-motion"
+ROBOMASTER_PLUGIN_ID = "cit.robomaster-s1"
 PLUGIN_VERSION = "0.1.0"
 RUNTIME_VERSION = "python-3.11"
-UPSTREAM_REVISION = "3c213c110b0cdf2912985bfcde442d67092b98f0"
+UPSTREAM_REVISION = external_source("robomaster-gesture-control").revision
 
-GESTURE_CAPABILITY = "interaction.gesture.velocity"
-TRACKING_CAPABILITY = "telemetry.tracking.status"
-ROBOT_VELOCITY_CAPABILITY = "mobility.ground.set_velocity"
-ROBOT_STOP_CAPABILITY = "mobility.ground.stop"
-ROBOT_TELEMETRY_CAPABILITY = "telemetry.motion.commanded"
-
-
-def _capability(
-    name: str,
-    direction: str,
-    *,
-    safety: str,
-    rate: float,
-    constraints: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    return {
-        "name": name,
-        "version": "1.0",
-        "direction": direction,
-        "schemaRef": None,
-        "units": None,
-        "maximumRateHz": rate,
-        "latencyClass": "interactive",
-        "safetyClassification": safety,
-        "dataClassification": "operational",
-        "constraints": constraints or {},
-    }
+GESTURE_CAPABILITY = capability_name("gesture_velocity")
+FLIGHT_SEQUENCE_INTENT_CAPABILITY = capability_name("flight_sequence_intent")
+TRACKING_CAPABILITY = capability_name("tracking_status")
+ROBOT_VELOCITY_CAPABILITY = capability_name("ground_velocity")
+ROBOT_STOP_CAPABILITY = capability_name("ground_stop")
+ROBOT_TELEMETRY_CAPABILITY = capability_name("ground_commanded")
 
 
-def _gesture_capability() -> dict[str, Any]:
-    return _capability(
-        GESTURE_CAPABILITY,
-        "publish",
-        safety="informational",
-        rate=15,
-        constraints={
-            "payload": {
-                "forwardMetersPerSecond": {"minimum": -0.35, "maximum": 0.35},
-                "rightMetersPerSecond": {"minimum": -0.35, "maximum": 0.35},
-                "clockwiseRadiansPerSecond": {
-                    "minimum": -0.6108652382,
-                    "maximum": 0.6108652382,
-                },
-            }
-        },
-    )
+def _gesture_capability() -> dict[str, object]:
+    return capability_descriptor("gesture_velocity", "publish")
 
 
-def _tracking_capability() -> dict[str, Any]:
-    return _capability(
-        TRACKING_CAPABILITY,
-        "publish",
-        safety="informational",
-        rate=2,
-    )
+def _tracking_capability() -> dict[str, object]:
+    return capability_descriptor("tracking_status", "publish")
 
 
-def _velocity_capability() -> dict[str, Any]:
-    return _capability(
-        ROBOT_VELOCITY_CAPABILITY,
-        "consume",
-        safety="bounded_physical",
-        rate=15,
-        constraints={
-            "arguments": {
-                "forwardMetersPerSecond": {"minimum": -0.35, "maximum": 0.35},
-                "rightMetersPerSecond": {"minimum": -0.35, "maximum": 0.35},
-                "clockwiseRadiansPerSecond": {
-                    "minimum": -0.6108652382,
-                    "maximum": 0.6108652382,
-                },
-            }
-        },
-    )
+def _flight_sequence_intent_capability() -> dict[str, object]:
+    return capability_descriptor("flight_sequence_intent", "publish")
 
 
-def _stop_capability() -> dict[str, Any]:
-    return _capability(
-        ROBOT_STOP_CAPABILITY,
-        "consume",
-        safety="bounded_physical",
-        rate=20,
-    )
+def _velocity_capability() -> dict[str, object]:
+    return capability_descriptor("ground_velocity", "consume")
 
 
-def _robot_telemetry_capability() -> dict[str, Any]:
-    return _capability(
-        ROBOT_TELEMETRY_CAPABILITY,
-        "publish",
-        safety="informational",
-        rate=15,
-    )
+def _stop_capability() -> dict[str, object]:
+    return capability_descriptor("ground_stop", "consume")
+
+
+def _robot_telemetry_capability() -> dict[str, object]:
+    return capability_descriptor("ground_commanded", "publish")
 
 
 def build_manifest() -> PluginManifest:
     published = [
         _gesture_capability(),
+        _flight_sequence_intent_capability(),
         _tracking_capability(),
         _robot_telemetry_capability(),
     ]
@@ -147,6 +90,77 @@ def build_manifest() -> PluginManifest:
     )
 
 
+def build_leap_manifest() -> PluginManifest:
+    """Manifest for the independently supervised Leap input process."""
+
+    return PluginManifest.model_validate(
+        {
+            "schemaVersion": "1.0",
+            "pluginId": LEAP_PLUGIN_ID,
+            "pluginVersion": PLUGIN_VERSION,
+            "runtimeVersion": RUNTIME_VERSION,
+            "displayName": "Leap Motion semantic gesture input",
+            "adapterMode": "out_of_process",
+            "configurationSchema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["upstreamRepository", "upstreamRevision", "inputMode"],
+                "properties": {
+                    "upstreamRepository": {"type": "string"},
+                    "upstreamRevision": {"const": UPSTREAM_REVISION},
+                    "inputMode": {"enum": ["demo", "leap"]},
+                    "preferredHand": {"enum": ["left", "right", "any"]},
+                },
+            },
+            "publishedCapabilities": [
+                _gesture_capability(),
+                _flight_sequence_intent_capability(),
+                _tracking_capability(),
+            ],
+            "consumedCapabilities": [],
+            "requiredPermissions": ["usb.hid"],
+            "safetyClassification": "informational",
+            "dataClassifications": ["operational"],
+            "simulatorAvailability": "included",
+            "vendor": "CIT wrapper of jojungwhan/robomaster-gesture-control",
+            "description": "Publishes semantic gestures and imports no robot module.",
+        }
+    )
+
+
+def build_robot_manifest() -> PluginManifest:
+    """Manifest for the independently supervised RoboMaster output process."""
+
+    return PluginManifest.model_validate(
+        {
+            "schemaVersion": "1.0",
+            "pluginId": ROBOMASTER_PLUGIN_ID,
+            "pluginVersion": PLUGIN_VERSION,
+            "runtimeVersion": RUNTIME_VERSION,
+            "displayName": "DJI RoboMaster S1 ground-mobility output",
+            "adapterMode": "out_of_process",
+            "configurationSchema": {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["upstreamRepository", "upstreamRevision", "robotMode"],
+                "properties": {
+                    "upstreamRepository": {"type": "string"},
+                    "upstreamRevision": {"const": UPSTREAM_REVISION},
+                    "robotMode": {"enum": ["dry-run", "sdk", "s1-app"]},
+                },
+            },
+            "publishedCapabilities": [_robot_telemetry_capability()],
+            "consumedCapabilities": [_velocity_capability(), _stop_capability()],
+            "requiredPermissions": ["network.local"],
+            "safetyClassification": "bounded_physical",
+            "dataClassifications": ["operational"],
+            "simulatorAvailability": "included",
+            "vendor": "CIT wrapper of jojungwhan/robomaster-gesture-control",
+            "description": "Consumes bounded ground commands and imports no Leap module.",
+        }
+    )
+
+
 def build_nodes(
     *,
     at: datetime,
@@ -161,6 +175,7 @@ def build_nodes(
     preferred_hand: str,
 ) -> tuple[IntegrationNode, IntegrationNode]:
     gesture = _gesture_capability()
+    flight_sequence_intent = _flight_sequence_intent_capability()
     tracking = _tracking_capability()
     velocity = _velocity_capability()
     stop = _stop_capability()
@@ -188,7 +203,7 @@ def build_nodes(
             "displayName": "Leap Motion gesture input",
             "physical": not leap_simulated,
             "simulated": leap_simulated,
-            "publishedCapabilities": [gesture, tracking],
+            "publishedCapabilities": [gesture, flight_sequence_intent, tracking],
             "consumedCapabilities": [],
             "safetyClassification": "informational",
             "metadata": {
@@ -224,75 +239,62 @@ def build_nodes(
     return leap, robot
 
 
-def gesture_ground_robot_course_pack() -> CoursePack:
-    return CoursePack.model_validate(
-        {
-            "schemaVersion": "1.0",
-            "coursePackId": "gesture-ground-robot",
-            "version": "1.0.0",
-            "displayName": "Leap gesture ground-robot control",
-            "description": (
-                "Routes normalized Leap virtual-joystick gestures to an assigned "
-                "ground-mobility node through deterministic Fabric safety."
-            ),
-            "roles": [
-                {
-                    "role": "gesture_input",
-                    "oneOfCapabilities": [GESTURE_CAPABILITY],
-                    "optional": False,
-                },
-                {
-                    "role": "student_robot",
-                    "oneOfCapabilities": [ROBOT_VELOCITY_CAPABILITY],
-                    "optional": False,
-                },
-            ],
-            "flows": [
-                {
-                    "flowId": "gesture-to-ground-velocity",
-                    "version": 1,
-                    "trigger": {
-                        "event": GESTURE_CAPABILITY,
-                        "minimumConfidence": 0.8,
-                        "debounceMs": 50,
-                    },
-                    "command": {
-                        "action": ROBOT_VELOCITY_CAPABILITY,
-                        "fixedParameters": {},
-                        "parameterBindings": [
-                            {
-                                "payloadField": "forwardMetersPerSecond",
-                                "parameter": "forwardMetersPerSecond",
-                            },
-                            {
-                                "payloadField": "rightMetersPerSecond",
-                                "parameter": "rightMetersPerSecond",
-                            },
-                            {
-                                "payloadField": "clockwiseRadiansPerSecond",
-                                "parameter": "clockwiseRadiansPerSecond",
-                            },
-                        ],
-                    },
-                    "target": {"role": "student_robot"},
-                    "guards": [
-                        "session_is_active",
-                        "role_is_assigned",
-                        "target_is_connected",
-                        "target_is_armed",
-                        "instructor_override_is_clear",
-                    ],
-                    "safetyProfile": "classroom-ground-robot",
-                    "outputRoles": [],
-                    "enabled": True,
-                }
-            ],
-            "safetyProfile": "classroom-ground-robot",
-            "simulatorRequired": True,
-            "assessmentEvents": [GESTURE_CAPABILITY, ROBOT_TELEMETRY_CAPABILITY],
-            "fallbackBehavior": (
-                "Stop locally within 200 ms of stale input, disconnect, process failure, "
-                "or instructor emergency stop."
-            ),
-        }
+def build_leap_node(
+    *,
+    at: datetime,
+    host_id: str,
+    site_id: str,
+    room_id: str,
+    node_id: str,
+    simulated: bool,
+    preferred_hand: str,
+) -> IntegrationNode:
+    """Build only the Leap node under its independent plugin identity."""
+
+    leap, _ = build_nodes(
+        at=at,
+        host_id=host_id,
+        site_id=site_id,
+        room_id=room_id,
+        leap_node_id=node_id,
+        robot_node_id="unused-robomaster-node",
+        leap_simulated=simulated,
+        robot_simulated=True,
+        robot_mode="dry-run",
+        preferred_hand=preferred_hand,
     )
+    return leap.model_copy(update={"pluginId": LEAP_PLUGIN_ID})
+
+
+def build_robot_node(
+    *,
+    at: datetime,
+    host_id: str,
+    site_id: str,
+    room_id: str,
+    node_id: str,
+    simulated: bool,
+    robot_mode: str,
+) -> IntegrationNode:
+    """Build only the RoboMaster node under its independent plugin identity."""
+
+    _, robot = build_nodes(
+        at=at,
+        host_id=host_id,
+        site_id=site_id,
+        room_id=room_id,
+        leap_node_id="unused-leap-node",
+        robot_node_id=node_id,
+        leap_simulated=True,
+        robot_simulated=simulated,
+        robot_mode=robot_mode,
+        preferred_hand="any",
+    )
+    return robot.model_copy(update={"pluginId": ROBOMASTER_PLUGIN_ID})
+
+
+def gesture_ground_robot_course_pack() -> CoursePack:
+    """Compatibility API loading the generated canonical YAML course pack."""
+
+    resource = files("cit_robomaster_leap").joinpath("course-pack.generated.json")
+    return CoursePack.model_validate(json.loads(resource.read_text(encoding="utf-8")))

@@ -1,0 +1,175 @@
+schemaVersion: "1.0"
+integrations:
+  - integrationId: even-realities-g2
+    displayName: Even Realities G2
+    category: interaction
+    ioType: bidirectional
+    icon: glasses
+    connectionMethod: Android, Bluetooth, or Agent Mesh
+    setupSteps:
+      - Connect an Android phone by authorized USB or Wi-Fi debugging for setup diagnostics, or use an already provisioned Agent Mesh phone path.
+      - Start the provisioned Even companion bridge on the phone or classroom host.
+      - Wear the G2 and confirm that its voice or button interaction appears in Agent Mesh.
+      - Use the Coding agents card's Connect button to attach the shared bridge; this card then reports the G2 independently.
+    safetyNote: Only semantic interactions and bounded display text enter the Fabric; raw microphone data is not discovered or recorded.
+    selectors:
+      pluginIds: [cit.agent-mesh-bridge]
+      capabilityAny: [interaction.intent.agent_prompt, display.text.render]
+      models: [even-realities-g2]
+
+  - integrationId: meta-rayban
+    displayName: Meta Ray-Ban
+    category: interaction
+    ioType: bidirectional
+    icon: glasses
+    connectionMethod: Android, Bluetooth, or Agent Mesh
+    setupSteps:
+      - Connect an Android phone by authorized USB or Wi-Fi debugging for setup diagnostics, or use an already provisioned Agent Mesh phone path.
+      - Start the approved Meta phone bridge and keep the phone on the classroom network.
+      - Wear the glasses and confirm that their semantic interaction appears in Agent Mesh.
+      - Use the Coding agents card's Connect button for agent requests; use the separate media source control when camera streaming is enabled.
+    safetyNote: Agent Mesh carries semantic interactions only. Camera media uses the explicit media companion and is never recorded by discovery.
+    selectors:
+      pluginIds: [cit.agent-mesh-bridge]
+      capabilityAny: [interaction.intent.agent_prompt, display.text.render]
+      models: [meta-rayban]
+
+  - integrationId: coding-agents
+    displayName: Codex and Claude coding agents
+    category: coding_agent
+    ioType: bidirectional
+    icon: terminal
+    connectionMethod: Local supervised process
+    setupSteps:
+      - Start Codex or Claude in the approved lesson workspace.
+      - Choose Connect to attach an approved live session.
+    safetyNote: Discovery never starts an agent or grants filesystem, shell, or device credentials.
+    selectors:
+      pluginIds: [cit.agent-mesh-bridge]
+      capabilityAny: [agent.prompt.submit, agent.output.completed]
+
+  - integrationId: leap-motion
+    displayName: Leap Motion
+    category: interaction
+    ioType: input
+    icon: hand
+    connectionMethod: USB / Ultraleap service
+    setupSteps:
+      - Plug the controller directly into USB and start Ultraleap Tracking.
+      - Choose Connect input after the controller is found.
+    safetyNote: The scan does not open the tracking stream and never creates a robot command.
+    selectors:
+      pluginIds: [cit.leap-motion, cit.robomaster-gesture-control]
+      models: [ultraleap-leap-motion]
+
+  - integrationId: robomaster-s1
+    displayName: DJI RoboMaster S1
+    category: robot
+    ioType: bidirectional
+    icon: robot
+    connectionMethod: Wi-Fi, USB/RNDIS, or DJI app bridge
+    setupSteps:
+      - Power the robot on with its wheels raised for the first test.
+      - Choose STA, AP, RNDIS, or the stock S1 app transport.
+      - Connect while disarmed, then use the lesson controls to arm it.
+    safetyNote: A network match is not proof of a robot; only the adapter handshake confirms it, and movement stays disarmed.
+    selectors:
+      pluginIds: [cit.robomaster-s1, cit.robomaster-gesture-control]
+      models: [robomaster-s1]
+
+  - integrationId: sphero-bolt
+    displayName: Sphero BOLT
+    category: robot
+    ioType: bidirectional
+    icon: sphero
+    connectionMethod: Bluetooth Low Energy (BLE)
+    setupSteps:
+      - Charge BOLT, wake it in its cradle, and keep the displayed SB-XXXX name visible.
+      - Close Sphero Edu, Sphero Play, or another program that is currently connected to this robot.
+      - Choose Find devices. Select the exact SB-XXXX robot when the CIT Sphero adapter is available; never select the nearest anonymous robot.
+    safetyNote: Discovery only reads Windows Bluetooth presence. It does not connect, wake, roll, aim, or change LEDs; physical movement still requires a bounded CIT adapter and an armed lesson.
+    selectors:
+      pluginIds: [cit.sphero-bolt]
+      capabilityAny: [mobility.ground.set_velocity, robot.sensor.state]
+      models: [sphero-bolt]
+
+  - integrationId: tello-drones
+    displayName: DJI / Ryze Tello drones
+    category: drone
+    ioType: bidirectional
+    icon: drone
+    connectionMethod: One Wi-Fi route per aircraft
+    setupSteps:
+      - Remove propellers for the first connection test and power on each grounded aircraft.
+      - Use one physical USB Wi-Fi adapter per stock Tello, or unique station-mode addresses.
+      - Choose Connect grounded drones, then assign the fleet controller and each input on the integrated page.
+      - Flight remains a separate one-shot arm with four tutor confirmations.
+    safetyNote: Discovery and connection send no takeoff or movement command. Aircraft nodes expose telemetry, land, and emergency stop; a separate controller exposes only the bounded ordered sequence.
+    selectors:
+      pluginIds: [cit.tello, cit.brain2devices-fleet]
+      capabilityAny:
+        [
+          telemetry.flight.state,
+          mobility.flight.land,
+          mobility.flight.fleet_sequence.arm,
+        ]
+
+  - integrationId: mindwave-mobile2
+    displayName: MindWave Mobile 2
+    category: sensor
+    ioType: input
+    icon: brain
+    connectionMethod: Bluetooth through ThinkGear Connector
+    setupSteps:
+      - Pair MindWave Mobile 2 in Windows Bluetooth settings.
+      - Start ThinkGear Connector and select the headset's outgoing COM port.
+      - Choose Connect headset after ThinkGear Connector is ready.
+    safetyNote: Only vendor-labelled semantic metrics are surfaced. Raw EEG is neither published nor stored.
+    selectors:
+      pluginIds: [cit.mindwave-mobile2]
+      capabilityAny: [mindwave.esense.attention]
+
+  - integrationId: mindwave-tello-demo
+    displayName: MindWave to Tello guided demo
+    category: drone
+    ioType: bidirectional
+    icon: brain
+    connectionMethod: Local bounded Brain2Devices compatibility node
+    setupSteps:
+      - Connect exactly one Brain2Devices fleet slot and MindWave from the device cards above.
+      - Assign the bounded demo controller in the Devices, sensors, cameras, and safe demos lesson.
+      - Practice in Simulation first; physical arming requires the on-screen instructor checklist.
+    safetyNote: This one-shot workflow is independent from the sensor and drone adapters. It exposes no general takeoff or movement command and cannot be armed by an autonomous agent.
+    selectors:
+      pluginIds: [cit.brain2devices-demo]
+      capabilityAny: [mobility.flight.brain_demo.arm]
+
+  - integrationId: matter-smart-plugs
+    displayName: Matter smart plugs (cloud-free)
+    category: smart_device
+    ioType: bidirectional
+    icon: plug
+    connectionMethod: Local Matter over Wi-Fi / IPv6
+    setupSteps:
+      - Use a plug whose packaging or label shows the Matter logo and setup code.
+      - Put the plug in pairing mode on the classroom network.
+      - Enter the printed code in Classroom Control; no vendor account is required.
+    safetyNote: Commissioning never turns a load on. Connecting places each approved outlet in the off safe state.
+    selectors:
+      pluginIds: [cit.matter-smart-plug]
+      capabilityAny: [power.switch.set]
+
+  - integrationId: lego-hubs
+    displayName: LEGO SPIKE and MINDSTORMS
+    category: robot
+    ioType: bidirectional
+    icon: lego
+    connectionMethod: Bluetooth / Pybricks
+    setupSteps:
+      - Install Pybricks firmware on the supported hub.
+      - Give each classroom hub a unique advertised name and bind that exact name.
+      - Keep motors raised or disconnected for the first framed-protocol test.
+    safetyNote: Discovery never chooses the nearest anonymous BLE hub and never arms a motor.
+    selectors:
+      pluginIds: [cit.lego-pybricks, cit.lego-spike, cit.lego-mindstorms]
+      capabilityAny: [robot.motor.run, robot.sensor.state]

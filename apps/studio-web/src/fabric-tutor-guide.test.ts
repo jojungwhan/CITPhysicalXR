@@ -2,6 +2,7 @@ import type { InteractionSession } from "@citxr/protocol";
 import { describe, expect, it } from "vitest";
 
 import { tutorGuide } from "./fabric-tutor-guide.js";
+import { fabricTranslatorFor } from "./fabric-i18n.js";
 
 describe("tutor next-step guide", () => {
   it("starts with a plain lesson choice", () => {
@@ -45,6 +46,12 @@ describe("tutor next-step guide", () => {
     expect(tutorGuide(draft, ["student_robot"], false).stage).toBe(
       "connect_devices",
     );
+  });
+
+  it("returns Korean tutor guidance when Korean is selected", () => {
+    const guide = tutorGuide(undefined, [], false, fabricTranslatorFor("ko"));
+    expect(guide.title).toBe("교실 장치 찾기");
+    expect(guide.description).toContain("USB");
   });
 });
 

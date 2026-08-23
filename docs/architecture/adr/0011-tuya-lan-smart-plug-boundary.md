@@ -1,6 +1,6 @@
 # ADR-0011: Expose smart plugs through one exact local-LAN boolean capability
 
-- Status: accepted
+- Status: superseded by ADR-0022
 - Date: 2026-08-21
 
 ## Context

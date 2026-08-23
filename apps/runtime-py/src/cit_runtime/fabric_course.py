@@ -1,9 +1,11 @@
-"""Strict course-pack loading and the first glasses/agent reference recipe."""
+"""Strict course-pack loading with YAML as the single source of truth."""
 
 from __future__ import annotations
 
+import json
+from functools import lru_cache
+from importlib.resources import files
 from pathlib import Path
-from typing import Any
 
 import yaml
 from cit_protocol import CoursePack
@@ -12,6 +14,41 @@ from cit_protocol import CoursePack
 def load_course_pack(path: str | Path) -> CoursePack:
     source = Path(path)
     value: object = yaml.safe_load(source.read_text(encoding="utf-8"))
+    return _validate_loaded_course_pack(value)
+
+
+def load_builtin_course_pack(course_pack_id: str) -> CoursePack:
+    """Load a generated wheel resource sourced from ``course-packs/*/course-pack.yaml``."""
+
+    if course_pack_id not in builtin_course_pack_ids():
+        raise KeyError(f"Unknown built-in course pack {course_pack_id!r}")
+    resource = files("cit_runtime").joinpath("course-packs", f"{course_pack_id}.generated.json")
+    value: object = json.loads(resource.read_text(encoding="utf-8"))
+    return _validate_loaded_course_pack(value)
+
+
+@lru_cache(maxsize=1)
+def builtin_course_pack_ids() -> tuple[str, ...]:
+    resource = files("cit_runtime").joinpath("course-packs", "index.generated.json")
+    value: object = json.loads(resource.read_text(encoding="utf-8"))
+    if not isinstance(value, dict) or value.get("schemaVersion") != "1.0":
+        raise ValueError("Built-in course-pack index is invalid")
+    identifiers = value.get("coursePackIds")
+    if (
+        not isinstance(identifiers, list)
+        or not identifiers
+        or any(not isinstance(identifier, str) or not identifier for identifier in identifiers)
+        or len(identifiers) != len(set(identifiers))
+    ):
+        raise ValueError("Built-in course-pack index has invalid identifiers")
+    return tuple(identifiers)
+
+
+def load_builtin_course_packs() -> tuple[CoursePack, ...]:
+    return tuple(load_builtin_course_pack(identifier) for identifier in builtin_course_pack_ids())
+
+
+def _validate_loaded_course_pack(value: object) -> CoursePack:
     if not isinstance(value, dict):
         raise ValueError("Course pack root must be an object")
     course_pack = CoursePack.model_validate(value)
@@ -27,9 +64,15 @@ def validate_course_pack(course_pack: CoursePack) -> None:
     if len(flow_ids) != len(set(flow_ids)):
         raise ValueError("Course pack flow IDs must be unique")
     known_roles = set(roles)
+    requirements_by_role = {requirement.role: requirement for requirement in course_pack.roles}
     for flow in course_pack.flows:
         if flow.target.role not in known_roles:
             raise ValueError(f"Flow {flow.flowId!r} targets undeclared role {flow.target.role!r}")
+        target_requirement = requirements_by_role[flow.target.role]
+        if target_requirement.ioType is not None and target_requirement.ioType.value == "input":
+            raise ValueError(
+                f"Flow {flow.flowId!r} cannot target input-only role {flow.target.role!r}"
+            )
         unknown_outputs = {
             role.root for role in (flow.outputRoles or []) if role.root not in known_roles
         }
@@ -37,6 +80,17 @@ def validate_course_pack(course_pack: CoursePack) -> None:
             raise ValueError(
                 f"Flow {flow.flowId!r} has undeclared output roles: "
                 f"{', '.join(sorted(unknown_outputs))}"
+            )
+        input_only_outputs = {
+            role.root
+            for role in (flow.outputRoles or [])
+            if (io_type := requirements_by_role[role.root].ioType) is not None
+            and io_type.value == "input"
+        }
+        if input_only_outputs:
+            raise ValueError(
+                f"Flow {flow.flowId!r} lists input-only output roles: "
+                f"{', '.join(sorted(input_only_outputs))}"
             )
         bindings = [binding.parameter for binding in flow.command.parameterBindings]
         if len(bindings) != len(set(bindings)):
@@ -53,201 +107,16 @@ def validate_course_pack(course_pack: CoursePack) -> None:
 
 
 def glasses_agent_course_pack() -> CoursePack:
-    value: dict[str, Any] = {
-        "schemaVersion": "1.0",
-        "coursePackId": "glasses-agent-control",
-        "version": "1.0.0",
-        "displayName": "Glasses and coding agents",
-        "description": (
-            "Routes one semantic G2 or Meta prompt intent to an assigned existing "
-            "Agent Mesh session and returns normalized display output."
-        ),
-        "roles": [
-            {
-                "role": "primary_glasses",
-                "oneOfCapabilities": ["interaction.intent.agent_prompt"],
-                "optional": False,
-            },
-            {
-                "role": "coding_agent",
-                "oneOfCapabilities": ["agent.prompt.submit"],
-                "optional": False,
-            },
-            {
-                "role": "feedback_display",
-                "oneOfCapabilities": ["display.text.render"],
-                "optional": True,
-            },
-            {
-                "role": "instructor_console",
-                "oneOfCapabilities": ["display.text.render"],
-                "optional": True,
-            },
-        ],
-        "flows": [
-            {
-                "flowId": "glasses-agent-prompt",
-                "version": 1,
-                "trigger": {
-                    "event": "interaction.intent.agent_prompt",
-                    "minimumConfidence": 0.5,
-                    "debounceMs": 250,
-                },
-                "command": {
-                    "action": "agent.prompt.submit",
-                    "fixedParameters": {},
-                    "parameterBindings": [{"payloadField": "text", "parameter": "prompt"}],
-                },
-                "target": {"role": "coding_agent"},
-                "guards": [
-                    "session_is_active",
-                    "role_is_assigned",
-                    "target_is_connected",
-                    "instructor_override_is_clear",
-                ],
-                "safetyProfile": "agent-session",
-                "outputRoles": ["primary_glasses", "instructor_console"],
-                "enabled": True,
-            },
-            {
-                "flowId": "agent-output-to-glasses",
-                "version": 1,
-                "trigger": {"event": "agent.output.completed"},
-                "command": {
-                    "action": "display.text.render",
-                    "fixedParameters": {},
-                    "parameterBindings": [{"payloadField": "displayText", "parameter": "text"}],
-                },
-                "target": {"role": "primary_glasses"},
-                "guards": [
-                    "session_is_active",
-                    "role_is_assigned",
-                    "target_is_connected",
-                    "instructor_override_is_clear",
-                ],
-                "safetyProfile": "agent-session",
-                "outputRoles": ["primary_glasses", "instructor_console"],
-                "enabled": True,
-            },
-        ],
-        "safetyProfile": "agent-session",
-        "simulatorRequired": True,
-        "assessmentEvents": ["agent.output.completed"],
-        "fallbackBehavior": "Keep the prompt pending and show a retryable bridge error.",
-    }
-    course_pack = CoursePack.model_validate(value)
-    validate_course_pack(course_pack)
-    return course_pack
+    return load_builtin_course_pack("glasses-agent-control")
 
 
 def gesture_ground_robot_course_pack() -> CoursePack:
-    """The canonical Leap-to-interchangeable-ground-robot recipe."""
-
-    value: dict[str, Any] = {
-        "schemaVersion": "1.0",
-        "coursePackId": "gesture-ground-robot",
-        "version": "1.0.0",
-        "displayName": "Leap gesture ground-robot control",
-        "description": (
-            "Routes normalized Leap virtual-joystick gestures to an assigned "
-            "ground-mobility node through deterministic Fabric safety."
-        ),
-        "roles": [
-            {
-                "role": "gesture_input",
-                "oneOfCapabilities": ["interaction.gesture.velocity"],
-                "optional": False,
-            },
-            {
-                "role": "student_robot",
-                "oneOfCapabilities": ["mobility.ground.set_velocity"],
-                "optional": False,
-            },
-        ],
-        "flows": [
-            {
-                "flowId": "gesture-to-ground-velocity",
-                "version": 1,
-                "trigger": {
-                    "event": "interaction.gesture.velocity",
-                    "minimumConfidence": 0.8,
-                    "debounceMs": 50,
-                },
-                "command": {
-                    "action": "mobility.ground.set_velocity",
-                    "fixedParameters": {},
-                    "parameterBindings": [
-                        {
-                            "payloadField": "forwardMetersPerSecond",
-                            "parameter": "forwardMetersPerSecond",
-                        },
-                        {
-                            "payloadField": "rightMetersPerSecond",
-                            "parameter": "rightMetersPerSecond",
-                        },
-                        {
-                            "payloadField": "clockwiseRadiansPerSecond",
-                            "parameter": "clockwiseRadiansPerSecond",
-                        },
-                    ],
-                },
-                "target": {"role": "student_robot"},
-                "guards": [
-                    "session_is_active",
-                    "role_is_assigned",
-                    "target_is_connected",
-                    "target_is_armed",
-                    "instructor_override_is_clear",
-                ],
-                "safetyProfile": "classroom-ground-robot",
-                "outputRoles": [],
-                "enabled": True,
-            }
-        ],
-        "safetyProfile": "classroom-ground-robot",
-        "simulatorRequired": True,
-        "assessmentEvents": [
-            "interaction.gesture.velocity",
-            "telemetry.motion.commanded",
-        ],
-        "fallbackBehavior": (
-            "Stop locally within 200 ms of stale input, disconnect, process failure, "
-            "or instructor emergency stop."
-        ),
-    }
-    course_pack = CoursePack.model_validate(value)
-    validate_course_pack(course_pack)
-    return course_pack
+    return load_builtin_course_pack("gesture-ground-robot")
 
 
 def smart_plug_course_pack() -> CoursePack:
-    """The manual instructor-controlled Tuya-compatible plug recipe."""
+    return load_builtin_course_pack("smart-plug-control")
 
-    value: dict[str, Any] = {
-        "schemaVersion": "1.0",
-        "coursePackId": "smart-plug-control",
-        "version": "1.0.0",
-        "displayName": "Tuya / Gosund smart-plug control",
-        "description": (
-            "Assigns an approved Tuya-LAN-compatible smart plug to the "
-            "classroom_plug role for deterministic instructor on/off control."
-        ),
-        "roles": [
-            {
-                "role": "classroom_plug",
-                "oneOfCapabilities": ["power.switch.set"],
-                "optional": False,
-            }
-        ],
-        "flows": [],
-        "safetyProfile": "classroom-smart-plug",
-        "simulatorRequired": True,
-        "assessmentEvents": ["power.switch.state"],
-        "fallbackBehavior": (
-            "Drive the approved nonessential classroom load to off when the "
-            "adapter, session, or Fabric stops."
-        ),
-    }
-    course_pack = CoursePack.model_validate(value)
-    validate_course_pack(course_pack)
-    return course_pack
+
+def device_monitoring_course_pack() -> CoursePack:
+    return load_builtin_course_pack("device-monitoring")

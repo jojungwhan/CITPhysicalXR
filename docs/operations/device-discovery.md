@@ -36,8 +36,30 @@ Each integration has one of these states:
 | Setup needed   | Follow the numbered card steps once, then scan again.                  |
 | Not found      | The check ran and no matching candidate was visible.                   |
 
-**Copy setup command** copies only a fixed CIT command. Device IDs, local
-keys, tokens, IP addresses, and credentials never enter the browser report.
+Candidates also carry a separate read-only link label such as **Attached
+now**, **Connected now**, **Recently active**, **Visible nearby**, **Paired**,
+or **Configured**. These labels describe the evidence Windows, Android, or a
+local service can currently observe. They do not replace the **Connected**
+integration state, which requires an authenticated CIT adapter registration.
+
+The host scan checks these paths without pairing or controlling a device:
+
+- present USB/PnP hardware, including Leap and DJI RNDIS links;
+- present matching Bluetooth devices and their required local bridge service;
+- current Wi-Fi interfaces, routes, visible Tello networks, and local Matter
+  reachability;
+- authorized physical Android phones visible through ADB over USB or Wi-Fi;
+- recently used, profile-specific G2 and Meta identities in Agent Mesh.
+
+ADB serials, Bluetooth addresses, Agent Mesh device IDs, and credentials are
+discarded. The report retains only a generic candidate number, sanitized phone
+model, connection path, known CIT companion-package readiness, and coarse
+activity state. A generic LAN host is never guessed to be a robot, phone, or
+smart plug.
+
+**Copy setup command** copies only a fixed CIT command. Android serials, Agent
+Mesh device IDs, tokens, setup codes, and credentials never enter the general
+browser report.
 
 ## Tello and USB Wi-Fi radios
 
@@ -54,24 +76,36 @@ unique addresses on a common access point.
 5. Tick the grounded-aircraft confirmation and choose **Connect grounded
    drones**. Windows may request administrator approval to create unique
    on-link routes.
-6. Scan again. Brain2Devices connection state is summarized in the Tello card.
+6. Wait for the card to report a connected Fabric node for each aircraft.
 
 The connection action may associate radios, configure isolated routes, import
-the fleet, and start SDK handshakes. It sends no takeoff, landing, movement, or
-emergency packet. Canonical Fabric flight commands are still pending the drone
-safety slice; do not treat discovery/handshake evidence as flight approval.
+the fleet, and start SDK handshakes. It then projects each connected aircraft
+through its own `cit.tello` node in an unarmed monitoring session. Connection
+sends no takeoff, landing, movement, or emergency packet. The node publishes
+telemetry and exposes only tutor land and confirmed emergency stop; takeoff and
+movement are absent. Do not treat discovery/handshake evidence as flight
+approval.
+
+When at least two independently routed Tellos are connected, CIT also starts a
+separate bounded fleet-sequence controller. Re-run **Find devices** and connect
+Leap or G2/Meta afterward to attach those input-only nodes to the same monitoring
+session. The ordinary Tello nodes still expose no takeoff capability; the
+controller requires the on-page one-shot arm and safety checklist.
 
 ## MindWave Mobile 2
 
 1. Pair the headset in Windows Bluetooth settings.
 2. Install and start ThinkGear Connector, select its outgoing COM port, and
    confirm `localhost:13854` is listening.
-3. Start Brain2Devices with the command above and choose **Find devices**.
+3. Open Classroom Control and choose **Find devices**.
 4. Choose **Connect headset**. Adjust the forehead and ear contacts until the
    vendor signal-quality value is stable.
 
-Discovery persists no EEG samples. Values remain explicitly labelled as
-MindWave/vendor eSense values and are not medical or objective attention data.
+The action registers an independent, publish-only `cit.mindwave-mobile2` node.
+Neither discovery nor the adapter emits or persists raw EEG. Values remain
+explicitly labelled as MindWave/vendor eSense values and are not medical or
+objective attention data. Follow the exact setup and HIL checklist in
+[Brain2Devices Tello and MindWave integration](brain2devices-fabric.md).
 
 ## RoboMaster S1 and Leap Motion
 
@@ -80,44 +114,52 @@ for incoming DJI STA broadcasts on UDP 45678. It sends no discovery packet and
 does not identify a generic LAN host as a robot.
 
 When the Leap runtime/controller and a RoboMaster STA broadcast are both found,
-choose **Connect robot and Leap**. CIT runs the characterized adapter in
-connect-only mode, binds both nodes to an unstarted lesson, and leaves the lesson
-disarmed with no activation file. For AP, RNDIS, or explicit-address setups,
+choose **Connect robot and Leap**. CIT starts two separately supervised adapter
+processes with separate plugin identities and credentials. Each can reconnect
+or fail without terminating the other. Both nodes are bound to an unstarted,
+disarmed lesson with no activation file. For AP, RNDIS, or explicit-address setups,
 use **Copy setup command** and follow
 [RoboMaster and Leap hardware validation](robomaster-leap-hardware.md). For the
 first robot connection, raise the wheels. A found network candidate is not a
 completed DJI handshake, and movement still requires the tutor to complete the
 separate safety/start step.
 
-## Tuya and Gosund plugs
+If the active monitoring session already contains the bounded fleet controller,
+the same Connect action deliberately starts Leap only and assigns it to the first
+free fleet-input role. It does not start or connect RoboMaster. The open-hand to
+pinch transition can consume only a tutor's current one-shot fleet arm.
 
-Network presence cannot authenticate a Tuya-compatible outlet. Configure every
-approved plug once with its exact private address, device ID, local key,
-protocol version, and boolean switch DPS:
+## Matter smart plugs (recommended)
 
-```powershell
-pnpm hardware:plug:windows -- -Mode Configure
-```
+The business installer starts a CIT-owned Matter controller on loopback and
+configures the classroom Wi-Fi once. In the unified UI, use **Matter smart
+plugs (cloud-free)**, put a Matter-certified plug in pairing mode, and enter the
+setup code printed beside its Matter QR label. The value is carried only by the
+authenticated request and fixed process stdin; it is not a Fabric event,
+command-line argument, audit detail, or saved browser setting.
 
-The key is entered in PowerShell, protected with current-user DPAPI, and never
-returned by discovery. The scan passively listens for Tuya-family LAN
-announcements and may show only a possible-device count; it does not send a
-probe, return addresses, guess credentials, or assume that every Gosund model
-supports local Tuya control. Scan again after configuration, then choose
-**Connect approved plug**. The adapter reads current state, registers against
-an unstarted lesson, and remains disarmed; it does not change the outlet state. Follow
-[Tuya/Gosund hardware validation](tuya-smart-plug-hardware.md) before enabling
-student use.
+The controller and plug communicate locally. No proprietary vendor account,
+API, device ID, local key, or cloud is used. Only a Descriptor-advertised Matter
+On/Off Plug-in Unit endpoint is registered; CIT does not expose arbitrary
+clusters. Follow [Matter smart plugs on Windows](matter-smart-plug-windows.md).
 
 ## Glasses, agents, and LEGO
 
-- Even G2/Meta cards distinguish Agent Mesh readiness, authorized Android
-  bridges, and actual recently connected wearable nodes.
+- Even Realities G2 and Meta Ray-Ban have separate cards, setup instructions,
+  Android package checks, activity evidence, and node matching. Both reuse the
+  authenticated Agent Mesh transport. For setup diagnostics, an Android phone
+  may be authorized in ADB over USB or Android wireless debugging. Normal
+  classroom use may remain on the phone's local Wi-Fi Agent Mesh connection;
+  ADB is not placed in the semantic interaction or media data path.
 - Codex/Claude cards distinguish installed executables from supervised Agent
   Mesh sessions. **Connect glasses and agent** starts only the fixed bridge for
   an already approved session; it never creates an agent or grants a workspace.
-- LEGO cards show paired candidates but never choose the nearest BLE hub. Bind
-  each Pybricks hub by its unique classroom name before connecting motors.
+- LEGO cards show paired candidates but never choose the nearest BLE hub. In
+  the card, enter the exact Pybricks Bluetooth name, select the hub model, map
+  its ports, and choose **Save and connect hub**. One sensor or motor is enough
+  for monitoring; two motors are required before the node advertises ground
+  mobility. Setup starts an unarmed monitoring session and issues no motor
+  command.
 
 ## Command-line checks
 
@@ -128,6 +170,8 @@ pnpm hardware:devices:windows -- -Mode Scan
 pnpm hardware:devices:windows -- -Mode Status
 pnpm hardware:brain:windows -- -Mode Preflight
 pnpm hardware:brain:windows -- -Mode Status
+pnpm hardware:brain:fabric:windows -- -Mode Preflight -Device All
+pnpm hardware:lego:windows -- -Mode Status
 ```
 
 The JSON scan is read-only and accepts no browser or device credential. Its

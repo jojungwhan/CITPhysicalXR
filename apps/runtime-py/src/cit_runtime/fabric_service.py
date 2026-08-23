@@ -26,11 +26,7 @@ from .fabric import FabricDispatchOutcome, InteractionFabric
 from .fabric_adapters import FabricAdapterConnections
 from .fabric_api import install_fabric_api
 from .fabric_auth import FABRIC_PERMISSIONS, FabricAuthService, FabricBootstrapIdentity
-from .fabric_course import (
-    gesture_ground_robot_course_pack,
-    glasses_agent_course_pack,
-    smart_plug_course_pack,
-)
+from .fabric_course import load_builtin_course_packs
 from .fabric_discovery import (
     FabricDiscoveryService,
     PowerShellDiscoveryRunner,
@@ -176,11 +172,7 @@ def create_fabric_app(
             clock=wall_clock,
             allow_physical=allow_physical_fabric,
         )
-        for course_pack in (
-            glasses_agent_course_pack(),
-            gesture_ground_robot_course_pack(),
-            smart_plug_course_pack(),
-        ):
+        for course_pack in load_builtin_course_packs():
             fabric.install_course_pack(
                 course_pack,
                 actor_id="system.bootstrap",

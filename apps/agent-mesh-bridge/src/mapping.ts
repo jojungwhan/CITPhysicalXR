@@ -23,6 +23,8 @@ type ProtocolDefinitionName = Parameters<typeof validateDefinition>[0];
 
 export const AGENT_MESH_PLUGIN_ID = "cit.agent-mesh-bridge";
 export const INTENT_CAPABILITY = "interaction.intent.agent_prompt";
+export const FLIGHT_SEQUENCE_INTENT_CAPABILITY =
+  "interaction.intent.flight_sequence_start";
 export const AGENT_PROMPT_CAPABILITY = "agent.prompt.submit";
 export const AGENT_OUTPUT_CAPABILITY = "agent.output.completed";
 export const DISPLAY_CAPABILITY = "display.text.render";
@@ -51,6 +53,20 @@ const intentCapability: CapabilityDescriptor = {
   safetyClassification: "none",
   dataClassification: "voice_transcript",
   constraints: { maximumUtf8Bytes: 32_768, semanticOnly: true },
+};
+
+const flightSequenceIntentCapability: CapabilityDescriptor = {
+  name: FLIGHT_SEQUENCE_INTENT_CAPABILITY,
+  version: "1.0",
+  direction: "publish",
+  latencyClass: "interactive",
+  safetyClassification: "informational",
+  dataClassification: "operational",
+  constraints: {
+    semanticOnly: true,
+    exactPhrasesOnly: true,
+    rawTranscriptExcluded: true,
+  },
 };
 
 const promptCapability: CapabilityDescriptor = {
@@ -145,7 +161,11 @@ export const mapDiscovery = (
       description:
         "Configured through the bridge process environment; secrets are never advertised.",
     },
-    publishedCapabilities: [intentCapability, outputCapability],
+    publishedCapabilities: [
+      intentCapability,
+      flightSequenceIntentCapability,
+      outputCapability,
+    ],
     consumedCapabilities: [promptCapability, displayCapability],
     requiredPermissions: ["agentmesh.read"],
     safetyClassification: "informational",
@@ -202,6 +222,61 @@ export const intentEventFrame = (
         agentMeshCommandId: intent.agentMeshCommandId,
         route: intent.route,
         alreadyDispatched: true,
+      },
+    },
+    sentAt: new Date().toISOString(),
+  };
+  assertValid("AdapterEventFrame", frame);
+  return frame;
+};
+
+const FLIGHT_SEQUENCE_PHRASES = new Set([
+  "start drone sequence",
+  "launch drone sequence",
+  "take off drones",
+  "드론 순차 이륙",
+  "드론 이륙 시작",
+]);
+
+export const flightSequenceIntentFrame = (
+  intent: AgentMeshIntent,
+  sourceNode: IntegrationNode,
+  config: BridgeConfig,
+  outbox: BridgeOutbox,
+): AdapterEventFrame | undefined => {
+  const normalized = intent.prompt
+    .normalize("NFKC")
+    .toLocaleLowerCase("en-US")
+    .trim()
+    .replace(/[.!?…]+$/gu, "")
+    .replace(/\s+/gu, " ");
+  if (!FLIGHT_SEQUENCE_PHRASES.has(normalized)) return undefined;
+  const frame: AdapterEventFrame = {
+    frameType: "adapter.event",
+    frameId: randomUUID(),
+    protocolVersion: 1,
+    event: {
+      messageId: randomUUID(),
+      schemaVersion: "1.0",
+      messageType: "event",
+      topic: FLIGHT_SEQUENCE_INTENT_CAPABILITY,
+      sourceNodeId: sourceNode.nodeId,
+      sourceCapability: FLIGHT_SEQUENCE_INTENT_CAPABILITY,
+      siteId: config.siteId,
+      roomId: config.roomId,
+      sessionId: config.fabricSessionId,
+      timestamp: intent.createdAt,
+      monotonicTimestamp: Date.now(),
+      sequence: outbox.nextNodeSequence(sourceNode.nodeId),
+      correlationId: intent.intentId,
+      causationId: intent.agentMeshCommandId,
+      confidence: 1,
+      ttlMs: 5_000,
+      dataClassification: "operational",
+      payload: {
+        intent: "start",
+        inputModality: "voice",
+        deviceKind: intent.deviceKind,
       },
     },
     sentAt: new Date().toISOString(),
@@ -274,6 +349,20 @@ const wearableNode = (
   config: BridgeConfig,
   generatedAt: string,
 ): IntegrationNode => {
+  const wearableProfile =
+    wearable.kind === "even_g2"
+      ? {
+          model: "even-realities-g2",
+          productFamily: "Even Realities G2",
+          fabricProfile: "even-g2",
+          mediaCompanionSupported: false,
+        }
+      : {
+          model: "meta-rayban",
+          productFamily: "Meta Ray-Ban",
+          fabricProfile: "meta-rayban",
+          mediaCompanionSupported: true,
+        };
   const credentialActive = wearable.status === "active";
   const lastUseAgeMs =
     wearable.lastUsedAt === undefined
@@ -305,7 +394,7 @@ const wearableNode = (
         : "unhealthy",
     physical: true,
     simulated: false,
-    publishedCapabilities: [intentCapability],
+    publishedCapabilities: [intentCapability, flightSequenceIntentCapability],
     consumedCapabilities: [displayCapability],
     configurationSchema: {},
     safetyClassification: "informational",
@@ -316,6 +405,7 @@ const wearableNode = (
     metadata: {
       agentMeshDeviceId: wearable.deviceId,
       deviceKind: wearable.kind,
+      ...wearableProfile,
       compatibilityMode: true,
     },
   };

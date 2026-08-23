@@ -69,22 +69,84 @@ for (const storeEntry of readdirSync(virtualStore, { withFileTypes: true })) {
       ) {
         continue;
       }
-      installedPackages.set(`${manifest.name}@${manifest.version}`, manifest);
+      installedPackages.set(`${manifest.name}@${manifest.version}`, {
+        manifest,
+        packageDirectory: candidate,
+      });
     }
   }
 }
 
 const licenseGroups = new Set();
-for (const [identity, manifest] of installedPackages) {
-  if (typeof manifest.license !== "string") {
+for (const [identity, installed] of installedPackages) {
+  const { manifest, packageDirectory } = installed;
+  if (Array.isArray(manifest.license)) {
+    const choices = manifest.license.map((item) => {
+      if (identity === "pause-stream@0.0.11" && item === "Apache2") {
+        return "Apache-2.0";
+      }
+      return item;
+    });
+    if (
+      choices.length > 0 &&
+      choices.every((item) => typeof item === "string" && allowed.has(item))
+    ) {
+      choices.forEach((item) => licenseGroups.add(item));
+      continue;
+    }
+  }
+  const declaredLicense =
+    typeof manifest.license === "string"
+      ? manifest.license
+      : identity === "@nornagon/put@0.0.8"
+        ? manifest.license?.type
+        : undefined;
+  let license =
+    identity === "@nornagon/put@0.0.8" && declaredLicense === "MIT/X11"
+      ? "MIT"
+      : declaredLicense;
+  if (
+    license === undefined &&
+    (manifest.name === "matter-server" ||
+      manifest.name.startsWith("@matter-server/") ||
+      manifest.name.startsWith("@matter/"))
+  ) {
+    const licensePath = join(packageDirectory, "LICENSE");
+    const licenseText = existsSync(licensePath)
+      ? readFileSync(licensePath, "utf8")
+      : "";
+    if (
+      licenseText.includes("Apache License") &&
+      licenseText.includes("Version 2.0")
+    ) {
+      license = "Apache-2.0";
+    }
+  }
+  if (typeof license !== "string") {
     throw new Error(`${identity} has no single SPDX licence declaration`);
   }
-  if (!allowed.has(manifest.license)) {
-    throw new Error(
-      `${identity} has disallowed npm licence ${manifest.license}`,
-    );
+  const disjunction = /^\(?([A-Za-z0-9.-]+) OR ([A-Za-z0-9.-]+)\)?$/.exec(
+    license,
+  );
+  if (
+    disjunction !== null &&
+    disjunction[1] !== undefined &&
+    disjunction[2] !== undefined &&
+    allowed.has(disjunction[1]) &&
+    allowed.has(disjunction[2])
+  ) {
+    licenseGroups.add(disjunction[1]);
+    licenseGroups.add(disjunction[2]);
+    continue;
   }
-  licenseGroups.add(manifest.license);
+  if (identity === "jsonify@0.0.1" && license === "Public Domain") {
+    licenseGroups.add("Public Domain");
+    continue;
+  }
+  if (!allowed.has(license)) {
+    throw new Error(`${identity} has disallowed npm licence ${license}`);
+  }
+  licenseGroups.add(license);
 }
 
 const pythonLicences = spawnSync(

@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-integration-sdk"
+version = "0.1.0"
+description = "Transport-neutral helpers for out-of-process CIT Interaction Fabric adapters"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "cit-protocol",
+  "websockets==17.0.1",
+]
+
+[tool.uv.sources]
+cit-protocol = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cit_integration_sdk"]

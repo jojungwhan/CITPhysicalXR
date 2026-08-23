@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "sources": {
+    "brain2devices": {
+      "repository": "https://github.com/jojungwhan/brain2devices.git",
+      "revision": "536a256ef3f4b3182a74891b5971e9124ed051b0",
+      "localDirectory": "brain2devices",
+      "licenseBoundary": "external-process"
+    },
+    "robomaster-gesture-control": {
+      "repository": "https://github.com/jojungwhan/robomaster-gesture-control.git",
+      "revision": "3c213c110b0cdf2912985bfcde442d67092b98f0",
+      "localDirectory": "robomaster-gesture-control-reference",
+      "licenseBoundary": "external-process"
+    }
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@citxr/matter-controller",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Pinned local Open Home Foundation Matter controller boundary for CIT",
+  "license": "Apache-2.0",
+  "type": "module",
+  "scripts": {
+    "start": "node node_modules/matter-server/dist/esm/MatterServer.js"
+  },
+  "dependencies": {
+    "matter-server": "1.4.0"
+  }
+}

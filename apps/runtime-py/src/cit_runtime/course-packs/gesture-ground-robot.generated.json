@@ -1,0 +1,70 @@
+{
+  "schemaVersion": "1.0",
+  "coursePackId": "gesture-ground-robot",
+  "version": "1.0.0",
+  "displayName": "Leap gesture ground-robot control",
+  "description": "Routes normalized Leap virtual-joystick gestures to an assigned ground-mobility node through deterministic Fabric safety.",
+  "roles": [
+    {
+      "role": "gesture_input",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.gesture.velocity"],
+      "optional": false
+    },
+    {
+      "role": "student_robot",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.set_velocity"],
+      "optional": false
+    }
+  ],
+  "flows": [
+    {
+      "flowId": "gesture-to-ground-velocity",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.velocity",
+        "minimumConfidence": 0.8,
+        "debounceMs": 50
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {},
+        "parameterBindings": [
+          {
+            "payloadField": "forwardMetersPerSecond",
+            "parameter": "forwardMetersPerSecond"
+          },
+          {
+            "payloadField": "rightMetersPerSecond",
+            "parameter": "rightMetersPerSecond"
+          },
+          {
+            "payloadField": "clockwiseRadiansPerSecond",
+            "parameter": "clockwiseRadiansPerSecond"
+          }
+        ]
+      },
+      "target": {
+        "role": "student_robot"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": [],
+      "enabled": true
+    }
+  ],
+  "safetyProfile": "classroom-ground-robot",
+  "simulatorRequired": true,
+  "assessmentEvents": [
+    "interaction.gesture.velocity",
+    "telemetry.motion.commanded"
+  ],
+  "fallbackBehavior": "Stop locally within 200 ms of stale input, disconnect, process failure, or instructor emergency stop."
+}

@@ -22,7 +22,13 @@ Event intake ─ flow decision ─ target resolution ─ command arbiter
                                vendor device / Agent Mesh / simulator
 ```
 
-Every running integration is a node. Input/output is a property of advertised capabilities, not a permanent device category.
+Every running integration is a node. Input/output is a property of advertised
+capabilities, not a permanent device category. A node that publishes only is
+shown as **Input only**, one that consumes only as **Output only**, and one that
+does both as **Input + output**. Catalog direction is used only while an
+integration is offline; registered capability direction is authoritative.
+Course roles use the same vocabulary for tutor-facing assignment groups without
+overriding a node's advertised capability direction.
 
 ## Core boundaries
 
@@ -61,7 +67,15 @@ The first flow engine deliberately supports a small deterministic subset:
 - fixed parameter mapping and bounded template substitution;
 - logical target role;
 - session, connectivity, role, and approval guards;
-- one command action plus optional display routing.
+- one command action plus optional display routing;
+- explicit named parallel fan-out across multiple single-target flows.
+
+A parallel group concurrently submits its independently validated commands and
+preserves one lifecycle, lease, safety decision, TTL, and idempotency identity
+per output. It is best-effort concurrent dispatch rather than an atomic vendor
+transaction or hard-real-time synchronization primitive. Unassigned optional
+outputs are skipped. Flight fan-out can reach only the separately tutor-armed
+bounded fleet controller; it does not add a generic takeoff capability.
 
 No expression evaluator, arbitrary code, shell, or LLM-authored executable flow is permitted. Unsupported recipe features fail validation.
 
@@ -111,7 +125,8 @@ G2 or Meta
 
 Legacy glasses-to-session behavior stays available when Fabric mode is disabled. The current compatibility checkpoint is deliberately narrower than final cutover:
 
-- G2 and Meta keep their working exact-session prompt path;
+- G2 and Meta keep their working exact-session prompt path but advertise
+  separate product profiles and model selectors;
 - Agent Mesh durably mirrors the already-dispatched semantic intent to Fabric;
 - the assigned `coding_agent` role must match that exact requested session, otherwise Fabric rejects the mirrored command rather than dispatching twice;
 - Agent Mesh remains the authority for workspace, process, prompt, and approval permissions;
@@ -141,7 +156,7 @@ The upstream classroom and simulator routes remain compatibility routes during m
 
 ### Agent Mesh bridge
 
-The compatibility bridge receives a dedicated CIT adapter credential and a dedicated read-only Agent Mesh device credential. It can register its exact nodes and publish semantic intent/output and lifecycle reports, but it has no administrator, prompt, arbitrary workspace, shell, approval-grant, arm, or movement scope. A future native-cutover credential must be reviewed separately before gaining an idempotent typed prompt/cancel capability.
+The compatibility bridge receives a dedicated CIT adapter credential and a dedicated read-only Agent Mesh device credential. It can register its exact nodes and publish semantic intent/output and lifecycle reports, but it has no administrator, prompt, arbitrary workspace, shell, approval-grant, arm, or movement scope. Even G2 and Meta Ray-Ban use distinct node metadata and tutor-facing integration profiles while sharing this one delivery authority. Meta camera frames use the separate ephemeral media plane. A future native-cutover credential must be reviewed separately before gaining an idempotent typed prompt/cancel capability.
 
 ## Data and privacy model
 

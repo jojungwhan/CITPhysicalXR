@@ -50,9 +50,10 @@ Shared CIT Interaction Fabric (one FastAPI process + SQLite + UI)
 ```
 
 The Windows shared launcher owns this single Fabric process. Glasses/agent,
-Leap/RoboMaster, and Tuya-compatible smart-plug launchers attach with dedicated
-scoped adapter identities while retaining ownership only of their own adapter
-processes and sessions. The launcher opens the tutor UI through a one-use
+Leap, RoboMaster, Tello, MindWave, LEGO, and Matter launchers attach with
+dedicated scoped adapter identities while
+retaining ownership only of their own adapter processes and sessions. The
+launcher opens the tutor UI through a one-use
 90-second ticket that redeems to an instructor-scoped, page-memory session; the
 administrator bootstrap never enters the browser. The UI leads tutors through
 lesson choice, device assignment, safety, and teaching. It groups every
@@ -61,6 +62,13 @@ and capabilities in collapsed technical details. An authenticated discovery
 route invokes a fixed read-only Windows host probe and leads the five-stage
 tutor flow: find devices, choose lesson, assign devices, safety, and teach.
 Candidates remain separate from authenticated nodes.
+
+New business installations also run a loopback-only Open Home Foundation
+Matter controller. The unified console accepts a printed Matter setup code
+through a dedicated authenticated operation and passes it to the fixed launcher
+over stdin. Wi-Fi material is configured locally during technician setup and
+never enters the Fabric. Only standard On/Off Plug-in Unit endpoints become CIT
+nodes. Retired proprietary-LAN plug adapters are not part of the runtime.
 
 The same console now has a separate ephemeral media plane and semantic sensor
 projection. Camera publishers replace one bounded in-memory JPEG/PNG; the page
@@ -92,8 +100,12 @@ cross-repository cutover.
   Codex, Claude, durable commands, completions, process supervision, and scoped
   wearable credentials. Reuse through an authenticated boundary only.
 - `D:\dev\brain2devices`: MindWave Mobile 2 and Tello integrations with
-  simulators and safety gates. Retain as an out-of-process candidate because
-  of its Python and hardware dependencies.
+  simulators, one-shot EEG demo gating, live Tello video, and safety checks.
+  Latest `origin/main` was verified and pinned at
+  `536a256ef3f4b3182a74891b5971e9124ed051b0` (v0.6.35). CIT wraps its Tello
+  and MindWave hardware ports through independent child processes; the core
+  never imports this checkout. A third compatibility plugin exposes only the
+  bounded one-shot combined demo through canonical arm/stop/status contracts.
 - `D:\dev\robomaster-gesture-control-reference`: Leap/Ultraleap gesture and
   RoboMaster behavior implementation, pinned at `3c213c1...` and wrapped by
   separate Python 3.8 JSON-lines workers; original source remains external.
@@ -102,10 +114,12 @@ cross-repository cutover.
 
 ## Physical-hardware status
 
-- LEGO: production adapter and hub firmware exist upstream, but no real hub has
-  been connected and the optional transport dependency/licensing split remains
-  outstanding.
-- G2 and Meta: the software compatibility path and Windows launcher exist. An
+- LEGO: the existing production adapter and hub firmware now have a canonical
+  Fabric bridge, exact-name/port UI setup, a separate scoped process, sensor
+  telemetry, conditional ground-mobility capabilities, and simulation. No real
+  hub has been connected; Bluetooth/firmware HIL remains outstanding.
+- G2 and Meta: separate tutor-facing profiles and node model selectors reuse one
+  Agent Mesh bridge and Windows launcher. An
   optional Meta DAT 0.9.0 Android live-frame source (2 FPS), manual snapshot
   fallback, phone pairing, camera wall, and local vision path are implemented.
   The optional APK compile/build and official MockDeviceKit live-frame smoke
@@ -115,21 +129,27 @@ cross-repository cutover.
   upstream dry-run process test, and hardware launcher are implemented. The
   native Leap DLL/runtime/service and physical HIL evidence remain absent on
   this host.
-- MindWave and Tello: the preserved Brain2Devices process now has a CIT
-  launcher, read-only status/discovery cards, and instructor-only connection
-  actions. They are not yet canonical Fabric telemetry/flight nodes; no flight
-  command is exposed.
-- Tuya / Gosund: no prior reusable implementation was discovered. A new
-  TinyTuya 1.20.0 LAN adapter, simulator, course role, UI controls, and Windows
-  launcher are implemented; no physical outlet has passed HIL yet.
+- MindWave and Tello: separate `cit.mindwave-mobile2` and `cit.tello` adapters
+  now register canonical Fabric nodes through one shared SDK. MindWave is
+  publish-only and emits vendor-labelled eSense/signal/blink events with no raw
+  EEG. Tello publishes telemetry, consumes only land/emergency-stop, and copies
+  Brain2Devices' latest JPEG into the ephemeral Fabric media plane. A separate
+  `cit.brain2devices-demo` node exposes one exact instructor-gated arm plus a
+  safe stop; no ordinary Tello takeoff or movement capability exists. Software
+  tests pass; physical flight/video HIL remains open. A fourth independent
+  `cit.brain2devices-fleet` process exposes only ordered arm/start/stop and
+  status. It confirms each of two to eight aircraft before advancing and lands
+  the selected/attempted fleet on stop or failure. Tutor button, Leap, G2, and
+  Meta inputs converge on the same one-shot contract; their Windows Connect
+  actions attach input-only nodes to the existing monitoring session.
 - Quest: upstream contains authoring/runtime placeholders and simulators, not a
   production headset application.
 
-The media UI accepts explicit RoboMaster and Tello publishers, but neither
-physical camera publisher is wired yet. The preserved upstream camera readers
-remain reusable implementation candidates; source-kind support alone is not
-reported as a live physical feed. The sensor UI is contract-tested, while the
-physical LEGO Pybricks event bridge and HIL remain open.
+The media UI accepts explicit RoboMaster and Tello publishers. Tello now has an
+authenticated Brain2Devices MJPEG-to-latest-frame bridge and a simulated camera
+source; physical video/firewall HIL remains open. RoboMaster's physical camera
+publisher is still unwired. The sensor UI and LEGO Pybricks-to-Fabric bridge are
+contract-tested; only the physical hub HIL remains open.
 
 No physical pairing, flight, motor movement, camera capture, audio retention,
 or biosignal recording was performed during reconciliation. Browser testing

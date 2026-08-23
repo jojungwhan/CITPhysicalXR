@@ -1,23 +1,37 @@
 """RoboMaster S1 and Leap Motion nodes for the CIT Interaction Fabric."""
 
 from .contract import (
+    FLIGHT_SEQUENCE_INTENT_CAPABILITY,
     GESTURE_CAPABILITY,
+    LEAP_PLUGIN_ID,
     PLUGIN_ID,
+    ROBOMASTER_PLUGIN_ID,
     ROBOT_STOP_CAPABILITY,
     ROBOT_VELOCITY_CAPABILITY,
     UPSTREAM_REVISION,
+    build_leap_manifest,
+    build_leap_node,
     build_manifest,
     build_nodes,
+    build_robot_manifest,
+    build_robot_node,
     gesture_ground_robot_course_pack,
 )
 
 __all__ = [
+    "FLIGHT_SEQUENCE_INTENT_CAPABILITY",
     "GESTURE_CAPABILITY",
+    "LEAP_PLUGIN_ID",
     "PLUGIN_ID",
+    "ROBOMASTER_PLUGIN_ID",
     "ROBOT_STOP_CAPABILITY",
     "ROBOT_VELOCITY_CAPABILITY",
     "UPSTREAM_REVISION",
+    "build_leap_manifest",
+    "build_leap_node",
     "build_manifest",
     "build_nodes",
+    "build_robot_manifest",
+    "build_robot_node",
     "gesture_ground_robot_course_pack",
 ]

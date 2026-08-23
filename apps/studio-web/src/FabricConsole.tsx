@@ -22,17 +22,46 @@ import {
   type FabricIntegrationDiscovery,
   type FabricMediaPairing,
   type FabricMediaSource,
+  type LegoConnectionConfiguration,
   type FabricPrincipal,
+  type FabricSessionStartPolicy,
   type StoredFabricEvent,
   type StoredFabricLifecycle,
 } from "./fabric-client.js";
+import { discoveryLinkLabel } from "./fabric-discovery.js";
 import { consumeConsoleTicket } from "./fabric-console-access.js";
 import {
+  BRAIN_DEMO_ARM_CAPABILITY,
+  BRAIN_DEMO_STOP_CAPABILITY,
+  isBrainDemoControllerNode,
+  latestBrainDemoStatus,
+  type BrainDemoSettings,
+} from "./fabric-brain-demo.js";
+import {
+  FLIGHT_EMERGENCY_STOP_CAPABILITY,
+  FLIGHT_LAND_CAPABILITY,
+  isSafeStateTelloNode,
+  isSafetyDroneRole,
+} from "./fabric-drone.js";
+import {
+  FLEET_SEQUENCE_ARM_CAPABILITY,
+  FLEET_SEQUENCE_START_CAPABILITY,
+  FLEET_SEQUENCE_STOP_CAPABILITY,
+  isFleetSequenceControllerNode,
+  isFleetSequenceInputNode,
+  latestFleetSequenceStatus,
+  type FleetSequenceSettings,
+} from "./fabric-fleet-sequence.js";
+import {
   classifyFabricNodeIo,
+  groupFabricCourseRolesByIo,
+  groupFabricIntegrationsByIo,
   isAvailableFabricNode,
   type FabricNodeIoKind,
 } from "./fabric-node-io.js";
 import { countActiveFabricCommands } from "./fabric-lifecycle.js";
+import { parallelFlowGroups } from "./fabric-parallel-flow.js";
+import { refreshedSessionSelection } from "./fabric-session-selection.js";
 import {
   isSmartPlugNode,
   isSwitchableLoadVisionLabel,
@@ -41,10 +70,37 @@ import {
 } from "./fabric-smart-plug.js";
 import { latestSensorReadings } from "./fabric-sensors.js";
 import { tutorGuide } from "./fabric-tutor-guide.js";
+import {
+  fabricCapabilityName,
+  fabricConnectionState,
+  fabricCourseName,
+  fabricCourseText,
+  fabricFormatTime,
+  fabricHealthState,
+  fabricMediaKind,
+  fabricPhase,
+  fabricRoleText,
+  fabricSessionState,
+  fabricTranslatorFor,
+  localizeFabricIntegration,
+  type FabricMessageKey,
+  type FabricTranslate,
+} from "./fabric-i18n.js";
+import { LOCALES, readSavedLocale, saveLocale, type Locale } from "./i18n.js";
+import { FabricBrainDemoPanel } from "./FabricBrainDemoPanel.js";
+import { FabricDronePanel } from "./FabricDronePanel.js";
+import { FabricFleetSequencePanel } from "./FabricFleetSequencePanel.js";
+import { FabricLegoSetup } from "./FabricLegoSetup.js";
+import { FabricMatterSetup } from "./FabricMatterSetup.js";
 
-type BusyAction = string | null;
+type BusyAction = {
+  key: FabricMessageKey;
+  values?: Record<string, string | number>;
+} | null;
 
 export function FabricConsole() {
+  const [locale, setLocaleState] = useState<Locale>(readSavedLocale);
+  const t = useMemo(() => fabricTranslatorFor(locale), [locale]);
   const client = useMemo(() => new FabricClient(), []);
   const [credential, setCredential] = useState("");
   const [principal, setPrincipal] = useState<FabricPrincipal | null>(null);
@@ -63,6 +119,8 @@ export function FabricConsole() {
   const [audit, setAudit] = useState<FabricAuditRecord[]>([]);
   const [selectedCourseKey, setSelectedCourseKey] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");
+  const [sessionStartPolicy, setSessionStartPolicy] =
+    useState<FabricSessionStartPolicy | null>(null);
   const [roleSelections, setRoleSelections] = useState<Record<string, string>>(
     {},
   );
@@ -78,7 +136,7 @@ export function FabricConsole() {
     Record<string, boolean>
   >({});
   const [busy, setBusy] = useState<BusyAction>(null);
-  const [notice, setNotice] = useState("Ready to set up your classroom.");
+  const [notice, setNotice] = useState(() => t("notice.ready"));
   const [error, setError] = useState<string | null>(null);
   const pollActive = useRef(false);
   const ticketAttempted = useRef(false);
@@ -99,6 +157,19 @@ export function FabricConsole() {
         courseKey(coursePack.coursePackId, coursePack.version) === key,
     );
   }, [coursePacks, selectedCourseKey, selectedSession]);
+  const simultaneousFlowGroups = useMemo(
+    () => parallelFlowGroups(selectedCourse),
+    [selectedCourse],
+  );
+  const requiresArmingForStart =
+    selectedSession?.mode === "physical" &&
+    (selectedSession.roleBindings.some(
+      (binding) =>
+        binding.role === "brain_flight_demo" ||
+        binding.role === "fleet_sequence_controller",
+    ) ||
+      sessionStartPolicy?.sessionId !== selectedSession.sessionId ||
+      sessionStartPolicy.requiresArming);
   const canManageSessions = hasPermission(principal, "fabric.sessions.manage");
   const canAssignRoles = hasPermission(principal, "fabric.roles.assign");
   const canSubmitCommands = hasPermission(principal, "fabric.commands.submit");
@@ -140,6 +211,61 @@ export function FabricConsole() {
     () => availableNodes.filter(isSmartPlugNode),
     [availableNodes],
   );
+  const assignedDrones = useMemo(
+    () =>
+      (selectedSession?.roleBindings ?? [])
+        .filter((binding) => isSafetyDroneRole(binding.role))
+        .map((binding) => ({
+          role: binding.role,
+          node: availableNodes.find(
+            (node) =>
+              node.nodeId === binding.nodeId && isSafeStateTelloNode(node),
+          ),
+        }))
+        .filter(
+          (item): item is { role: string; node: IntegrationNode } =>
+            item.node !== undefined,
+        ),
+    [availableNodes, selectedSession?.roleBindings],
+  );
+  const brainDemoBinding = selectedSession?.roleBindings.find(
+    (binding) => binding.role === "brain_flight_demo",
+  );
+  const brainDemoController = availableNodes.find(
+    (node) =>
+      node.nodeId === brainDemoBinding?.nodeId &&
+      isBrainDemoControllerNode(node),
+  );
+  const brainDemoStatus = useMemo(
+    () => latestBrainDemoStatus(events, brainDemoController?.nodeId),
+    [brainDemoController?.nodeId, events],
+  );
+  const fleetSequenceBinding = selectedSession?.roleBindings.find(
+    (binding) => binding.role === "fleet_sequence_controller",
+  );
+  const fleetSequenceController = availableNodes.find(
+    (node) =>
+      node.nodeId === fleetSequenceBinding?.nodeId &&
+      isFleetSequenceControllerNode(node),
+  );
+  const fleetSequenceInputNodes = useMemo(
+    () =>
+      (selectedSession?.roleBindings ?? [])
+        .filter((binding) => isFleetSequenceInputRole(binding.role))
+        .flatMap((binding) => {
+          const node = availableNodes.find(
+            (candidate) =>
+              candidate.nodeId === binding.nodeId &&
+              isFleetSequenceInputNode(candidate),
+          );
+          return node === undefined ? [] : [node];
+        }),
+    [availableNodes, selectedSession?.roleBindings],
+  );
+  const fleetSequenceStatus = useMemo(
+    () => latestFleetSequenceStatus(events, fleetSequenceController?.nodeId),
+    [events, fleetSequenceController?.nodeId],
+  );
   const smartPlugBinding = selectedSession?.roleBindings.find(
     (binding) => binding.role === "classroom_plug",
   );
@@ -170,8 +296,8 @@ export function FabricConsole() {
       (integration) => integration.status !== "not_scanned",
     );
   const guide = useMemo(
-    () => tutorGuide(selectedSession, requiredRoles, discoveryScanned),
-    [discoveryScanned, requiredRoles, selectedSession],
+    () => tutorGuide(selectedSession, requiredRoles, discoveryScanned, t),
+    [discoveryScanned, requiredRoles, selectedSession, t],
   );
   const requiredRolesReady = useMemo(() => {
     if (selectedSession === undefined) return false;
@@ -211,25 +337,29 @@ export function FabricConsole() {
               ? ""
               : courseKey(nextCourses[0].coursePackId, nextCourses[0].version)),
         );
-        setSelectedSessionId((current) => {
-          if (
-            current &&
-            nextSessions.some((session) => session.sessionId === current)
-          ) {
-            return current;
-          }
-          return nextSessions[0]?.sessionId ?? "";
-        });
+        const detailSessionId = refreshedSessionSelection(
+          selectedSessionId,
+          nextSessions,
+        );
+        setSelectedSessionId((current) =>
+          refreshedSessionSelection(current, nextSessions),
+        );
 
-        if (selectedSessionId) {
+        if (detailSessionId) {
           try {
-            setEvents(await client.listEvents(selectedSessionId));
+            const [nextEvents, nextStartPolicy] = await Promise.all([
+              client.listEvents(detailSessionId),
+              client.getSessionStartPolicy(detailSessionId),
+            ]);
+            setEvents(nextEvents);
+            setSessionStartPolicy(nextStartPolicy);
           } catch (caught) {
             if (!(caught instanceof FabricApiError && caught.status === 403))
               throw caught;
           }
         } else {
           setEvents([]);
+          setSessionStartPolicy(null);
         }
         try {
           setLifecycle(await client.listLifecycle());
@@ -247,13 +377,20 @@ export function FabricConsole() {
         }
         if (showError) setError(null);
       } catch (caught) {
-        if (showError) setError(describeFabricError(caught));
+        if (showError) setError(describeFabricError(caught, t));
       } finally {
         pollActive.current = false;
       }
     },
-    [canReadMedia, client, principal, selectedSessionId],
+    [canReadMedia, client, principal, selectedSessionId, t],
   );
+
+  const setLocale = useCallback((nextLocale: Locale) => {
+    saveLocale(nextLocale);
+    setLocaleState(nextLocale);
+    setError(null);
+    setNotice(fabricTranslatorFor(nextLocale)("notice.ready"));
+  }, []);
 
   useLayoutEffect(() => {
     if (ticketAttempted.current) return;
@@ -266,22 +403,24 @@ export function FabricConsole() {
       .connectWithConsoleTicket(ticket)
       .then((identity) => {
         setPrincipal(identity);
-        setNotice("Classroom controls opened securely on this computer.");
+        setNotice(t("notice.secureOpen"));
       })
       .catch((caught: unknown) => {
-        setError(describeFabricError(caught));
+        setError(describeFabricError(caught, t));
         setShowAccessCode(true);
       })
       .finally(() => setAutoConnecting(false));
-  }, [client]);
+  }, [client, t]);
 
   useEffect(() => {
     const previousTitle = document.title;
-    document.title = "CIT Classroom Control";
+    document.title = t("document.title");
     return () => {
       document.title = previousTitle;
     };
-  }, []);
+  }, [t]);
+
+  useEffect(() => saveLocale(locale), [locale]);
 
   useEffect(() => {
     if (principal === null) return;
@@ -304,6 +443,7 @@ export function FabricConsole() {
     if (selectedCourse !== undefined) {
       selectedCourse.roles.forEach((requirement) => {
         if (selections[requirement.role] !== undefined) return;
+        if (requirement.optional) return;
         const candidates = compatibleNodes(nodes, selectedSession, requirement);
         if (candidates.length === 1) {
           selections[requirement.role] = candidates[0]?.nodeId ?? "";
@@ -318,15 +458,21 @@ export function FabricConsole() {
     [selectedSessionId, selectedSession?.armed],
   );
 
-  const runAction = async (label: string, action: () => Promise<void>) => {
-    if (busy !== null) return;
-    setBusy(label);
+  const runAction = async (
+    key: FabricMessageKey,
+    action: () => Promise<void>,
+    values?: Record<string, string | number>,
+  ): Promise<boolean> => {
+    if (busy !== null) return false;
+    setBusy({ key, ...(values === undefined ? {} : { values }) });
     setError(null);
     try {
       await action();
       await refresh(false);
+      return true;
     } catch (caught) {
-      setError(describeFabricError(caught));
+      setError(describeFabricError(caught, t));
+      return false;
     } finally {
       setBusy(null);
     }
@@ -334,13 +480,13 @@ export function FabricConsole() {
 
   const signIn = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    void runAction("Authenticating", async () => {
+    void runAction("busy.authenticating", async () => {
       client.setCredential(credential);
       try {
         const identity = await client.whoAmI();
         setPrincipal(identity);
         setCredential("");
-        setNotice("Classroom controls connected on this computer.");
+        setNotice(t("notice.connected"));
       } catch (caught) {
         client.clearCredential();
         throw caught;
@@ -355,26 +501,24 @@ export function FabricConsole() {
     setDiscovery(null);
     setCoursePacks([]);
     setSessions([]);
+    setSessionStartPolicy(null);
     setEvents([]);
     setMediaSources([]);
     setMediaPairing(null);
     setLifecycle([]);
     setAudit([]);
     setGroundedConfirmations({});
-    setNotice(
-      "Signed out. Reopen the console from the CIT launcher to return.",
-    );
+    setNotice(t("notice.signedOut"));
   };
 
   const createSession = () =>
-    runAction("Creating session", async () => {
+    runAction("busy.creatingSession", async () => {
       const coursePack = coursePacks.find(
         (candidate) =>
           courseKey(candidate.coursePackId, candidate.version) ===
           selectedCourseKey,
       );
-      if (coursePack === undefined)
-        throw new Error("Select an installed course pack.");
+      if (coursePack === undefined) throw new Error(t("error.selectCourse"));
       const created = await client.createSession({
         coursePackId: coursePack.coursePackId,
         coursePackVersion: coursePack.version,
@@ -404,17 +548,20 @@ export function FabricConsole() {
       setSelectedSessionId(prepared.sessionId);
       setNotice(
         automaticAssignments > 0
-          ? `Lesson created and ${automaticAssignments} available ${automaticAssignments === 1 ? "device was" : "devices were"} connected automatically.`
-          : "Lesson created. Choose the devices you want to use next.",
+          ? t("notice.lessonCreatedAuto", { count: automaticAssignments })
+          : t("notice.lessonCreated"),
       );
     });
 
   const assignRole = (role: string) =>
-    runAction(`Assigning ${role}`, async () => {
+    runAction("busy.assigningRole", async () => {
       if (selectedSession === undefined)
-        throw new Error("Select a session first.");
+        throw new Error(t("error.selectSession"));
       const nodeId = roleSelections[role];
-      if (!nodeId) throw new Error(`Select a compatible node for ${role}.`);
+      if (!nodeId)
+        throw new Error(
+          t("error.selectNode", { role: fabricRoleText(role, t).name }),
+        );
       const updated = await client.assignRole(
         selectedSession.sessionId,
         role,
@@ -425,35 +572,64 @@ export function FabricConsole() {
         (node) => node.nodeId === nodeId,
       )?.displayName;
       setNotice(
-        `${nodeName ?? "The selected device"} is ready as the ${plainRoleName(role).toLowerCase()}.`,
+        t("notice.roleReady", {
+          device: nodeName ?? t("role.chooseDevice"),
+          role: fabricRoleText(role, t).name,
+        }),
       );
     });
 
   const changeSessionState = (
     action: "arm" | "disarm" | "start" | "pause" | "stop",
   ) =>
-    runAction(`${capitalize(action)}ing session`, async () => {
+    runAction("busy.changingSession", async () => {
       if (selectedSession === undefined)
-        throw new Error("Select a session first.");
+        throw new Error(t("error.selectSession"));
       const updated = await client.sessionAction(
         selectedSession.sessionId,
         action,
       );
       setSessions((current) => replaceSession(current, updated));
-      setNotice(`Lesson status: ${plainSessionState(updated)}.`);
+      setNotice(
+        t("notice.lessonStatus", {
+          status: fabricSessionState(updated, t),
+        }),
+      );
+    });
+
+  const enablePhysicalControls = () =>
+    runAction("busy.enablingPhysical", async () => {
+      if (selectedSession === undefined)
+        throw new Error(t("error.selectPhysicalSession"));
+      const resume = selectedSession.state === "active";
+      let updated = selectedSession;
+      if (resume) {
+        updated = await client.sessionAction(updated.sessionId, "pause");
+      }
+      updated = await client.sessionAction(updated.sessionId, "arm");
+      if (resume) {
+        updated = await client.sessionAction(updated.sessionId, "start");
+      }
+      setSessions((current) => replaceSession(current, updated));
+      setNotice(
+        resume ? t("notice.physicalResumed") : t("notice.physicalReady"),
+      );
     });
 
   const stopAll = () =>
-    runAction("Emergency stopping", async () => {
+    runAction("busy.emergencyStop", async () => {
       const result = await client.stopAll();
       setNotice(
-        `Emergency stop ${result.status}: ${result.stoppedSessionIds.length} session(s), ` +
-          `${result.stoppedNodeIds.length} adapter node(s).`,
+        t("notice.emergencyStop", {
+          status: result.status,
+          sessions: result.stoppedSessionIds.length,
+          nodes: result.stoppedNodeIds.length,
+        }),
       );
     });
 
   const findDevices = () =>
-    runAction("Finding devices", async () => {
+    runAction("busy.findingDevices", async () => {
       const report = await client.scanDevices();
       setDiscovery(report);
       const connected = report.integrations.filter(
@@ -462,42 +638,56 @@ export function FabricConsole() {
       const found = report.integrations.filter((integration) =>
         ["found", "ready"].includes(integration.status),
       ).length;
-      setNotice(
-        `Device check finished: ${connected} connected, ${found} found or ready. Review the cards below for anything that still needs setup.`,
-      );
+      setNotice(t("notice.deviceCheck", { connected, found }));
     });
 
   const connectDiscovered = (integration: FabricIntegrationDiscovery) =>
-    runAction(`Connecting ${integration.displayName}`, async () => {
-      if (integration.actionId === undefined) {
-        throw new Error("This integration needs its setup command first.");
-      }
-      const confirmed =
-        groundedConfirmations[integration.integrationId] === true;
-      if (integration.requiresGroundedConfirmation && !confirmed) {
-        throw new Error(
-          "Confirm that every aircraft is grounded before connecting.",
+    runAction(
+      "busy.connectingDevice",
+      async () => {
+        if (integration.actionId === undefined) {
+          throw new Error(t("error.setupFirst"));
+        }
+        const confirmed =
+          groundedConfirmations[integration.integrationId] === true;
+        if (integration.requiresGroundedConfirmation && !confirmed) {
+          throw new Error(t("error.grounded"));
+        }
+        const result = await client.runDiscoveryAction(
+          integration.actionId,
+          confirmed,
         );
-      }
-      const result = await client.runDiscoveryAction(
-        integration.actionId,
-        confirmed,
-      );
+        setDiscovery(result.report);
+        setNotice(
+          t("notice.integrationConnected", {
+            name: localizeFabricIntegration(locale, integration, t).displayName,
+          }),
+        );
+      },
+      { name: localizeFabricIntegration(locale, integration, t).displayName },
+    );
+
+  const commissionMatterPlug = (setupCode: string) =>
+    runAction("busy.addingMatter", async () => {
+      const result = await client.commissionMatterPlug(setupCode);
       setDiscovery(result.report);
-      setNotice(result.message);
+      setNotice(t("notice.matterAdded"));
+    });
+
+  const connectLegoHub = (configuration: LegoConnectionConfiguration) =>
+    runAction("busy.connectingLego", async () => {
+      const result = await client.connectLegoHub(configuration);
+      setDiscovery(result.report);
+      setNotice(t("notice.legoConnected"));
     });
 
   const connectAllDiscovered = () =>
-    runAction("Connecting available devices", async () => {
+    runAction("busy.connectingAll", async () => {
       if (connectableIntegrations.length === 0) {
-        throw new Error(
-          "No verified connection is ready. Follow the Setup needed cards, then find devices again.",
-        );
+        throw new Error(t("error.noConnection"));
       }
       if (!allAircraftGrounded) {
-        throw new Error(
-          "Confirm that every aircraft is grounded before connecting all available devices.",
-        );
+        throw new Error(t("error.groundedAll"));
       }
 
       let latestReport = discovery;
@@ -511,10 +701,12 @@ export function FabricConsole() {
             integration.requiresGroundedConfirmation,
           );
           latestReport = result.report;
-          connectedNames.push(integration.displayName);
+          connectedNames.push(
+            localizeFabricIntegration(locale, integration, t).displayName,
+          );
         } catch (caught) {
           failures.push(
-            `${integration.displayName}: ${describeFabricError(caught)}`,
+            `${localizeFabricIntegration(locale, integration, t).displayName}: ${describeFabricError(caught, t)}`,
           );
         }
       }
@@ -522,57 +714,60 @@ export function FabricConsole() {
 
       const connectionSummary =
         connectedNames.length === 0
-          ? "No connection completed."
-          : `Connection completed for ${connectedNames.length} device group${connectedNames.length === 1 ? "" : "s"}: ${connectedNames.join(", ")}.`;
-      setNotice(
-        `${connectionSummary} Physical outputs remain disarmed until a tutor starts an approved lesson.`,
-      );
+          ? t("notice.noneConnected")
+          : t("notice.groupsConnected", {
+              count: connectedNames.length,
+              names: connectedNames.join(", "),
+            });
+      setNotice(`${connectionSummary} ${t("notice.outputsLocked")}`);
       if (failures.length > 0) {
-        setError(`Some devices still need attention. ${failures.join(" ")}`);
+        setError(t("notice.someAttention", { details: failures.join(" ") }));
       }
     });
 
   const copySetupCommand = (integration: FabricIntegrationDiscovery) =>
-    runAction(`Copying ${integration.displayName} setup`, async () => {
+    runAction("busy.copyingSetup", async () => {
       if (integration.setupCommand === undefined) {
-        throw new Error("No setup command is available for this integration.");
+        throw new Error(t("error.noSetupCommand"));
       }
       if (navigator.clipboard === undefined) {
-        throw new Error("Clipboard access is unavailable in this browser.");
+        throw new Error(t("error.clipboard"));
       }
       await navigator.clipboard.writeText(integration.setupCommand);
       setNotice(
-        `${integration.displayName} setup command copied. Paste it into PowerShell on this tutor computer.`,
+        t("notice.setupCopied", {
+          name: localizeFabricIntegration(locale, integration, t).displayName,
+        }),
       );
     });
 
   const startMetaCameraPairing = () =>
-    runAction("Preparing Meta camera pairing", async () => {
+    runAction("busy.cameraPairing", async () => {
       const pairing = await client.createMediaPairing(
         siteId.trim(),
         roomId.trim(),
       );
       setMediaPairing(pairing);
-      setNotice(
-        "Meta camera pairing is ready for five minutes. Enter the address and one-time code in the phone companion.",
-      );
+      setNotice(t("notice.cameraPairing"));
     });
 
   const copyMediaPairingValue = (value: string, label: string) =>
-    runAction(`Copying ${label}`, async () => {
-      if (navigator.clipboard === undefined) {
-        throw new Error("Clipboard access is unavailable in this browser.");
-      }
-      await navigator.clipboard.writeText(value);
-      setNotice(
-        `${label} copied. Paste it into the CIT Meta Camera phone companion.`,
-      );
-    });
+    runAction(
+      "busy.copying",
+      async () => {
+        if (navigator.clipboard === undefined) {
+          throw new Error(t("error.clipboard"));
+        }
+        await navigator.clipboard.writeText(value);
+        setNotice(t("notice.copied", { label }));
+      },
+      { label },
+    );
 
   const checkInput = () =>
-    runAction("Testing input", async () => {
+    runAction("busy.testingInput", async () => {
       if (selectedSession === undefined)
-        throw new Error("Select a session first.");
+        throw new Error(t("error.selectSession"));
       const bindings = new Set(
         selectedSession.roleBindings.map((binding) => binding.nodeId),
       );
@@ -580,25 +775,26 @@ export function FabricConsole() {
         .filter((item) => bindings.has(item.event.sourceNodeId))
         .at(-1);
       if (latest === undefined) {
-        throw new Error(
-          "No semantic input has arrived from an assigned node yet.",
-        );
+        throw new Error(t("error.noInput"));
       }
       setEvents(await client.listEvents(selectedSession.sessionId));
       const sourceName =
         nodes.find((node) => node.nodeId === latest.event.sourceNodeId)
-          ?.displayName ?? "an assigned device";
+          ?.displayName ?? t("role.chooseDevice");
       setNotice(
-        `Student input was received from ${sourceName} at ${formatTime(latest.event.timestamp)}.`,
+        t("notice.inputReceived", {
+          source: sourceName,
+          time: fabricFormatTime(latest.event.timestamp, locale),
+        }),
       );
     });
 
   const sendTestCommand = (kind: "agent" | "display" | "robot-stop") =>
-    runAction(`Testing ${kind}`, async () => {
+    runAction("busy.testingOutput", async () => {
       if (selectedSession === undefined)
-        throw new Error("Select a session first.");
+        throw new Error(t("error.selectSession"));
       if (kind !== "robot-stop" && selectedSession.state !== "active") {
-        throw new Error("Start the session before testing an output.");
+        throw new Error(t("error.startOutput"));
       }
       const role =
         kind === "agent"
@@ -615,16 +811,19 @@ export function FabricConsole() {
       const parameters =
         kind === "agent"
           ? {
-              prompt:
-                "Reply with a short CIT Fabric connectivity acknowledgement.",
+              prompt: t("test.agentPrompt"),
             }
           : kind === "display"
-            ? { text: "CIT Fabric display test" }
+            ? {
+                text: t("test.displayMessage"),
+              }
             : {};
       if (
         !selectedSession.roleBindings.some((binding) => binding.role === role)
       ) {
-        throw new Error(`Assign ${role} before running this test.`);
+        throw new Error(
+          t("error.assignRole", { role: fabricRoleText(role, t).name }),
+        );
       }
       const correlationId = crypto.randomUUID();
       const priority: FabricCommandPriority =
@@ -651,23 +850,23 @@ export function FabricConsole() {
       const terminal = result.lifecycle.at(-1);
       const label =
         kind === "agent"
-          ? "Agent"
+          ? t("test.agent")
           : kind === "display"
-            ? "Display"
-            : "Robot stop";
-      setNotice(commandResultNotice(`${label} test`, terminal?.stage));
+            ? t("test.glasses")
+            : t("test.robotStop");
+      setNotice(commandResultNotice(label, terminal?.stage, t));
     });
 
   const setSmartPlugPower = (on: boolean) =>
-    runAction(`Turning smart plug ${on ? "on" : "off"}`, async () => {
+    runAction("busy.smartPlug", async () => {
       if (selectedSession === undefined)
-        throw new Error("Select a smart-plug session first.");
+        throw new Error(t("error.smartPlugSession"));
       if (smartPlugBinding === undefined)
-        throw new Error("Assign classroom_plug before controlling power.");
+        throw new Error(t("error.assignPlug"));
       if (on && selectedSession.state !== "active")
-        throw new Error("Start the session before turning on a load.");
+        throw new Error(t("error.startLoad"));
       if (on && selectedSession.mode === "physical" && !selectedSession.armed)
-        throw new Error("Arm the physical session before turning on a load.");
+        throw new Error(t("error.armLoad"));
       const correlationId = crypto.randomUUID();
       const priority: FabricCommandPriority =
         principal?.roles.some((roleName) =>
@@ -693,29 +892,230 @@ export function FabricConsole() {
       const terminal = result.lifecycle.at(-1);
       setNotice(
         commandResultNotice(
-          `Turning the classroom plug ${on ? "on" : "off"}`,
+          on ? t("plug.turnOn") : t("plug.turnOff"),
           terminal?.stage,
+          t,
         ),
       );
     });
 
-  const analyzeMediaSource = (source: FabricMediaSource) =>
-    runAction(`Recognizing objects in ${source.displayName}`, async () => {
-      const analysis = await client.analyzeMediaSource(source.sourceId);
-      setMediaSources((current) =>
-        current.map((item) =>
-          item.sourceId === source.sourceId
-            ? { ...item, latestAnalysis: analysis }
-            : item,
-        ),
-      );
-      const labels = analysis.detections.map((item) => item.label);
+  const setDroneSafeState = (role: string, emergency: boolean) =>
+    runAction(
+      emergency ? "busy.telloEmergency" : "busy.telloLand",
+      async () => {
+        if (selectedSession === undefined)
+          throw new Error(t("error.monitoringSession"));
+        if (
+          !selectedSession.roleBindings.some((binding) => binding.role === role)
+        )
+          throw new Error(t("error.droneUnassigned"));
+        const correlationId = crypto.randomUUID();
+        const result = await client.submitCommand({
+          messageId: crypto.randomUUID(),
+          schemaVersion: "1.0",
+          messageType: "command.requested",
+          action: emergency
+            ? FLIGHT_EMERGENCY_STOP_CAPABILITY
+            : FLIGHT_LAND_CAPABILITY,
+          target: { role },
+          sessionId: selectedSession.sessionId,
+          parameters: {},
+          priority: emergency ? "emergency_stop" : "instructor_override",
+          idempotencyKey: `console-tello:${emergency ? "emergency" : "land"}:${correlationId}`,
+          requestedAt: new Date().toISOString(),
+          ttlMs: 5_000,
+          safetyProfile: selectedSession.safetyProfile,
+          correlationId,
+        });
+        const terminal = result.lifecycle.at(-1);
+        setNotice(
+          commandResultNotice(
+            emergency ? t("drone.emergency") : t("drone.land"),
+            terminal?.stage,
+            t,
+          ),
+        );
+      },
+    );
+
+  const armBrainDemo = (settings: BrainDemoSettings) =>
+    runAction("busy.brainArm", async () => {
+      if (selectedSession === undefined)
+        throw new Error(t("error.monitoringSession"));
+      if (brainDemoBinding === undefined || brainDemoController === undefined)
+        throw new Error(t("error.brainController"));
+      if (selectedSession.state !== "active")
+        throw new Error(t("error.startDemo"));
+      if (selectedSession.mode === "physical" && !selectedSession.armed)
+        throw new Error(t("error.armFlight"));
+      const correlationId = crypto.randomUUID();
+      const result = await client.submitCommand({
+        messageId: crypto.randomUUID(),
+        schemaVersion: "1.0",
+        messageType: "command.requested",
+        action: BRAIN_DEMO_ARM_CAPABILITY,
+        target: { role: "brain_flight_demo" },
+        sessionId: selectedSession.sessionId,
+        parameters: { ...settings },
+        priority: "instructor_override",
+        idempotencyKey: `console-brain-demo:arm:${correlationId}`,
+        requestedAt: new Date().toISOString(),
+        ttlMs: 5_000,
+        safetyProfile: selectedSession.safetyProfile,
+        correlationId,
+      });
+      const terminal = result.lifecycle.at(-1);
+      setNotice(commandResultNotice(t("brain.arm"), terminal?.stage, t));
+    });
+
+  const stopBrainDemo = () =>
+    runAction("busy.brainStop", async () => {
+      if (selectedSession === undefined)
+        throw new Error(t("error.monitoringSession"));
+      if (brainDemoBinding === undefined || brainDemoController === undefined)
+        throw new Error(t("error.brainController"));
+      const correlationId = crypto.randomUUID();
+      const result = await client.submitCommand({
+        messageId: crypto.randomUUID(),
+        schemaVersion: "1.0",
+        messageType: "command.requested",
+        action: BRAIN_DEMO_STOP_CAPABILITY,
+        target: { role: "brain_flight_demo" },
+        sessionId: selectedSession.sessionId,
+        parameters: {},
+        priority: "instructor_override",
+        idempotencyKey: `console-brain-demo:stop:${correlationId}`,
+        requestedAt: new Date().toISOString(),
+        ttlMs: 5_000,
+        safetyProfile: selectedSession.safetyProfile,
+        correlationId,
+      });
+      const terminal = result.lifecycle.at(-1);
+      setNotice(commandResultNotice(t("brain.stop"), terminal?.stage, t));
+    });
+
+  const armFleetSequence = (settings: FleetSequenceSettings) =>
+    runAction("busy.fleetArm", async () => {
+      if (selectedSession === undefined)
+        throw new Error(t("error.fleetLesson"));
+      if (
+        fleetSequenceBinding === undefined ||
+        fleetSequenceController === undefined
+      )
+        throw new Error(t("error.fleetController"));
+      if (selectedSession.state !== "active")
+        throw new Error(t("error.startSequence"));
+      if (selectedSession.mode === "physical" && !selectedSession.armed)
+        throw new Error(t("error.armFlight"));
+      const correlationId = crypto.randomUUID();
+      const result = await client.submitCommand({
+        messageId: crypto.randomUUID(),
+        schemaVersion: "1.0",
+        messageType: "command.requested",
+        action: FLEET_SEQUENCE_ARM_CAPABILITY,
+        target: { role: "fleet_sequence_controller" },
+        sessionId: selectedSession.sessionId,
+        parameters: { ...settings },
+        priority: "instructor_override",
+        idempotencyKey: `console-fleet-sequence:arm:${correlationId}`,
+        requestedAt: new Date().toISOString(),
+        ttlMs: 5_000,
+        safetyProfile: selectedSession.safetyProfile,
+        correlationId,
+      });
       setNotice(
-        labels.length === 0
-          ? `No configured objects were recognized in ${source.displayName}.`
-          : `Recognized ${labels.join(", ")} in ${source.displayName}. Review the boxes before choosing any device action.`,
+        commandResultNotice(t("fleet.arm"), result.lifecycle.at(-1)?.stage, t),
       );
     });
+
+  const startFleetSequence = () =>
+    runAction("busy.fleetStart", async () => {
+      if (selectedSession === undefined)
+        throw new Error(t("error.fleetLesson"));
+      if (
+        fleetSequenceBinding === undefined ||
+        fleetSequenceController === undefined
+      )
+        throw new Error(t("error.fleetController"));
+      const correlationId = crypto.randomUUID();
+      const result = await client.submitCommand({
+        messageId: crypto.randomUUID(),
+        schemaVersion: "1.0",
+        messageType: "command.requested",
+        action: FLEET_SEQUENCE_START_CAPABILITY,
+        target: { role: "fleet_sequence_controller" },
+        sessionId: selectedSession.sessionId,
+        parameters: {},
+        priority: "instructor_override",
+        idempotencyKey: `console-fleet-sequence:start:${correlationId}`,
+        requestedAt: new Date().toISOString(),
+        ttlMs: 2_000,
+        safetyProfile: selectedSession.safetyProfile,
+        correlationId,
+      });
+      setNotice(
+        commandResultNotice(
+          t("fleet.startNow"),
+          result.lifecycle.at(-1)?.stage,
+          t,
+        ),
+      );
+    });
+
+  const stopFleetSequence = () =>
+    runAction("busy.fleetStop", async () => {
+      if (selectedSession === undefined)
+        throw new Error(t("error.fleetLesson"));
+      if (
+        fleetSequenceBinding === undefined ||
+        fleetSequenceController === undefined
+      )
+        throw new Error(t("error.fleetController"));
+      const correlationId = crypto.randomUUID();
+      const result = await client.submitCommand({
+        messageId: crypto.randomUUID(),
+        schemaVersion: "1.0",
+        messageType: "command.requested",
+        action: FLEET_SEQUENCE_STOP_CAPABILITY,
+        target: { role: "fleet_sequence_controller" },
+        sessionId: selectedSession.sessionId,
+        parameters: {},
+        priority: "instructor_override",
+        idempotencyKey: `console-fleet-sequence:stop:${correlationId}`,
+        requestedAt: new Date().toISOString(),
+        ttlMs: 5_000,
+        safetyProfile: selectedSession.safetyProfile,
+        correlationId,
+      });
+      setNotice(
+        commandResultNotice(t("fleet.stop"), result.lifecycle.at(-1)?.stage, t),
+      );
+    });
+
+  const analyzeMediaSource = (source: FabricMediaSource) =>
+    runAction(
+      "busy.vision",
+      async () => {
+        const analysis = await client.analyzeMediaSource(source.sourceId);
+        setMediaSources((current) =>
+          current.map((item) =>
+            item.sourceId === source.sourceId
+              ? { ...item, latestAnalysis: analysis }
+              : item,
+          ),
+        );
+        const labels = analysis.detections.map((item) => item.label);
+        setNotice(
+          labels.length === 0
+            ? t("notice.noObjects", { source: source.displayName })
+            : t("notice.objects", {
+                labels: labels.join(", "),
+                source: source.displayName,
+              }),
+        );
+      },
+      { name: source.displayName },
+    );
 
   if (principal === null) {
     return (
@@ -724,27 +1124,26 @@ export function FabricConsole() {
           className="fabric-welcome"
           aria-labelledby="fabric-login-heading"
         >
+          <FabricLanguageSwitch locale={locale} onChange={setLocale} t={t} />
           <div className="fabric-welcome-mark" aria-hidden="true">
             CIT
           </div>
-          <p className="eyebrow">Classroom device control</p>
+          <p className="eyebrow">{t("login.eyebrow")}</p>
           <h1 id="fabric-login-heading">
-            {autoConnecting
-              ? "Opening your classroom…"
-              : "Welcome to CIT Classroom Control"}
+            {autoConnecting ? t("login.opening") : t("login.welcome")}
           </h1>
           <p className="fabric-welcome-lead">
             {autoConnecting
-              ? "Securely connecting to the devices on this computer."
-              : "Set up a lesson, connect devices, check safety, and teach from one screen."}
+              ? t("login.connectingLead")
+              : t("login.welcomeLead")}
           </p>
 
           {autoConnecting ? (
             <div className="fabric-connecting" role="status">
               <span className="fabric-spinner" aria-hidden="true" />
               <div>
-                <strong>Just a moment</strong>
-                <small>The launcher is completing local sign-in.</small>
+                <strong>{t("login.wait")}</strong>
+                <small>{t("login.launcherCompleting")}</small>
               </div>
             </div>
           ) : (
@@ -752,22 +1151,15 @@ export function FabricConsole() {
               <div className="fabric-launch-instruction">
                 <span>1</span>
                 <div>
-                  <strong>Use the CIT button</strong>
-                  <p>
-                    Open CIT Classroom Control from the Windows Desktop or Start
-                    menu, then choose Start classroom devices. CIT will reopen
-                    this page and sign you in automatically.
-                  </p>
+                  <strong>{t("login.useButton")}</strong>
+                  <p>{t("login.useButtonHelp")}</p>
                 </div>
               </div>
               <div className="fabric-launch-instruction">
                 <span>2</span>
                 <div>
-                  <strong>Continue in the browser</strong>
-                  <p>
-                    Choose a lesson, connect devices, check safety, and teach.
-                    No account or device password is needed.
-                  </p>
+                  <strong>{t("login.continueBrowser")}</strong>
+                  <p>{t("login.continueBrowserHelp")}</p>
                 </div>
               </div>
               <button
@@ -776,9 +1168,7 @@ export function FabricConsole() {
                 aria-expanded={showAccessCode}
                 onClick={() => setShowAccessCode((current) => !current)}
               >
-                {showAccessCode
-                  ? "Hide access-code sign in"
-                  : "Launcher unavailable? Use an access code"}
+                {showAccessCode ? t("login.hideAccess") : t("login.useAccess")}
               </button>
             </div>
           )}
@@ -786,14 +1176,11 @@ export function FabricConsole() {
           {showAccessCode && !autoConnecting && (
             <form className="fabric-access-form" onSubmit={signIn}>
               <div>
-                <strong>Paste your classroom access code</strong>
-                <small>
-                  Use this recovery option only if automatic opening failed. Ask
-                  the classroom technician for a temporary access code.
-                </small>
+                <strong>{t("login.pasteAccess")}</strong>
+                <small>{t("login.accessHelp")}</small>
               </div>
               <label htmlFor="fabric-credential">
-                Access code
+                {t("login.accessLabel")}
                 <input
                   id="fabric-credential"
                   type="password"
@@ -801,26 +1188,20 @@ export function FabricConsole() {
                   minLength={32}
                   maxLength={512}
                   required
-                  placeholder="Paste access code"
+                  placeholder={t("login.accessPlaceholder")}
                   value={credential}
                   onChange={(event) => setCredential(event.target.value)}
                 />
               </label>
               <button type="submit" disabled={busy !== null}>
-                {busy ?? "Continue to classroom controls"}
+                {busy === null ? t("login.continue") : t(busy.key, busy.values)}
               </button>
-              <small>
-                The code stays in this tab only and is cleared when you sign out
-                or reload.
-              </small>
+              <small>{t("login.accessMemory")}</small>
             </form>
           )}
           {error !== null && <div className="fabric-error">{error}</div>}
           {!autoConnecting && (
-            <p className="fabric-welcome-help">
-              Need help? Ask the classroom technician to start the local CIT
-              service. Device credentials never belong in this box.
-            </p>
+            <p className="fabric-welcome-help">{t("login.needHelp")}</p>
           )}
         </section>
       </div>
@@ -828,22 +1209,37 @@ export function FabricConsole() {
   }
 
   const nodeGroups = groupNodesByIo(availableNodes);
+  const discoveryGroups = groupFabricIntegrationsByIo(
+    (discovery?.integrations ?? []).map((integration) =>
+      localizeFabricIntegration(locale, integration, t),
+    ),
+  );
+  const courseRoleGroups = groupFabricCourseRolesByIo(
+    selectedSession === undefined || selectedCourse === undefined
+      ? []
+      : visibleRoleRequirements(
+          selectedCourse.roles,
+          selectedSession.roleBindings,
+          selectedSession.state !== "active",
+        ),
+  );
 
   return (
     <div className="fabric-console">
       <header className="fabric-header">
         <div>
-          <p className="eyebrow">CIT classroom</p>
-          <h1>Classroom Control</h1>
+          <p className="eyebrow">{t("header.eyebrow")}</p>
+          <h1>{t("header.title")}</h1>
         </div>
+        <FabricLanguageSwitch locale={locale} onChange={setLocale} t={t} />
         <div className="fabric-identity">
           <span className="status-dot status-ok" />
           <div>
-            <strong>Connected locally</strong>
-            <small title={principal.identityId}>Tutor controls</small>
+            <strong>{t("header.connected")}</strong>
+            <small title={principal.identityId}>{t("header.tutor")}</small>
           </div>
           <button type="button" onClick={signOut}>
-            Sign out
+            {t("header.signOut")}
           </button>
         </div>
         <button
@@ -852,16 +1248,16 @@ export function FabricConsole() {
           disabled={!canStopAll || busy !== null}
           onClick={() => void stopAll()}
         >
-          <span>■</span> Stop all devices
+          <span>■</span> {t("header.stopAll")}
         </button>
       </header>
 
       <main className="fabric-main">
         <div className="fabric-feedback" aria-live="polite">
           <span>{notice}</span>
-          {busy !== null && <strong>{busy}…</strong>}
+          {busy !== null && <strong>{t(busy.key, busy.values)}…</strong>}
           <button type="button" onClick={() => void refresh(true)}>
-            Refresh
+            {t("header.refresh")}
           </button>
         </div>
         {error !== null && (
@@ -872,7 +1268,7 @@ export function FabricConsole() {
 
         <section className="fabric-next-step" aria-labelledby="next-step-title">
           <div className="fabric-guide-copy">
-            <p className="eyebrow">Your next step</p>
+            <p className="eyebrow">{t("header.nextStep")}</p>
             <h2 id="next-step-title">{guide.title}</h2>
             <p>{guide.description}</p>
             <button
@@ -890,25 +1286,25 @@ export function FabricConsole() {
               }}
             >
               {guide.stage === "find_devices"
-                ? "Find devices"
+                ? t("guide.action.find")
                 : guide.stage === "choose_lesson"
-                  ? "Choose a lesson"
+                  ? t("guide.action.choose")
                   : guide.stage === "connect_devices"
-                    ? "Choose devices"
+                    ? t("guide.action.connect")
                     : guide.stage === "teach"
-                      ? "Go to live controls"
+                      ? t("guide.action.teach")
                       : guide.stage === "lesson_ended"
-                        ? "Set up another lesson"
-                        : "Review and start"}
+                        ? t("guide.action.ended")
+                        : t("guide.action.review")}
             </button>
           </div>
-          <ol className="fabric-steps" aria-label="Lesson setup progress">
+          <ol className="fabric-steps" aria-label={t("guide.progress")}>
             {[
-              "Find devices",
-              "Choose lesson",
-              "Assign devices",
-              "Safety check",
-              "Teach",
+              t("guide.step.find"),
+              t("guide.step.choose"),
+              t("guide.step.assign"),
+              t("guide.step.safety"),
+              t("guide.step.teach"),
             ].map((label, index) => {
               const step = index + 1;
               return (
@@ -937,13 +1333,9 @@ export function FabricConsole() {
         >
           <div className="fabric-discovery-heading">
             <div>
-              <p className="eyebrow">Step 1</p>
-              <h2 id="device-discovery-title">Find classroom devices</h2>
-              <p className="fabric-panel-intro">
-                Power devices on, plug in USB equipment, and choose Find
-                devices. CIT checks this computer, USB, Bluetooth readiness,
-                local services, Wi-Fi radios, and visible Tello networks.
-              </p>
+              <p className="eyebrow">{t("discovery.step")}</p>
+              <h2 id="device-discovery-title">{t("discovery.title")}</h2>
+              <p className="fabric-panel-intro">{t("discovery.intro")}</p>
             </div>
             <button
               className="fabric-primary-action fabric-find-devices"
@@ -951,20 +1343,18 @@ export function FabricConsole() {
               disabled={busy !== null}
               onClick={() => void findDevices()}
             >
-              {busy === "Finding devices" ? "Checking…" : "Find devices"}
-              <small>No device will move, fly, or switch on</small>
+              {busy?.key === "busy.findingDevices"
+                ? t("discovery.checking")
+                : t("discovery.find")}
+              <small>{t("discovery.noMovement")}</small>
             </button>
           </div>
 
           <div className="fabric-discovery-safety">
             <span aria-hidden="true">✓</span>
             <div>
-              <strong>Safe discovery only</strong>
-              <p>
-                Finding devices never arms robots, starts propellers, moves a
-                motor, turns on a plug, starts an agent, or stores raw audio,
-                video, or biosignals.
-              </p>
+              <strong>{t("discovery.safeTitle")}</strong>
+              <p>{t("discovery.safeBody")}</p>
             </div>
           </div>
 
@@ -972,13 +1362,11 @@ export function FabricConsole() {
             <div className="fabric-connect-all">
               <div>
                 <strong>
-                  {connectableIntegrations.length} safe connection
-                  {connectableIntegrations.length === 1 ? "" : "s"} ready
+                  {t("discovery.connectionsReady", {
+                    count: connectableIntegrations.length,
+                  })}
                 </strong>
-                <p>
-                  Connect every verified adapter in one step. Robots, drones,
-                  plugs, and lesson sessions remain disarmed.
-                </p>
+                <p>{t("discovery.connectAllHelp")}</p>
                 {groundedConnections.length > 0 && (
                   <label className="fabric-grounded-confirmation">
                     <input
@@ -997,10 +1385,7 @@ export function FabricConsole() {
                         }));
                       }}
                     />
-                    <span>
-                      Every aircraft is grounded; propellers are removed or
-                      guarded.
-                    </span>
+                    <span>{t("discovery.aircraftGrounded")}</span>
                   </label>
                 )}
               </div>
@@ -1014,13 +1399,13 @@ export function FabricConsole() {
                 }
                 onClick={() => void connectAllDiscovered()}
               >
-                {busy === "Connecting available devices"
-                  ? "Connecting…"
-                  : "Connect all available"}
+                {busy?.key === "busy.connectingAll"
+                  ? t("discovery.connecting")
+                  : t("discovery.connectAll")}
                 <small>
                   {discovery?.physicalActuationEnabled
-                    ? "Connect only — no movement or switching"
-                    : "Start the physical device host first"}
+                    ? t("discovery.offState")
+                    : t("discovery.startHost")}
                 </small>
               </button>
             </div>
@@ -1030,91 +1415,117 @@ export function FabricConsole() {
             <div className="fabric-discovery-meta">
               <span>
                 {discoveryScanned
-                  ? `Checked ${formatTime(discovery.scannedAt)}`
-                  : "Not checked yet"}
+                  ? t("discovery.checked", {
+                      time: fabricFormatTime(discovery.scannedAt, locale),
+                    })
+                  : t("discovery.notChecked")}
               </span>
               <span>{discovery.hostId}</span>
               <span>
-                Physical control is{" "}
                 {discovery.physicalActuationEnabled
-                  ? "available but locked"
-                  : "disabled in this runtime"}
+                  ? t("discovery.physicalAvailable")
+                  : t("discovery.physicalDisabled")}
               </span>
             </div>
           )}
 
           {(discovery?.warnings.length ?? 0) > 0 && (
             <div className="fabric-discovery-warnings" role="status">
-              <strong>Some checks need attention</strong>
-              <ul>
-                {discovery?.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
+              <strong>{t("discovery.warningTitle")}</strong>
+              <p>{t("discovery.warningBody")}</p>
             </div>
           )}
 
-          <div className="fabric-discovery-grid">
-            {discovery?.integrations.map((integration) => (
-              <FabricDiscoveryCard
-                key={integration.integrationId}
-                integration={integration}
-                busy={busy}
-                canConnect={discoveryConnectionsEnabled}
-                groundedConfirmed={
-                  groundedConfirmations[integration.integrationId] === true
-                }
-                onGroundedChange={(confirmed) =>
-                  setGroundedConfirmations((current) => ({
-                    ...current,
-                    [integration.integrationId]: confirmed,
-                  }))
-                }
-                onConnect={() => void connectDiscovered(integration)}
-                onCopySetup={() => void copySetupCommand(integration)}
-              />
-            ))}
-            {discovery === null && (
-              <div className="fabric-empty-state fabric-discovery-loading">
-                <span aria-hidden="true">…</span>
-                <strong>Loading the device checklist</strong>
-                <p>CIT is preparing the supported hardware list.</p>
-              </div>
-            )}
-          </div>
+          {discovery === null ? (
+            <div className="fabric-empty-state fabric-discovery-loading">
+              <span aria-hidden="true">…</span>
+              <strong>{t("discovery.loading")}</strong>
+              <p>{t("discovery.loadingHelp")}</p>
+            </div>
+          ) : (
+            <div className="fabric-discovery-groups">
+              {fabricIoGroups(t).map((group) => (
+                <section
+                  className={`fabric-discovery-group is-${group.kind}`}
+                  key={group.kind}
+                >
+                  <header>
+                    <div>
+                      <h3>{group.title}</h3>
+                      <p>{group.discoveryDescription}</p>
+                    </div>
+                    <strong>{discoveryGroups[group.kind].length}</strong>
+                  </header>
+                  <div className="fabric-discovery-grid">
+                    {discoveryGroups[group.kind].map((integration) => (
+                      <FabricDiscoveryCard
+                        key={integration.integrationId}
+                        integration={integration}
+                        t={t}
+                        busy={busy}
+                        canConnect={discoveryConnectionsEnabled}
+                        groundedConfirmed={
+                          groundedConfirmations[integration.integrationId] ===
+                          true
+                        }
+                        onGroundedChange={(confirmed) =>
+                          setGroundedConfirmations((current) => ({
+                            ...current,
+                            [integration.integrationId]: confirmed,
+                          }))
+                        }
+                        onConnect={() => void connectDiscovered(integration)}
+                        onCopySetup={() => void copySetupCommand(integration)}
+                        onMatterCommission={commissionMatterPlug}
+                        onLegoConnect={(configuration) =>
+                          void connectLegoHub(configuration)
+                        }
+                      />
+                    ))}
+                    {discoveryGroups[group.kind].length === 0 && (
+                      <p className="fabric-empty">{t("discovery.empty")}</p>
+                    )}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
         </section>
 
-        <section className="fabric-overview" aria-label="Classroom status">
+        <section
+          className="fabric-overview"
+          aria-label={t("overview.lessonStatus")}
+        >
           <FabricMetric
-            label="Connected devices"
+            label={t("overview.devices")}
             value={
               availableNodes.length === 0
-                ? "None yet"
+                ? t("status.none")
                 : String(availableNodes.length)
             }
           />
           <FabricMetric
-            label="Current lesson"
+            label={t("overview.lesson")}
             value={
               selectedSession === undefined
                 ? sessions.length > 0
-                  ? "Select a lesson"
-                  : "Not set up"
-                : courseName(coursePacks, selectedSession)
+                  ? t("status.selectLesson")
+                  : t("status.notSetUp")
+                : fabricCourseName(coursePacks, selectedSession, t)
             }
           />
           <FabricMetric
-            label="Lesson status"
-            value={plainSessionState(selectedSession)}
+            label={t("overview.lessonStatus")}
+            value={fabricSessionState(selectedSession, t)}
           />
           <FabricMetric
-            label="Physical devices"
+            label={t("overview.physical")}
             value={
               selectedSession?.mode === "physical"
                 ? selectedSession.armed
-                  ? "Enabled"
-                  : "Locked"
-                : "Locked"
+                  ? t("status.enabled")
+                  : t("status.locked")
+                : t("status.locked")
             }
             warning={selectedSession?.armed === true}
           />
@@ -1125,10 +1536,11 @@ export function FabricConsole() {
             className="fabric-panel fabric-session-builder"
             id="lesson-setup"
           >
-            <PanelHeading eyebrow="Step 2" title="Choose a lesson" />
-            <p className="fabric-panel-intro">
-              What do you want students to do today?
-            </p>
+            <PanelHeading
+              eyebrow={t("lesson.step2")}
+              title={t("lesson.chooseTitle")}
+            />
+            <p className="fabric-panel-intro">{t("lesson.choosePrompt")}</p>
             <div className="fabric-course-choices">
               {coursePacks.map((coursePack) => {
                 const key = courseKey(
@@ -1152,30 +1564,34 @@ export function FabricConsole() {
                       setSelectedCourseKey(key);
                     }}
                   >
-                    <strong>{plainCourseName(coursePack)}</strong>
-                    <small>{plainCourseSummary(coursePack)}</small>
-                    <span>{key === chosenKey ? "Selected" : "Choose"}</span>
+                    <strong>{fabricCourseText(coursePack, t).name}</strong>
+                    <small>{fabricCourseText(coursePack, t).summary}</small>
+                    <span>
+                      {key === chosenKey
+                        ? t("lesson.selected")
+                        : t("lesson.choose")}
+                    </span>
                   </button>
                 );
               })}
             </div>
             {selectedCourse !== undefined && (
               <p className="fabric-course-description">
-                {plainCourseDescription(selectedCourse)}
+                {fabricCourseText(selectedCourse, t).description}
               </p>
             )}
             <details className="fabric-settings">
-              <summary>Room and device settings</summary>
+              <summary>{t("lesson.settings")}</summary>
               <div className="fabric-fields">
                 <label>
-                  Site
+                  {t("lesson.site")}
                   <input
                     value={siteId}
                     onChange={(event) => setSiteId(event.target.value)}
                   />
                 </label>
                 <label>
-                  Room
+                  {t("lesson.room")}
                   <input
                     value={roomId}
                     onChange={(event) => setRoomId(event.target.value)}
@@ -1183,7 +1599,7 @@ export function FabricConsole() {
                 </label>
               </div>
               <label>
-                Devices used in this lesson
+                {t("lesson.devicesUsed")}
                 <select
                   value={sessionMode}
                   onChange={(event) =>
@@ -1192,12 +1608,8 @@ export function FabricConsole() {
                     )
                   }
                 >
-                  <option value="simulation">
-                    Simulators only — safest for practice
-                  </option>
-                  <option value="physical">
-                    Real classroom devices — safety check required
-                  </option>
+                  <option value="simulation">{t("lesson.simulation")}</option>
+                  <option value="physical">{t("lesson.physical")}</option>
                 </select>
               </label>
             </details>
@@ -1212,21 +1624,21 @@ export function FabricConsole() {
               }
               onClick={() => void createSession()}
             >
-              Set up this lesson
+              {t("lesson.setup")}
             </button>
             {sessions.length > 0 && (
               <label className="fabric-existing-session">
-                Or continue a session already set up
+                {t("lesson.continue")}
                 <select
                   value={selectedSessionId}
                   onChange={(event) => setSelectedSessionId(event.target.value)}
                 >
-                  <option value="">Choose an existing session</option>
+                  <option value="">{t("lesson.existing")}</option>
                   {sessions.map((session) => (
                     <option key={session.sessionId} value={session.sessionId}>
-                      {courseName(coursePacks, session)} ·{" "}
-                      {plainSessionState(session)} ·{" "}
-                      {formatTime(session.updatedAt)}
+                      {fabricCourseName(coursePacks, session, t)} ·{" "}
+                      {fabricSessionState(session, t)} ·{" "}
+                      {fabricFormatTime(session.updatedAt, locale)}
                     </option>
                   ))}
                 </select>
@@ -1238,88 +1650,122 @@ export function FabricConsole() {
             className="fabric-panel fabric-session-control"
             id="device-setup"
           >
-            <PanelHeading eyebrow="Step 3" title="Assign lesson devices" />
-            <p className="fabric-panel-intro">
-              CIT only shows devices that can perform each job in this lesson.
-            </p>
+            <PanelHeading
+              eyebrow={t("lesson.step3")}
+              title={t("lesson.assignTitle")}
+            />
+            <p className="fabric-panel-intro">{t("lesson.assignIntro")}</p>
             {selectedSession !== undefined && selectedCourse !== undefined ? (
-              <div className="fabric-role-list">
-                {selectedCourse.roles.map((requirement) => {
-                  const candidates = compatibleNodes(
-                    nodes,
-                    selectedSession,
-                    requirement,
-                  );
-                  const binding = selectedSession.roleBindings.find(
-                    (candidate) => candidate.role === requirement.role,
-                  );
-                  return (
-                    <div className="fabric-role" key={requirement.role}>
-                      <span
-                        className={`fabric-role-status ${binding === undefined ? "is-missing" : "is-ready"}`}
-                        aria-hidden="true"
+              <>
+                <div className="fabric-role-groups">
+                  {fabricIoGroups(t).map((group) => {
+                    const requirements = courseRoleGroups[group.kind];
+                    if (requirements.length === 0) return null;
+                    return (
+                      <section
+                        className={`fabric-role-group is-${group.kind}`}
+                        key={group.kind}
                       >
-                        {binding === undefined ? "!" : "✓"}
-                      </span>
+                        <header>
+                          <div>
+                            <strong>{group.title}</strong>
+                            <small>{group.roleDescription}</small>
+                          </div>
+                          <span>{requirements.length}</span>
+                        </header>
+                        <div className="fabric-role-list">
+                          {requirements.map((requirement) => (
+                            <FabricRoleAssignment
+                              key={requirement.role}
+                              requirement={requirement}
+                              nodes={nodes}
+                              session={selectedSession}
+                              selectedNodeId={
+                                roleSelections[requirement.role] ?? ""
+                              }
+                              canAssign={canAssignRoles}
+                              busy={busy !== null}
+                              t={t}
+                              onSelect={(nodeId) =>
+                                setRoleSelections((current) => ({
+                                  ...current,
+                                  [requirement.role]: nodeId,
+                                }))
+                              }
+                              onAssign={() => void assignRole(requirement.role)}
+                            />
+                          ))}
+                        </div>
+                      </section>
+                    );
+                  })}
+                </div>
+                {simultaneousFlowGroups.map((group) => (
+                  <section className="fabric-parallel-plan" key={group.groupId}>
+                    <header>
                       <div>
-                        <strong>{plainRoleName(requirement.role)}</strong>
-                        <small>
-                          {roleDescription(requirement.role)}
-                          {requirement.optional ? " (optional)" : ""}
-                        </small>
+                        <span>{t("parallel.runsTogether")}</span>
+                        <strong>{t("parallel.title")}</strong>
                       </div>
-                      <select
-                        aria-label={`Device for ${plainRoleName(requirement.role)}`}
-                        value={roleSelections[requirement.role] ?? ""}
-                        disabled={
-                          !canAssignRoles || selectedSession.state === "active"
-                        }
-                        onChange={(event) =>
-                          setRoleSelections((current) => ({
-                            ...current,
-                            [requirement.role]: event.target.value,
-                          }))
-                        }
-                      >
-                        <option value="">
-                          {candidates.length === 0
-                            ? "No matching device connected"
-                            : "Choose a device"}
-                        </option>
-                        {candidates.map((node) => (
-                          <option key={node.nodeId} value={node.nodeId}>
-                            {node.displayName} · {plainConnectionState(node)}
-                          </option>
-                        ))}
-                      </select>
-                      <button
-                        type="button"
-                        disabled={
-                          !canAssignRoles ||
-                          busy !== null ||
-                          selectedSession.state === "active" ||
-                          !roleSelections[requirement.role] ||
-                          binding?.nodeId === roleSelections[requirement.role]
-                        }
-                        onClick={() => void assignRole(requirement.role)}
-                      >
-                        {binding === undefined ? "Use this device" : "Change"}
-                      </button>
-                      {candidates.length === 0 && (
-                        <p className="fabric-role-help">
-                          Start the device’s CIT adapter, then choose Refresh at
-                          the top of this page.
-                        </p>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+                      <em>
+                        {t("parallel.assigned", {
+                          ready: group.outputs.filter((output) =>
+                            selectedSession.roleBindings.some(
+                              (binding) => binding.role === output.role,
+                            ),
+                          ).length,
+                          total: group.outputs.length,
+                        })}
+                      </em>
+                    </header>
+                    <p>
+                      {t("parallel.description", {
+                        trigger: fabricCapabilityName(group.trigger, locale),
+                      })}
+                    </p>
+                    <ul>
+                      {group.outputs.map((output) => {
+                        const binding = selectedSession.roleBindings.find(
+                          (candidate) => candidate.role === output.role,
+                        );
+                        return (
+                          <li
+                            className={
+                              binding === undefined
+                                ? "is-unassigned"
+                                : "is-assigned"
+                            }
+                            key={output.flowId}
+                          >
+                            <span aria-hidden="true">
+                              {binding === undefined ? "○" : "✓"}
+                            </span>
+                            <div>
+                              <strong>
+                                {fabricRoleText(output.role, t).name}
+                              </strong>
+                              <small>
+                                {fabricCapabilityName(output.action, locale)}
+                              </small>
+                            </div>
+                            <em>
+                              {binding === undefined
+                                ? t("status.notIncluded")
+                                : nodeDisplayName(nodes, binding.nodeId)}
+                            </em>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                    <small>{t("parallel.safety")}</small>
+                  </section>
+                ))}
+              </>
             ) : (
               <div className="fabric-empty-state">
                 <span aria-hidden="true">2</span>
-                <strong>Choose and set up a lesson first</strong>
-                <p>Your matching devices will appear here automatically.</p>
+                <strong>{t("lesson.chooseFirst")}</strong>
+                <p>{t("lesson.matchesAppear")}</p>
               </div>
             )}
           </article>
@@ -1334,62 +1780,70 @@ export function FabricConsole() {
               {selectedSession?.armed ? "!" : "✓"}
             </span>
             <div>
-              <PanelHeading eyebrow="Step 4" title="Review and start" />
+              <PanelHeading
+                eyebrow={t("safety.step4")}
+                title={t("safety.title")}
+              />
               <strong>
                 {selectedSession === undefined
-                  ? "Set up a lesson to continue"
+                  ? t("safety.setupFirst")
                   : selectedSession.mode === "simulation"
-                    ? "Simulation mode — physical devices stay locked"
+                    ? t("safety.simulation")
                     : selectedSession.armed
-                      ? "Physical device control is enabled"
-                      : "Physical devices are locked"}
+                      ? t("safety.enabled")
+                      : t("safety.locked")}
               </strong>
               <p>
                 {selectedSession?.mode === "physical"
-                  ? "Keep the Stop all devices button visible and make sure the activity area is clear."
-                  : "Practice safely before switching this lesson to real classroom hardware."}
+                  ? t("safety.physicalHelp")
+                  : t("safety.simulationHelp")}
               </p>
             </div>
           </div>
 
-          {selectedSession?.mode === "physical" && !selectedSession.armed && (
-            <label className="fabric-safety-confirmation">
-              <input
-                type="checkbox"
-                checked={safetyConfirmed}
-                onChange={(event) => setSafetyConfirmed(event.target.checked)}
-              />
-              <span>
-                I can see the devices, the activity area is clear, and I know
-                where “Stop all devices” is.
-              </span>
-            </label>
-          )}
+          {selectedSession?.mode === "physical" &&
+            !selectedSession.armed &&
+            requiresArmingForStart && (
+              <label className="fabric-safety-confirmation">
+                <input
+                  type="checkbox"
+                  checked={safetyConfirmed}
+                  onChange={(event) => setSafetyConfirmed(event.target.checked)}
+                />
+                <span>{t("safety.confirm")}</span>
+              </label>
+            )}
 
           <div className="fabric-session-actions">
-            {selectedSession?.mode === "physical" && !selectedSession.armed && (
-              <button
-                className="fabric-enable-physical"
-                type="button"
-                disabled={
-                  !canManageSessions ||
-                  busy !== null ||
-                  !requiredRolesReady ||
-                  !safetyConfirmed ||
-                  !["ready", "paused"].includes(selectedSession.state)
-                }
-                onClick={() => void changeSessionState("arm")}
-              >
-                Enable physical controls
-              </button>
-            )}
+            {selectedSession?.mode === "physical" &&
+              !selectedSession.armed &&
+              requiresArmingForStart && (
+                <button
+                  className="fabric-enable-physical"
+                  type="button"
+                  disabled={
+                    !canManageSessions ||
+                    busy !== null ||
+                    !requiredRolesReady ||
+                    !safetyConfirmed ||
+                    !["ready", "paused", "active"].includes(
+                      selectedSession.state,
+                    )
+                  }
+                  onClick={() => void enablePhysicalControls()}
+                >
+                  {selectedSession.state === "active"
+                    ? t("safety.pauseEnable")
+                    : t("safety.enable")}
+                </button>
+              )}
             {selectedSession?.armed && (
               <button
                 type="button"
                 disabled={!canManageSessions || busy !== null}
                 onClick={() => void changeSessionState("disarm")}
               >
-                Lock physical devices
+                {t("safety.lock")}
               </button>
             )}
             <button
@@ -1401,13 +1855,14 @@ export function FabricConsole() {
                 !requiredRolesReady ||
                 !["ready", "paused"].includes(selectedSession?.state ?? "") ||
                 (selectedSession?.mode === "physical" &&
-                  selectedSession.armed !== true)
+                  selectedSession.armed !== true &&
+                  requiresArmingForStart)
               }
               onClick={() => void changeSessionState("start")}
             >
               {selectedSession?.state === "paused"
-                ? "Resume lesson"
-                : "Start lesson"}
+                ? t("safety.resume")
+                : t("safety.start")}
             </button>
             {selectedSession?.state === "active" && (
               <button
@@ -1415,7 +1870,7 @@ export function FabricConsole() {
                 disabled={!canManageSessions || busy !== null}
                 onClick={() => void changeSessionState("pause")}
               >
-                Pause lesson
+                {t("safety.pause")}
               </button>
             )}
             <button
@@ -1430,17 +1885,17 @@ export function FabricConsole() {
               }
               onClick={() => void changeSessionState("stop")}
             >
-              End lesson and lock devices
+              {t("safety.end")}
             </button>
           </div>
         </section>
 
         <section className="fabric-panel fabric-test-panel" id="live-controls">
-          <PanelHeading eyebrow="Step 5" title="Teach and test" />
+          <PanelHeading eyebrow={t("test.step5")} title={t("test.title")} />
           <p className="fabric-panel-intro">
             {selectedSession?.state === "active"
-              ? "The lesson is running. Use only the checks that match today’s activity."
-              : "Start the lesson in Step 4 to unlock its teaching controls."}
+              ? t("test.runningHelp")
+              : t("test.waitingHelp")}
           </p>
           <div className="fabric-test-actions">
             {(selectedCourse?.flows.length ?? 0) > 0 && (
@@ -1449,8 +1904,8 @@ export function FabricConsole() {
                 disabled={selectedSession?.state !== "active" || busy !== null}
                 onClick={() => void checkInput()}
               >
-                Check student input
-                <small>Ask for a gesture, button press, or voice input</small>
+                {t("test.input")}
+                <small>{t("test.inputHelp")}</small>
               </button>
             )}
             {selectedCourse?.roles.some(
@@ -1465,8 +1920,8 @@ export function FabricConsole() {
                 }
                 onClick={() => void sendTestCommand("agent")}
               >
-                Check coding assistant
-                <small>Send one safe connectivity message</small>
+                {t("test.agent")}
+                <small>{t("test.agentHelp")}</small>
               </button>
             )}
             {selectedCourse?.roles.some(
@@ -1481,8 +1936,8 @@ export function FabricConsole() {
                 }
                 onClick={() => void sendTestCommand("display")}
               >
-                Check glasses display
-                <small>Show one fixed classroom message</small>
+                {t("test.glasses")}
+                <small>{t("test.glassesHelp")}</small>
               </button>
             )}
             {selectedCourse?.roles.some(
@@ -1500,8 +1955,8 @@ export function FabricConsole() {
                 }
                 onClick={() => void sendTestCommand("robot-stop")}
               >
-                Check robot stop
-                <small>Confirm the robot accepts its safe stop command</small>
+                {t("test.robotStop")}
+                <small>{t("test.robotStopHelp")}</small>
               </button>
             )}
             <div className="fabric-live-state">
@@ -1511,12 +1966,13 @@ export function FabricConsole() {
               <div>
                 <strong>
                   {selectedSession?.state === "active"
-                    ? "Lesson is running"
-                    : "Teaching controls are waiting"}
+                    ? t("test.running")
+                    : t("test.waiting")}
                 </strong>
                 <small>
-                  {countActiveFabricCommands(lifecycle)} device action(s) in
-                  progress
+                  {t("test.inProgress", {
+                    count: countActiveFabricCommands(lifecycle),
+                  })}
                 </small>
               </div>
             </div>
@@ -1526,23 +1982,15 @@ export function FabricConsole() {
         {canReadMedia && (
           <section className="fabric-panel fabric-media-panel">
             <PanelHeading
-              eyebrow="Classroom vision"
-              title="Live cameras and object recognition"
+              eyebrow={t("media.eyebrow")}
+              title={t("media.title")}
             />
-            <p className="fabric-help">
-              Meta glasses, RoboMaster, Tello, and other approved local camera
-              publishers appear together here. Frames stay in memory, are not
-              added to lesson recordings, and are replaced by the next frame.
-            </p>
+            <p className="fabric-help">{t("media.intro")}</p>
             {canPairMedia && (
               <div className="fabric-camera-pairing">
                 <div>
-                  <strong>Connect a Meta glasses camera</strong>
-                  <span>
-                    Keep the phone on the classroom Wi-Fi, then pair the CIT
-                    Meta Camera companion. Start live sharing on the phone;
-                    older glasses firmware can use the snapshot fallback.
-                  </span>
+                  <strong>{t("media.connectMeta")}</strong>
+                  <span>{t("media.connectMetaHelp")}</span>
                 </div>
                 {mediaPairing === null ? (
                   <button
@@ -1550,23 +1998,17 @@ export function FabricConsole() {
                     disabled={busy !== null}
                     onClick={() => void startMetaCameraPairing()}
                   >
-                    Create phone pairing
+                    {t("media.createPairing")}
                   </button>
                 ) : (
                   <div className="fabric-camera-pairing-details">
                     <ol>
-                      <li>Open CIT Meta Camera on the Android phone.</li>
-                      <li>
-                        Enter the classroom address and one-time code below.
-                      </li>
-                      <li>
-                        Tap Pair, approve Meta camera access, then tap Share
-                        live camera. Use snapshot fallback only if live frames
-                        fail.
-                      </li>
+                      <li>{t("media.pairStep1")}</li>
+                      <li>{t("media.pairStep2")}</li>
+                      <li>{t("media.pairStep3")}</li>
                     </ol>
                     <label>
-                      Classroom address
+                      {t("media.address")}
                       <span>
                         <input readOnly value={mediaPairing.fabricOrigin} />
                         <button
@@ -1574,16 +2016,16 @@ export function FabricConsole() {
                           onClick={() =>
                             void copyMediaPairingValue(
                               mediaPairing.fabricOrigin,
-                              "Classroom address",
+                              t("media.address"),
                             )
                           }
                         >
-                          Copy
+                          {t("media.copy")}
                         </button>
                       </span>
                     </label>
                     <label>
-                      One-time pairing code
+                      {t("media.code")}
                       <span>
                         <input readOnly value={mediaPairing.pairingCode} />
                         <button
@@ -1591,26 +2033,27 @@ export function FabricConsole() {
                           onClick={() =>
                             void copyMediaPairingValue(
                               mediaPairing.pairingCode,
-                              "Pairing code",
+                              t("media.code"),
                             )
                           }
                         >
-                          Copy
+                          {t("media.copy")}
                         </button>
                       </span>
                     </label>
                     <small>
-                      Expires {formatTime(mediaPairing.expiresAt)} and works
-                      once. The phone receives publish-only access for{" "}
-                      {mediaPairing.siteId}/{mediaPairing.roomId}; it cannot
-                      read cameras or control devices.
+                      {t("media.expiry", {
+                        time: fabricFormatTime(mediaPairing.expiresAt, locale),
+                        site: mediaPairing.siteId,
+                        room: mediaPairing.roomId,
+                      })}
                     </small>
                     <button
                       type="button"
                       disabled={busy !== null}
                       onClick={() => void startMetaCameraPairing()}
                     >
-                      Replace with a new code
+                      {t("media.replaceCode")}
                     </button>
                   </div>
                 )}
@@ -1618,12 +2061,8 @@ export function FabricConsole() {
             )}
             {mediaSources.length === 0 ? (
               <div className="fabric-empty fabric-media-empty">
-                <strong>No camera source is publishing yet.</strong>
-                <span>
-                  Start an approved camera bridge. Meta glasses require the CIT
-                  phone companion, camera permission, and visible camera-use
-                  indicator.
-                </span>
+                <strong>{t("media.none")}</strong>
+                <span>{t("media.noneHelp")}</span>
               </div>
             ) : (
               <div className="fabric-media-grid">
@@ -1632,6 +2071,8 @@ export function FabricConsole() {
                     key={source.sourceId}
                     source={source}
                     client={client}
+                    locale={locale}
+                    t={t}
                     busy={busy !== null}
                     canAnalyze={canAnalyzeVision}
                     canTurnPlugOn={canTurnSmartPlugOn}
@@ -1643,31 +2084,27 @@ export function FabricConsole() {
                 ))}
               </div>
             )}
-            <p className="fabric-privacy-note">
-              Object recognition never operates a robot, drone, or plug by
-              itself. A tutor must review the detection and press an explicit
-              bounded control.
-            </p>
+            <p className="fabric-privacy-note">{t("media.privacy")}</p>
           </section>
         )}
 
         <section className="fabric-panel fabric-sensor-panel">
-          <PanelHeading eyebrow="Live sensors" title="Classroom readings" />
-          <p className="fabric-help">
-            The latest normalized LEGO, robot, biosignal, and battery readings
-            appear automatically when an adapter publishes them.
-          </p>
+          <PanelHeading
+            eyebrow={t("sensor.eyebrow")}
+            title={t("sensor.title")}
+          />
+          <p className="fabric-help">{t("sensor.intro")}</p>
           {sensorReadings.length === 0 ? (
-            <div className="fabric-empty">
-              No sensor readings have arrived in the selected lesson yet.
-            </div>
+            <div className="fabric-empty">{t("sensor.none")}</div>
           ) : (
             <div className="fabric-sensor-grid">
               {sensorReadings.map((reading) => (
                 <article className="fabric-sensor-card" key={reading.key}>
                   <header>
-                    <strong>{plainCapabilityName(reading.topic)}</strong>
-                    <span>{formatTime(reading.observedAt)}</span>
+                    <strong>
+                      {fabricCapabilityName(reading.topic, locale)}
+                    </strong>
+                    <span>{fabricFormatTime(reading.observedAt, locale)}</span>
                   </header>
                   <div className="fabric-sensor-values">
                     {reading.values.map((value) => (
@@ -1684,34 +2121,90 @@ export function FabricConsole() {
           )}
         </section>
 
+        {fleetSequenceController !== undefined &&
+          selectedSession !== undefined && (
+            <FabricFleetSequencePanel
+              controllerName={fleetSequenceController.displayName}
+              simulated={fleetSequenceController.simulated}
+              {...(fleetSequenceStatus === undefined
+                ? {}
+                : { status: fleetSequenceStatus })}
+              inputNodes={fleetSequenceInputNodes}
+              sessionState={selectedSession.state}
+              sessionArmed={selectedSession.armed === true}
+              busy={busy !== null}
+              canSubmit={canSubmitCommands}
+              onArm={(settings) => void armFleetSequence(settings)}
+              onStart={() => void startFleetSequence()}
+              onStop={() => void stopFleetSequence()}
+              locale={locale}
+              t={t}
+            />
+          )}
+
+        {brainDemoController !== undefined && selectedSession !== undefined && (
+          <FabricBrainDemoPanel
+            controllerName={brainDemoController.displayName}
+            simulated={brainDemoController.simulated}
+            {...(brainDemoStatus === undefined
+              ? {}
+              : { status: brainDemoStatus })}
+            sessionState={selectedSession.state}
+            sessionArmed={selectedSession.armed === true}
+            busy={busy !== null}
+            canSubmit={canSubmitCommands}
+            onArm={(settings) => void armBrainDemo(settings)}
+            onStop={() => void stopBrainDemo()}
+            locale={locale}
+            t={t}
+          />
+        )}
+
+        <FabricDronePanel
+          drones={assignedDrones}
+          busy={busy !== null}
+          canSubmit={canSubmitCommands}
+          onLand={(role) => void setDroneSafeState(role, false)}
+          onEmergencyStop={(role) => void setDroneSafeState(role, true)}
+          t={t}
+        />
+
         {(smartPlugNodes.length > 0 ||
           selectedCourse?.roles.some(
             (requirement) => requirement.role === "classroom_plug",
           )) && (
           <section className="fabric-panel fabric-smart-plug-panel">
-            <PanelHeading eyebrow="Lesson control" title="Classroom plug" />
+            <PanelHeading eyebrow={t("plug.eyebrow")} title={t("plug.title")} />
             <div className="fabric-smart-plug-layout">
               <div className="fabric-smart-plug-state">
                 <span
                   className={`fabric-plug-indicator ${smartPlugState?.on ? "is-on" : "is-off"}`}
                   aria-hidden="true"
                 >
-                  {smartPlugState?.on ? "ON" : "OFF"}
+                  {smartPlugState?.on ? t("plug.onState") : t("plug.offState")}
                 </span>
                 <div>
                   <strong>
-                    {selectedSmartPlug?.displayName ??
-                      "No classroom plug assigned"}
+                    {selectedSmartPlug?.displayName ?? t("plug.noneAssigned")}
                   </strong>
                   <small>
                     {selectedSmartPlug === undefined
-                      ? `${smartPlugNodes.length} compatible ${smartPlugNodes.length === 1 ? "device" : "devices"} connected`
+                      ? t("plug.compatible", { count: smartPlugNodes.length })
                       : `${metadataText(selectedSmartPlug, "vendorBrand") ?? "compatible"} · ${metadataText(selectedSmartPlug, "model") ?? selectedSmartPlug.nodeId}`}
                   </small>
                   <small>
                     {smartPlugState === undefined
-                      ? "State has not been observed in this session"
-                      : `Observed ${formatTime(smartPlugState.observedAt)}${smartPlugState.source === undefined ? "" : ` · ${smartPlugState.source}`}`}
+                      ? t("plug.stateUnknown")
+                      : t("plug.observed", {
+                          time: fabricFormatTime(
+                            smartPlugState.observedAt,
+                            locale,
+                          ),
+                          source:
+                            smartPlugState.source === undefined
+                              ? ""
+                              : ` · ${smartPlugState.source}`,
+                        })}
                   </small>
                 </div>
               </div>
@@ -1722,13 +2215,13 @@ export function FabricConsole() {
                   disabled={!canTurnSmartPlugOn}
                   onClick={() => void setSmartPlugPower(true)}
                 >
-                  Turn on
+                  {t("plug.turnOn")}
                   <small>
                     {selectedSession?.state === "active" &&
                     (selectedSession.mode !== "physical" ||
                       selectedSession.armed)
-                      ? "Turn on the approved classroom load"
-                      : "Available after the lesson safety check"}
+                      ? t("plug.turnOnHelp")
+                      : t("plug.afterSafety")}
                   </small>
                 </button>
                 <button
@@ -1737,59 +2230,54 @@ export function FabricConsole() {
                   disabled={!canTurnSmartPlugOff}
                   onClick={() => void setSmartPlugPower(false)}
                 >
-                  Turn off
-                  <small>Always available as the safe state</small>
+                  {t("plug.turnOff")}
+                  <small>{t("plug.turnOffHelp")}</small>
                 </button>
               </div>
             </div>
-            <p className="fabric-help">
-              Use only the approved classroom load. The tutor can always turn it
-              off, even when physical controls are locked.
-            </p>
+            <p className="fabric-help">{t("plug.help")}</p>
           </section>
         )}
 
         <section className="fabric-panel fabric-node-panel">
-          <PanelHeading
-            eyebrow="Device status"
-            title="Everything connected to this classroom"
-          />
-          <p className="fabric-help">
-            Glasses, sensors, robots, smart plugs, coding assistants, and
-            simulators all appear here when their CIT adapter is running.
-          </p>
+          <PanelHeading eyebrow={t("nodes.eyebrow")} title={t("nodes.title")} />
+          <p className="fabric-help">{t("nodes.intro")}</p>
           <div className="fabric-io-groups">
             <FabricNodeGroup
               kind="input"
-              title="Sends information"
-              description="Gestures, voice, buttons, and sensors"
+              title={t("io.input.label")}
+              description={t("io.input.discovery")}
               nodes={nodeGroups.input}
+              t={t}
             />
             <FabricNodeGroup
               kind="bidirectional"
-              title="Sends and receives"
-              description="Glasses, robots, agents, and smart devices"
+              title={t("io.bidirectional.label")}
+              description={t("io.bidirectional.discovery")}
               nodes={nodeGroups.bidirectional}
+              t={t}
             />
             <FabricNodeGroup
               kind="output"
-              title="Receives instructions"
-              description="Displays, lights, and other controlled devices"
+              title={t("io.output.label")}
+              description={t("io.output.discovery")}
               nodes={nodeGroups.output}
+              t={t}
             />
           </div>
         </section>
 
         <details className="fabric-advanced">
           <summary>
-            <strong>Technical diagnostics</strong>
-            <span>
-              Signals, command history, identifiers, and audit records
-            </span>
+            <strong>{t("diagnostics.title")}</strong>
+            <span>{t("diagnostics.subtitle")}</span>
           </summary>
           <section className="fabric-grid fabric-stream-grid">
             <article className="fabric-panel">
-              <PanelHeading eyebrow="Device signals" title="Recent activity" />
+              <PanelHeading
+                eyebrow={t("diagnostics.signalEyebrow")}
+                title={t("diagnostics.signalTitle")}
+              />
               <ol className="fabric-stream-list">
                 {[...events]
                   .reverse()
@@ -1801,23 +2289,21 @@ export function FabricConsole() {
                         <strong>{item.event.topic}</strong>
                         <small>
                           {item.event.sourceNodeId} ·{" "}
-                          {formatTime(item.event.timestamp)}
+                          {fabricFormatTime(item.event.timestamp, locale)}
                         </small>
                       </div>
                       <em>{Math.round((item.event.confidence ?? 1) * 100)}%</em>
                     </li>
                   ))}
                 {events.length === 0 && (
-                  <li className="fabric-empty">
-                    No selected-session signals yet.
-                  </li>
+                  <li className="fabric-empty">{t("diagnostics.noSignals")}</li>
                 )}
               </ol>
             </article>
             <article className="fabric-panel">
               <PanelHeading
-                eyebrow="Device instructions"
-                title="Command progress"
+                eyebrow={t("diagnostics.commandEyebrow")}
+                title={t("diagnostics.commandTitle")}
               />
               <ol className="fabric-stream-list">
                 {[...lifecycle]
@@ -1827,17 +2313,23 @@ export function FabricConsole() {
                     <li key={item.streamSequence}>
                       <span>{item.streamSequence}</span>
                       <div>
-                        <strong>{item.lifecycle.stage}</strong>
+                        <strong>
+                          {fabricPhase(item.lifecycle.stage, locale)}
+                        </strong>
                         <small>
                           {shortId(item.lifecycle.commandId)} ·{" "}
                           {item.lifecycle.targetNodeId}
                         </small>
                       </div>
-                      <em>{formatTime(item.lifecycle.occurredAt)}</em>
+                      <em>
+                        {fabricFormatTime(item.lifecycle.occurredAt, locale)}
+                      </em>
                     </li>
                   ))}
                 {lifecycle.length === 0 && (
-                  <li className="fabric-empty">No command decisions yet.</li>
+                  <li className="fabric-empty">
+                    {t("diagnostics.noCommands")}
+                  </li>
                 )}
               </ol>
             </article>
@@ -1846,22 +2338,20 @@ export function FabricConsole() {
           {offlineNodeCount > 0 && (
             <section className="fabric-panel fabric-offline-history">
               <PanelHeading
-                eyebrow="Adapter history"
-                title={`${offlineNodeCount} offline ${offlineNodeCount === 1 ? "record" : "records"} hidden`}
+                eyebrow={t("diagnostics.offlineEyebrow")}
+                title={t("diagnostics.offlineTitle", {
+                  count: offlineNodeCount,
+                })}
               />
-              <p className="fabric-help">
-                Disconnected adapter records are retained for diagnostics and
-                audit, but they are excluded from connected-device totals and
-                lesson assignment choices.
-              </p>
+              <p className="fabric-help">{t("diagnostics.offlineHelp")}</p>
             </section>
           )}
 
           {audit.length > 0 && (
             <section className="fabric-panel fabric-audit-panel">
               <PanelHeading
-                eyebrow="Audit history"
-                title="Recent control changes"
+                eyebrow={t("diagnostics.auditEyebrow")}
+                title={t("diagnostics.auditTitle")}
               />
               <div className="fabric-audit-list">
                 {audit.slice(0, 10).map((record) => (
@@ -1870,7 +2360,7 @@ export function FabricConsole() {
                     <span>{record.actorId}</span>
                     <small>
                       {record.resourceId ?? record.resourceType} ·{" "}
-                      {formatTime(record.occurredAt)}
+                      {fabricFormatTime(record.occurredAt, locale)}
                     </small>
                   </div>
                 ))}
@@ -1879,6 +2369,84 @@ export function FabricConsole() {
           )}
         </details>
       </main>
+    </div>
+  );
+}
+
+function FabricRoleAssignment({
+  requirement,
+  nodes,
+  session,
+  selectedNodeId,
+  canAssign,
+  busy,
+  t,
+  onSelect,
+  onAssign,
+}: {
+  requirement: CoursePack["roles"][number];
+  nodes: IntegrationNode[];
+  session: InteractionSession;
+  selectedNodeId: string;
+  canAssign: boolean;
+  busy: boolean;
+  t: FabricTranslate;
+  onSelect: (nodeId: string) => void;
+  onAssign: () => void;
+}) {
+  const candidates = compatibleNodes(nodes, session, requirement);
+  const binding = session.roleBindings.find(
+    (candidate) => candidate.role === requirement.role,
+  );
+
+  return (
+    <div className="fabric-role">
+      <span
+        className={`fabric-role-status ${binding === undefined ? "is-missing" : "is-ready"}`}
+        aria-hidden="true"
+      >
+        {binding === undefined ? "!" : "✓"}
+      </span>
+      <div>
+        <strong>{fabricRoleText(requirement.role, t).name}</strong>
+        <small>
+          {fabricRoleText(requirement.role, t).description}
+          {requirement.optional ? ` (${t("status.optional")})` : ""}
+        </small>
+      </div>
+      <select
+        aria-label={t("role.deviceFor", {
+          role: fabricRoleText(requirement.role, t).name,
+        })}
+        value={selectedNodeId}
+        disabled={!canAssign || session.state === "active"}
+        onChange={(event) => onSelect(event.target.value)}
+      >
+        <option value="">
+          {candidates.length === 0 ? t("role.noMatch") : t("role.chooseDevice")}
+        </option>
+        {candidates.map((node) => (
+          <option key={node.nodeId} value={node.nodeId}>
+            {node.displayName} · {fabricConnectionState(node, t)}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        disabled={
+          !canAssign ||
+          busy ||
+          session.state === "active" ||
+          !selectedNodeId ||
+          binding?.nodeId === selectedNodeId
+        }
+        onClick={onAssign}
+      >
+        {binding === undefined ? t("role.useDevice") : t("role.change")}
+      </button>
+      {candidates.length === 0 && (
+        <p className="fabric-role-help">{t("role.startAdapter")}</p>
+      )}
     </div>
   );
 }
@@ -1909,36 +2477,76 @@ function FabricMetric({
   );
 }
 
+function FabricLanguageSwitch({
+  locale,
+  onChange,
+  t,
+}: {
+  locale: Locale;
+  onChange: (locale: Locale) => void;
+  t: FabricTranslate;
+}) {
+  return (
+    <div
+      className="fabric-language-switch"
+      role="group"
+      aria-label={t("language.label")}
+    >
+      {LOCALES.map((candidate) => (
+        <button
+          type="button"
+          className={candidate === locale ? "is-current" : undefined}
+          aria-pressed={candidate === locale}
+          key={candidate}
+          onClick={() => onChange(candidate)}
+        >
+          {candidate === "ko" ? t("language.ko") : t("language.en")}
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function FabricDiscoveryCard({
   integration,
+  t,
   busy,
   canConnect,
   groundedConfirmed,
   onGroundedChange,
   onConnect,
   onCopySetup,
+  onMatterCommission,
+  onLegoConnect,
 }: {
   integration: FabricIntegrationDiscovery;
+  t: FabricTranslate;
   busy: BusyAction;
   canConnect: boolean;
   groundedConfirmed: boolean;
   onGroundedChange: (confirmed: boolean) => void;
   onConnect: () => void;
   onCopySetup: () => void;
+  onMatterCommission: (setupCode: string) => Promise<boolean>;
+  onLegoConnect: (configuration: LegoConnectionConfiguration) => void;
 }) {
-  const status = discoveryStatus(integration.status);
+  const status = discoveryStatus(integration.status, t);
   const connected = integration.status === "connected";
   return (
     <article
+      id={`integration-${integration.integrationId}`}
       className={`fabric-discovery-card is-${integration.status.replaceAll("_", "-")}`}
     >
       <header>
         <span className="fabric-discovery-icon" aria-hidden="true">
-          {DISCOVERY_ICONS[integration.integrationId] ?? "IO"}
+          {DISCOVERY_ICONS[integration.icon ?? ""] ?? "IO"}
         </span>
         <div>
           <h3>{integration.displayName}</h3>
           <small>{integration.connectionMethod}</small>
+          <span className={`fabric-io-label is-${integration.ioType}`}>
+            {fabricIoLabel(integration.ioType, t)}
+          </span>
         </div>
         <strong className={`fabric-discovery-status is-${status.tone}`}>
           {status.label}
@@ -1946,6 +2554,26 @@ function FabricDiscoveryCard({
       </header>
 
       <p className="fabric-discovery-summary">{integration.summary}</p>
+
+      {integration.integrationId === "matter-smart-plugs" && (
+        <FabricMatterSetup
+          busy={busy?.key === "busy.addingMatter"}
+          canConnect={canConnect}
+          connected={connected}
+          onCommission={onMatterCommission}
+          t={t}
+        />
+      )}
+
+      {integration.integrationId === "lego-hubs" && !connected && (
+        <FabricLegoSetup
+          busy={busy?.key === "busy.connectingLego"}
+          canConnect={canConnect}
+          connected={connected}
+          onConnect={onLegoConnect}
+          t={t}
+        />
+      )}
 
       {integration.candidates.length > 0 && (
         <ul className="fabric-candidate-list">
@@ -1955,12 +2583,21 @@ function FabricDiscoveryCard({
                 className={`status-dot ${candidate.status === "found" ? "status-ok" : "status-muted"}`}
               />
               <div>
-                <strong>{candidate.displayName}</strong>
+                <div className="fabric-candidate-title">
+                  <strong>{candidate.displayName}</strong>
+                  {discoveryLinkLabel(candidate, t) !== undefined && (
+                    <span
+                      className={`fabric-link-state is-${candidate.linkState?.replaceAll("_", "-")}`}
+                    >
+                      {discoveryLinkLabel(candidate, t)}
+                    </span>
+                  )}
+                </div>
                 <small>
                   {candidate.transport}
                   {candidate.signalPercent === undefined
                     ? ""
-                    : ` · ${candidate.signalPercent}% signal`}
+                    : ` · ${t("discovery.signal", { percent: candidate.signalPercent })}`}
                 </small>
                 <p>{candidate.detail}</p>
               </div>
@@ -1978,9 +2615,7 @@ function FabricDiscoveryCard({
               checked={groundedConfirmed}
               onChange={(event) => onGroundedChange(event.target.checked)}
             />
-            <span>
-              Every aircraft is grounded; propellers are removed or guarded.
-            </span>
+            <span>{t("discovery.aircraftGrounded")}</span>
           </label>
         )}
 
@@ -1996,7 +2631,7 @@ function FabricDiscoveryCard({
             }
             onClick={onConnect}
           >
-            {integration.actionLabel ?? "Connect"}
+            {integration.actionLabel ?? t("discovery.connect")}
           </button>
         )}
         {integration.setupCommand !== undefined && !connected && (
@@ -2006,14 +2641,16 @@ function FabricDiscoveryCard({
             disabled={busy !== null}
             onClick={onCopySetup}
           >
-            Copy setup command
+            {t("discovery.copySetup")}
           </button>
         )}
       </div>
 
       <details className="fabric-device-help">
         <summary>
-          {connected ? "Connection details" : "What do I need to do?"}
+          {connected
+            ? t("discovery.connectionDetails")
+            : t("discovery.whatToDo")}
         </summary>
         {integration.setupSteps.length > 0 && (
           <ol>
@@ -2026,7 +2663,11 @@ function FabricDiscoveryCard({
           <code>{integration.setupCommand}</code>
         )}
         {integration.connectedNodeIds.length > 0 && (
-          <small>CIT nodes: {integration.connectedNodeIds.join(", ")}</small>
+          <small>
+            {t("discovery.nodes", {
+              nodes: integration.connectedNodeIds.join(", "),
+            })}
+          </small>
         )}
         <p>{integration.safetyNote}</p>
       </details>
@@ -2037,6 +2678,8 @@ function FabricDiscoveryCard({
 function MediaFeedCard({
   source,
   client,
+  locale,
+  t,
   busy,
   canAnalyze,
   canTurnPlugOn,
@@ -2047,6 +2690,8 @@ function MediaFeedCard({
 }: {
   source: FabricMediaSource;
   client: FabricClient;
+  locale: Locale;
+  t: FabricTranslate;
   busy: boolean;
   canAnalyze: boolean;
   canTurnPlugOn: boolean;
@@ -2057,7 +2702,7 @@ function MediaFeedCard({
 }) {
   const [frameUrl, setFrameUrl] = useState<string | null>(null);
   const [visibleSequence, setVisibleSequence] = useState(0);
-  const [frameMessage, setFrameMessage] = useState("Waiting for first frame");
+  const [frameMessage, setFrameMessage] = useState(() => t("media.waitFrame"));
   const etag = useRef<string | undefined>(undefined);
   const frameUrlRef = useRef<string | null>(null);
 
@@ -2092,8 +2737,8 @@ function MediaFeedCard({
         if (!active) return;
         setFrameMessage(
           caught instanceof FabricApiError && caught.status === 404
-            ? "Waiting for first frame"
-            : describeFabricError(caught),
+            ? t("media.waitFrame")
+            : describeFabricError(caught, t),
         );
       } finally {
         if (active) timer = window.setTimeout(() => void load(), 750);
@@ -2104,7 +2749,7 @@ function MediaFeedCard({
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [client, source.sourceId]);
+  }, [client, source.sourceId, t]);
 
   const analysis = source.latestAnalysis;
   const overlayVisible =
@@ -2126,12 +2771,14 @@ function MediaFeedCard({
         <div>
           <strong>{source.displayName}</strong>
           <small>
-            {mediaKindName(source.kind)} ·{" "}
-            {mediaCaptureModeName(source.captureMode)}
+            {fabricMediaKind(source.kind, locale)} ·{" "}
+            {source.captureMode === "video"
+              ? t("media.captureVideo")
+              : t("media.captureSnapshot")}
           </small>
         </div>
         <span className={`fabric-media-state is-${source.state}`}>
-          {source.state === "online" ? "Live" : "Waiting"}
+          {source.state === "online" ? t("media.live") : t("media.waiting")}
         </span>
       </header>
       <div className="fabric-media-frame">
@@ -2141,7 +2788,10 @@ function MediaFeedCard({
             <strong>{frameMessage}</strong>
           </div>
         ) : (
-          <img src={frameUrl} alt={`Latest view from ${source.displayName}`} />
+          <img
+            src={frameUrl}
+            alt={t("media.latestAlt", { name: source.displayName })}
+          />
         )}
         {overlayVisible &&
           analysis !== null &&
@@ -2163,13 +2813,15 @@ function MediaFeedCard({
       <div className="fabric-media-meta">
         <span>
           {source.width === null
-            ? "No image dimensions yet"
+            ? t("media.noDimensions")
             : `${source.width} × ${source.height}`}
         </span>
         <span>
           {source.lastFrameAt === null
-            ? "No frame received"
-            : `Updated ${formatTime(source.lastFrameAt)}`}
+            ? t("media.noFrame")
+            : t("media.updated", {
+                time: fabricFormatTime(source.lastFrameAt, locale),
+              })}
         </span>
       </div>
       <button
@@ -2178,14 +2830,14 @@ function MediaFeedCard({
         disabled={!canAnalyze || busy || source.frameSequence === 0}
         onClick={onAnalyze}
       >
-        Recognize lamps, drones, and robots
+        {t("media.recognize")}
       </button>
       {analysis !== null && (
         <div className="fabric-detection-results" aria-live="polite">
           <strong>
             {analysis.detections.length === 0
-              ? "No configured object found"
-              : "Objects found"}
+              ? t("media.noneFound")
+              : t("media.objectsFound")}
           </strong>
           {analysis.detections.length > 0 && (
             <ul>
@@ -2201,8 +2853,8 @@ function MediaFeedCard({
             <div className="fabric-detection-actions">
               <small>
                 {smartPlugName === undefined
-                  ? "Assign a classroom plug session to control an approved lamp."
-                  : `Explicit tutor control for ${smartPlugName}`}
+                  ? t("media.assignPlug")
+                  : t("media.explicitPlug", { name: smartPlugName })}
               </small>
               <div>
                 <button
@@ -2210,14 +2862,14 @@ function MediaFeedCard({
                   disabled={!canTurnPlugOn}
                   onClick={() => onPower(true)}
                 >
-                  Turn linked plug on
+                  {t("media.plugOn")}
                 </button>
                 <button
                   type="button"
                   disabled={!canTurnPlugOff}
                   onClick={() => onPower(false)}
                 >
-                  Turn linked plug off
+                  {t("media.plugOff")}
                 </button>
               </div>
             </div>
@@ -2225,8 +2877,8 @@ function MediaFeedCard({
             <div className="fabric-detection-actions">
               <small>
                 {droneDetected
-                  ? "Drone recognition is advisory. Use an assigned, armed flight lesson for bounded drone controls; vision cannot arm or fly it."
-                  : "No device action is mapped to this visual class. Use an assigned lesson control if one is available."}
+                  ? t("media.droneAdvisory")
+                  : t("media.noMappedAction")}
               </small>
             </div>
           ) : null}
@@ -2236,7 +2888,13 @@ function MediaFeedCard({
   );
 }
 
-function FabricNodeCard({ node }: { node: IntegrationNode }) {
+function FabricNodeCard({
+  node,
+  t,
+}: {
+  node: IntegrationNode;
+  t: FabricTranslate;
+}) {
   const battery = metadataNumber(node, "batteryPercent");
   const agentType = metadataText(node, "agentType");
   return (
@@ -2250,22 +2908,24 @@ function FabricNodeCard({ node }: { node: IntegrationNode }) {
       <div>
         <strong>{node.displayName}</strong>
         <small>
-          {node.simulated ? "Simulator" : "Real device"}
+          {node.simulated ? t("nodes.simulator") : t("nodes.physical")}
           {agentType === undefined ? "" : ` · ${agentType}`}
         </small>
         <details className="fabric-node-technical">
-          <summary>Technical details</summary>
+          <summary>{t("nodes.technical")}</summary>
           <small>
-            {node.pluginId} · {node.nodeId} · host {node.hostId}
+            {node.pluginId} · {node.nodeId} · {t("nodes.host")} {node.hostId}
           </small>
           <CapabilityList
-            label="Sends"
+            label={t("nodes.sends")}
+            t={t}
             capabilities={node.publishedCapabilities.map(
               (capability) => capability.name,
             )}
           />
           <CapabilityList
-            label="Receives"
+            label={t("nodes.receives")}
+            t={t}
             capabilities={node.consumedCapabilities.map(
               (capability) => capability.name,
             )}
@@ -2273,9 +2933,9 @@ function FabricNodeCard({ node }: { node: IntegrationNode }) {
         </details>
       </div>
       <div className="fabric-node-state">
-        <span>{plainConnectionState(node)}</span>
+        <span>{fabricConnectionState(node, t)}</span>
         <small>
-          {plainHealthState(node.healthState)}
+          {fabricHealthState(node.healthState, t)}
           {battery === undefined ? "" : ` · ${battery}%`}
         </small>
       </div>
@@ -2288,11 +2948,13 @@ function FabricNodeGroup({
   title,
   description,
   nodes,
+  t,
 }: {
   kind: FabricNodeIoKind;
   title: string;
   description: string;
   nodes: IntegrationNode[];
+  t: FabricTranslate;
 }) {
   return (
     <article className={`fabric-io-group is-${kind}`}>
@@ -2307,9 +2969,11 @@ function FabricNodeGroup({
       </header>
       <div className="fabric-node-list">
         {nodes.length === 0 ? (
-          <p className="fabric-empty">No devices in this group yet.</p>
+          <p className="fabric-empty">{t("nodes.empty")}</p>
         ) : (
-          nodes.map((node) => <FabricNodeCard key={node.nodeId} node={node} />)
+          nodes.map((node) => (
+            <FabricNodeCard key={node.nodeId} node={node} t={t} />
+          ))
         )}
       </div>
     </article>
@@ -2319,16 +2983,18 @@ function FabricNodeGroup({
 function CapabilityList({
   label,
   capabilities,
+  t,
 }: {
   label: string;
   capabilities: string[];
+  t: FabricTranslate;
 }) {
   return (
     <div className="fabric-capability-row">
       <span>{label}</span>
       <div>
         {capabilities.length === 0 ? (
-          <em>None</em>
+          <em>{t("nodes.none")}</em>
         ) : (
           capabilities.map((capability) => (
             <code key={capability}>{capability}</code>
@@ -2349,33 +3015,72 @@ const groupNodesByIo = (nodes: IntegrationNode[]) => {
   return groups;
 };
 
+const fabricIoGroups = (
+  t: FabricTranslate,
+): ReadonlyArray<{
+  kind: FabricNodeIoKind;
+  title: string;
+  discoveryDescription: string;
+  roleDescription: string;
+}> => [
+  {
+    kind: "input",
+    title: t("io.input.title"),
+    discoveryDescription: t("io.input.discovery"),
+    roleDescription: t("io.input.role"),
+  },
+  {
+    kind: "bidirectional",
+    title: t("io.bidirectional.title"),
+    discoveryDescription: t("io.bidirectional.discovery"),
+    roleDescription: t("io.bidirectional.role"),
+  },
+  {
+    kind: "output",
+    title: t("io.output.title"),
+    discoveryDescription: t("io.output.discovery"),
+    roleDescription: t("io.output.role"),
+  },
+];
+
+const fabricIoLabel = (kind: FabricNodeIoKind, t: FabricTranslate) =>
+  kind === "bidirectional"
+    ? t("io.bidirectional.label")
+    : kind === "input"
+      ? t("io.input.label")
+      : t("io.output.label");
+
 const DISCOVERY_ICONS: Record<string, string> = {
-  "even-meta-glasses": "XR",
-  "coding-agents": "AI",
-  "leap-motion": "LM",
-  "robomaster-s1": "S1",
-  "tello-drones": "TL",
-  "mindwave-mobile2": "MW",
-  "tuya-gosund-plugs": "PL",
-  "lego-hubs": "LE",
+  glasses: "XR",
+  terminal: "AI",
+  hand: "LM",
+  robot: "S1",
+  drone: "TL",
+  brain: "MW",
+  plug: "PL",
+  lego: "LE",
+  sphero: "SB",
 };
 
-const discoveryStatus = (status: FabricIntegrationDiscovery["status"]) => {
+const discoveryStatus = (
+  status: FabricIntegrationDiscovery["status"],
+  t: FabricTranslate,
+) => {
   switch (status) {
     case "connected":
-      return { label: "Connected", tone: "connected" };
+      return { label: t("status.connected"), tone: "connected" };
     case "found":
-      return { label: "Found", tone: "found" };
+      return { label: t("status.found"), tone: "found" };
     case "ready":
-      return { label: "Computer ready", tone: "ready" };
+      return { label: t("status.ready"), tone: "ready" };
     case "setup_required":
-      return { label: "Setup needed", tone: "setup" };
+      return { label: t("status.setup"), tone: "setup" };
     case "not_found":
-      return { label: "Not found", tone: "missing" };
+      return { label: t("status.notFound"), tone: "missing" };
     case "unavailable":
-      return { label: "Unavailable", tone: "missing" };
+      return { label: t("status.unavailable"), tone: "missing" };
     case "not_scanned":
-      return { label: "Not checked", tone: "unchecked" };
+      return { label: t("status.notChecked"), tone: "unchecked" };
   }
 };
 
@@ -2434,174 +3139,66 @@ const metadataText = (
   return typeof value === "string" ? value : undefined;
 };
 
-const mediaKindName = (kind: FabricMediaSource["kind"]) => {
-  const names: Record<FabricMediaSource["kind"], string> = {
-    meta_glasses: "Meta glasses",
-    robomaster: "RoboMaster",
-    tello: "Tello drone",
-    usb_camera: "USB camera",
-    simulator: "Simulated camera",
-  };
-  return names[kind];
-};
-
-const mediaCaptureModeName = (mode: FabricMediaSource["captureMode"]) =>
-  mode === "video" ? "Live frames" : "Snapshot fallback";
-
-const plainCapabilityName = (capability: string) =>
-  capability
-    .split(".")
-    .slice(1)
-    .join(" ")
-    .replaceAll("_", " ")
-    .replace(/^./, (first) => first.toUpperCase());
-
 const nodeDisplayName = (nodes: IntegrationNode[], nodeId: string) =>
   nodes.find((node) => node.nodeId === nodeId)?.displayName ?? nodeId;
 
-const COURSE_SUMMARIES: Record<string, string> = {
-  "glasses-agent-control": "Glasses + coding assistant",
-  "gesture-ground-robot": "Gesture + classroom robot",
-  "smart-plug-control": "Tutor-controlled classroom plug",
+const isRobotSensorRole = (role: string) => /^robot_sensor_[1-8]$/.test(role);
+const isFleetSequenceInputRole = (role: string) =>
+  /^fleet_sequence_input_[1-4]$/.test(role);
+
+const visibleRoleRequirements = (
+  requirements: CoursePack["roles"],
+  bindings: InteractionSession["roleBindings"],
+  showOneEmptySlot: boolean,
+) => {
+  const boundRoles = new Set(bindings.map((binding) => binding.role));
+  const shownEmptyFamilies = new Set<string>();
+  return requirements.filter((requirement) => {
+    const family = isSafetyDroneRole(requirement.role)
+      ? "safety_drone"
+      : isFleetSequenceInputRole(requirement.role)
+        ? "fleet_sequence_input"
+        : isRobotSensorRole(requirement.role)
+          ? "robot_sensor"
+          : null;
+    if (family === null || boundRoles.has(requirement.role)) return true;
+    if (!showOneEmptySlot) return false;
+    if (shownEmptyFamilies.has(family)) return false;
+    shownEmptyFamilies.add(family);
+    return true;
+  });
 };
 
-const COURSE_NAMES: Record<string, string> = {
-  "glasses-agent-control": "Glasses and coding assistant",
-  "gesture-ground-robot": "Gesture-controlled robot",
-  "smart-plug-control": "Classroom smart plug",
-};
-
-const COURSE_DESCRIPTIONS: Record<string, string> = {
-  "glasses-agent-control":
-    "Students send a request from their glasses to a coding assistant and receive the response on a classroom display.",
-  "gesture-ground-robot":
-    "Students steer a classroom robot with hand gestures while CIT keeps movement within the lesson’s safety limits.",
-  "smart-plug-control":
-    "The tutor turns one approved classroom lamp or other low-risk load on and off from this screen.",
-};
-
-const ROLE_NAMES: Record<string, string> = {
-  classroom_plug: "Classroom plug",
-  coding_agent: "Coding assistant",
-  feedback_display: "Feedback display",
-  gesture_input: "Gesture controller",
-  instructor_console: "Tutor display",
-  primary_glasses: "Student glasses",
-  student_robot: "Classroom robot",
-};
-
-const ROLE_DESCRIPTIONS: Record<string, string> = {
-  classroom_plug: "Turns one approved classroom load on or off",
-  coding_agent: "Receives student prompts and returns coding progress",
-  feedback_display: "Shows coding progress and lesson messages",
-  gesture_input: "Sends hand movements to the lesson",
-  instructor_console: "Shows lesson activity to the tutor",
-  primary_glasses: "Sends student input and displays lesson feedback",
-  student_robot: "Receives bounded movement and stop instructions",
-};
-
-const plainCourseSummary = (coursePack: CoursePack) =>
-  COURSE_SUMMARIES[coursePack.coursePackId] ??
-  `${coursePack.roles.length} classroom device ${coursePack.roles.length === 1 ? "role" : "roles"}`;
-
-const plainCourseName = (coursePack: CoursePack) =>
-  COURSE_NAMES[coursePack.coursePackId] ?? coursePack.displayName;
-
-const plainCourseDescription = (coursePack: CoursePack) =>
-  COURSE_DESCRIPTIONS[coursePack.coursePackId] ?? coursePack.description;
-
-const plainRoleName = (role: string) =>
-  ROLE_NAMES[role] ?? capitalize(role.replaceAll("_", " "));
-
-const roleDescription = (role: string) =>
-  ROLE_DESCRIPTIONS[role] ?? "Fills this part of the classroom lesson";
-
-const courseName = (coursePacks: CoursePack[], session: InteractionSession) => {
-  const coursePack = coursePacks.find(
-    (coursePack) =>
-      coursePack.coursePackId === session.coursePackId &&
-      coursePack.version === session.coursePackVersion,
-  );
-  return coursePack === undefined
-    ? session.coursePackId.replaceAll("-", " ")
-    : plainCourseName(coursePack);
-};
-
-const plainSessionState = (session: InteractionSession | undefined) => {
-  if (session === undefined) return "Not started";
-  const states: Record<string, string> = {
-    draft: "Needs devices",
-    ready: "Ready to start",
-    active: "Running",
-    paused: "Paused",
-    stopped: "Ended",
-    emergency_stopped: "Emergency stopped",
-    failed: "Needs attention",
-  };
-  return states[session.state] ?? session.state.replaceAll("_", " ");
-};
-
-const plainConnectionState = (node: IntegrationNode) => {
-  const states: Record<string, string> = {
-    connected: "Connected",
-    degraded: "Connected · needs attention",
-    unavailable: "Unavailable",
-    disconnected: "Disconnected",
-    connecting: "Connecting",
-  };
-  return (
-    states[node.connectionState] ?? node.connectionState.replaceAll("_", " ")
-  );
-};
-
-const plainHealthState = (state: string) => {
-  const states: Record<string, string> = {
-    healthy: "Healthy",
-    degraded: "Needs attention",
-    unhealthy: "Not working",
-    unknown: "Health unknown",
-  };
-  return states[state] ?? capitalize(state.replaceAll("_", " "));
-};
-
-const commandResultNotice = (label: string, stage: string | undefined) => {
-  if (stage === "SUCCEEDED") return `${label} worked.`;
+const commandResultNotice = (
+  label: string,
+  stage: string | undefined,
+  t: FabricTranslate,
+) => {
+  if (stage === "SUCCEEDED") return t("command.success", { label });
   if (stage === "FAILED" || stage === "REJECTED") {
-    return `${label} was not completed. Open Technical diagnostics for details.`;
+    return t("command.failed", { label });
   }
   if (stage === "CANCELLED" || stage === "TIMED_OUT") {
-    return `${label} stopped before it finished. Try again or check the device.`;
+    return t("command.stopped", { label });
   }
-  return `${label} was sent to the device.`;
+  return t("command.sent", { label });
 };
 
-const describeFabricError = (caught: unknown) => {
+const describeFabricError = (caught: unknown, t: FabricTranslate) => {
   if (caught instanceof FabricApiError) {
     const messages: Record<string, string> = {
-      AUTHENTICATION_REQUIRED:
-        "That access code is invalid or expired. Reopen Classroom Control from the CIT launcher.",
-      PHYSICAL_EXECUTION_DISABLED:
-        "Real-device control is locked by the local runtime. Restart CIT with physical devices enabled, or use a simulator.",
-      SESSION_NOT_ACTIVE: "Start the lesson before using that device.",
-      NODE_UNAVAILABLE:
-        "That device is no longer connected. Check its power and adapter, then refresh.",
-      REQUIRED_ROLES_UNASSIGNED:
-        "Connect every required device before starting the lesson.",
+      AUTHENTICATION_REQUIRED: t("error.auth"),
+      PHYSICAL_EXECUTION_DISABLED: t("error.physicalDisabled"),
+      SESSION_NOT_ACTIVE: t("error.sessionInactive"),
+      NODE_UNAVAILABLE: t("error.nodeUnavailable"),
+      REQUIRED_ROLES_UNASSIGNED: t("error.rolesMissing"),
     };
-    return messages[caught.code] ?? caught.message;
+    return (
+      messages[caught.code] ?? t("error.requestFailed") + ` (${caught.code})`
+    );
   }
-  return caught instanceof Error
-    ? caught.message
-    : "The Fabric request failed.";
+  return caught instanceof Error ? caught.message : t("error.requestFailed");
 };
 
 const shortId = (value: string) =>
   value.length > 20 ? `${value.slice(0, 9)}…${value.slice(-7)}` : value;
-const capitalize = (value: string) =>
-  value.charAt(0).toUpperCase() + value.slice(1);
-const formatTime = (value: string) =>
-  new Intl.DateTimeFormat(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).format(new Date(value));

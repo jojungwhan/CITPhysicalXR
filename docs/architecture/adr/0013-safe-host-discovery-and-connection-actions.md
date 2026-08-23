@@ -1,6 +1,6 @@
 # ADR-0013: Separate hardware candidates from connected Fabric nodes
 
-Status: accepted, 2026-08-21.
+Status: accepted, 2026-08-21; smart-plug-specific discovery superseded by ADR-0022.
 
 ## Context
 
@@ -32,9 +32,11 @@ path, address, credential, or arbitrary URL, and it sends no motor, flight,
 switch, agent, media, or SDK command.
 
 Discovery candidates are not registered as nodes. Only an authenticated
-adapter handshake can create a connected capability node. Tuya/Gosund devices
-remain exact-profile-bound; discovery returns neither device IDs, addresses,
-local keys, nor tokens.
+adapter handshake can create a connected capability node. Stock Tuya devices
+remain exact-profile-bound; discovery returns neither device IDs, local keys,
+nor tokens. A separate instructor-only Tasmota search may return private LAN
+addresses after exact API/WebUI evidence so a tutor can select open firmware
+without consulting DHCP. It returns no credential and authorizes no command.
 
 Connection actions are a second, instructor-only allowlist. It contains the
 preserved Brain2Devices operations for a MindWave connection and grounded Tello

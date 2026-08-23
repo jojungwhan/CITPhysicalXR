@@ -10,8 +10,10 @@ import {
   AGENT_OUTPUT_CAPABILITY,
   AGENT_PROMPT_CAPABILITY,
   DISPLAY_CAPABILITY,
+  FLIGHT_SEQUENCE_INTENT_CAPABILITY,
   INTENT_CAPABILITY,
   completionEventFrame,
+  flightSequenceIntentFrame,
   intentEventFrame,
   mapDiscovery,
 } from "./mapping.js";
@@ -85,14 +87,60 @@ describe("Agent Mesh canonical mapping", () => {
     expect(mapping.wearableNodeByDeviceId.get("class-g2")).toMatchObject({
       nodeId: "agentmesh-wearable-class-g2",
       physical: true,
-      publishedCapabilities: [{ name: INTENT_CAPABILITY }],
+      publishedCapabilities: [
+        { name: INTENT_CAPABILITY },
+        { name: FLIGHT_SEQUENCE_INTENT_CAPABILITY },
+      ],
       consumedCapabilities: [{ name: DISPLAY_CAPABILITY }],
+      metadata: {
+        model: "even-realities-g2",
+        productFamily: "Even Realities G2",
+        fabricProfile: "even-g2",
+        mediaCompanionSupported: false,
+      },
     });
     expect(mapping.agentNodeBySessionId.get("managed-codex")).toMatchObject({
       nodeId: "agentmesh-agent-managed-codex",
       consumedCapabilities: [{ name: AGENT_PROMPT_CAPABILITY }],
       publishedCapabilities: [{ name: AGENT_OUTPUT_CAPABILITY }],
     });
+  });
+
+  it("keeps Even G2 and Meta Ray-Ban as distinct profiles on the shared bridge", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "cit-agent-map-"));
+    roots.push(root);
+    const mapping = mapDiscovery(
+      {
+        ...discovery,
+        wearables: [
+          classG2,
+          {
+            deviceId: "class-meta",
+            displayName: "Class Meta",
+            kind: "ray_ban",
+            status: "active",
+            lastUsedAt: discovery.generatedAt,
+          },
+        ],
+      },
+      config(path.join(root, "bridge.sqlite3")),
+    );
+
+    expect(
+      mapping.wearableNodeByDeviceId.get("class-g2")?.metadata,
+    ).toMatchObject({
+      model: "even-realities-g2",
+      fabricProfile: "even-g2",
+      mediaCompanionSupported: false,
+    });
+    expect(
+      mapping.wearableNodeByDeviceId.get("class-meta")?.metadata,
+    ).toMatchObject({
+      model: "meta-rayban",
+      fabricProfile: "meta-rayban",
+      mediaCompanionSupported: true,
+    });
+    expect(mapping.manifest.pluginId).toBe("cit.agent-mesh-bridge");
   });
 
   it("advertises the safe continuation path for an observed local CLI", () => {
@@ -158,7 +206,10 @@ describe("Agent Mesh canonical mapping", () => {
       connectionState: "disconnected",
       healthState: "degraded",
       physical: true,
-      publishedCapabilities: [{ name: INTENT_CAPABILITY }],
+      publishedCapabilities: [
+        { name: INTENT_CAPABILITY },
+        { name: FLIGHT_SEQUENCE_INTENT_CAPABILITY },
+      ],
       consumedCapabilities: [{ name: DISPLAY_CAPABILITY }],
     });
   });
@@ -184,7 +235,10 @@ describe("Agent Mesh canonical mapping", () => {
     expect(mapping.wearableNodeByDeviceId.get("retired-g2")).toMatchObject({
       connectionState: "unavailable",
       healthState: "unhealthy",
-      publishedCapabilities: [{ name: INTENT_CAPABILITY }],
+      publishedCapabilities: [
+        { name: INTENT_CAPABILITY },
+        { name: FLIGHT_SEQUENCE_INTENT_CAPABILITY },
+      ],
       consumedCapabilities: [{ name: DISPLAY_CAPABILITY }],
     });
   });
@@ -267,6 +321,96 @@ describe("Agent Mesh canonical mapping", () => {
         true,
       );
       expect(completion.event.sequence).toBe(1);
+    } finally {
+      outbox.close();
+    }
+  });
+
+  it("normalizes only explicit G2 or Meta fleet-launch phrases", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "cit-agent-map-"));
+    roots.push(root);
+    const bridgeConfig = config(path.join(root, "bridge.sqlite3"));
+    const outbox = new BridgeOutbox(bridgeConfig.databasePath);
+    try {
+      const mapping = mapDiscovery(discovery, bridgeConfig);
+      const wearable = mapping.wearableNodeByDeviceId.get("class-g2");
+      if (wearable === undefined) throw new Error("Fixture mapping failed");
+      const baseIntent = {
+        intentId: "e39d8ec7-97d6-4f2c-90af-01a2bd178677",
+        sequence: 1,
+        deviceId: "class-g2",
+        deviceKind: "even_g2" as const,
+        deviceDisplayName: "Class G2",
+        requestedSessionId: "managed-codex",
+        dispatchedSessionId: "managed-codex",
+        agentMeshCommandId: "b21a8bea-f174-4510-8f83-a969d192c71c",
+        route: "managed" as const,
+        createdAt: "2026-08-21T03:00:01.000Z",
+        alreadyDispatched: true as const,
+      };
+
+      const frame = flightSequenceIntentFrame(
+        { ...baseIntent, prompt: "Start drone sequence." },
+        wearable,
+        bridgeConfig,
+        outbox,
+      );
+
+      expect(frame?.event).toMatchObject({
+        topic: FLIGHT_SEQUENCE_INTENT_CAPABILITY,
+        sourceCapability: FLIGHT_SEQUENCE_INTENT_CAPABILITY,
+        dataClassification: "operational",
+        payload: {
+          intent: "start",
+          inputModality: "voice",
+          deviceKind: "even_g2",
+        },
+      });
+      const metaMapping = mapDiscovery(
+        {
+          ...discovery,
+          wearables: [
+            {
+              ...classG2,
+              deviceId: "class-meta",
+              displayName: "Class Meta",
+              kind: "ray_ban",
+            },
+          ],
+        },
+        bridgeConfig,
+      );
+      const meta = metaMapping.wearableNodeByDeviceId.get("class-meta");
+      if (meta === undefined) throw new Error("Meta fixture mapping failed");
+      const metaFrame = flightSequenceIntentFrame(
+        {
+          ...baseIntent,
+          intentId: "4a624174-7472-42bb-80e6-e286ab7ea350",
+          deviceId: "class-meta",
+          deviceKind: "ray_ban",
+          deviceDisplayName: "Class Meta",
+          prompt: "드론 순차 이륙",
+        },
+        meta,
+        bridgeConfig,
+        outbox,
+      );
+      expect(metaFrame?.event.payload).toEqual({
+        intent: "start",
+        inputModality: "voice",
+        deviceKind: "ray_ban",
+      });
+      expect(
+        flightSequenceIntentFrame(
+          {
+            ...baseIntent,
+            prompt: "Could you inspect the drone sequence code?",
+          },
+          wearable,
+          bridgeConfig,
+          outbox,
+        ),
+      ).toBeUndefined();
     } finally {
       outbox.close();
     }
