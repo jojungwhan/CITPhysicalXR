@@ -6,21 +6,23 @@ its **Classroom readings** section creates cards from the latest normalized
 `sensor.*`, `telemetry.*`, and `biosignal.*` lesson events.
 
 The camera wall is a bounded latest-frame view, not a surveillance recorder.
-Publishers replace an in-memory JPEG or PNG, the browser checks for a newer
-frame every 750 ms, and a runtime restart removes every frame. No frame enters
+Publishers replace an in-memory JPEG or PNG, the browser checks live sources for
+a newer frame every 250 ms (snapshot sources every 1.5 seconds), and a runtime
+restart removes every frame. No frame enters
 the Fabric event database or semantic recording.
 
 ## Current hardware truth
 
-| Source                  | Single-UI presentation                                                            | Physical publisher status                                                                                                               |
-| ----------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| Meta Ray-Ban            | Live glasses frames (2 FPS), snapshot fallback, freshness, dimensions, YOLO boxes | Optional Android companion compiles and builds against DAT 0.9.0; real glasses HIL still requires the technician prerequisites below    |
-| RoboMaster              | Camera tile and YOLO endpoint accept `robomaster` sources                         | The preserved upstream has SDK and stock-app camera readers, but they are not yet attached to the Fabric media publisher                |
-| Tello / RoboMaster TT   | Latest live frame, freshness, dimensions, and optional YOLO boxes                 | Brain2Devices v0.6.35 MJPEG is copied by the independent Tello adapter into ephemeral Fabric memory; Windows firewall/video HIL remains |
-| USB or simulator camera | Same tile and analysis path                                                       | Contract-tested publisher path; add the approved camera adapter for the room                                                            |
-| LEGO / robot sensors    | Distance, color, reflection, force, IMU, battery, and other scalar cards          | Canonical Pybricks-to-Fabric bridge and exact-name UI setup are implemented; physical hub HIL remains pending                           |
-| MindWave Mobile 2       | Vendor-labelled eSense, signal-quality, blink, connection, and health cards       | Independent canonical adapter and simulator are implemented; TGC/headset HIL remains pending; raw EEG is excluded                       |
-| Tello telemetry         | Battery, temperature, height, attitude, time-of-flight, and connection cards      | Independent safe adapter and simulator are implemented; physical multi-radio HIL remains pending                                        |
+| Source                  | Single-UI presentation                                                            | Physical publisher status                                                                                                                            |
+| ----------------------- | --------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Meta Ray-Ban            | Live glasses frames (2 FPS), snapshot fallback, freshness, dimensions, YOLO boxes | Optional Android companion compiles and builds against DAT 0.9.0; real glasses HIL still requires the technician prerequisites below                 |
+| RoboMaster              | Live SDK camera preview, freshness, dimensions, preview FPS, and YOLO boxes       | The independent S1 adapter publishes the preserved DJI SDK camera through ephemeral Fabric memory; physical camera HIL remains pending               |
+| Tello / RoboMaster TT   | Latest live frame, freshness, dimensions, and optional YOLO boxes                 | Brain2Devices v0.6.35 MJPEG is copied by the independent Tello adapter into ephemeral Fabric memory; Windows firewall/video HIL remains              |
+| USB or simulator camera | Same tile and analysis path                                                       | Contract-tested publisher path; add the approved camera adapter for the room                                                                         |
+| LEGO / robot sensors    | Distance, color, reflection, force, IMU, battery, and other scalar cards          | Canonical Pybricks-to-Fabric bridge and exact-name UI setup are implemented; physical hub HIL remains pending                                        |
+| MindWave Mobile 2       | Vendor-labelled eSense, signal-quality, blink, connection, and health cards       | Independent canonical adapter and simulator are implemented; TGC/headset HIL remains pending; raw EEG is excluded                                    |
+| Tello telemetry         | Battery, temperature, height, attitude, time-of-flight, and connection cards      | Independent safe adapter and simulator are implemented; physical multi-radio HIL remains pending                                                     |
+| Leap Motion             | Live palm position, handedness, pinch, grab, tracking rate, and bounded output    | The independent Leap worker publishes reduced semantic samples; raw Leap frames are not sent to the browser; physical controller HIL remains pending |
 
 This distinction is deliberate: finding a robot, camera, or sensor never causes
 the console to invent a live feed. A tile appears only after an authenticated
@@ -41,13 +43,20 @@ validated semantic event in the selected lesson.
    drones**, the scoped Tello adapter registers its own media source and copies
    the latest local Brain2Devices JPEG. The first physical run may request UAC
    for Brain2Devices' exact-program, local-subnet UDP 11111 firewall rule.
-5. On the phone, connect through Meta AI, approve Meta camera access, and choose
+5. For RoboMaster, choose **Connect robot and Leap**. With the default DJI SDK
+   transport the independently supervised robot adapter starts an ephemeral
+   360p preview while the chassis remains disarmed. The stock S1 desktop-app
+   transport does not publish this SDK preview.
+6. Place one open hand above Leap Motion and confirm **Live hand detection**
+   updates. This observation is available while movement remains disarmed;
+   lesson/session safety still gates every robot command.
+7. On the phone, connect through Meta AI, approve Meta camera access, and choose
    **Share live camera (2 frames/second)**. If the phone reports repeated raw
    frame failures, stop sharing and choose **Use snapshot fallback**. Either mode
    stops when that phone screen is no longer visible.
-6. In the camera tile choose **Recognize lamps, drones, and robots**. YOLO runs
+8. In the camera tile choose **Recognize lamps, drones, and robots**. YOLO runs
    locally on that exact latest frame. It does not run continuously.
-7. Review the label, confidence, and box. If a compatible smart plug is assigned
+9. Review the label, confidence, and box. If a compatible smart plug is assigned
    to an active lesson, use the separate **Turn linked plug on/off** control.
 
 Only the exact `lamp`, `light`, and `smart plug` labels expose the reviewed
@@ -136,6 +145,12 @@ be repackaged as sensor cards.
   one-use pairing code and keep the phone on the same private classroom LAN.
   For Tello, confirm Brain2Devices reports a current video `session_id`, check
   its UDP 11111/firewall diagnostic, and inspect the Tello adapter log.
+- **RoboMaster tile is waiting:** confirm the adapter uses the DJI SDK transport,
+  inspect `robomaster-adapter.stderr.log`, and verify OpenCV is installed in the
+  selected external robot Python. Camera failure does not unlock or move the chassis.
+- **Leap panel is waiting:** verify Ultraleap Tracking is running, the controller
+  is present, and the live Leap node belongs to the selected session. The panel
+  intentionally receives reduced palm/gesture samples rather than raw frames.
 - **Live video stops after three frame failures:** choose **Use snapshot
   fallback**. The bridge rejects unexpected decoded-frame layouts instead of
   uploading a corrupt image.

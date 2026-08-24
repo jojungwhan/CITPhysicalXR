@@ -6,7 +6,7 @@ import asyncio
 from dataclasses import dataclass
 from typing import Protocol
 
-from .matter_client import MatterServerClient, MatterServerError
+from .matter_client import ElectricalMeasurements, MatterServerClient, MatterServerError
 
 
 class SmartPlugError(RuntimeError):
@@ -23,6 +23,10 @@ class MatterClientProtocol(Protocol):
     async def refresh_node(self, node_id: int) -> dict[str, object]: ...
 
     async def read_on_off(self, node_id: int, endpoint_id: int) -> bool: ...
+
+    async def read_electrical_measurements(
+        self, node_id: int, endpoint_id: int
+    ) -> ElectricalMeasurements | None: ...
 
     async def set_on_off(self, node_id: int, endpoint_id: int, on: bool) -> None: ...
 
@@ -108,6 +112,17 @@ class MatterSmartPlug:
             except (MatterServerError, OSError) as error:
                 raise SmartPlugError(str(error)) from error
             raise SmartPlugError("Matter smart plug did not reach the requested verified state")
+
+    async def read_electrical_measurements(self) -> ElectricalMeasurements | None:
+        if not self._started:
+            raise SmartPlugError("Matter smart-plug backend is not started")
+        try:
+            return await self._client.read_electrical_measurements(
+                self.configuration.matter_node_id,
+                self.configuration.endpoint_id,
+            )
+        except (MatterServerError, OSError) as error:
+            raise SmartPlugError(str(error)) from error
 
     async def close(self) -> None:
         self._started = False

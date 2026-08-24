@@ -16,6 +16,10 @@ from urllib.request import Request, urlopen
 _MAX_FRAME_BYTES = 1_048_576
 
 
+class _MediaSourceMissingError(ValueError):
+    """The ephemeral runtime registry was lost and must be recreated."""
+
+
 class TelloMediaPublisher:
     """Replace one in-memory Fabric frame; never place video on the event bus."""
 
@@ -72,7 +76,12 @@ class TelloMediaPublisher:
                         self.last_error = None
                 except (OSError, ValueError, URLError) as error:
                     self.last_error = str(error)[:500]
-                await asyncio.sleep(0.75)
+                    if isinstance(error, _MediaSourceMissingError):
+                        self._registered = False
+                # The UI displays an authenticated preview, not a control loop.
+                # Four frames per second is responsive enough for tutors while
+                # keeping decoding and classroom-network load bounded.
+                await asyncio.sleep(0.25)
         finally:
             if self._registered:
                 try:
@@ -121,8 +130,8 @@ class TelloMediaPublisher:
         )
         try:
             self._open_checked(request, limit=1024)
-        except HTTPError as error:
-            if error.code != 404:
+        except (HTTPError, _MediaSourceMissingError) as error:
+            if isinstance(error, HTTPError) and error.code != 404:
                 raise
 
     def _brain2devices_frame(self) -> bytes | None:
@@ -210,6 +219,8 @@ class TelloMediaPublisher:
             except (OSError, UnicodeDecodeError, json.JSONDecodeError):
                 pass
             message = detail or f"Fabric media returned HTTP {error.code}"
+            if error.code == 404:
+                raise _MediaSourceMissingError(message[:500]) from error
             raise ValueError(message[:500]) from error
 
 

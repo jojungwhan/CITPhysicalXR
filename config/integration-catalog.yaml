@@ -57,6 +57,7 @@ integrations:
     setupSteps:
       - Plug the controller directly into USB and start Ultraleap Tracking.
       - Choose Connect input after the controller is found.
+      - Place one hand above the controller and verify the live hand-detection panel before assigning movement.
     safetyNote: The scan does not open the tracking stream and never creates a robot command.
     selectors:
       pluginIds: [cit.leap-motion, cit.robomaster-gesture-control]
@@ -72,6 +73,7 @@ integrations:
       - Power the robot on with its wheels raised for the first test.
       - Choose STA, AP, RNDIS, or the stock S1 app transport.
       - Connect while disarmed, then use the lesson controls to arm it.
+      - With the DJI SDK transport, verify the ephemeral camera tile before lowering the wheels.
     safetyNote: A network match is not proof of a robot; only the adapter handshake confirms it, and movement stays disarmed.
     selectors:
       pluginIds: [cit.robomaster-s1, cit.robomaster-gesture-control]
@@ -84,10 +86,11 @@ integrations:
     icon: sphero
     connectionMethod: Bluetooth Low Energy (BLE)
     setupSteps:
-      - Charge BOLT, wake it in its cradle, and keep the displayed SB-XXXX name visible.
+      - Charge BOLT, remove it from the cradle to wake it, and note its exact SB-XXXX advertised name. Do not pair it in Windows Settings.
       - Close Sphero Edu, Sphero Play, or another program that is currently connected to this robot.
-      - Choose Find devices. Select the exact SB-XXXX robot when the CIT Sphero adapter is available; never select the nearest anonymous robot.
-    safetyNote: Discovery only reads Windows Bluetooth presence. It does not connect, wake, roll, aim, or change LEDs; physical movement still requires a bounded CIT adapter and an armed lesson.
+      - Choose Find devices, select the exact SB-XXXX robot, and choose Connect selected.
+      - Point the blue tail light toward the tutor, arm the physical lesson, and choose Set this direction as forward before the first short movement.
+    safetyNote: Discovery is read-only and never selects the nearest robot. Movement is limited to 0.20 m/s with a 750 ms local deadman stop; aim and movement require an armed physical lesson.
     selectors:
       pluginIds: [cit.sphero-bolt]
       capabilityAny: [mobility.ground.set_velocity, robot.sensor.state]
@@ -163,16 +166,16 @@ integrations:
       capabilityAny: [mobility.flight.brain_demo.arm]
 
   - integrationId: matter-smart-plugs
-    displayName: Matter smart plugs (cloud-free)
+    displayName: Matter smart plugs — Tapo P110M + compatible (cloud-free)
     category: smart_device
     ioType: bidirectional
     icon: plug
     connectionMethod: Local Matter over Wi-Fi / IPv6
     setupSteps:
-      - Use a plug whose packaging or label shows the Matter logo and setup code.
-      - Put the plug in pairing mode on the classroom network.
-      - Enter the printed code in Classroom Control; no vendor account is required.
-    safetyNote: Commissioning never turns a load on. Connecting places each approved outlet in the off safe state.
+      - Tapo P110M is supported with the Matter code printed on the plug or packaging; no Tapo app or TP-Link account is required.
+      - For a new or reset P110M, hold Reset for 10 seconds, power-cycle it, and commission it within the 15-minute Matter setup window.
+      - Keep the CIT computer on the same local network with IPv6/mDNS, use 2.4 GHz Wi-Fi for the plug, and enter the printed code below.
+    safetyNote: Commissioning never turns a load on. Connecting places each approved outlet in the off safe state; standard Matter 1.3 energy telemetry is read-only when available.
     selectors:
       pluginIds: [cit.matter-smart-plug]
       capabilityAny: [power.switch.set]
@@ -182,10 +185,11 @@ integrations:
     category: robot
     ioType: bidirectional
     icon: lego
-    connectionMethod: Bluetooth / Pybricks
+    connectionMethod: Direct local Bluetooth Low Energy / Pybricks
     setupSteps:
       - Install Pybricks firmware on the supported hub.
-      - Give each classroom hub a unique advertised name and bind that exact name.
+      - Install the CIT hub agent and give each classroom hub a unique advertised name.
+      - Do not pair the hub in Windows Bluetooth Settings; enter that exact advertised name.
       - Keep motors raised or disconnected for the first framed-protocol test.
     safetyNote: Discovery never chooses the nearest anonymous BLE hub and never arms a motor.
     selectors:

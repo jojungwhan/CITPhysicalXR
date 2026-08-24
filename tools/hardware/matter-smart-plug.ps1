@@ -63,6 +63,7 @@ $matterOrigin = "http://127.0.0.1:$MatterPort"
 $matterServerUrl = "ws://127.0.0.1:$MatterPort/ws"
 $controllerMarker = "matter-server/dist/esm/MatterServer.js"
 $adapterMarker = "cit_matter_smart_plug"
+$bleProxyMarker = "matter-ble-proxy"
 
 function Assert-Path([string]$Path, [string]$Description) {
   if (-not (Test-Path -LiteralPath $Path)) { throw "$Description was not found at $Path" }
@@ -133,6 +134,31 @@ function Get-ProcessCommandLine([int]$ProcessId) {
   return [string]$process.CommandLine
 }
 
+function Test-ExactProcess([object]$ProcessId, [string]$Marker) {
+  if ($null -eq $ProcessId) { return $false }
+  $commandLine = Get-ProcessCommandLine ([int]$ProcessId)
+  return (
+    $null -ne $commandLine -and
+    $commandLine.Contains($Marker, [StringComparison]::OrdinalIgnoreCase)
+  )
+}
+
+function Get-DescendantProcessIds([int]$ProcessId) {
+  $processes = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue)
+  $pending = [Collections.Generic.Queue[int]]::new()
+  $result = [Collections.Generic.List[int]]::new()
+  $pending.Enqueue($ProcessId)
+  while ($pending.Count -gt 0) {
+    $parentId = $pending.Dequeue()
+    foreach ($child in @($processes | Where-Object { $_.ParentProcessId -eq $parentId })) {
+      $childId = [int]$child.ProcessId
+      $result.Add($childId)
+      $pending.Enqueue($childId)
+    }
+  }
+  return @($result)
+}
+
 function Stop-ExactProcess([object]$ProcessId, [string]$Marker, [string]$Description) {
   if ($null -eq $ProcessId) { return }
   $numericId = [int]$ProcessId
@@ -190,9 +216,34 @@ function Expand-Sequence([object]$Value) {
 
 function Build-Systems {
   if ($SkipBuild) { return }
-  Invoke-External (Resolve-Executable "uv") @("sync", "--all-packages", "--frozen") $repositoryRoot
+  Invoke-External (Resolve-Executable "uv") `
+    @("sync", "--all-packages", "--frozen", "--inexact") `
+    $repositoryRoot
   Invoke-External (Resolve-Executable "pnpm.cmd") @("install", "--frozen-lockfile") $repositoryRoot
   Invoke-External (Resolve-Executable "pnpm.cmd") @("build") $repositoryRoot
+}
+
+function Resolve-MatterPrimaryInterface {
+  try {
+    $candidates = foreach ($adapter in @(Get-NetAdapter -Physical -ErrorAction Stop)) {
+      if ($adapter.Status -ne "Up") { continue }
+      $configuration = Get-NetIPConfiguration -InterfaceIndex $adapter.ifIndex -ErrorAction Stop
+      if ($null -eq $configuration.IPv4DefaultGateway) { continue }
+      $ipInterface = Get-NetIPInterface `
+        -AddressFamily IPv4 `
+        -InterfaceIndex $adapter.ifIndex `
+        -ErrorAction Stop
+      [pscustomobject]@{
+        Name = [string]$adapter.Name
+        Metric = [int]$ipInterface.InterfaceMetric
+      }
+    }
+    $selected = $candidates | Sort-Object Metric, Name | Select-Object -First 1
+    if ($null -ne $selected) { return [string]$selected.Name }
+  } catch {
+    Write-Warning "Could not resolve the primary physical LAN interface; Matter will auto-select it."
+  }
+  return ""
 }
 
 function Test-MatterHealth {
@@ -204,15 +255,84 @@ function Test-MatterHealth {
   }
 }
 
+function Stop-BleProxy([hashtable]$State) {
+  if ($State.ContainsKey("bleProxyPid")) {
+    $rootId = [int]$State.bleProxyPid
+    $processIds = @($rootId) + @(Get-DescendantProcessIds $rootId)
+    [array]::Reverse($processIds)
+    foreach ($processId in $processIds) {
+      if (Test-ExactProcess $processId $bleProxyMarker) {
+        Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+      }
+    }
+    $State.Remove("bleProxyPid")
+    Save-State $State
+  }
+}
+
+function Test-BleProxyReady([hashtable]$State) {
+  if (-not $State.ContainsKey("bleProxyPid")) { return $false }
+  if (-not (Test-ExactProcess $State.bleProxyPid $bleProxyMarker)) { return $false }
+  $rootId = [int]$State.bleProxyPid
+  $processIds = @($rootId) + @(Get-DescendantProcessIds $rootId)
+  $connection = Get-NetTCPConnection -State Established -ErrorAction SilentlyContinue |
+    Where-Object {
+      $_.RemotePort -eq $MatterPort -and $_.OwningProcess -in $processIds
+    } |
+    Select-Object -First 1
+  return $null -ne $connection
+}
+
+function Start-BleProxy([hashtable]$State) {
+  if ($DisableBluetooth) {
+    Stop-BleProxy $State
+    return
+  }
+  if (Test-BleProxyReady $State) { return }
+  Stop-BleProxy $State
+  $proxyExecutable = Join-Path $repositoryRoot ".venv\Scripts\matter-ble-proxy.exe"
+  Assert-Path $proxyExecutable "Pinned Windows Matter BLE proxy"
+  $process = Start-Process `
+    -FilePath $proxyExecutable `
+    -ArgumentList @(
+      "--server", "ws://127.0.0.1:$MatterPort/ble",
+      "--log-level", "INFO"
+    ) `
+    -WorkingDirectory $repositoryRoot `
+    -WindowStyle Hidden `
+    -RedirectStandardOutput (Join-Path $logRoot "matter-ble-proxy.stdout.log") `
+    -RedirectStandardError (Join-Path $logRoot "matter-ble-proxy.stderr.log") `
+    -PassThru
+  $State.bleProxyPid = $process.Id
+  Save-State $State
+  try {
+    Wait-Until {
+      Test-BleProxyReady $State
+    } "The Windows Matter BLE proxy did not connect; inspect $logRoot" 30
+  } catch {
+    Stop-BleProxy $State
+    throw
+  }
+}
+
 function Start-Controller([hashtable]$State) {
+  $desiredBleMode = if ($DisableBluetooth) { "disabled" } else { "proxy" }
   $listenerId = Get-ListeningProcessId $MatterPort
   if ($null -ne $listenerId) {
     if (-not (Test-MatterHealth)) {
       throw "Port $MatterPort is occupied by a service that is not the pinned CIT Matter controller."
     }
-    $State.controllerPid = $listenerId
-    Save-State $State
-    return
+    if ($State.ContainsKey("bleMode") -and $State.bleMode -eq $desiredBleMode) {
+      $State.controllerPid = $listenerId
+      Save-State $State
+      Start-BleProxy $State
+      return
+    }
+    Stop-BleProxy $State
+    Stop-ExactProcess $listenerId $controllerMarker "Matter controller"
+    Wait-Until {
+      $null -eq (Get-ListeningProcessId $MatterPort)
+    } "The previous Matter controller did not release port $MatterPort" 30
   }
   $node = Resolve-Executable "node"
   $controllerEntry = Join-Path $repositoryRoot "apps\matter-controller\node_modules\matter-server\dist\esm\MatterServer.js"
@@ -227,8 +347,12 @@ function Start-Controller([hashtable]$State) {
     DISABLE_THREAD_DIAGNOSTICS = "true"
     LOG_LEVEL = "warning"
   }
-  if (-not $DisableBluetooth) {
-    $controllerEnvironment.BLUETOOTH_ADAPTER = "0"
+  $primaryInterface = Resolve-MatterPrimaryInterface
+  if ($primaryInterface) {
+    $controllerEnvironment.PRIMARY_INTERFACE = $primaryInterface
+  }
+  if ($desiredBleMode -eq "proxy") {
+    $controllerEnvironment.BLE_PROXY = "true"
   }
   $process = Start-Process `
     -FilePath $node `
@@ -241,10 +365,12 @@ function Start-Controller([hashtable]$State) {
     -PassThru
   $State.controllerLauncherPid = $process.Id
   $State.bluetoothRequested = -not [bool]$DisableBluetooth
+  $State.bleMode = $desiredBleMode
   Save-State $State
   Wait-Until { Test-MatterHealth } "The local Matter controller did not become ready; inspect $logRoot" 60
   $State.controllerPid = Get-ListeningProcessId $MatterPort
   Save-State $State
+  Start-BleProxy $State
 }
 
 function Invoke-AdminWithStdin(
@@ -453,16 +579,30 @@ function Show-Status([hashtable]$State) {
       $inventory = Get-MatterInventory
       Write-Host "Wi-Fi credentials configured: $($inventory.controller.wifiCredentialsSet)"
       Write-Host "Bluetooth commissioning enabled: $($inventory.controller.bluetoothEnabled)"
+      if ($State.ContainsKey("bleMode") -and $State.bleMode -eq "proxy") {
+        Write-Host "Windows BLE proxy: $(if (Test-BleProxyReady $State) { 'ready' } else { 'offline' })"
+      }
       Write-Host "Commissioned plug endpoints: $(@($inventory.plugs).Count)"
       foreach ($plug in @($inventory.plugs)) {
-        Write-Host "  $($plug.displayName) [$($plug.nodeId)] available=$($plug.available)"
+        Write-Host "  $($plug.displayName) [$($plug.nodeId)] available=$($plug.available) electricalTelemetry=$($plug.electricalTelemetry)"
       }
     } catch {
       Write-Warning $_.Exception.Message
     }
   }
-  $adapterCount = if ($State.ContainsKey("adapters")) { @(Expand-Sequence $State.adapters).Count } else { 0 }
+  $adapterRecords = if ($State.ContainsKey("adapters")) {
+    @(Expand-Sequence $State.adapters)
+  } else { @() }
+  $adapterCount = $adapterRecords.Count
+  $runningAdapterCount = 0
+  foreach ($record in $adapterRecords) {
+    $running = $record.adapterPid -and (Test-ExactProcess $record.adapterPid $adapterMarker)
+    if ($running) { $runningAdapterCount++ }
+    Write-Host "  Fabric adapter $($record.nodeId): $(if ($running) { 'running' } else { 'offline' })"
+  }
   Write-Host "Recorded Fabric adapters: $adapterCount"
+  Write-Host "Running Fabric adapters: $runningAdapterCount"
+  Write-Host "Offline Fabric adapter records: $($adapterCount - $runningAdapterCount)"
   Write-Host "No proprietary vendor account, API, cloud, device ID, or local key is used by this path."
 }
 
@@ -486,10 +626,13 @@ $bootstrap = if (Test-Path -LiteralPath $bootstrapSecretPath) {
 
 if ($Mode -eq "Stop") {
   Stop-Adapters $state $bootstrap
+  Stop-BleProxy $state
   if ($state.ContainsKey("controllerPid")) {
     Stop-ExactProcess $state.controllerPid $controllerMarker "Matter controller"
   }
-  foreach ($key in @("controllerPid", "controllerLauncherPid")) { $state.Remove($key) }
+  foreach ($key in @("controllerPid", "controllerLauncherPid", "bleMode")) {
+    $state.Remove($key)
+  }
   Save-State $state
   Write-Host "Stopped CIT Matter adapters and the local controller. Commissioned fabric data remains."
   exit 0
@@ -506,6 +649,10 @@ if ($Mode -eq "ConfigureWifi") {
 
 Assert-Fabric $bootstrap
 if ($Mode -eq "Commission") {
+  $inventory = Get-MatterInventory
+  if (-not $inventory.controller.wifiCredentialsSet) {
+    throw "MATTER_WIFI_NOT_CONFIGURED: Save the classroom Wi-Fi in Classroom Control before adding a plug."
+  }
   $inputJson = [Console]::In.ReadToEnd()
   if (-not $inputJson.Trim()) { throw "Matter setup code must be supplied through standard input." }
   $result = Invoke-AdminWithStdin "commission" $inputJson 260000

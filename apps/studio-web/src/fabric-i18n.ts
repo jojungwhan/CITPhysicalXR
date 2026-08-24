@@ -53,12 +53,82 @@ const EN = {
   "header.stopAll": "Stop all devices",
   "header.refresh": "Refresh",
   "header.nextStep": "Your next step",
+  "header.installAnother": "Install another PC",
+
+  "installation.eyebrow": "Move or expand this classroom",
+  "installation.title": "Install CIT on another Windows computer",
+  "installation.intro":
+    "Download one verified setup package, copy it to the new computer, and follow the four tutor-friendly steps below.",
+  "installation.platform": "Windows 11 x64",
+  "installation.internetTitle": "Internet is required during installation",
+  "installation.internetBody":
+    "The installer obtains pinned Microsoft, OpenJS, Python, npm, PyPI, and Git prerequisites. It can be carried by USB, but it is not a fully offline installer.",
+  "installation.noCloud":
+    "After setup, classroom control remains local-first. CIT does not require a Tuya, Gosund, or Tapo cloud account.",
+  "installation.step1.title": "Download both setup files",
+  "installation.step1.body":
+    "Save the Windows setup ZIP and the small site template from this page. The template contains only the site and room names.",
+  "installation.step2.title": "Copy and extract on the new computer",
+  "installation.step2.body":
+    "Move the files by USB or a trusted private transfer. Extract the ZIP and place cit-site-template.json beside Install-CIT.cmd.",
+  "installation.step3.title": "Run Install-CIT.cmd",
+  "installation.step3.body":
+    "Double-click the installer, approve prerequisites, and enter the new classroom Wi-Fi password only in the local prompt.",
+  "installation.step4.title": "Open, find, and pair devices",
+  "installation.step4.body":
+    "Use the installed CIT Classroom Control button, find devices, complete any Windows Bluetooth pairing, and factory-reset then recommission Matter plugs at the new site.",
+  "installation.loadingTitle": "Checking the local setup package",
+  "installation.loadingBody":
+    "CIT is validating the release metadata before showing the download.",
+  "installation.unavailableTitle":
+    "The transfer package has not been built yet",
+  "installation.unavailableBody":
+    "Ask the classroom technician to publish the Windows package. The download button will appear here after the local runtime restarts.",
+  "installation.technical": "Technician build command",
+  "installation.packageEyebrow": "Verified local release",
+  "installation.version": "Version",
+  "installation.revision": "Revision",
+  "installation.size": "Download size",
+  "installation.checksum": "SHA-256 integrity checksum",
+  "installation.download": "Download Windows setup ZIP",
+  "installation.downloadHelp": "Authenticated and checksum-verified",
+  "installation.siteTemplate": "Download this site template",
+  "installation.siteTemplateHelp":
+    "Move this JSON beside Install-CIT.cmd; it contains no password or token.",
+  "installation.permission":
+    "This local role cannot download installers. Ask an instructor or administrator.",
+  "installation.includedTitle": "Included",
+  "installation.includedBody":
+    "CIT source, local runtime, web interface, independent device adapters, launchers, bilingual guides, exact dependency locks, and setup checks.",
+  "installation.excludedTitle": "Never copied",
+  "installation.excludedBody":
+    "Access tokens, Wi-Fi passwords, Matter operational keys or controller databases, vendor credentials, recordings, logs, dependency caches, and prior classroom state.",
+  "installation.checksumFailed":
+    "The downloaded setup did not match its SHA-256 checksum. Nothing was saved; ask the technician to rebuild it.",
+
+  "deviceControls.open": "Device controls",
+  "deviceControls.eyebrow": "Direct hardware control",
+  "deviceControls.title": "Device controls",
+  "deviceControls.description":
+    "Choose a connected device category. Existing safety locks and lesson permissions apply to every action.",
+  "deviceControls.close": "Close device controls",
+  "deviceControls.categories": "Device control categories",
+  "deviceControls.escapeHint": "Press Esc or choose Done to close this window.",
+  "deviceControls.done": "Done",
+  "deviceControls.sphero": "Sphero BOLT controls",
+  "deviceControls.wonder": "Dash / Dot controls",
+  "deviceControls.drone": "Drone controls",
+  "deviceControls.smartPlug": "Smart-plug controls",
 
   "notice.ready": "Ready to set up your classroom.",
   "notice.secureOpen": "Classroom controls opened securely on this computer.",
   "notice.connected": "Classroom controls connected on this computer.",
   "notice.signedOut":
     "Signed out. Reopen the console from the CIT launcher to return.",
+  "notice.installerDownloaded":
+    "Windows setup downloaded and verified. Copy it with the site template to the new computer.",
+  "notice.siteTemplateDownloaded":
+    "Site template downloaded. It contains only {site} / {room}; no credential or Wi-Fi password.",
   "notice.lessonCreatedAuto":
     "Lesson created and {count} available device(s) were connected automatically.",
   "notice.lessonCreated":
@@ -76,12 +146,26 @@ const EN = {
   "notice.integrationConnected":
     "Connection started for {name}. Physical outputs remain disarmed.",
   "notice.matterAdded": "The Matter plug was added locally and remains off.",
+  "notice.matterWifiConfigured":
+    "Classroom Wi-Fi was saved only in the local Matter controller. You can now add the plug.",
+  "notice.smartPlugControlsReady":
+    "Independent controls are ready for {count} connected plug(s).",
+  "notice.smartPlugPowerReady":
+    "Smart-plug power-on controls are enabled. Each plug remains independently controlled.",
   "notice.legoConnected": "The LEGO hub was connected for unarmed monitoring.",
   "notice.wonderConnected":
     "Connected {count} selected Dash/Dot robot(s) for unarmed monitoring.",
+  "notice.spheroConnected":
+    "Connected {count} selected Sphero BOLT robot(s) for unarmed monitoring.",
+  "notice.spheroControlsReady":
+    "Controls are ready for {count} connected Sphero BOLT robot(s).",
+  "notice.spheroMovementReady":
+    "Sphero movement controls are enabled. Set forward before the first short movement.",
   "notice.noneConnected": "No connection completed.",
   "notice.groupsConnected":
     "Connection completed for {count} device group(s): {names}.",
+  "notice.rememberedConnected":
+    "Remembered reconnect finished: {connected} reconnected, {already} already connected, {skipped} safely skipped.",
   "notice.outputsLocked":
     "Physical outputs remain disarmed until a tutor starts an approved lesson.",
   "notice.someAttention": "Some devices still need attention. {details}",
@@ -97,6 +181,8 @@ const EN = {
     "Recognized {labels} in {source}. Review the boxes before choosing any device action.",
 
   "busy.authenticating": "Authenticating",
+  "busy.downloadingInstaller": "Downloading and verifying Windows setup",
+  "busy.downloadingSiteTemplate": "Preparing the non-secret site template",
   "busy.creatingSession": "Creating lesson",
   "busy.assigningRole": "Assigning a device",
   "busy.changingSession": "Updating lesson",
@@ -105,10 +191,16 @@ const EN = {
   "busy.findingDevices": "Finding devices",
   "busy.connectingDevice": "Connecting {name}",
   "busy.addingMatter": "Adding Matter smart plug",
+  "busy.configuringMatterWifi": "Saving Matter classroom Wi-Fi",
+  "busy.openingSmartPlugControls": "Opening smart-plug controls",
+  "busy.openingSpheroControls": "Opening Sphero BOLT controls",
   "busy.connectingLego": "Connecting LEGO hub",
   "busy.connectingWonder": "Connecting selected Dash and Dot robots",
   "busy.wonderCommand": "Sending a bounded Dash/Dot control",
+  "busy.connectingSphero": "Connecting selected Sphero BOLT robots",
+  "busy.spheroCommand": "Sending a bounded Sphero BOLT control",
   "busy.connectingAll": "Connecting available devices",
+  "busy.connectingRemembered": "Reconnecting remembered devices",
   "busy.copyingSetup": "Copying setup instructions",
   "busy.cameraPairing": "Preparing Meta camera pairing",
   "busy.copying": "Copying {label}",
@@ -131,6 +223,17 @@ const EN = {
   "error.setupFirst": "This integration needs its setup step first.",
   "error.wonderUnassigned":
     "Assign this Dash or Dot to a Wonder robot role first.",
+  "error.spheroUnassigned":
+    "Assign this Sphero BOLT to a robot sensor role first.",
+  "error.spheroSession": "Open a Sphero BOLT control session first.",
+  "error.noSpheroRobots": "No connected Sphero BOLT robots are available.",
+  "error.spheroSetupPermission":
+    "This tutor account cannot prepare a Sphero BOLT control session.",
+  "error.spheroCourse": "The device-monitoring course is not installed.",
+  "error.spheroSafetyConfirmation":
+    "Confirm the visible clear-floor safety check before enabling movement.",
+  "error.spheroSessionNotReady":
+    "The Sphero BOLT control session could not be started.",
   "error.grounded":
     "Confirm that every aircraft is grounded before connecting.",
   "error.noConnection":
@@ -143,6 +246,14 @@ const EN = {
   "error.startOutput": "Start the lesson before testing an output.",
   "error.assignRole": "Assign {role} before running this test.",
   "error.smartPlugSession": "Select a smart-plug lesson first.",
+  "error.noSmartPlugs": "No connected smart plugs are available.",
+  "error.smartPlugSetupPermission":
+    "This tutor account cannot prepare a smart-plug control session.",
+  "error.smartPlugCourse": "The smart-plug control course is not installed.",
+  "error.safetyConfirmation":
+    "Confirm the visible classroom safety check before enabling power-on.",
+  "error.smartPlugSessionNotReady":
+    "The smart-plug control session could not be started.",
   "error.assignPlug": "Assign the classroom plug before controlling power.",
   "error.startLoad": "Start the lesson before turning on a load.",
   "error.armLoad": "Enable physical controls before turning on a load.",
@@ -187,7 +298,7 @@ const EN = {
   "guide.ready.title": "Everything is ready",
   "guide.ready.description":
     "Review the summary, then start the lesson when your students are ready.",
-  "guide.action.find": "Find devices",
+  "guide.action.find": "Go to device discovery",
   "guide.action.choose": "Choose a lesson",
   "guide.action.connect": "Choose devices",
   "guide.action.teach": "Go to live controls",
@@ -218,6 +329,16 @@ const EN = {
   "discovery.connecting": "Connecting…",
   "discovery.connectAll": "Connect all available",
   "discovery.offState": "No movement; approved plugs enter the off safe state",
+  "discovery.rememberedReady": "{count} remembered connection group(s)",
+  "discovery.rememberedHelp":
+    "Reconnect exact adapter profiles saved on this computer without the broad USB, Bluetooth, Wi-Fi, and Android scan. Physical outputs stay locked and remembered plugs enter the off safe state.",
+  "discovery.autoReconnectRemembered":
+    "Automatically reconnect remembered non-aircraft devices when this page opens",
+  "discovery.connectRemembered": "Connect remembered devices",
+  "discovery.reconnectingRemembered": "Reconnecting…",
+  "discovery.rememberedNoScan": "Fast reconnect · outputs locked",
+  "discovery.rememberedAircraftAutoSkip":
+    "Aircraft are skipped during unattended reconnect. Confirm grounded status above and use the button to reconnect them manually.",
   "discovery.startHost": "Start the physical device host first",
   "discovery.checked": "Checked {time}",
   "discovery.notChecked": "Not checked yet",
@@ -229,6 +350,23 @@ const EN = {
   "discovery.loading": "Loading the device checklist",
   "discovery.loadingHelp": "CIT is preparing the supported hardware list.",
   "discovery.empty": "No supported devices are listed in this group yet.",
+  "discovery.readinessOverview": "Device readiness summary",
+  "discovery.tier.connected.title": "Connected now",
+  "discovery.tier.connected.description":
+    "Live devices appear first and are ready to assign to a lesson.",
+  "discovery.tier.connected.empty": "No devices are connected yet.",
+  "discovery.tier.available.title": "Available now",
+  "discovery.tier.available.description":
+    "Detected hardware and prepared local services that can be connected now.",
+  "discovery.tier.available.empty":
+    "No additional devices are currently ready to connect.",
+  "discovery.tier.unavailable.title": "Not currently available",
+  "discovery.tier.unavailable.description":
+    "Supported devices that need power, pairing, setup, or another scan.",
+  "discovery.tier.unavailable.empty":
+    "No supported devices currently need setup.",
+  "discovery.tier.count": "{count} item(s)",
+  "discovery.connectedDevices": "{count} connected device(s)",
   "discovery.signal": "{percent}% signal",
   "discovery.connect": "Connect",
   "discovery.copySetup": "Copy setup command",
@@ -349,6 +487,8 @@ const EN = {
   "safety.locked": "Physical devices are locked",
   "safety.physicalHelp":
     "Keep the Stop all devices button visible and make sure the activity area is clear.",
+  "safety.nonSpatialHelp":
+    "Non-moving devices do not require a position or clear-floor check. Explicitly enable their controls before use.",
   "safety.simulationHelp":
     "Practice safely before switching this lesson to real classroom hardware.",
   "safety.confirm":
@@ -414,6 +554,7 @@ const EN = {
   "media.noDimensions": "No image dimensions yet",
   "media.noFrame": "No frame received",
   "media.updated": "Updated {time}",
+  "media.previewRate": "Preview {rate} fps",
   "media.recognize": "Recognize lamps, drones, and robots",
   "media.noneFound": "No configured object found",
   "media.objectsFound": "Objects found",
@@ -427,21 +568,60 @@ const EN = {
   "media.noMappedAction":
     "No device action is mapped to this visual class. Use an assigned lesson control if one is available.",
 
+  "leap.eyebrow": "Leap Motion",
+  "leap.title": "Live hand detection",
+  "leap.intro":
+    "Place a hand above the controller. This semantic view shows the detected palm, pinch, grab, and bounded movement output without sending raw Leap frames to the page.",
+  "leap.handDetected": "Hand detected",
+  "leap.waitingHand": "Controller ready",
+  "leap.waitingSignal": "Waiting for tracking",
+  "leap.visualAltDetected": "Live semantic view of the detected {hand} hand",
+  "leap.visualAltWaiting": "Leap Motion detection area waiting for a hand",
+  "leap.left": "LEFT",
+  "leap.forward": "FORWARD",
+  "leap.right": "RIGHT",
+  "leap.leftHand": "Left hand",
+  "leap.rightHand": "Right hand",
+  "leap.hand": "Detected hand",
+  "leap.pinch": "Pinch",
+  "leap.grab": "Grab",
+  "leap.palm": "Palm x / y / z",
+  "leap.output": "Forward / right output",
+  "leap.frameRate": "Sensor rate",
+  "leap.noState": "NO SIGNAL",
+  "leap.placeHand": "Place one open hand 10–40 cm above the controller.",
+  "leap.selectLesson":
+    "Select the Leap lesson session to view its live signal.",
+  "leap.noReading":
+    "The adapter is connected; waiting for its first hand sample.",
+  "leap.updated": "Last hand sample {time}",
+  "leap.privacy":
+    "Only reduced palm and gesture measurements are shown. Raw Leap frames and camera images are not transmitted or recorded by this panel.",
+
   "sensor.eyebrow": "Live sensors",
   "sensor.title": "Classroom readings",
   "sensor.intro":
-    "The latest normalized LEGO, robot, biosignal, and battery readings appear automatically when an adapter publishes them.",
+    "The latest normalized LEGO, robot, smart-plug electrical, biosignal, and battery readings appear automatically when an adapter publishes them.",
   "sensor.none": "No sensor readings have arrived in the selected lesson yet.",
 
   "plug.eyebrow": "Lesson control",
-  "plug.title": "Classroom plug",
-  "plug.noneAssigned": "No classroom plug assigned",
+  "plug.title": "Classroom plugs",
+  "plug.noneAssigned": "No classroom plugs assigned",
   "plug.compatible": "{count} compatible device(s) connected",
+  "plug.connectedReady": "{count} connected plug(s) are ready",
+  "plug.openControls": "Open power controls",
+  "plug.openControlsHelp":
+    "Open the prepared local control session to operate each plug independently.",
+  "plug.powerOnLocked": "Power-on is safety locked",
+  "plug.powerOnLockedHelp":
+    "Power-off is available now. Enable power-on controls to use an approved classroom load.",
+  "plug.enablePowerOn": "Enable power-on controls",
+  "plug.unknownState": "UNKNOWN",
   "plug.stateUnknown": "State has not been observed in this lesson",
   "plug.observed": "Observed {time}{source}",
   "plug.turnOn": "Turn on",
   "plug.turnOnHelp": "Turn on the approved classroom load",
-  "plug.afterSafety": "Available after the lesson safety check",
+  "plug.afterSafety": "Enable power-on controls first",
   "plug.turnOff": "Turn off",
   "plug.turnOffHelp": "Always available as the safe state",
   "plug.onState": "ON",
@@ -481,7 +661,46 @@ const EN = {
   "matter.add": "Add a Matter plug",
   "matter.addAnother": "Add another Matter plug",
   "matter.help":
-    "Hold the plug’s pairing button until its light flashes, then enter the Matter code printed beside its QR label. No proprietary vendor app, account, cloud API, device ID, or local key is used.",
+    "Tapo P110M and compatible Matter Wi-Fi plugs connect directly to CIT. No proprietary vendor app, account, cloud API, device ID, or local key is used.",
+  "matter.ready": "Ready",
+  "matter.required": "Required",
+  "matter.wifi.title": "Save classroom Wi-Fi once",
+  "matter.wifi.ready":
+    "The local controller has Wi-Fi and is ready to add Matter devices.",
+  "matter.wifi.required":
+    "Enter the 2.4 GHz classroom Wi-Fi used by this computer and the plugs.",
+  "matter.wifi.scanFirst":
+    "Choose Find devices above so CIT can check the local controller first.",
+  "matter.wifi.ssid": "Wi-Fi name (SSID)",
+  "matter.wifi.ssidPlaceholder": "Exact 2.4 GHz network name",
+  "matter.wifi.password": "Wi-Fi password",
+  "matter.wifi.passwordPlaceholder": "8–63 characters",
+  "matter.wifi.save": "Save Wi-Fi locally",
+  "matter.wifi.saving": "Saving Wi-Fi…",
+  "matter.wifi.memory":
+    "The password is sent only to the loopback Matter controller, is never logged, and is cleared from this page after success.",
+  "matter.device.title": "Put each plug in setup mode",
+  "matter.device.help":
+    "Plug it in and hold Reset for 10 seconds. Then choose Find devices again.",
+  "matter.device.found": "{count} nearby",
+  "matter.device.waiting": "Waiting",
+  "matter.code.title": "Add using the printed Matter code",
+  "matter.code.help":
+    "Enter the 11-digit manual code or scan text printed next to the Matter QR label.",
+  "matter.code.locked": "Complete classroom Wi-Fi setup in step 1 first.",
+  "matter.tapo.title": "Tapo P110M — direct local setup",
+  "matter.tapo.support":
+    "Supported through Matter over your classroom Wi-Fi, independently of the Tapo app and TP-Link cloud.",
+  "matter.tapo.reset":
+    "For a new or previously configured plug, hold Reset for 10 seconds to factory-reset it.",
+  "matter.tapo.window":
+    "Power-cycle the plug and add it within its 15-minute Matter setup window.",
+  "matter.tapo.network":
+    "Keep this computer on the same local network; the P110M uses 2.4 GHz Wi-Fi and local IPv6/mDNS.",
+  "matter.tapo.code":
+    "Use the original Matter QR/manual code printed on the plug or packaging—not a Tapo account or local key.",
+  "matter.tapo.energy":
+    "On/off works with standard Matter firmware. Power and energy appear automatically when the plug firmware exposes the standard Matter 1.3 measurement clusters.",
   "matter.code": "Matter setup code",
   "matter.placeholder": "MT:… or 1234-567-8901",
   "matter.adding": "Adding plug…",
@@ -507,6 +726,53 @@ const EN = {
   "lego.connect": "Save and connect hub",
   "lego.safety":
     "Starts unarmed sensor monitoring only. A sensor-only hub is supported. If motors are connected, keep wheels raised for the first test; a separate armed lesson is required for movement.",
+
+  "sphero.setup": "Choose the exact SB-XXXX robots to connect",
+  "sphero.wake": "Charge BOLT and remove it from its cradle to wake it.",
+  "sphero.closeApps":
+    "Close Sphero Edu, Sphero Play, and any other app connected to BOLT.",
+  "sphero.noPairing":
+    "Do not pair BOLT in Windows Settings. CIT connects directly over BLE.",
+  "sphero.noneVisible":
+    "No exact SB-XXXX advertisement is visible. Wake BOLT, bring it nearby, close other apps, then choose Find devices again.",
+  "sphero.selectExact": "Visible Sphero BOLT robots",
+  "sphero.boltCapabilities": "BOLT · roll, lights, sensors",
+  "sphero.connecting": "Connecting selected BOLT robots…",
+  "sphero.connectSelected": "Connect selected BOLT robots",
+  "sphero.connectSafety":
+    "Connection starts unarmed sensor monitoring. It does not aim, light, or roll BOLT.",
+  "sphero.eyebrow": "Robot controls",
+  "sphero.title": "Sphero BOLT robot",
+  "sphero.help":
+    "Open controls, complete the clear-floor safety check, then set forward before the first short movement.",
+  "sphero.connectedReady": "{count} connected BOLT robot(s) are ready",
+  "sphero.openControls": "Open robot controls",
+  "sphero.openControlsHelp":
+    "Open the prepared local session to aim, move, stop, and control each BOLT's lights.",
+  "sphero.movementLocked": "Movement is safety locked",
+  "sphero.movementLockedHelp":
+    "Put BOLT on a clear floor and keep Stop all devices visible. Movement remains bounded and stops locally after 750 ms.",
+  "sphero.enableMovement": "Enable movement controls",
+  "sphero.pauseEnableMovement": "Pause briefly and enable movement controls",
+  "sphero.aimTitle": "1. Set the forward direction",
+  "sphero.aimHelp":
+    "Place BOLT on the floor and turn the blue tail light toward you. The direction away from you becomes forward.",
+  "sphero.aimButton": "Set this direction as forward",
+  "sphero.drive": "2. Test a short movement",
+  "sphero.forward": "Forward",
+  "sphero.backward": "Backward",
+  "sphero.left": "Left",
+  "sphero.right": "Right",
+  "sphero.stop": "Stop",
+  "sphero.nudge":
+    "Each arrow requests a bounded 0.20 m/s nudge. BOLT stops locally within 750 ms unless another approved command arrives.",
+  "sphero.lights": "3. Test the matrix and aiming LEDs",
+  "sphero.color.blue": "Blue",
+  "sphero.color.orange": "Orange",
+  "sphero.color.green": "Green",
+  "sphero.color.off": "Lights off",
+  "sphero.locked":
+    "Locked: start the monitoring lesson, choose Enable physical controls, and confirm the clear floor area.",
 
   "wonder.setup": "Choose the exact robots to connect",
   "wonder.setupHelp":
@@ -654,9 +920,9 @@ const EN = {
   "course.simultaneous.description":
     "One approved Leap or glasses cue simultaneously sends bounded actions to an assigned RoboMaster, LEGO hub, armed Tello fleet, Meta display, and G2 display. Every output remains independently safety checked.",
   "course.plug.name": "Classroom smart plug",
-  "course.plug.summary": "Tutor-controlled classroom plug",
+  "course.plug.summary": "Tutor-controlled classroom plugs",
   "course.plug.description":
-    "The tutor turns one approved classroom lamp or other low-risk load on and off from this screen.",
+    "The tutor independently controls up to two approved classroom lamps or other low-risk loads from this screen.",
   "course.fallback": "{count} classroom device role(s)",
 
   "role.brain.name": "One-shot MindWave flight demo",
@@ -668,8 +934,11 @@ const EN = {
   "role.fleet.name": "Sequential drone controller",
   "role.fleet.description":
     "Owns one tutor-armed launch order and confirms each aircraft before advancing",
-  "role.plug.name": "Classroom plug",
-  "role.plug.description": "Turns one approved classroom load on or off",
+  "role.plug.name": "Classroom plug 1",
+  "role.plug.description": "Turns the first approved classroom load on or off",
+  "role.plug2.name": "Classroom plug 2",
+  "role.plug2.description":
+    "Optionally controls a second approved classroom load independently",
   "role.agent.name": "Coding assistant",
   "role.agent.description":
     "Receives student prompts and returns coding progress",
@@ -767,11 +1036,79 @@ const KO: Record<FabricMessageKey, string> = {
   "header.stopAll": "모든 장치 정지",
   "header.refresh": "새로고침",
   "header.nextStep": "다음 단계",
+  "header.installAnother": "다른 PC 설치",
+  "installation.eyebrow": "교실 이전 또는 확장",
+  "installation.title": "다른 Windows 컴퓨터에 CIT 설치",
+  "installation.intro":
+    "검증된 설치 패키지 하나를 받아 새 컴퓨터로 옮긴 뒤, 아래의 강사용 4단계를 따르면 됩니다.",
+  "installation.platform": "Windows 11 64비트",
+  "installation.internetTitle": "설치하는 동안 인터넷 연결이 필요합니다",
+  "installation.internetBody":
+    "설치 프로그램은 고정된 Microsoft, OpenJS, Python, npm, PyPI 및 Git 필수 항목을 받습니다. USB로 옮길 수 있지만 완전한 오프라인 설치 파일은 아닙니다.",
+  "installation.noCloud":
+    "설치 후 교실 제어는 로컬 우선으로 작동합니다. CIT에는 Tuya, Gosund 또는 Tapo 클라우드 계정이 필요하지 않습니다.",
+  "installation.step1.title": "설치 파일 2개 받기",
+  "installation.step1.body":
+    "이 페이지에서 Windows 설치 ZIP과 작은 사이트 설정 파일을 모두 저장하세요. 설정 파일에는 사이트와 교실 이름만 들어 있습니다.",
+  "installation.step2.title": "새 컴퓨터에서 복사하고 압축 풀기",
+  "installation.step2.body":
+    "USB 또는 신뢰할 수 있는 사설 전송으로 파일을 옮기세요. ZIP 압축을 풀고 cit-site-template.json을 Install-CIT.cmd 옆에 두세요.",
+  "installation.step3.title": "Install-CIT.cmd 실행",
+  "installation.step3.body":
+    "설치 파일을 더블클릭하고 필수 프로그램 설치를 승인한 뒤, 새 교실 Wi-Fi 비밀번호는 로컬 입력창에만 입력하세요.",
+  "installation.step4.title": "열기, 찾기, 장치 연결",
+  "installation.step4.body":
+    "설치된 CIT Classroom Control 버튼을 열어 장치를 찾고, 필요한 Windows Bluetooth 페어링을 완료하세요. 새 장소의 Matter 플러그는 공장 초기화한 뒤 다시 등록하세요.",
+  "installation.loadingTitle": "로컬 설치 패키지 확인 중",
+  "installation.loadingBody":
+    "다운로드를 표시하기 전에 CIT가 릴리스 정보를 검증하고 있습니다.",
+  "installation.unavailableTitle": "아직 전송용 설치 패키지가 없습니다",
+  "installation.unavailableBody":
+    "교실 기술 담당자에게 Windows 패키지 게시를 요청하세요. 로컬 런타임을 다시 시작하면 이곳에 다운로드 버튼이 나타납니다.",
+  "installation.technical": "기술 담당자용 빌드 명령",
+  "installation.packageEyebrow": "검증된 로컬 릴리스",
+  "installation.version": "버전",
+  "installation.revision": "소스 리비전",
+  "installation.size": "받을 파일 크기",
+  "installation.checksum": "SHA-256 무결성 검사값",
+  "installation.download": "Windows 설치 ZIP 받기",
+  "installation.downloadHelp": "인증 후 검사값까지 확인",
+  "installation.siteTemplate": "현재 사이트 설정 받기",
+  "installation.siteTemplateHelp":
+    "이 JSON을 Install-CIT.cmd 옆으로 옮기세요. 비밀번호나 토큰은 들어 있지 않습니다.",
+  "installation.permission":
+    "현재 로컬 역할에는 설치 파일 권한이 없습니다. 강사 또는 관리자에게 요청하세요.",
+  "installation.includedTitle": "포함되는 항목",
+  "installation.includedBody":
+    "CIT 소스, 로컬 런타임, 웹 화면, 독립 장치 어댑터, 실행기, 한영 안내서, 정확한 의존성 잠금 파일 및 설치 확인 기능입니다.",
+  "installation.excludedTitle": "절대 복사하지 않는 항목",
+  "installation.excludedBody":
+    "접속 토큰, Wi-Fi 비밀번호, Matter 운영 키와 컨트롤러 DB, 제조사 인증 정보, 녹화, 로그, 의존성 캐시 및 이전 교실 상태입니다.",
+  "installation.checksumFailed":
+    "받은 설치 파일의 SHA-256 검사값이 맞지 않습니다. 파일을 저장하지 않았으니 기술 담당자에게 다시 빌드해 달라고 요청하세요.",
+  "deviceControls.open": "장치 제어",
+  "deviceControls.eyebrow": "직접 장치 조작",
+  "deviceControls.title": "장치 제어 모음",
+  "deviceControls.description":
+    "연결된 장치 종류를 선택하세요. 모든 동작에는 기존 안전 잠금과 수업 권한이 그대로 적용됩니다.",
+  "deviceControls.close": "장치 제어 창 닫기",
+  "deviceControls.categories": "제어할 장치 종류",
+  "deviceControls.escapeHint":
+    "Esc 키 또는 ‘완료’를 눌러 이 창을 닫을 수 있습니다.",
+  "deviceControls.done": "완료",
+  "deviceControls.sphero": "Sphero BOLT 제어",
+  "deviceControls.wonder": "Dash / Dot 제어",
+  "deviceControls.drone": "드론 제어",
+  "deviceControls.smartPlug": "스마트 플러그 제어",
   "notice.ready": "교실을 준비할 수 있습니다.",
   "notice.secureOpen": "이 컴퓨터에서 수업 제어를 안전하게 열었습니다.",
   "notice.connected": "이 컴퓨터의 수업 제어에 연결했습니다.",
   "notice.signedOut":
     "로그아웃했습니다. 다시 들어오려면 CIT 실행기에서 수업 제어를 여세요.",
+  "notice.installerDownloaded":
+    "Windows 설치 파일을 받고 검증했습니다. 사이트 설정 파일과 함께 새 컴퓨터로 옮기세요.",
+  "notice.siteTemplateDownloaded":
+    "사이트 설정 파일을 받았습니다. {site} / {room} 이름만 있으며 인증 정보나 Wi-Fi 비밀번호는 없습니다.",
   "notice.lessonCreatedAuto":
     "수업을 만들고 사용 가능한 장치 {count}대를 자동으로 배정했습니다.",
   "notice.lessonCreated":
@@ -790,12 +1127,26 @@ const KO: Record<FabricMessageKey, string> = {
     "{name} 연결을 시작했습니다. 실제 출력 장치는 계속 잠겨 있습니다.",
   "notice.matterAdded":
     "Matter 플러그를 로컬로 추가했습니다. 전원은 꺼진 안전 상태입니다.",
+  "notice.matterWifiConfigured":
+    "교실 Wi-Fi를 로컬 Matter 컨트롤러에만 저장했습니다. 이제 플러그를 추가할 수 있습니다.",
+  "notice.smartPlugControlsReady":
+    "연결된 플러그 {count}개의 개별 제어를 열었습니다.",
+  "notice.smartPlugPowerReady":
+    "스마트 플러그 켜기 제어를 활성화했습니다. 각 플러그는 계속 독립적으로 제어됩니다.",
   "notice.legoConnected":
     "LEGO 허브를 모터 잠금 상태의 모니터링용으로 연결했습니다.",
   "notice.wonderConnected":
     "선택한 Dash/Dot 로봇 {count}대를 제어 잠금 상태의 모니터링용으로 연결했습니다.",
+  "notice.spheroConnected":
+    "선택한 Sphero BOLT 로봇 {count}대를 제어 잠금 상태의 모니터링용으로 연결했습니다.",
+  "notice.spheroControlsReady":
+    "연결된 Sphero BOLT {count}대의 제어 화면을 열었습니다.",
+  "notice.spheroMovementReady":
+    "Sphero 이동 제어를 활성화했습니다. 첫 이동 전에 앞 방향을 지정하세요.",
   "notice.noneConnected": "완료된 연결이 없습니다.",
   "notice.groupsConnected": "장치 그룹 {count}개를 연결했습니다: {names}.",
+  "notice.rememberedConnected":
+    "기억한 장치 연결 완료: {connected}개 다시 연결, {already}개 이미 연결됨, {skipped}개 안전하게 건너뜀.",
   "notice.outputsLocked":
     "강사가 승인된 수업을 시작할 때까지 실제 출력 장치는 잠긴 상태입니다.",
   "notice.someAttention": "일부 장치를 확인해야 합니다. {details}",
@@ -810,6 +1161,8 @@ const KO: Record<FabricMessageKey, string> = {
   "notice.objects":
     "{source} 영상에서 {labels}을(를) 찾았습니다. 장치 동작을 선택하기 전에 표시 상자를 확인하세요.",
   "busy.authenticating": "인증하는 중",
+  "busy.downloadingInstaller": "Windows 설치 파일을 받고 검증하는 중",
+  "busy.downloadingSiteTemplate": "인증 정보 없는 사이트 설정 준비 중",
   "busy.creatingSession": "수업 만드는 중",
   "busy.assigningRole": "장치 배정 중",
   "busy.changingSession": "수업 상태 변경 중",
@@ -818,10 +1171,16 @@ const KO: Record<FabricMessageKey, string> = {
   "busy.findingDevices": "장치 찾는 중",
   "busy.connectingDevice": "{name} 연결 중",
   "busy.addingMatter": "Matter 스마트 플러그 추가 중",
+  "busy.configuringMatterWifi": "Matter 교실 Wi-Fi 저장 중",
+  "busy.openingSmartPlugControls": "스마트 플러그 제어 여는 중",
+  "busy.openingSpheroControls": "Sphero BOLT 제어 여는 중",
   "busy.connectingLego": "LEGO 허브 연결 중",
   "busy.connectingWonder": "선택한 Dash/Dot 로봇 연결 중",
   "busy.wonderCommand": "제한된 Dash/Dot 제어 전송 중",
+  "busy.connectingSphero": "선택한 Sphero BOLT 로봇 연결 중",
+  "busy.spheroCommand": "제한된 Sphero BOLT 제어 전송 중",
   "busy.connectingAll": "사용 가능한 장치 연결 중",
+  "busy.connectingRemembered": "기억한 장치 다시 연결 중",
   "busy.copyingSetup": "설정 안내 복사 중",
   "busy.cameraPairing": "Meta 카메라 페어링 준비 중",
   "busy.copying": "{label} 복사 중",
@@ -843,6 +1202,16 @@ const KO: Record<FabricMessageKey, string> = {
   "error.setupFirst": "먼저 이 통합의 설정 단계를 완료하세요.",
   "error.wonderUnassigned":
     "먼저 이 Dash 또는 Dot을 Wonder 로봇 역할에 배정하세요.",
+  "error.spheroUnassigned":
+    "먼저 이 Sphero BOLT를 로봇 센서 역할에 배정하세요.",
+  "error.spheroSession": "먼저 Sphero BOLT 제어 화면을 여세요.",
+  "error.noSpheroRobots": "연결된 Sphero BOLT가 없습니다.",
+  "error.spheroSetupPermission":
+    "이 강사 계정으로 Sphero BOLT 제어 세션을 준비할 수 없습니다.",
+  "error.spheroCourse": "장치 모니터링 수업이 설치되어 있지 않습니다.",
+  "error.spheroSafetyConfirmation":
+    "이동을 활성화하기 전에 화면의 빈 바닥 안전 확인에 동의하세요.",
+  "error.spheroSessionNotReady": "Sphero BOLT 제어 세션을 시작하지 못했습니다.",
   "error.grounded": "연결하기 전에 모든 드론이 바닥에 있는지 확인하세요.",
   "error.noConnection":
     "지금 바로 연결할 수 있는 장치가 없습니다. ‘설정 필요’ 카드를 따른 뒤 장치를 다시 찾으세요.",
@@ -854,6 +1223,14 @@ const KO: Record<FabricMessageKey, string> = {
   "error.startOutput": "출력을 확인하기 전에 수업을 시작하세요.",
   "error.assignRole": "확인하기 전에 {role} 역할을 배정하세요.",
   "error.smartPlugSession": "먼저 스마트 플러그 수업을 선택하세요.",
+  "error.noSmartPlugs": "연결된 스마트 플러그가 없습니다.",
+  "error.smartPlugSetupPermission":
+    "이 강사 계정으로 스마트 플러그 제어 세션을 준비할 수 없습니다.",
+  "error.smartPlugCourse": "스마트 플러그 제어 수업이 설치되어 있지 않습니다.",
+  "error.safetyConfirmation":
+    "켜기를 활성화하기 전에 화면의 교실 안전 확인에 동의하세요.",
+  "error.smartPlugSessionNotReady":
+    "스마트 플러그 제어 세션을 시작하지 못했습니다.",
   "error.assignPlug": "전원을 제어하기 전에 교실 플러그를 배정하세요.",
   "error.startLoad": "부하 전원을 켜기 전에 수업을 시작하세요.",
   "error.armLoad": "부하 전원을 켜기 전에 실제 장치 제어를 허용하세요.",
@@ -896,7 +1273,7 @@ const KO: Record<FabricMessageKey, string> = {
   "guide.ready.title": "모두 준비되었습니다",
   "guide.ready.description":
     "요약을 확인한 뒤 학생들이 준비되면 수업을 시작하세요.",
-  "guide.action.find": "장치 찾기",
+  "guide.action.find": "장치 검색 단계로 이동",
   "guide.action.choose": "수업 선택",
   "guide.action.connect": "장치 선택",
   "guide.action.teach": "실시간 제어로 이동",
@@ -926,6 +1303,16 @@ const KO: Record<FabricMessageKey, string> = {
   "discovery.connecting": "연결 중…",
   "discovery.connectAll": "사용 가능한 장치 모두 연결",
   "discovery.offState": "움직임 없음 · 승인된 플러그는 전원 꺼짐 상태",
+  "discovery.rememberedReady": "기억한 연결 그룹 {count}개",
+  "discovery.rememberedHelp":
+    "USB, Bluetooth, Wi-Fi 및 Android 전체 검색 없이 이 컴퓨터에 저장된 정확한 어댑터 프로필을 다시 연결합니다. 실제 출력은 잠긴 상태이고 기억한 플러그는 전원 꺼짐 안전 상태가 됩니다.",
+  "discovery.autoReconnectRemembered":
+    "이 페이지를 열 때 기억한 비항공 장치를 자동으로 다시 연결",
+  "discovery.connectRemembered": "기억한 장치 연결",
+  "discovery.reconnectingRemembered": "다시 연결 중…",
+  "discovery.rememberedNoScan": "빠른 재연결 · 출력 잠금 유지",
+  "discovery.rememberedAircraftAutoSkip":
+    "자동 재연결에서는 드론을 건너뜁니다. 위에서 착지 상태를 확인한 뒤 버튼으로 직접 다시 연결하세요.",
   "discovery.startHost": "먼저 실제 장치 호스트를 시작하세요",
   "discovery.checked": "{time}에 확인",
   "discovery.notChecked": "아직 확인하지 않음",
@@ -938,6 +1325,22 @@ const KO: Record<FabricMessageKey, string> = {
   "discovery.loading": "장치 목록 불러오는 중",
   "discovery.loadingHelp": "지원되는 하드웨어 목록을 준비하고 있습니다.",
   "discovery.empty": "이 그룹에 표시할 지원 장치가 아직 없습니다.",
+  "discovery.readinessOverview": "장치 준비 상태 요약",
+  "discovery.tier.connected.title": "현재 연결됨",
+  "discovery.tier.connected.description":
+    "실시간 연결이 확인되어 수업에 배정할 수 있는 장치입니다.",
+  "discovery.tier.connected.empty": "현재 연결된 장치가 없습니다.",
+  "discovery.tier.available.title": "지금 연결 가능",
+  "discovery.tier.available.description":
+    "발견된 하드웨어와 바로 연결할 수 있는 로컬 서비스입니다.",
+  "discovery.tier.available.empty": "지금 추가로 연결할 장치가 없습니다.",
+  "discovery.tier.unavailable.title": "현재 사용 불가",
+  "discovery.tier.unavailable.description":
+    "전원, 페어링, 설정 또는 재검색이 필요한 지원 장치입니다.",
+  "discovery.tier.unavailable.empty":
+    "현재 별도 설정이 필요한 지원 장치가 없습니다.",
+  "discovery.tier.count": "항목 {count}개",
+  "discovery.connectedDevices": "연결된 장치 {count}개",
   "discovery.signal": "신호 {percent}%",
   "discovery.connect": "연결",
   "discovery.copySetup": "설정 명령 복사",
@@ -1048,6 +1451,8 @@ const KO: Record<FabricMessageKey, string> = {
   "safety.locked": "실제 장치가 잠겨 있습니다",
   "safety.physicalHelp":
     "‘모든 장치 정지’ 버튼을 항상 보이게 두고 활동 구역이 비어 있는지 확인하세요.",
+  "safety.nonSpatialHelp":
+    "움직이지 않는 장치는 위치나 바닥 공간 확인이 필요하지 않습니다. 사용 전에 제어를 명시적으로 허용하세요.",
   "safety.simulationHelp":
     "실제 교실 장치로 전환하기 전에 안전하게 연습하세요.",
   "safety.confirm":
@@ -1110,6 +1515,7 @@ const KO: Record<FabricMessageKey, string> = {
   "media.noDimensions": "영상 크기 정보 없음",
   "media.noFrame": "받은 프레임 없음",
   "media.updated": "{time}에 갱신",
+  "media.previewRate": "미리보기 {rate} fps",
   "media.recognize": "램프, 드론 및 로봇 인식",
   "media.noneFound": "설정된 물체를 찾지 못함",
   "media.objectsFound": "찾은 물체",
@@ -1121,20 +1527,56 @@ const KO: Record<FabricMessageKey, string> = {
     "드론 인식은 참고 정보입니다. 제한된 드론 제어에는 배정되고 활성화된 비행 수업을 사용하세요. 영상 인식으로 드론을 활성화하거나 비행시킬 수 없습니다.",
   "media.noMappedAction":
     "이 물체 종류에는 장치 동작이 연결되어 있지 않습니다. 사용할 수 있다면 배정된 수업 제어를 사용하세요.",
+  "leap.eyebrow": "Leap Motion",
+  "leap.title": "실시간 손 감지",
+  "leap.intro":
+    "컨트롤러 위에 손을 올리세요. 원시 Leap 프레임을 페이지로 보내지 않고 감지된 손바닥, 집기, 쥐기 및 제한된 이동 출력을 의미 기반 화면으로 보여 줍니다.",
+  "leap.handDetected": "손 감지됨",
+  "leap.waitingHand": "컨트롤러 준비됨",
+  "leap.waitingSignal": "추적 신호 대기 중",
+  "leap.visualAltDetected": "감지된 {hand}의 실시간 의미 기반 화면",
+  "leap.visualAltWaiting": "손을 기다리는 Leap Motion 감지 영역",
+  "leap.left": "왼쪽",
+  "leap.forward": "앞쪽",
+  "leap.right": "오른쪽",
+  "leap.leftHand": "왼손",
+  "leap.rightHand": "오른손",
+  "leap.hand": "감지된 손",
+  "leap.pinch": "집기",
+  "leap.grab": "쥐기",
+  "leap.palm": "손바닥 x / y / z",
+  "leap.output": "전진 / 오른쪽 출력",
+  "leap.frameRate": "센서 속도",
+  "leap.noState": "신호 없음",
+  "leap.placeHand": "펼친 손 하나를 컨트롤러 위 10~40 cm에 놓으세요.",
+  "leap.selectLesson": "실시간 신호를 볼 Leap 수업 세션을 선택하세요.",
+  "leap.noReading": "어댑터가 연결되었습니다. 첫 손 샘플을 기다리는 중입니다.",
+  "leap.updated": "최근 손 샘플 {time}",
+  "leap.privacy":
+    "축약된 손바닥 및 제스처 측정값만 표시합니다. 이 패널은 원시 Leap 프레임이나 카메라 영상을 전송하거나 기록하지 않습니다.",
   "sensor.eyebrow": "실시간 센서",
   "sensor.title": "교실 측정값",
   "sensor.intro":
-    "어댑터가 보내는 최신 LEGO, 로봇, 생체 신호 및 배터리 측정값을 자동으로 표시합니다.",
+    "어댑터가 보내는 최신 LEGO, 로봇, 스마트 플러그 전력, 생체 신호 및 배터리 측정값을 자동으로 표시합니다.",
   "sensor.none": "선택한 수업에 아직 센서 값이 들어오지 않았습니다.",
   "plug.eyebrow": "수업 제어",
   "plug.title": "교실 플러그",
   "plug.noneAssigned": "배정된 교실 플러그 없음",
   "plug.compatible": "호환 장치 {count}개 연결됨",
+  "plug.connectedReady": "연결된 플러그 {count}개가 준비되었습니다",
+  "plug.openControls": "전원 제어 열기",
+  "plug.openControlsHelp":
+    "준비된 로컬 제어 세션을 열어 각 플러그를 독립적으로 제어합니다.",
+  "plug.powerOnLocked": "켜기는 안전 잠금 상태입니다",
+  "plug.powerOnLockedHelp":
+    "끄기는 지금 사용할 수 있습니다. 승인된 교실 부하를 사용하려면 켜기 제어를 활성화하세요.",
+  "plug.enablePowerOn": "켜기 제어 활성화",
+  "plug.unknownState": "알 수 없음",
   "plug.stateUnknown": "이 수업에서 아직 상태를 확인하지 못했습니다",
   "plug.observed": "{time}에 확인{source}",
   "plug.turnOn": "켜기",
   "plug.turnOnHelp": "승인된 교실 부하 켜기",
-  "plug.afterSafety": "수업 안전 확인 후 사용 가능",
+  "plug.afterSafety": "먼저 켜기 제어를 활성화하세요",
   "plug.turnOff": "끄기",
   "plug.turnOffHelp": "안전 상태이므로 언제나 사용 가능",
   "plug.onState": "켜짐",
@@ -1170,8 +1612,48 @@ const KO: Record<FabricMessageKey, string> = {
   "matter.add": "Matter 플러그 추가",
   "matter.addAnother": "Matter 플러그 하나 더 추가",
   "matter.help":
-    "플러그의 페어링 버튼을 표시등이 깜박일 때까지 누른 뒤 QR 라벨 옆에 인쇄된 Matter 코드를 입력하세요. 제조사 앱, 계정, 클라우드 API, 장치 ID 또는 로컬 키는 사용하지 않습니다.",
+    "Tapo P110M 및 호환 Matter Wi-Fi 플러그를 CIT에 직접 연결합니다. 제조사 앱, 계정, 클라우드 API, 장치 ID 또는 로컬 키는 사용하지 않습니다.",
+  "matter.ready": "준비됨",
+  "matter.required": "필수",
+  "matter.wifi.title": "교실 Wi-Fi 한 번 저장",
+  "matter.wifi.ready":
+    "로컬 컨트롤러에 Wi-Fi가 저장되어 Matter 장치를 추가할 준비가 되었습니다.",
+  "matter.wifi.required":
+    "이 컴퓨터와 플러그가 사용할 교실 2.4GHz Wi-Fi를 입력하세요.",
+  "matter.wifi.scanFirst":
+    "먼저 위의 ‘장치 찾기’를 눌러 로컬 컨트롤러 상태를 확인하세요.",
+  "matter.wifi.ssid": "Wi-Fi 이름(SSID)",
+  "matter.wifi.ssidPlaceholder": "정확한 2.4GHz 네트워크 이름",
+  "matter.wifi.password": "Wi-Fi 비밀번호",
+  "matter.wifi.passwordPlaceholder": "8~63자",
+  "matter.wifi.save": "Wi-Fi를 로컬에 저장",
+  "matter.wifi.saving": "Wi-Fi 저장 중…",
+  "matter.wifi.memory":
+    "비밀번호는 이 PC의 Matter 컨트롤러로만 전송되고 기록되지 않으며 성공 후 페이지에서 지워집니다.",
+  "matter.device.title": "각 플러그를 설정 모드로 전환",
+  "matter.device.help":
+    "플러그를 콘센트에 꽂고 Reset을 10초간 누르세요. 그런 다음 ‘장치 찾기’를 다시 누르세요.",
+  "matter.device.found": "주변 {count}개",
+  "matter.device.waiting": "대기 중",
+  "matter.code.title": "인쇄된 Matter 코드로 추가",
+  "matter.code.help":
+    "Matter QR 라벨 옆에 인쇄된 11자리 수동 코드 또는 QR 문자열을 입력하세요.",
+  "matter.code.locked": "먼저 1단계에서 교실 Wi-Fi 설정을 완료하세요.",
+  "matter.tapo.title": "Tapo P110M — 로컬 직접 설정",
+  "matter.tapo.support":
+    "Tapo 앱과 TP-Link 클라우드 없이 교실 Wi-Fi의 Matter로 지원합니다.",
+  "matter.tapo.reset":
+    "새 플러그이거나 이전에 설정한 플러그라면 Reset 버튼을 10초간 눌러 공장 초기화하세요.",
+  "matter.tapo.window":
+    "전원을 껐다 켠 뒤 15분 동안 열리는 Matter 설정 시간 안에 추가하세요.",
+  "matter.tapo.network":
+    "이 컴퓨터를 같은 로컬 네트워크에 두세요. P110M은 2.4GHz Wi-Fi와 로컬 IPv6/mDNS를 사용합니다.",
+  "matter.tapo.code":
+    "Tapo 계정이나 로컬 키가 아니라 플러그 본체 또는 포장에 인쇄된 원래 Matter QR/수동 코드를 사용하세요.",
+  "matter.tapo.energy":
+    "표준 Matter 펌웨어에서 켜기/끄기가 작동합니다. 플러그 펌웨어가 표준 Matter 1.3 측정 클러스터를 제공하면 전력과 에너지가 자동으로 표시됩니다.",
   "matter.code": "Matter 설정 코드",
+  "matter.placeholder": "MT:… 또는 1234-567-8901",
   "matter.adding": "플러그 추가 중…",
   "matter.addLocally": "로컬로 플러그 추가",
   "matter.addAnotherButton": "플러그 하나 더 추가",
@@ -1194,6 +1676,52 @@ const KO: Record<FabricMessageKey, string> = {
   "lego.connect": "저장하고 허브 연결",
   "lego.safety":
     "처음에는 모터가 잠긴 센서 모니터링만 시작합니다. 센서 전용 허브도 지원합니다. 모터가 연결되어 있으면 첫 시험에서 바퀴를 들어 두세요. 움직이려면 별도로 실제 장치를 허용한 수업이 필요합니다.",
+  "sphero.setup": "연결할 정확한 SB-XXXX 로봇 선택",
+  "sphero.wake": "BOLT를 충전한 뒤 충전대에서 꺼내 깨우세요.",
+  "sphero.closeApps":
+    "Sphero Edu, Sphero Play 및 BOLT에 연결된 다른 앱을 모두 닫으세요.",
+  "sphero.noPairing":
+    "Windows 설정에서 BOLT를 페어링하지 마세요. CIT가 BLE로 직접 연결합니다.",
+  "sphero.noneVisible":
+    "정확한 SB-XXXX 신호가 보이지 않습니다. BOLT를 깨우고 가까이 둔 뒤 다른 앱을 닫고 ‘장치 찾기’를 다시 선택하세요.",
+  "sphero.selectExact": "보이는 Sphero BOLT 로봇",
+  "sphero.boltCapabilities": "BOLT · 이동, 조명, 센서",
+  "sphero.connecting": "선택한 BOLT 로봇 연결 중…",
+  "sphero.connectSelected": "선택한 BOLT 로봇 연결",
+  "sphero.connectSafety":
+    "연결하면 제어 잠금 상태의 센서 모니터링만 시작합니다. 방향 지정, 조명 또는 이동 명령은 보내지 않습니다.",
+  "sphero.eyebrow": "로봇 제어",
+  "sphero.title": "Sphero BOLT",
+  "sphero.help":
+    "제어 화면을 열고 빈 바닥 안전 확인을 완료한 뒤 첫 이동 전에 앞 방향을 지정하세요.",
+  "sphero.connectedReady": "연결된 BOLT {count}대가 준비되었습니다",
+  "sphero.openControls": "로봇 제어 열기",
+  "sphero.openControlsHelp":
+    "준비된 로컬 세션을 열어 각 BOLT의 방향 지정, 이동, 정지 및 조명을 제어합니다.",
+  "sphero.movementLocked": "이동은 안전 잠금 상태입니다",
+  "sphero.movementLockedHelp":
+    "BOLT를 장애물이 없는 바닥에 놓고 ‘모든 장치 정지’를 보이게 두세요. 이동은 제한되며 750ms 뒤 로컬에서 자동 정지합니다.",
+  "sphero.enableMovement": "이동 제어 활성화",
+  "sphero.pauseEnableMovement": "잠시 일시 정지하고 이동 제어 활성화",
+  "sphero.aimTitle": "1. 앞 방향 지정",
+  "sphero.aimHelp":
+    "BOLT를 바닥에 놓고 파란 꼬리 조명이 강사를 향하게 돌리세요. 강사 반대쪽이 앞으로 설정됩니다.",
+  "sphero.aimButton": "현재 방향을 앞으로 설정",
+  "sphero.drive": "2. 짧은 이동 시험",
+  "sphero.forward": "앞으로",
+  "sphero.backward": "뒤로",
+  "sphero.left": "왼쪽",
+  "sphero.right": "오른쪽",
+  "sphero.stop": "정지",
+  "sphero.nudge":
+    "화살표마다 제한된 0.20m/s 짧은 이동을 요청합니다. 승인된 다음 명령이 없으면 BOLT가 750ms 이내에 로컬에서 정지합니다.",
+  "sphero.lights": "3. 매트릭스 및 방향 표시등 시험",
+  "sphero.color.blue": "파랑",
+  "sphero.color.orange": "주황",
+  "sphero.color.green": "초록",
+  "sphero.color.off": "조명 끄기",
+  "sphero.locked":
+    "잠김: 모니터링 수업을 시작하고 ‘실제 장치 제어 허용’을 선택한 뒤 바닥 주변이 비었는지 확인하세요.",
   "wonder.setup": "연결할 정확한 로봇 선택",
   "wonder.setupHelp":
     "이번 검색에서 발견된 로봇만 선택할 수 있습니다. 이름과 신호 세기로 실제 로봇을 확인하세요. CIT는 가장 가까운 로봇을 자동 선택하지 않습니다.",
@@ -1339,9 +1867,9 @@ const KO: Record<FabricMessageKey, string> = {
   "course.simultaneous.description":
     "승인된 Leap 또는 안경 입력 하나로 배정된 RoboMaster, LEGO 허브, 활성화된 Tello 그룹, Meta 화면과 G2 화면에 제한된 동작을 동시에 보냅니다. 모든 출력은 따로 안전 검사를 받습니다.",
   "course.plug.name": "교실 스마트 플러그",
-  "course.plug.summary": "강사가 제어하는 교실 플러그",
+  "course.plug.summary": "강사가 개별 제어하는 교실 플러그",
   "course.plug.description":
-    "강사가 이 화면에서 승인된 교실 램프 또는 다른 저위험 부하를 켜고 끕니다.",
+    "강사가 이 화면에서 승인된 교실 램프 또는 다른 저위험 부하를 최대 두 개까지 각각 켜고 끕니다.",
   "course.fallback": "교실 장치 역할 {count}개",
   "role.brain.name": "MindWave 1회 비행 데모",
   "role.brain.description":
@@ -1352,8 +1880,11 @@ const KO: Record<FabricMessageKey, string> = {
   "role.fleet.name": "순차 드론 컨트롤러",
   "role.fleet.description":
     "강사가 준비한 1회 이륙 순서를 관리하고 다음 단계 전에 각 드론을 확인합니다",
-  "role.plug.name": "교실 플러그",
-  "role.plug.description": "승인된 교실 부하 한 개를 켜거나 끕니다",
+  "role.plug.name": "교실 플러그 1",
+  "role.plug.description": "첫 번째 승인된 교실 부하를 켜거나 끕니다",
+  "role.plug2.name": "교실 플러그 2",
+  "role.plug2.description":
+    "두 번째 승인된 교실 부하를 선택적으로 개별 제어합니다",
   "role.agent.name": "코딩 도우미",
   "role.agent.description": "학생 요청을 받고 코딩 진행 상황을 돌려줍니다",
   "role.feedback.name": "피드백 화면",
@@ -1506,14 +2037,15 @@ const KO_INTEGRATIONS: Record<string, IntegrationCopy> = {
   },
   "sphero-bolt": {
     displayName: "Sphero BOLT",
-    connectionMethod: "Bluetooth 저전력(BLE)",
+    connectionMethod: "로컬 Bluetooth 저전력(BLE)",
     setupSteps: [
-      "BOLT를 충전하고 충전대에서 깨운 뒤 LED에 표시되는 SB-XXXX 이름을 확인하세요.",
+      "BOLT를 충전하고 충전대에서 꺼내 깨운 뒤 정확한 SB-XXXX 이름을 확인하세요. Windows 설정에서 페어링하지 마세요.",
       "현재 이 로봇에 연결된 Sphero Edu, Sphero Play 또는 다른 프로그램을 닫으세요.",
-      "장치 찾기를 선택하세요. CIT Sphero 어댑터를 사용할 수 있게 되면 가장 가까운 익명 로봇이 아니라 정확한 SB-XXXX를 선택하세요.",
+      "‘장치 찾기’를 선택하고 정확한 SB-XXXX 로봇을 고른 뒤 ‘선택한 BOLT 로봇 연결’을 선택하세요.",
+      "실제 제어를 허용한 뒤 파란 꼬리 조명이 강사를 향하게 하고 첫 이동 전에 현재 방향을 앞으로 설정하세요.",
     ],
     safetyNote:
-      "검색은 Windows Bluetooth 존재 여부만 읽습니다. 연결, 깨우기, 굴리기, 방향 지정 또는 LED 변경을 하지 않습니다. 실제 이동에는 제한된 CIT 어댑터와 허용된 수업이 필요합니다.",
+      "검색은 읽기 전용이며 가장 가까운 로봇을 자동 선택하지 않습니다. 이동은 0.20m/s로 제한되고 750ms 로컬 자동 정지가 적용됩니다. 방향 지정과 이동에는 실제 장치 제어 허용이 필요합니다.",
   },
   "wonder-workshop-dash-dot": {
     displayName: "Wonder Workshop Dash 및 Dot",
@@ -1562,15 +2094,16 @@ const KO_INTEGRATIONS: Record<string, IntegrationCopy> = {
       "센서 및 드론 어댑터와 분리된 1회 실행 과정입니다. 일반 이륙이나 이동 명령이 없으며 자동 에이전트가 활성화할 수 없습니다.",
   },
   "matter-smart-plugs": {
-    displayName: "Matter 스마트 플러그(클라우드 불필요)",
+    displayName:
+      "Matter 스마트 플러그 — Tapo P110M 및 호환 제품(클라우드 불필요)",
     connectionMethod: "로컬 Matter over Wi-Fi / IPv6",
     setupSteps: [
-      "포장이나 라벨에 Matter 로고와 설정 코드가 있는 플러그를 사용하세요.",
-      "교실 네트워크에서 플러그를 페어링 모드로 전환하세요.",
-      "수업 제어에 인쇄된 코드를 입력하세요. 제조사 계정은 필요하지 않습니다.",
+      "Tapo P110M은 플러그 본체나 포장에 인쇄된 Matter 코드로 지원합니다. Tapo 앱이나 TP-Link 계정은 필요하지 않습니다.",
+      "새 P110M 또는 초기화한 P110M은 Reset 버튼을 10초간 누르고 전원을 껐다 켠 뒤 15분의 Matter 설정 시간 안에 추가하세요.",
+      "CIT 컴퓨터를 IPv6/mDNS가 되는 같은 로컬 네트워크에 두고, 플러그에는 2.4GHz Wi-Fi를 사용한 뒤 아래에 인쇄된 코드를 입력하세요.",
     ],
     safetyNote:
-      "등록할 때 부하 전원을 켜지 않습니다. 연결하면 승인된 콘센트를 전원 꺼짐 안전 상태로 둡니다.",
+      "추가 과정에서 부하를 켜지 않습니다. 연결 시 승인된 각 콘센트를 꺼진 안전 상태로 두며, 표준 Matter 1.3 에너지 정보가 있으면 읽기 전용으로 표시합니다.",
   },
   "lego-hubs": {
     displayName: "LEGO SPIKE 및 MINDSTORMS",
@@ -1748,6 +2281,7 @@ const ROLE_KEYS: Record<string, readonly [FabricMessageKey, FabricMessageKey]> =
     biosignal_input: ["role.biosignal.name", "role.biosignal.description"],
     fleet_sequence_controller: ["role.fleet.name", "role.fleet.description"],
     classroom_plug: ["role.plug.name", "role.plug.description"],
+    classroom_plug_2: ["role.plug2.name", "role.plug2.description"],
     coding_agent: ["role.agent.name", "role.agent.description"],
     feedback_display: ["role.feedback.name", "role.feedback.description"],
     gesture_input: ["role.gesture.name", "role.gesture.description"],
@@ -1885,6 +2419,8 @@ export const fabricCapabilityName = (
     "robot.light.set": "로봇 조명 설정",
     "media.audio.cue.play": "로봇 고정 소리 재생",
     "robot.head.set_pose": "로봇 머리 위치 설정",
+    "sphero.aim.reset": "Sphero 앞 방향 재설정",
+    "telemetry.power.electrical": "플러그 전력 및 에너지",
     "telemetry.flight.state": "드론 비행 상태",
   };
   if (locale === "ko") return ko[capability] ?? capability;

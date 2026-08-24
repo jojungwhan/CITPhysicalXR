@@ -26,6 +26,7 @@
     "typecheck": "pnpm -r --if-present typecheck && uv run mypy",
     "license:check": "node tools/license-check/check.mjs",
     "sbom": "uv run python tools/sbom/generate.py",
+    "release:windows:bundle": "pwsh -NoProfile -File tools/release/build-windows-transfer-bundle.ps1",
     "hardware:fabric:windows": "pwsh -NoProfile -File tools/hardware/interaction-fabric-console.ps1",
     "hardware:devices:windows": "pwsh -NoProfile -File tools/hardware/classroom-devices.ps1",
     "hardware:install-button:windows": "pwsh -NoProfile -File tools/hardware/install-classroom-control-button.ps1",
@@ -36,6 +37,7 @@
     "hardware:meta-camera:windows": "pwsh -NoProfile -File tools/hardware/meta-camera-companion.ps1",
     "hardware:robot:windows": "pwsh -NoProfile -File tools/hardware/robomaster-leap-hardware-test.ps1",
     "hardware:lego:windows": "pwsh -NoProfile -File tools/hardware/lego-pybricks.ps1",
+    "hardware:sphero:windows": "pwsh -NoProfile -File tools/hardware/sphero-bolt.ps1",
     "hardware:wonder:windows": "pwsh -NoProfile -File tools/hardware/wonder-workshop.ps1",
     "hardware:matter:windows": "pwsh -NoProfile -File tools/hardware/matter-smart-plug.ps1",
     "hardware:install-business:windows": "pwsh -NoProfile -STA -File tools/hardware/install-business-site.ps1"

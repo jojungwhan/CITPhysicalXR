@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   exportFilename,
+  saveBlobAsFile,
   saveTextAsFile,
   timestampSlug,
   type DownloadPort,
@@ -102,5 +103,19 @@ describe("saving a document as a file", () => {
       saveTextAsFile("{}", "a.json", "application/json", port),
     ).toThrow("save blocked");
     expect(port.revoked).toHaveLength(1);
+  });
+
+  it("saves an authenticated binary response without reconstructing its bytes", () => {
+    const port = fakePort();
+    const blob = new Blob([new Uint8Array([0x50, 0x4b, 0x03, 0x04])], {
+      type: "application/zip",
+    });
+
+    expect(saveBlobAsFile(blob, "CIT-Setup.zip", port)).toBe("CIT-Setup.zip");
+    expect(port.saved).toEqual([
+      { url: port.created[0], filename: "CIT-Setup.zip" },
+    ]);
+    expect(port.created[0]).toContain("application/zip");
+    expect(port.revoked).toEqual(port.created);
   });
 });

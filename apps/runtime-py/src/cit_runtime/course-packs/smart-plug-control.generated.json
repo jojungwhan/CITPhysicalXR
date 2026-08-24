@@ -3,13 +3,19 @@
   "coursePackId": "smart-plug-control",
   "version": "1.0.0",
   "displayName": "Classroom smart-plug control",
-  "description": "Assigns an approved local Matter smart plug to the classroom_plug role for deterministic instructor on/off control without a proprietary cloud account.",
+  "description": "Assigns up to two approved local Matter smart plugs to independent logical roles for deterministic instructor on/off control without a proprietary cloud account.",
   "roles": [
     {
       "role": "classroom_plug",
       "ioType": "output",
       "oneOfCapabilities": ["power.switch.set"],
       "optional": false
+    },
+    {
+      "role": "classroom_plug_2",
+      "ioType": "output",
+      "oneOfCapabilities": ["power.switch.set"],
+      "optional": true
     }
   ],
   "flows": [],

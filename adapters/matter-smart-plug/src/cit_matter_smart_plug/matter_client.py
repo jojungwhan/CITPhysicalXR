@@ -7,6 +7,7 @@ Fabric runtime starts only a fixed launcher and never imports Matter SDK code.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import re
 from collections.abc import Iterable, Mapping
@@ -22,11 +23,31 @@ ON_OFF_ATTRIBUTE_ID = 0
 DESCRIPTOR_CLUSTER_ID = 29
 DEVICE_TYPE_LIST_ATTRIBUTE_ID = 0
 ON_OFF_PLUGIN_UNIT_DEVICE_TYPE = 0x010A
+ELECTRICAL_POWER_MEASUREMENT_CLUSTER_ID = 0x0090
+ELECTRICAL_ENERGY_MEASUREMENT_CLUSTER_ID = 0x0091
+VOLTAGE_ATTRIBUTE_ID = 0x0004
+ACTIVE_CURRENT_ATTRIBUTE_ID = 0x0005
+ACTIVE_POWER_ATTRIBUTE_ID = 0x0008
+FREQUENCY_ATTRIBUTE_ID = 0x000E
+POWER_FACTOR_ATTRIBUTE_ID = 0x0011
+CUMULATIVE_ENERGY_IMPORTED_ATTRIBUTE_ID = 0x0001
 _ATTRIBUTE_PATH = re.compile(r"^(?P<endpoint>[0-9]+)/(?P<cluster>[0-9]+)/(?P<attribute>[0-9]+)$")
 
 
 class MatterServerError(RuntimeError):
     """A local controller operation failed without disclosing credentials."""
+
+
+@dataclass(frozen=True, slots=True)
+class ElectricalMeasurements:
+    """Normalized values from the standard Matter 1.3 energy clusters."""
+
+    active_power_watts: float | None = None
+    voltage_volts: float | None = None
+    active_current_amperes: float | None = None
+    cumulative_energy_kilowatt_hours: float | None = None
+    frequency_hertz: float | None = None
+    power_factor_ratio: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +58,7 @@ class MatterEndpoint:
     vendor_name: str
     product_name: str
     node_label: str
+    electrical_telemetry: bool
 
     @property
     def cit_node_id(self) -> str:
@@ -48,6 +70,17 @@ class MatterEndpoint:
         if label:
             return label[:120]
         return f"Matter smart plug {self.matter_node_id:x}/{self.endpoint_id}"
+
+
+@dataclass(frozen=True, slots=True)
+class MatterCommissionableDevice:
+    """Sanitized public view of one nearby setup-mode Matter advertisement."""
+
+    candidate_id: str
+    display_name: str
+    vendor_id: int
+    product_id: int
+    long_discriminator: int
 
 
 class MatterServerClient:
@@ -165,6 +198,17 @@ class MatterServerClient:
             raise MatterServerError("Matter plug did not report a boolean OnOff state")
         return state
 
+    async def read_electrical_measurements(
+        self, node_id: int, endpoint_id: int
+    ) -> ElectricalMeasurements | None:
+        node = self.nodes.get(node_id)
+        if node is None:
+            node = await self.refresh_node(node_id)
+        attributes = node.get("attributes")
+        if not isinstance(attributes, Mapping):
+            return None
+        return extract_electrical_measurements(attributes, endpoint_id)
+
     async def set_on_off(self, node_id: int, endpoint_id: int, on: bool) -> None:
         if type(on) is not bool:
             raise TypeError("Matter OnOff state must be boolean")
@@ -204,6 +248,52 @@ class MatterServerClient:
         node_id = _node_id(node)
         self.nodes[node_id] = node
         return node
+
+    async def discover_commissionable_devices(self) -> list[MatterCommissionableDevice]:
+        raw = await self.command("discover_commissionable_nodes", {})
+        if not isinstance(raw, list):
+            raise MatterServerError("Matter controller returned invalid discovery results")
+        devices: list[MatterCommissionableDevice] = []
+        for item in raw:
+            if not isinstance(item, Mapping):
+                continue
+            try:
+                vendor_id = _bounded_integer(item.get("vendor_id"), 0, 0xFFFF)
+                product_id = _bounded_integer(item.get("product_id"), 0, 0xFFFF)
+                discriminator = _bounded_integer(item.get("long_discriminator"), 0, 0x0FFF)
+                commissioning_mode = _bounded_integer(item.get("commissioning_mode"), 0, 2)
+            except (TypeError, ValueError):
+                continue
+            if commissioning_mode == 0:
+                continue
+            instance_name = item.get("instance_name")
+            rotating_id = item.get("rotating_id")
+            identity_material = "\0".join(
+                value for value in (instance_name, rotating_id) if isinstance(value, str) and value
+            )
+            if not identity_material:
+                continue
+            identity = hashlib.sha256(
+                (f"{identity_material}\0{vendor_id}\0{product_id}\0{discriminator}").encode()
+            ).hexdigest()[:12]
+            device_name = item.get("device_name")
+            display_name = (
+                device_name.strip()[:120]
+                if isinstance(device_name, str)
+                and device_name.strip()
+                and all(31 < ord(character) < 127 for character in device_name.strip())
+                else f"Matter device VID {vendor_id:04x} PID {product_id:04x}"
+            )
+            devices.append(
+                MatterCommissionableDevice(
+                    candidate_id=f"matter-{identity}",
+                    display_name=display_name,
+                    vendor_id=vendor_id,
+                    product_id=product_id,
+                    long_discriminator=discriminator,
+                )
+            )
+        return sorted(devices, key=lambda item: item.candidate_id)
 
     async def _receive_loop(self) -> None:
         socket = self._socket
@@ -308,9 +398,54 @@ def discover_plug_endpoints(nodes: Iterable[Mapping[str, object]]) -> list[Matte
                     vendor_name=_attribute_text(attributes, "0/40/1"),
                     product_name=_attribute_text(attributes, "0/40/3"),
                     node_label=_attribute_text(attributes, "0/40/5"),
+                    electrical_telemetry=(
+                        extract_electrical_measurements(attributes, endpoint_id) is not None
+                    ),
                 )
             )
     return sorted(endpoints, key=lambda item: (item.matter_node_id, item.endpoint_id))
+
+
+def extract_electrical_measurements(
+    attributes: Mapping[object, object], endpoint_id: int
+) -> ElectricalMeasurements | None:
+    """Read only standardized Matter electrical attributes from one endpoint.
+
+    Matter 1.3 defines power values in milli-units, power factor in hundredths
+    of a percent, and cumulative energy in mWh. Unsupported or null attributes
+    remain absent instead of being confused with zero.
+    """
+
+    power_prefix = f"{endpoint_id}/{ELECTRICAL_POWER_MEASUREMENT_CLUSTER_ID}"
+    energy_path = (
+        f"{endpoint_id}/{ELECTRICAL_ENERGY_MEASUREMENT_CLUSTER_ID}/"
+        f"{CUMULATIVE_ENERGY_IMPORTED_ATTRIBUTE_ID}"
+    )
+    active_power = _signed_integer_or_none(
+        attributes.get(f"{power_prefix}/{ACTIVE_POWER_ATTRIBUTE_ID}")
+    )
+    voltage = _signed_integer_or_none(attributes.get(f"{power_prefix}/{VOLTAGE_ATTRIBUTE_ID}"))
+    active_current = _signed_integer_or_none(
+        attributes.get(f"{power_prefix}/{ACTIVE_CURRENT_ATTRIBUTE_ID}")
+    )
+    frequency = _signed_integer_or_none(attributes.get(f"{power_prefix}/{FREQUENCY_ATTRIBUTE_ID}"))
+    power_factor = _signed_integer_or_none(
+        attributes.get(f"{power_prefix}/{POWER_FACTOR_ATTRIBUTE_ID}")
+    )
+    energy = _energy_value_or_none(attributes.get(energy_path))
+    if all(
+        value is None
+        for value in (active_power, voltage, active_current, energy, frequency, power_factor)
+    ):
+        return None
+    return ElectricalMeasurements(
+        active_power_watts=_scaled(active_power, 1_000),
+        voltage_volts=_scaled(voltage, 1_000),
+        active_current_amperes=_scaled(active_current, 1_000),
+        cumulative_energy_kilowatt_hours=_scaled(energy, 1_000_000),
+        frequency_hertz=_scaled(frequency, 1_000),
+        power_factor_ratio=_scaled(power_factor, 10_000),
+    )
 
 
 def validate_setup_code(value: str) -> str:
@@ -336,7 +471,10 @@ def _is_on_off_plug(attributes: Mapping[object, object], endpoint_id: int) -> bo
     for entry in device_types:
         if not isinstance(entry, Mapping):
             continue
-        raw_type = entry.get("deviceType", entry.get("device_type"))
+        raw_type = entry.get(
+            "deviceType",
+            entry.get("device_type", entry.get("0", entry.get(0))),
+        )
         try:
             if _integer(raw_type, "Matter device type") == ON_OFF_PLUGIN_UNIT_DEVICE_TYPE:
                 return True
@@ -407,3 +545,28 @@ def _integer(value: object, label: str) -> int:
     if isinstance(value, str) and value.isdecimal():
         return int(value)
     raise ValueError(f"{label} must be a non-negative integer")
+
+
+def _bounded_integer(value: object, minimum: int, maximum: int) -> int:
+    result = _integer(value, "Matter discovery value")
+    if not minimum <= result <= maximum:
+        raise ValueError("Matter discovery value is outside its allowed range")
+    return result
+
+
+def _signed_integer_or_none(value: object) -> int | None:
+    if type(value) is int:
+        return value
+    if isinstance(value, str) and re.fullmatch(r"-?[0-9]+", value):
+        return int(value)
+    return None
+
+
+def _energy_value_or_none(value: object) -> int | None:
+    if not isinstance(value, Mapping):
+        return None
+    return _signed_integer_or_none(value.get("energy"))
+
+
+def _scaled(value: int | None, divisor: int) -> float | None:
+    return None if value is None else value / divisor

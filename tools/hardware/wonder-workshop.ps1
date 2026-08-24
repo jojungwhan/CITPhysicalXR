@@ -319,7 +319,7 @@ try {
       startingAt = [DateTimeOffset]::UtcNow.ToString("o")
     }
     Wait-Until {
-      $nodes = @(Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/nodes" -Credential $bootstrap)
+      $nodes = @(Expand-Sequence (Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/nodes" -Credential $bootstrap))
       return @(
         $nodes | Where-Object {
           $null -ne $_ -and

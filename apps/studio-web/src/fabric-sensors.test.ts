@@ -74,6 +74,29 @@ describe("Fabric sensor presentation", () => {
       "mindwave.esense.attention",
     ]);
   });
+
+  it("shows standard Matter electrical telemetry from a Tapo P110M", () => {
+    const [reading] = latestSensorReadings([
+      event(1, "matter-6e-ep1", "telemetry.power.electrical", {
+        activePowerWatts: 12.345,
+        voltageVolts: 230.1,
+        activeCurrentAmperes: 0.537,
+        cumulativeEnergyKilowattHours: 12.345678,
+        frequencyHertz: 50,
+        powerFactorRatio: 0.9876,
+        standard: "Matter 1.3",
+      }),
+    ]);
+
+    expect(reading?.values).toEqual([
+      { label: "Active Power Watts", value: "12.35" },
+      { label: "Voltage Volts", value: "230.10" },
+      { label: "Active Current Amperes", value: "0.54" },
+      { label: "Cumulative Energy Kilowatt Hours", value: "12.35" },
+      { label: "Frequency Hertz", value: "50" },
+      { label: "Power Factor Ratio", value: "0.99" },
+    ]);
+  });
 });
 
 const event = (

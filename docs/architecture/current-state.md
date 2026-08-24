@@ -19,6 +19,9 @@ The upstream repository already contains the stable Milestone 0, 1, 3, 4, and
   runtime;
 - a Pybricks LEGO adapter, framed hub protocol, hub watchdog, and simulated BLE
   boundary;
+- an independent exact-selection Sphero BOLT BLE adapter with simulator,
+  normalized sensors, bounded directional roll, explicit aim reset, and a
+  750 ms local deadman;
 - instructor/student isolation, projects, autosave, exports, and a bilingual
   Studio;
 - path-prefixed simulation hosting protected by independent join and instructor
@@ -63,12 +66,25 @@ route invokes a fixed read-only Windows host probe and leads the five-stage
 tutor flow: find devices, choose lesson, assign devices, safety, and teach.
 Candidates remain separate from authenticated nodes.
 
+The same tutor page now exposes a separately authorized Windows transfer
+artifact and complete Korean/English handoff instructions. A release step
+packages an exact source revision through an allowlist, excluding credentials,
+state, external checkouts, dependency caches, and build outputs. Fabric verifies
+the immutable ZIP at startup and can only return it; it has no build or shell
+path. The browser verifies the authenticated response before saving, while the
+bootstrap verifies its inner payload and installs to a versioned per-user
+directory. Site/room names travel in a separate non-secret JSON template;
+network and Matter credentials never move between computers.
+
 New business installations also run a loopback-only Open Home Foundation
 Matter controller. The unified console accepts a printed Matter setup code
 through a dedicated authenticated operation and passes it to the fixed launcher
 over stdin. Wi-Fi material is configured locally during technician setup and
 never enters the Fabric. Only standard On/Off Plug-in Unit endpoints become CIT
-nodes. Retired proprietary-LAN plug adapters are not part of the runtime.
+nodes. Tapo P110M setup is explicitly guided without creating a TP-Link-specific
+adapter; standard Matter 1.3 electrical telemetry is advertised only when the
+endpoint actually exposes it. Retired proprietary-LAN plug adapters are not
+part of the runtime.
 
 The same console now has a separate ephemeral media plane and semantic sensor
 projection. Camera publishers replace one bounded in-memory JPEG/PNG; the page
@@ -125,10 +141,13 @@ cross-repository cutover.
   The optional APK compile/build and official MockDeviceKit live-frame smoke
   test pass against the SDK artifacts; repeatable technician installation still
   needs `read:packages`, and the owner hardware round trip remains required.
-- RoboMaster S1 and Leap: software adapter, semantic course flow, UI controls,
-  upstream dry-run process test, and hardware launcher are implemented. The
-  native Leap DLL/runtime/service and physical HIL evidence remain absent on
-  this host.
+- RoboMaster S1 and Leap: independent software adapters, semantic course flow,
+  UI controls, upstream dry-run process tests, and hardware launcher are
+  implemented. The RoboMaster SDK process now publishes a bounded ephemeral
+  camera preview, and Leap publishes reduced palm/pinch/grab samples for the
+  bilingual hand-detection panel without transmitting raw frames. The native
+  Leap DLL/runtime/service and physical camera/controller HIL evidence remain
+  absent on this host.
 - MindWave and Tello: separate `cit.mindwave-mobile2` and `cit.tello` adapters
   now register canonical Fabric nodes through one shared SDK. MindWave is
   publish-only and emits vendor-labelled eSense/signal/blink events with no raw
@@ -150,12 +169,17 @@ cross-repository cutover.
   sound commands; only Dash advertises bounded drive and head capabilities.
   The software simulator, API, UI, idempotency, and deadman tests pass; physical
   Bluetooth/firmware HIL remains open.
+- Sphero BOLT: an independent optional Bleak/spherov2 adapter selects exact
+  `SB-XXXX` advertisements through opaque IDs and registers one process/node
+  per robot. Simulator, discovery, vector mapping, API, UI, idempotency, and
+  deadman evidence pass; real BOLT firmware/Bluetooth HIL remains open.
 
-The media UI accepts explicit RoboMaster and Tello publishers. Tello now has an
-authenticated Brain2Devices MJPEG-to-latest-frame bridge and a simulated camera
-source; physical video/firewall HIL remains open. RoboMaster's physical camera
-publisher is still unwired. The sensor UI and LEGO Pybricks-to-Fabric bridge are
-contract-tested; only the physical hub HIL remains open.
+The media UI accepts explicit RoboMaster and Tello publishers. Tello has an
+authenticated Brain2Devices MJPEG-to-latest-frame bridge and simulated source;
+RoboMaster has an independent SDK-camera-to-latest-frame bridge and simulated
+source. Both remain disjoint from motor/flight control and need physical video
+HIL. The sensor UI and LEGO Pybricks-to-Fabric bridge are contract-tested; only
+the physical hub HIL remains open.
 
 No physical pairing, flight, motor movement, camera capture, audio retention,
 or biosignal recording was performed during reconciliation. Browser testing

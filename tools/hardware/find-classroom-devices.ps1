@@ -712,37 +712,77 @@ $integrations.Add((New-Integration `
   -ActionLabel $(if ($robotBroadcastCount -gt 0 -and $leapStatus -eq "found") { "Connect robot and Leap" } else { "" }) `
   -SafetyNote "A network match is not treated as proof of a robot. Only the adapter handshake can confirm it, and movement stays disarmed."))
 
-# BOLT advertises a classroom-unique SB-XXXX name over BLE. Windows PnP
-# presence is useful setup evidence, but it is not an adapter handshake and
-# must never select a nearby robot or initiate a BLE connection on its own.
-$spheroDevices = @(
-  Get-PresentDevices '(?i)(?:Sphero(?: BOLT)?|(?:^|\s)BOLT(?:\s|$)|\bSB-[0-9A-F]{4}\b)'
-)
+# BOLT is scanned through its independent Bleak adapter. Only exact SB-XXXX
+# advertisements are selectable and their addresses never cross this launcher
+# boundary. Windows PnP is setup evidence only when the scanner is unavailable.
 $spheroCandidates = @()
-for ($index = 0; $index -lt $spheroDevices.Count; $index++) {
+$spheroScanAvailable = $false
+$spheroDevices = @()
+$spheroPython = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
+if (Test-Path -LiteralPath $spheroPython) {
+  & $spheroPython -c "import bleak, cit_sphero_bolt.discovery" 2>$null
+  if ($LASTEXITCODE -eq 0) {
+    try {
+      $spheroRaw = & $spheroPython -m cit_sphero_bolt.discovery --duration 4 --json 2>$null
+      if ($LASTEXITCODE -eq 0) {
+        $spheroDevices = @($spheroRaw | ConvertFrom-Json)
+        $spheroScanAvailable = $true
+      }
+    } catch {
+      $script:warnings.Add("Sphero BOLT read-only BLE scan failed; no robot was connected or commanded.")
+    }
+  }
+}
+foreach ($robot in $spheroDevices) {
   $spheroCandidates += New-Candidate `
-    -Id "sphero-bolt-bluetooth-$($index + 1)" `
-    -Name $(if ($spheroDevices[$index].FriendlyName) { [string]$spheroDevices[$index].FriendlyName } else { "Sphero BOLT $($index + 1)" }) `
+    -Id ([string]$robot.candidateId) `
+    -Name ([string]$robot.displayName) `
     -Transport "Bluetooth Low Energy" `
     -Status "found" `
+    -SignalPercent $robot.signalPercent `
+    -Model "sphero-bolt" `
     -ConnectionPath "bluetooth" `
     -LinkState "visible" `
-    -Detail "Windows reports a matching BOLT device. Its exact SB-XXXX name must still be selected by a CIT adapter before it becomes a lesson node."
+    -Detail "Exact SB-XXXX BOLT advertisement found. Selection performs a fresh exact-ID handshake and sends no movement command."
+}
+$spheroPnp = @(
+  if (-not $spheroScanAvailable) {
+    Get-PresentDevices '(?i)(?:Sphero(?: BOLT)?|(?:^|\s)BOLT(?:\s|$)|\bSB-[0-9A-F]{4}\b)'
+  }
+)
+for ($index = 0; $index -lt $spheroPnp.Count; $index++) {
+  $spheroCandidates += New-Candidate `
+    -Id "sphero-paired-$($index + 1)" `
+    -Name $(if ($spheroPnp[$index].FriendlyName) { [string]$spheroPnp[$index].FriendlyName } else { "Sphero BOLT $($index + 1)" }) `
+    -Transport "Windows Bluetooth presence" `
+    -Status "setup_required" `
+    -ConnectionPath "bluetooth" `
+    -LinkState "paired" `
+    -Detail "Windows sees a possible BOLT, but the CIT Bleak scanner is required before exact selection is safe. Remove any Windows pairing and scan again."
+}
+$spheroStatus = if ($spheroDevices.Count -gt 0) { "found" } elseif ($spheroScanAvailable) { "ready" } else { "setup_required" }
+$spheroSummary = if ($spheroDevices.Count -gt 0) {
+  "$($spheroDevices.Count) exact SB-XXXX BOLT advertisement(s) found; no connection or command was sent."
+} elseif ($spheroScanAvailable) {
+  "Sphero BOLT Bluetooth scanning is ready, but no awake SB-XXXX robot is visible."
+} else {
+  "Install the CIT Sphero BOLT Bluetooth component, then wake the robot and scan again."
 }
 $integrations.Add((New-Integration `
   -Id "sphero-bolt" `
   -Name "Sphero BOLT" `
   -Category "robot" `
-  -Status $(if ($spheroDevices.Count -gt 0) { "found" } else { "setup_required" }) `
-  -Summary $(if ($spheroDevices.Count -gt 0) { "$($spheroDevices.Count) Windows-visible Sphero BOLT device(s) found; no robot was connected or moved." } else { "No Windows-visible Sphero BOLT was found. Charge and wake the robot, then scan again." }) `
-  -ConnectionMethod "Bluetooth Low Energy (BLE)" `
+  -Status $spheroStatus `
+  -Summary $spheroSummary `
+  -ConnectionMethod "Local Bluetooth Low Energy (BLE)" `
   -Candidates $spheroCandidates `
   -SetupSteps @(
-    "Charge BOLT, wake it in its cradle, and keep the displayed SB-XXXX name visible.",
+    "Charge BOLT, remove it from the cradle to wake it, and note the exact SB-XXXX name. Do not pair it in Windows Settings.",
     "Close Sphero Edu, Sphero Play, or another program that is currently connected to this robot.",
-    "Scan again, then select the exact SB-XXXX name through the CIT Sphero adapter when available."
+    "Scan again, select each exact SB-XXXX robot, and connect it while controls remain unarmed.",
+    "After arming, point the blue tail light toward the tutor and set that direction as forward."
   ) `
-  -SafetyNote "Discovery reads Windows Bluetooth presence only. It never connects, wakes, rolls, aims, or changes LEDs."))
+  -SafetyNote "Discovery is read-only and never selects the nearest robot. Movement is limited to 0.20 m/s with a 750 ms local deadman stop."))
 
 # Dash and Dot are scanned with the independent Bleak adapter. The scanner is
 # read-only and returns opaque candidate IDs, never Bluetooth addresses. PnP is
@@ -1009,6 +1049,7 @@ $integrations.Add((New-Integration `
 # cloud API is queried by discovery.
 $matterControllerReady = $false
 $matterInventory = $null
+$matterNearby = @()
 try {
   $matterHealth = Invoke-RestMethod -Uri "http://127.0.0.1:5580/health" -TimeoutSec 2
   $matterControllerReady = $matterHealth.version -eq "1.4.0"
@@ -1017,14 +1058,34 @@ try {
     $rawInventory = (& $runtimePython -m cit_matter_smart_plug.admin inventory --server-url ws://127.0.0.1:5580/ws 2>$null | Out-String)
     if ($LASTEXITCODE -eq 0 -and $rawInventory.Trim()) {
       $matterInventory = $rawInventory | ConvertFrom-Json -AsHashtable
+      $rawNearby = (& $runtimePython -m cit_matter_smart_plug.admin discover --server-url ws://127.0.0.1:5580/ws 2>$null | Out-String)
+      if ($LASTEXITCODE -eq 0 -and $rawNearby.Trim()) {
+        $matterNearbyDocument = $rawNearby | ConvertFrom-Json -AsHashtable
+        $matterNearby = @($matterNearbyDocument.devices)
+      }
     }
   }
 } catch {
   $matterControllerReady = $false
 }
 $matterPlugs = if ($null -ne $matterInventory) { @($matterInventory.plugs) } else { @() }
+$matterWifiReady = (
+  $null -ne $matterInventory -and
+  $matterInventory.controller.wifiCredentialsSet -eq $true
+)
 $availableMatterPlugs = @($matterPlugs | Where-Object { $_.available })
-$matterCandidates = @(
+$matterCandidates = @()
+if ($matterControllerReady) {
+  $matterCandidates += New-Candidate `
+    -Id "matter-controller-wifi" `
+    -Name "Classroom Wi-Fi for Matter" `
+    -Transport "Local Matter controller" `
+    -Status $(if ($matterWifiReady) { "ready" } else { "setup_required" }) `
+    -ConnectionPath "local_service" `
+    -LinkState $(if ($matterWifiReady) { "ready" } else { "" }) `
+    -Detail $(if ($matterWifiReady) { "Wi-Fi is stored locally and the controller is ready to add plugs." } else { "Wi-Fi has not been saved. Enter the classroom 2.4 GHz network below before adding a plug." })
+}
+$matterCandidates += @(
   $matterPlugs | ForEach-Object {
     New-Candidate `
       -Id ([string]$_.nodeId) `
@@ -1034,6 +1095,18 @@ $matterCandidates = @(
       -ConnectionPath "wifi" `
       -LinkState $(if ($_.available) { "connected" } else { "provisioned" }) `
       -Detail $(if ($_.available) { "Commissioned to the local CIT fabric and reachable without a vendor cloud." } else { "Commissioned, but currently offline. Check power and the classroom network." })
+  }
+)
+$matterCandidates += @(
+  $matterNearby | ForEach-Object {
+    New-Candidate `
+      -Id ([string]$_.candidateId) `
+      -Name ([string]$_.displayName) `
+      -Transport "Matter setup advertisement" `
+      -Status "found" `
+      -ConnectionPath "bluetooth" `
+      -LinkState "visible" `
+      -Detail "Nearby in Matter setup mode. Its printed Matter setup code is still required to commission it securely."
   }
 )
 $matterStatus = if ($availableMatterPlugs.Count -gt 0) {
@@ -1048,7 +1121,7 @@ $integrations.Add((New-Integration `
   -Name "Matter smart plugs (cloud-free)" `
   -Category "smart_device" `
   -Status $matterStatus `
-  -Summary $(if ($availableMatterPlugs.Count -gt 0) { "$($availableMatterPlugs.Count) commissioned Matter plug endpoint(s) are reachable through the local CIT controller." } elseif ($matterControllerReady) { "The local Matter controller is ready. Put a Matter-certified plug in pairing mode and add its printed setup code below." } else { "The local Matter controller is not running yet. The CIT classroom launcher starts it automatically." }) `
+  -Summary $(if ($availableMatterPlugs.Count -gt 0) { "$($availableMatterPlugs.Count) commissioned Matter plug endpoint(s) are reachable through the local CIT controller." } elseif ($matterControllerReady -and -not $matterWifiReady) { "The local Matter controller needs the classroom 2.4 GHz Wi-Fi before it can add a plug. Save it below; no vendor account is used." } elseif ($matterControllerReady) { "The local Matter controller is ready. Put a Matter-certified plug in pairing mode and add its printed setup code below." } else { "The local Matter controller is not running yet. The CIT classroom launcher starts it automatically." }) `
   -ConnectionMethod "Local Matter over Wi-Fi / IPv6" `
   -Candidates $matterCandidates `
   -SetupSteps @(
@@ -1062,31 +1135,23 @@ $integrations.Add((New-Integration `
 
 # LEGO remains configuration-bound by advertised hub name; a broad BLE nearest-
 # device selection would be unsafe in a classroom with several identical hubs.
-$legoDevices = @(Get-PresentDevices '(?i)LEGO|SPIKE|MINDSTORMS|Technic Hub|Pybricks')
+# Pybricks connects directly over BLE, so Windows PnP/paired-device records are
+# deliberately not treated as discovery evidence.
 $legoProfilePath = Join-Path (Split-Path $StateRoot -Parent) "lego-pybricks\profile.json"
 $legoConfigured = Test-Path -LiteralPath $legoProfilePath -PathType Leaf
 $legoCandidates = @()
-for ($index = 0; $index -lt $legoDevices.Count; $index++) {
-  $legoCandidates += New-Candidate `
-    -Id "lego-paired-$($index + 1)" `
-    -Name $(if ($legoDevices[$index].FriendlyName) { [string]$legoDevices[$index].FriendlyName } else { "Paired LEGO hub $($index + 1)" }) `
-    -Transport "Bluetooth" `
-    -Status "found" `
-    -ConnectionPath "bluetooth" `
-    -LinkState "connected" `
-    -Detail "A matching paired device is present; bind it by its classroom hub name before connecting."
-}
 $integrations.Add((New-Integration `
   -Id "lego-hubs" `
   -Name "LEGO SPIKE and MINDSTORMS" `
   -Category "robot" `
-  -Status $(if ($legoDevices.Count -gt 0) { "found" } elseif ($legoConfigured) { "ready" } else { "setup_required" }) `
-  -Summary $(if ($legoDevices.Count -gt 0) { "$($legoDevices.Count) paired LEGO/Pybricks device(s) found." } elseif ($legoConfigured) { "An exact-name LEGO profile is ready; power on the configured hub before connecting." } else { "No paired LEGO/Pybricks hub was found; BLE scanning does not auto-select a nearest hub." }) `
-  -ConnectionMethod "Bluetooth / Pybricks" `
+  -Status $(if ($legoConfigured) { "ready" } else { "setup_required" }) `
+  -Summary $(if ($legoConfigured) { "An exact-name LEGO profile is ready; power on the configured Pybricks hub before connecting." } else { "Install Pybricks and the CIT hub agent, then enter the hub's exact advertised name below. Do not pair it in Windows Settings." }) `
+  -ConnectionMethod "Direct local Bluetooth Low Energy / Pybricks" `
   -Candidates $legoCandidates `
   -SetupSteps @(
     "Install Pybricks firmware on the supported hub.",
-    "Give each classroom hub a unique advertised name and bind that exact name in configuration.",
+    "Install the CIT hub agent and give each classroom hub a unique advertised name.",
+    "Do not pair the hub in Windows Bluetooth Settings; enter that exact advertised name below.",
     "Keep motors raised or disconnected for the first framed-protocol test."
   ) `
   -ActionId $(if ($legoConfigured) { "cit.lego-pybricks.connect" } else { "" }) `

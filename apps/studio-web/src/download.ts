@@ -94,9 +94,20 @@ export function saveTextAsFile(
   contentType: string,
   port: DownloadPort = browserDownloadPort(),
 ): string {
-  const url = port.createObjectURL(
+  return saveBlobAsFile(
     new Blob([text], { type: `${contentType};charset=utf-8` }),
+    filename,
+    port,
   );
+}
+
+/** Save already-downloaded binary content without putting credentials in a URL. */
+export function saveBlobAsFile(
+  blob: Blob,
+  filename: string,
+  port: DownloadPort = browserDownloadPort(),
+): string {
+  const url = port.createObjectURL(blob);
   try {
     port.save(url, filename);
   } finally {

@@ -35,6 +35,9 @@ looked first.
 4. Rename the hub while you are there. Every hub advertises the same default
    name, and the class configuration binds by name, so give each one the name it
    will carry in the configuration (`cit-hub-1`, `cit-hub-2`, …).
+5. Do **not** pair the hub in Windows Bluetooth Settings. Pybricks/CIT connects
+   directly to its advertised name. If it is already paired in Windows, remove
+   that pairing before using the CIT connection flow.
 
 Minimum versions this adapter is written against: Pybricks firmware `3.3.0`,
 Pybricks BLE profile `1.2.0`. Both are declared requirements; neither has been

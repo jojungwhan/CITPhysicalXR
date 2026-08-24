@@ -1,0 +1,32 @@
+다른 Windows 11 컴퓨터에 CIT 교실 설치
+======================================
+
+준비 사항
+---------
+- Windows 패키지 관리자(winget)가 있는 Windows 11 x64 컴퓨터
+- 필수 프로그램 설치를 승인할 관리자 권한
+- Microsoft/OpenJS/Python/npm/PyPI/Git의 고정 버전 의존성을 받기 위한 설치 중 인터넷 연결
+- 실제 수업에서 사용할 네트워크 연결
+
+CIT는 Tuya, Gosund 또는 Tapo 클라우드 계정을 사용하지 않습니다. 설치 ZIP에는
+CIT 접속 토큰, Wi-Fi 비밀번호, Matter 컨트롤러 DB, 제조사/장치 인증 정보 또는
+이전 교실 기록도 들어 있지 않습니다.
+
+설치 방법
+---------
+1. 압축을 푼 폴더 전체를 새 컴퓨터로 복사합니다. USB로 옮겨도 됩니다.
+2. 선택 사항: CIT 페이지에서 받은 `cit-site-template.json`을 Install-CIT.cmd와
+   같은 폴더에 둡니다. 이 파일에는 사이트와 교실 이름만 들어 있습니다.
+3. Install-CIT.cmd를 더블클릭합니다.
+4. 필수 프로그램 설치를 승인하고 새 교실 Wi-Fi 비밀번호는 로컬 PowerShell
+   입력창에만 입력합니다. 비밀번호는 ZIP에 포함되지 않습니다.
+5. 페이지가 열리면 장치 찾기를 누릅니다. 각 장치 안내에서 요구하는 Bluetooth
+   장치는 Windows에서 페어링합니다.
+6. 새 장소에서는 Matter 플러그를 공장 초기화한 뒤 페이지에서 로컬 등록합니다.
+   Matter 컨트롤러 DB와 운영 키를 장소 사이에 복사하면 안 됩니다.
+
+설치가 중단되면 PowerShell 창의 정확한 오류를 확인해 해결한 뒤
+Install-CIT.cmd를 다시 실행하세요. 검증된 버전 폴더는 안전하게 재사용됩니다.
+
+선택 사항 — 필수 프로그램을 설치하거나 서비스를 시작하지 않고 무결성만 확인:
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CIT.ps1 -ValidateOnly

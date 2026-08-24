@@ -24,6 +24,7 @@ CLASSIFIER_TO_SPDX = {
     "Python Software Foundation License": "PSF-2.0",
 }
 LICENSE_TEXT_TO_SPDX = {
+    "Apache License 2.0": "Apache-2.0",
     "Apache Software License": "Apache-2.0",
     "Apache-2.0": "Apache-2.0",
     "BSD": "BSD-3-Clause",
@@ -35,6 +36,7 @@ LICENSE_TEXT_TO_SPDX = {
     "BSD-3-Clause": "BSD-3-Clause",
 }
 LICENSE_TEXT_EXPRESSIONS_TO_SPDX = {
+    "Apache-2.0 AND MIT": {"Apache-2.0", "MIT"},
     "MPL-2.0 AND MIT": {"MIT", "MPL-2.0"},
 }
 

@@ -13,12 +13,16 @@ from cit_runtime.fabric_discovery import (
     FabricDiscoveryError,
     FabricDiscoveryReport,
     FabricDiscoveryService,
+    FabricRememberedConnection,
     LegoConnectionConfiguration,
+    MatterWifiConfiguration,
     PowerShellDiscoveryRunner,
+    SpheroBoltConnectionConfiguration,
     WonderWorkshopConnectionConfiguration,
     _ProcessOutputTooLarge,
     _read_bounded_stream,
     initial_discovery_report,
+    remembered_connection_policies_for_nodes,
 )
 from cit_runtime.fabric_service import create_fabric_app
 from fastapi.testclient import TestClient
@@ -33,8 +37,10 @@ class FakeDiscoveryRunner:
         self.scans = 0
         self.actions: list[tuple[str, bool]] = []
         self.matter_codes: list[str] = []
+        self.matter_wifi_configurations: list[tuple[str, str]] = []
         self.lego_configurations: list[LegoConnectionConfiguration] = []
         self.wonder_configurations: list[WonderWorkshopConnectionConfiguration] = []
+        self.sphero_configurations: list[SpheroBoltConnectionConfiguration] = []
 
     async def scan(self) -> FabricDiscoveryReport:
         self.scans += 1
@@ -78,6 +84,12 @@ class FakeDiscoveryRunner:
         self.matter_codes.append(setup_code)
         return "Matter plug commissioned locally."
 
+    async def configure_matter_wifi(self, configuration: MatterWifiConfiguration) -> str:
+        self.matter_wifi_configurations.append(
+            (configuration.ssid, configuration.password.get_secret_value())
+        )
+        return "Matter controller Wi-Fi configured locally."
+
     async def connect_lego(self, configuration: LegoConnectionConfiguration) -> str:
         self.lego_configurations.append(configuration)
         return "LEGO hub connected for sensor monitoring."
@@ -87,6 +99,10 @@ class FakeDiscoveryRunner:
     ) -> str:
         self.wonder_configurations.append(configuration)
         return "Selected Dash and Dot robots connected for sensor monitoring."
+
+    async def connect_sphero_bolts(self, configuration: SpheroBoltConnectionConfiguration) -> str:
+        self.sphero_configurations.append(configuration)
+        return "Selected Sphero BOLT robots connected for sensor monitoring."
 
 
 def admin_identity() -> FabricBootstrapIdentity:
@@ -145,6 +161,41 @@ def test_discovery_overlays_live_nodes_without_claiming_other_devices() -> None:
     assert sphero.status == "not_scanned"
     assert sphero.ioType == "bidirectional"
     assert sphero.icon == "sphero"
+
+
+def test_live_physical_nodes_become_remembered_profiles_but_simulators_do_not() -> None:
+    physical_matches = remembered_connection_policies_for_nodes((leap_node(),))
+    simulated = leap_node().model_copy(update={"physical": False, "simulated": True})
+
+    assert [(policy.action_id, seen_at) for policy, seen_at in physical_matches] == [
+        ("cit.robomaster-leap.connect", NOW)
+    ]
+    assert remembered_connection_policies_for_nodes((simulated,)) == ()
+
+
+def test_remembered_reconnect_does_not_restart_an_already_connected_profile() -> None:
+    runner = FakeDiscoveryRunner()
+    service = FabricDiscoveryService(runner, clock=lambda: NOW)
+
+    result = asyncio.run(
+        service.reconnect_remembered(
+            (
+                FabricRememberedConnection(
+                    actionId="cit.robomaster-leap.connect",
+                    requiresGroundedConfirmation=False,
+                    rememberedAt=NOW,
+                ),
+            ),
+            confirm_grounded=False,
+            nodes=lambda: (leap_node(),),
+        )
+    )
+
+    assert result.connectedCount == 0
+    assert result.alreadyConnectedCount == 1
+    assert result.outcomes[0].status == "already_connected"
+    assert runner.actions == []
+    assert runner.scans == 0
 
 
 def test_discovery_candidate_preserves_bounded_connection_evidence() -> None:
@@ -216,6 +267,8 @@ def test_fixed_adapter_connection_actions_use_disarmed_launchers(
         await runner.perform("cit.glasses-agent.connect", confirm_grounded=False)
         await runner.perform("cit.robomaster-leap.connect", confirm_grounded=False)
         await runner.perform("cit.matter-smart-plug.connect", confirm_grounded=False)
+        await runner.perform("cit.wonder-workshop.reconnect", confirm_grounded=False)
+        await runner.perform("cit.sphero-bolt.reconnect", confirm_grounded=False)
 
     asyncio.run(connect())
 
@@ -226,6 +279,10 @@ def test_fixed_adapter_connection_actions_use_disarmed_launchers(
     assert "-Live" in launches[1][1]
     assert launches[2][0] == "matter-smart-plug.ps1"
     assert "-SkipBuild" in launches[2][1]
+    assert launches[3][0] == "wonder-workshop.ps1"
+    assert launches[3][1][launches[3][1].index("-Mode") + 1] == "Start"
+    assert launches[4][0] == "sphero-bolt.ps1"
+    assert launches[4][1][launches[4][1].index("-Mode") + 1] == "Start"
     assert all("-NoOpenConsole" in arguments for _, arguments in launches)
     component_state_roots = []
     for _, arguments in launches[:2]:
@@ -408,6 +465,106 @@ def test_authenticated_scan_and_allowlisted_connection_are_audited(tmp_path: Pat
     assert "fabric.discovery.connect" in actions
 
 
+def test_remembered_connection_is_persisted_and_reconnects_without_a_scan(
+    tmp_path: Path,
+) -> None:
+    database_path = tmp_path / "fabric.sqlite3"
+    runner = FakeDiscoveryRunner()
+    discovery = FabricDiscoveryService(runner, clock=lambda: NOW)
+    with TestClient(
+        create_fabric_app(
+            database_path=database_path,
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=(admin_identity(),),
+            maintenance_interval=None,
+            discovery_service=discovery,
+        )
+    ) as client:
+        connected = client.post(
+            "/api/v1/fabric/discovery/actions/brain2devices.mindwave.connect",
+            headers=ADMIN_HEADERS,
+            json={"confirmGrounded": False},
+        )
+        remembered = client.get(
+            "/api/v1/fabric/discovery/remembered",
+            headers=ADMIN_HEADERS,
+        )
+        scans_before_reconnect = runner.scans
+        reconnected = client.post(
+            "/api/v1/fabric/discovery/remembered/connect",
+            headers=ADMIN_HEADERS,
+            json={"confirmGrounded": False},
+        )
+
+    assert connected.status_code == 200
+    assert remembered.status_code == 200
+    assert remembered.json()["connections"] == [
+        {
+            "actionId": "brain2devices.mindwave.connect",
+            "requiresGroundedConfirmation": False,
+            "rememberedAt": NOW.isoformat().replace("+00:00", "Z"),
+        }
+    ]
+    assert reconnected.status_code == 200
+    assert reconnected.json()["connectedCount"] == 1
+    assert reconnected.json()["failedCount"] == 0
+    assert runner.scans == scans_before_reconnect
+    assert runner.actions[-1] == ("brain2devices.mindwave.connect", False)
+
+    reopened_discovery = FabricDiscoveryService(runner, clock=lambda: NOW)
+    with TestClient(
+        create_fabric_app(
+            database_path=database_path,
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=(admin_identity(),),
+            maintenance_interval=None,
+            discovery_service=reopened_discovery,
+        )
+    ) as client:
+        persisted = client.get(
+            "/api/v1/fabric/discovery/remembered",
+            headers=ADMIN_HEADERS,
+        )
+    assert persisted.status_code == 200
+    assert [item["actionId"] for item in persisted.json()["connections"]] == [
+        "brain2devices.mindwave.connect"
+    ]
+
+
+def test_unattended_remembered_reconnect_skips_aircraft(tmp_path: Path) -> None:
+    runner = FakeDiscoveryRunner()
+    discovery = FabricDiscoveryService(runner, clock=lambda: NOW)
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "fabric.sqlite3",
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=(admin_identity(),),
+            maintenance_interval=None,
+            discovery_service=discovery,
+        )
+    ) as client:
+        connected = client.post(
+            "/api/v1/fabric/discovery/actions/brain2devices.tello.connect-all",
+            headers=ADMIN_HEADERS,
+            json={"confirmGrounded": True},
+        )
+        actions_before_reconnect = tuple(runner.actions)
+        scans_before_reconnect = runner.scans
+        skipped = client.post(
+            "/api/v1/fabric/discovery/remembered/connect",
+            headers=ADMIN_HEADERS,
+            json={"confirmGrounded": False},
+        )
+
+    assert connected.status_code == 200
+    assert skipped.status_code == 200
+    assert skipped.json()["connectedCount"] == 0
+    assert skipped.json()["skippedCount"] == 1
+    assert skipped.json()["outcomes"][0]["code"] == "GROUNDED_CONFIRMATION_REQUIRED"
+    assert tuple(runner.actions) == actions_before_reconnect
+    assert runner.scans == scans_before_reconnect
+
+
 def test_matter_commissioning_code_is_not_written_to_audit(tmp_path: Path) -> None:
     runner = FakeDiscoveryRunner()
     setup_code = "MT:Y.K9042C00KA0648G00"
@@ -446,6 +603,49 @@ def test_matter_commissioning_code_is_not_written_to_audit(tmp_path: Path) -> No
         if record["action"] == "fabric.matter.commission" and record["outcome"] == "succeeded"
     )
     assert matter_record["details"] == {
+        "inputRetained": False,
+        "vendorAccountUsed": False,
+    }
+
+
+def test_matter_wifi_configuration_is_authenticated_and_secret_is_not_audited(
+    tmp_path: Path,
+) -> None:
+    runner = FakeDiscoveryRunner()
+    ssid = "CIT-Classroom-2G"
+    password = "do-not-store-this-wifi-password"
+    discovery = FabricDiscoveryService(runner, clock=lambda: NOW)
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "fabric.sqlite3",
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=(admin_identity(),),
+            maintenance_interval=None,
+            discovery_service=discovery,
+        )
+    ) as client:
+        unauthenticated = client.post(
+            "/api/v1/fabric/matter/wifi",
+            json={"ssid": ssid, "password": password},
+        )
+        configured = client.post(
+            "/api/v1/fabric/matter/wifi",
+            headers=ADMIN_HEADERS,
+            json={"ssid": ssid, "password": password},
+        )
+        audit = client.get("/api/v1/fabric/audit?limit=50", headers=ADMIN_HEADERS)
+
+    assert unauthenticated.status_code == 401
+    assert configured.status_code == 200
+    assert configured.json()["actionId"] == "cit.matter-smart-plug.configure-wifi"
+    assert runner.matter_wifi_configurations == [(ssid, password)]
+    assert password not in configured.text
+    assert password not in audit.text
+    wifi_record = next(
+        record for record in audit.json() if record["action"] == "fabric.matter.configure_wifi"
+    )
+    assert wifi_record["outcome"] == "succeeded"
+    assert wifi_record["details"] == {
         "inputRetained": False,
         "vendorAccountUsed": False,
     }
@@ -578,6 +778,54 @@ def test_dash_dot_connection_accepts_only_exact_opaque_candidates(tmp_path: Path
     assert [robot.candidateId for robot in runner.wonder_configurations[0].robots] == [
         "wonder-aabbccddeeff",
         "wonder-001122334455",
+    ]
+    assert invalid.status_code == 422
+    assert duplicate.status_code == 422
+
+
+def test_sphero_connection_accepts_only_exact_opaque_candidates(tmp_path: Path) -> None:
+    runner = FakeDiscoveryRunner()
+    discovery = FabricDiscoveryService(runner, clock=lambda: NOW)
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "fabric.sqlite3",
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=(admin_identity(),),
+            maintenance_interval=None,
+            discovery_service=discovery,
+        )
+    ) as client:
+        connected = client.post(
+            "/api/v1/fabric/sphero-bolt/connect",
+            headers=ADMIN_HEADERS,
+            json={
+                "robots": [
+                    {"candidateId": "sphero-aabbccddeeff"},
+                    {"candidateId": "sphero-001122334455"},
+                ]
+            },
+        )
+        invalid = client.post(
+            "/api/v1/fabric/sphero-bolt/connect",
+            headers=ADMIN_HEADERS,
+            json={"robots": [{"candidateId": "nearest-bluetooth-robot"}]},
+        )
+        duplicate = client.post(
+            "/api/v1/fabric/sphero-bolt/connect",
+            headers=ADMIN_HEADERS,
+            json={
+                "robots": [
+                    {"candidateId": "sphero-001122334455"},
+                    {"candidateId": "sphero-001122334455"},
+                ]
+            },
+        )
+
+    assert connected.status_code == 200
+    assert connected.json()["actionId"] == "cit.sphero-bolt.configure-connect"
+    assert [robot.candidateId for robot in runner.sphero_configurations[0].robots] == [
+        "sphero-aabbccddeeff",
+        "sphero-001122334455",
     ]
     assert invalid.status_code == 422
     assert duplicate.status_code == 422

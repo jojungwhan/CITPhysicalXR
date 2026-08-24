@@ -109,6 +109,15 @@ class FabricAuditRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class FabricRememberedConnectionRecord:
+    host_id: str
+    reconnect_action_id: str
+    requires_grounded_confirmation: bool
+    remembered_at: datetime
+    remembered_by: str
+
+
+@dataclass(frozen=True, slots=True)
 class FabricLeaseDecision:
     acquired: bool
     holder_session_id: str | None = None
@@ -130,6 +139,84 @@ class FabricPersistenceMixin:
     """SQLite operations mixed into the runtime repository's one connection."""
 
     _connection: sqlite3.Connection
+
+    def remember_fabric_connection(
+        self,
+        *,
+        host_id: str,
+        reconnect_action_id: str,
+        requires_grounded_confirmation: bool,
+        remembered_at: datetime,
+        remembered_by: str,
+    ) -> FabricRememberedConnectionRecord:
+        timestamp = _aware_utc(remembered_at, field_name="remembered_at")
+        if not 1 <= len(host_id) <= 160 or not 1 <= len(remembered_by) <= 128:
+            raise ValueError("Remembered connection host and actor identifiers are invalid")
+        if (
+            not 1 <= len(reconnect_action_id) <= 96
+            or not reconnect_action_id[0].isalnum()
+            or any(
+                not (character.isalnum() or character in "._-") for character in reconnect_action_id
+            )
+        ):
+            raise ValueError("Remembered reconnect action identifier is invalid")
+        record = FabricRememberedConnectionRecord(
+            host_id=host_id,
+            reconnect_action_id=reconnect_action_id,
+            requires_grounded_confirmation=requires_grounded_confirmation,
+            remembered_at=timestamp,
+            remembered_by=remembered_by,
+        )
+        with self._connection:
+            self._connection.execute(
+                """
+                INSERT INTO fabric_remembered_connections (
+                    host_id,
+                    reconnect_action_id,
+                    requires_grounded_confirmation,
+                    remembered_at,
+                    remembered_by
+                ) VALUES (?, ?, ?, ?, ?)
+                ON CONFLICT(host_id, reconnect_action_id) DO UPDATE SET
+                    requires_grounded_confirmation = excluded.requires_grounded_confirmation,
+                    remembered_at = excluded.remembered_at,
+                    remembered_by = excluded.remembered_by
+                WHERE excluded.remembered_at >= fabric_remembered_connections.remembered_at
+                """,
+                (
+                    record.host_id,
+                    record.reconnect_action_id,
+                    int(record.requires_grounded_confirmation),
+                    record.remembered_at.isoformat(),
+                    record.remembered_by,
+                ),
+            )
+        return record
+
+    def list_fabric_remembered_connections(
+        self,
+        *,
+        host_id: str,
+    ) -> tuple[FabricRememberedConnectionRecord, ...]:
+        rows = self._connection.execute(
+            """
+            SELECT *
+            FROM fabric_remembered_connections
+            WHERE host_id = ?
+            ORDER BY remembered_at DESC, reconnect_action_id
+            """,
+            (host_id,),
+        ).fetchall()
+        return tuple(
+            FabricRememberedConnectionRecord(
+                host_id=str(row["host_id"]),
+                reconnect_action_id=str(row["reconnect_action_id"]),
+                requires_grounded_confirmation=bool(row["requires_grounded_confirmation"]),
+                remembered_at=datetime.fromisoformat(row["remembered_at"]),
+                remembered_by=str(row["remembered_by"]),
+            )
+            for row in rows
+        )
 
     def register_fabric_plugin(
         self,

@@ -59,6 +59,7 @@ def test_classroom_launcher_isolates_optional_brain2devices_failure() -> None:
 
 def test_lego_launcher_uses_exact_profile_input_and_unarmed_monitoring() -> None:
     launcher = _launcher("lego-pybricks.ps1")
+    probe = _launcher("find-classroom-devices.ps1")
 
     assert "[Console]::In.ReadToEnd()" in launcher
     assert "/api/v1/fabric/monitoring/session" in launcher
@@ -70,6 +71,27 @@ def test_lego_launcher_uses_exact_profile_input_and_unarmed_monitoring() -> None
     assert "Invoke-Expression" not in launcher
     assert "download_program" not in launcher
     assert '"/arm"' not in launcher
+    assert "$nodes = @(Expand-Sequence (Invoke-JsonApi" in launcher
+    assert '.PSObject.Properties["nodeId"]' in launcher
+    assert '.PSObject.Properties["connectionState"]' in launcher
+    assert "paired LEGO/Pybricks" not in probe
+    assert "Do not pair the hub in Windows Bluetooth Settings" in probe
+
+
+def test_matter_launcher_and_probe_expose_wifi_readiness_before_commissioning() -> None:
+    launcher = _launcher("matter-smart-plug.ps1")
+    probe = _launcher("find-classroom-devices.ps1")
+
+    assert '"ConfigureWifi"' in launcher
+    assert "[Console]::In.ReadToEnd()" in launcher
+    assert "wifiCredentialsSet" in launcher
+    assert "MATTER_WIFI_NOT_CONFIGURED" in launcher
+    assert '"matter-controller-wifi"' in probe
+    assert "cit_matter_smart_plug.admin discover" in probe
+    assert "wifiCredentialsSet" in probe
+    assert "Running Fabric adapters:" in launcher
+    assert "Offline Fabric adapter records:" in launcher
+    assert "Test-ExactProcess $record.adapterPid $adapterMarker" in launcher
 
 
 def test_independent_monitoring_launchers_join_one_shared_session() -> None:
@@ -221,6 +243,9 @@ def test_ui_started_physical_adapters_support_a_disarmed_connect_only_mode() -> 
     assert "[switch]$ConnectOnly" in robot
     assert "CONNECTED AND DISARMED" in robot
     assert "[IO.File]::Delete" in robot
+    assert '"--publish-camera"' in robot
+    assert "import cv2, robomaster" in robot
+    assert '"fabric.media.publish"' in robot
     assert '"cit.robomaster-leap.connect"' in probe
 
 
@@ -229,6 +254,32 @@ def test_legacy_smart_plug_launchers_are_removed() -> None:
 
     assert not (hardware / "smart-plug-hardware-test.ps1").exists()
     assert not (hardware / "tasmota-smart-plug.ps1").exists()
+
+
+def test_windows_transfer_installer_has_a_versioned_fail_closed_boundary() -> None:
+    builder = (
+        REPOSITORY_ROOT / "tools" / "release" / "build-windows-transfer-bundle.ps1"
+    ).read_text(encoding="utf-8-sig")
+    bootstrap = (REPOSITORY_ROOT / "tools" / "release" / "windows" / "Install-CIT.ps1").read_text(
+        encoding="utf-8-sig"
+    )
+    business_installer = _launcher("install-business-site.ps1")
+
+    assert "git -C $sourceRoot status --porcelain=v1" in builder
+    assert "source tree has uncommitted files" in builder
+    assert "Assert-RelativeSourcePath" in builder
+    assert '".env"' in builder
+    assert '"node_modules"' in builder
+    assert '"artifacts"' in builder
+    assert "Get-FileHash -LiteralPath $payloadPath -Algorithm SHA256" in bootstrap
+    assert "Assert-VerifiedSourceTree" in bootstrap
+    assert "sourceManifestSha256" in builder
+    assert "[switch]$ValidateOnly" in bootstrap
+    assert 'Join-Path $env:LOCALAPPDATA "CITPhysicalXR\\app"' in bootstrap
+    assert "controller databases and operational keys must not be copied" in (
+        REPOSITORY_ROOT / "tools" / "release" / "windows" / "INSTALL-EN.txt"
+    ).read_text(encoding="utf-8")
+    assert '"release:windows:bundle"' in business_installer
 
 
 def test_glasses_and_leap_launchers_can_attach_inputs_to_a_shared_fleet_session() -> None:
@@ -301,9 +352,9 @@ if ($ResultPath) {
     assert report["schemaVersion"] == "1.0"
     assert len(report["integrations"]) == 11
     sphero = next(item for item in report["integrations"] if item["integrationId"] == "sphero-bolt")
-    assert sphero["connectionMethod"] == "Bluetooth Low Energy (BLE)"
+    assert sphero["connectionMethod"] == "Local Bluetooth Low Energy (BLE)"
     assert "actionId" not in sphero
-    assert "roll" in sphero["safetyNote"]
+    assert "750 ms" in sphero["safetyNote"]
     wonder = next(
         item
         for item in report["integrations"]
@@ -322,6 +373,18 @@ if ($ResultPath) {
 def test_wonder_launcher_tolerates_transient_non_node_api_values() -> None:
     launcher = _launcher("wonder-workshop.ps1")
 
+    assert "$nodes = @(Expand-Sequence (Invoke-JsonApi" in launcher
+    assert '.PSObject.Properties["nodeId"]' in launcher
+    assert '.PSObject.Properties["connectionState"]' in launcher
+
+
+def test_sphero_launcher_is_exact_selection_and_fail_safe() -> None:
+    launcher = _launcher("sphero-bolt.ps1")
+
+    assert "^sphero-[a-f0-9]{12}$" in launcher
+    assert "cit_sphero_bolt.fabric_main" in launcher
+    assert "Start-Sleep -Milliseconds 900" in launcher
+    assert "$nodes = @(Expand-Sequence (Invoke-JsonApi" in launcher
     assert '.PSObject.Properties["nodeId"]' in launcher
     assert '.PSObject.Properties["connectionState"]' in launcher
 

@@ -32,6 +32,8 @@ from .backend import (
     VendorLeapProcess,
     VendorProcessError,
     demo_gesture_signals,
+    demo_hand_preview_signal,
+    gesture_event_payload,
 )
 from .contract import (
     FLIGHT_SEQUENCE_INTENT_CAPABILITY,
@@ -240,21 +242,26 @@ class FabricRobotLeapBridge:
     async def _publish_input(self, socket: AdapterSocket) -> None:
         # The signal comes from another process creating an exact sentinel file;
         # an asyncio.Event cannot observe that cross-process state.
-        while not self.configuration.activation_file.is_file():  # noqa: ASYNC110
-            await asyncio.sleep(0.1)
         if self.configuration.input_mode == "demo":
-            for signal in demo_gesture_signals():
+            while not self.configuration.activation_file.is_file():  # noqa: ASYNC110
+                await asyncio.sleep(0.1)
+            signals = demo_gesture_signals()
+            for signal in signals:
                 await self._publish_gesture(socket, signal)
                 await asyncio.sleep(0.25)
-            while self.configuration.activation_file.is_file():  # noqa: ASYNC110
-                await asyncio.sleep(0.25)
+            sequence = signals[-1].sequence + 1
+            while self.configuration.activation_file.is_file():
+                await self._publish_gesture(
+                    socket,
+                    demo_hand_preview_signal(sequence),
+                )
+                sequence += 1
+                await asyncio.sleep(1.0)
             return
         leap = self._leap
         if leap is None:
             raise RuntimeError("Leap process is unavailable")
         async for signal in leap.events():
-            if not self.configuration.activation_file.is_file():
-                return
             await self._publish_gesture(socket, signal)
 
     async def _publish_gesture(self, socket: AdapterSocket, signal: GestureSignal) -> None:
@@ -283,15 +290,7 @@ class FabricRobotLeapBridge:
                     "confidence": signal.confidence,
                     "ttlMs": 250,
                     "dataClassification": "operational",
-                    "payload": {
-                        "forwardMetersPerSecond": signal.forward_meters_per_second,
-                        "rightMetersPerSecond": signal.right_meters_per_second,
-                        "clockwiseRadiansPerSecond": signal.clockwise_radians_per_second,
-                        "state": signal.state,
-                        "reason": signal.reason,
-                        "tracking": signal.tracking,
-                        "vendorSequence": signal.sequence,
-                    },
+                    "payload": gesture_event_payload(signal),
                 },
                 "sentAt": now,
             }

@@ -17,6 +17,7 @@ export interface TutorGuide {
   title: string;
   description: string;
   targetId: string;
+  actionLabel: string;
 }
 
 export const tutorGuide = (
@@ -32,6 +33,7 @@ export const tutorGuide = (
       title: t("guide.find.title"),
       description: t("guide.find.description"),
       targetId: "device-discovery",
+      actionLabel: t("guide.action.find"),
     };
   }
   if (session === undefined) {
@@ -41,6 +43,7 @@ export const tutorGuide = (
       title: t("guide.choose.title"),
       description: t("guide.choose.description"),
       targetId: "lesson-setup",
+      actionLabel: t("guide.action.choose"),
     };
   }
   if (["stopped", "emergency_stopped", "failed"].includes(session.state)) {
@@ -50,6 +53,7 @@ export const tutorGuide = (
       title: t("guide.ended.title"),
       description: t("guide.ended.description"),
       targetId: "lesson-setup",
+      actionLabel: t("guide.action.ended"),
     };
   }
   const assigned = new Set(session.roleBindings.map((binding) => binding.role));
@@ -61,6 +65,7 @@ export const tutorGuide = (
       title: t("guide.connect.title", { count: missing.length }),
       description: t("guide.connect.description"),
       targetId: "device-setup",
+      actionLabel: t("guide.action.connect"),
     };
   }
   if (session.mode === "physical" && session.armed !== true) {
@@ -70,6 +75,7 @@ export const tutorGuide = (
       title: t("guide.safety.title"),
       description: t("guide.safety.description"),
       targetId: "lesson-safety",
+      actionLabel: t("guide.action.review"),
     };
   }
   if (session.state === "active") {
@@ -79,6 +85,7 @@ export const tutorGuide = (
       title: t("guide.teach.title"),
       description: t("guide.teach.description"),
       targetId: "live-controls",
+      actionLabel: t("guide.action.teach"),
     };
   }
   return {
@@ -87,5 +94,6 @@ export const tutorGuide = (
     title: t("guide.ready.title"),
     description: t("guide.ready.description"),
     targetId: "lesson-safety",
+    actionLabel: t("guide.action.review"),
   };
 };

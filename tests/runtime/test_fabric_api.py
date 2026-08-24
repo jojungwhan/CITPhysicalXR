@@ -389,6 +389,7 @@ def test_launcher_console_ticket_is_short_lived_single_use_and_tutor_scoped(
     assert tutor.status_code == 200
     assert tutor.json()["roles"] == ["instructor"]
     assert "fabric.sessions.manage" in tutor.json()["permissions"]
+    assert "fabric.installation.read" in tutor.json()["permissions"]
     assert "fabric.auth.issue" not in tutor.json()["permissions"]
     assert cannot_issue_identity.status_code == 403
 

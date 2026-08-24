@@ -32,6 +32,7 @@ from .fabric_discovery import (
     PowerShellDiscoveryRunner,
     UnavailableDiscoveryRunner,
 )
+from .fabric_installation import FabricInstallationCatalog
 from .fabric_media import (
     FabricMediaRegistry,
     VisionDetector,
@@ -59,6 +60,7 @@ def create_fabric_app(
     media_registry: FabricMediaRegistry | None = None,
     vision_detector: VisionDetector | None = None,
     media_ingress_origin: str | None = None,
+    installation_directory: str | Path | None = None,
 ) -> FastAPI:
     """Create one independently authenticated Interaction Fabric process."""
 
@@ -78,6 +80,7 @@ def create_fabric_app(
     )
     configured_media = media_registry or FabricMediaRegistry()
     configured_detector = vision_detector or configured_vision_detector()
+    configured_installation = FabricInstallationCatalog.load(installation_directory)
 
     repository: SQLiteFabricRepository | None = None
     fabric: InteractionFabric | None = None
@@ -264,6 +267,7 @@ def create_fabric_app(
         clock=wall_clock,
         allowed_origins=configured_origins,
         stop_all=stop_all,
+        installation_catalog=configured_installation,
     )
     install_fabric_media_api(
         app,
@@ -357,6 +361,14 @@ def create_persistent_fabric_app() -> FastAPI:
     else:
         built_studio = Path(__file__).resolve().parents[4] / "apps" / "studio-web" / "dist"
         studio_directory = built_studio if built_studio.is_dir() else None
+    configured_installation_directory = os.environ.get("CITXR_INSTALLATION_DIRECTORY")
+    installation_directory = (
+        Path(configured_installation_directory)
+        if configured_installation_directory
+        else Path(__file__).resolve().parents[4] / "artifacts" / "windows-transfer"
+    )
+    if not installation_directory.is_absolute():
+        raise ValueError("CITXR_INSTALLATION_DIRECTORY must be an absolute path")
     physical_setting = os.environ.get("CITXR_ALLOW_PHYSICAL_FABRIC", "false").casefold()
     if physical_setting not in {"true", "false"}:
         raise ValueError("CITXR_ALLOW_PHYSICAL_FABRIC must be 'true' or 'false'")
@@ -423,4 +435,5 @@ def create_persistent_fabric_app() -> FastAPI:
         studio_directory=studio_directory,
         discovery_service=discovery,
         media_ingress_origin=configured_media_ingress,
+        installation_directory=installation_directory,
     )

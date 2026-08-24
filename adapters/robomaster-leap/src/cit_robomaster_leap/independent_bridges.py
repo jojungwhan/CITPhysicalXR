@@ -21,6 +21,8 @@ from .backend import (
     VendorLeapProcess,
     VendorProcessError,
     demo_gesture_signals,
+    demo_hand_preview_signal,
+    gesture_event_payload,
 )
 from .contract import (
     FLIGHT_SEQUENCE_INTENT_CAPABILITY,
@@ -32,6 +34,7 @@ from .contract import (
     build_robot_manifest,
     build_robot_node,
 )
+from .media import RoboMasterMediaPublisher
 from .robot_commands import RobotCommandHandler
 
 
@@ -52,6 +55,7 @@ class RobotBridgeConfiguration:
     node_id: str
     activation_file: Path
     robot_mode: str
+    media_publisher: RoboMasterMediaPublisher | None = None
 
 
 class LeapFlightSequenceIntentProjector:
@@ -141,24 +145,26 @@ class FabricLeapBridge:
             raise RuntimeError(f"Unexpected Fabric adapter frame {frame_type!r}")
 
     async def _publish(self, client: FabricAdapterClient) -> None:
-        while not self.configuration.activation_file.is_file():  # noqa: ASYNC110
-            await asyncio.sleep(0.1)
         if self.configuration.input_mode == "demo":
-            for signal in demo_gesture_signals():
+            while not self.configuration.activation_file.is_file():  # noqa: ASYNC110
+                await asyncio.sleep(0.1)
+            signals = demo_gesture_signals()
+            for signal in signals:
                 if not self.configuration.activation_file.is_file():
                     return
                 await self._publish_gesture(client, signal)
                 await asyncio.sleep(0.25)
-            while self.configuration.activation_file.is_file():  # noqa: ASYNC110
-                await asyncio.sleep(0.1)
+            sequence = signals[-1].sequence + 1
+            while self.configuration.activation_file.is_file():
+                await self._publish_gesture(client, demo_hand_preview_signal(sequence))
+                sequence += 1
+                await asyncio.sleep(1.0)
             return
         leap = self._leap
         if leap is None:
             raise RuntimeError("Leap worker is unavailable")
         try:
             async for signal in leap.events():
-                if not self.configuration.activation_file.is_file():
-                    return
                 await self._publish_gesture(client, signal)
         except VendorProcessError as error:
             self._last_error = str(error)[:500]
@@ -174,15 +180,7 @@ class FabricLeapBridge:
             source_node_id=self.configuration.node_id,
             confidence=signal.confidence,
             ttl_ms=250,
-            payload={
-                "forwardMetersPerSecond": signal.forward_meters_per_second,
-                "rightMetersPerSecond": signal.right_meters_per_second,
-                "clockwiseRadiansPerSecond": signal.clockwise_radians_per_second,
-                "state": signal.state,
-                "reason": signal.reason,
-                "tracking": signal.tracking,
-                "vendorSequence": signal.sequence,
-            },
+            payload=gesture_event_payload(signal),
         )
         intent = self._sequence_projector.observe(signal)
         if intent is not None:
@@ -209,7 +207,8 @@ class FabricLeapBridge:
                             "healthState": "healthy" if healthy else "degraded",
                             "message": self._last_error,
                             "metrics": {
-                                "inputActive": self.configuration.activation_file.is_file(),
+                                "trackingActive": self.configuration.input_mode == "leap",
+                                "lessonActive": self.configuration.activation_file.is_file(),
                                 "semanticEventsOnly": True,
                             },
                         }
@@ -252,6 +251,16 @@ class FabricRoboMasterBridge:
                     asyncio.create_task(self._receive(client), name="robot-fabric-receive"),
                     asyncio.create_task(self._heartbeat(client), name="robot-heartbeat"),
                     asyncio.create_task(self._activation_watch(), name="robot-activation-watch"),
+                    *(
+                        (
+                            asyncio.create_task(
+                                self.configuration.media_publisher.run(),
+                                name="robomaster-media-publisher",
+                            ),
+                        )
+                        if self.configuration.media_publisher is not None
+                        else ()
+                    ),
                 )
                 done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
                 for task in pending:
@@ -342,6 +351,16 @@ class FabricRoboMasterBridge:
                             "metrics": {
                                 "lessonActive": self.configuration.activation_file.is_file(),
                                 "localWatchdogMilliseconds": 200,
+                                "cameraFramesPublished": (
+                                    self.configuration.media_publisher.frames_published
+                                    if self.configuration.media_publisher is not None
+                                    else 0
+                                ),
+                                "cameraError": (
+                                    self.configuration.media_publisher.last_error
+                                    if self.configuration.media_publisher is not None
+                                    else None
+                                ),
                             },
                         }
                     )

@@ -1,0 +1,32 @@
+CIT Classroom setup for another Windows 11 computer
+=====================================================
+
+What you need
+-------------
+- A Windows 11 x64 computer with Windows Package Manager (winget).
+- Administrator approval for prerequisite installers.
+- Internet access during installation for pinned Microsoft/OpenJS/Python/npm/PyPI/Git dependencies.
+- The computer on the classroom network you intend to use.
+
+No Tuya, Gosund, or Tapo cloud account is used by CIT. The installation package
+also contains no CIT access token, Wi-Fi password, Matter controller database,
+vendor credential, device credential, or prior classroom recording.
+
+Install
+-------
+1. Copy this entire extracted folder to the new computer. USB transfer is fine.
+2. Optionally put a `cit-site-template.json` downloaded from the CIT page beside
+   Install-CIT.cmd. It contains only the site and room names.
+3. Double-click Install-CIT.cmd.
+4. Approve prerequisite installation and enter the NEW classroom Wi-Fi password
+   only in the local PowerShell prompt. It is never included in this ZIP.
+5. When the page opens, choose Find devices. Pair Bluetooth devices in Windows
+   when their device instructions require it.
+6. Factory-reset and locally commission each Matter plug at the new site. Matter
+   controller databases and operational keys must not be copied between sites.
+
+If installation stops, read the exact message in the PowerShell window, correct
+that item, and run Install-CIT.cmd again. Versioned source is safely reused.
+
+Optional integrity-only check (installs no prerequisites and starts no service):
+  powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Install-CIT.ps1 -ValidateOnly
