@@ -303,8 +303,16 @@ $state = @{
 Save-JsonFile $statePath $state
 try {
   Wait-Until {
-    $nodes = @(Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/nodes" -Credential $bootstrap)
-    return @($nodes | Where-Object { $_.nodeId -eq $nodeId -and $_.connectionState -eq "connected" }).Count -eq 1
+    $nodes = @(Expand-Sequence (Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/nodes" -Credential $bootstrap))
+    return @(
+      $nodes | Where-Object {
+        $null -ne $_ -and
+        $null -ne $_.PSObject.Properties["nodeId"] -and
+        $null -ne $_.PSObject.Properties["connectionState"] -and
+        $_.nodeId -eq $nodeId -and
+        $_.connectionState -eq "connected"
+      }
+    ).Count -eq 1
   } "The LEGO adapter did not connect; inspect $logRoot"
   $null = Invoke-JsonApi -Method PUT -Uri "$fabricOrigin/api/v1/fabric/sessions/$($state.sessionId)/roles/$sensorRole" -Credential $bootstrap -Body @{ nodeId = $nodeId }
   if ([string]$session.state -ne "active") {

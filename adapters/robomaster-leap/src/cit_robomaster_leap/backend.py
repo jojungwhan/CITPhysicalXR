@@ -3,13 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
 import math
 import os
 import subprocess
 from collections import deque
 from collections.abc import AsyncIterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Protocol
 from uuid import uuid4
@@ -41,6 +43,29 @@ class VendorConfiguration:
 
 
 @dataclass(frozen=True, slots=True)
+class LeapHandSample:
+    hand_id: int
+    handedness: str
+    visible_time_seconds: float
+    palm_x_mm: float
+    palm_y_mm: float
+    palm_z_mm: float
+    velocity_x_mm_per_second: float
+    velocity_y_mm_per_second: float
+    velocity_z_mm_per_second: float
+    direction_x: float
+    direction_y: float
+    direction_z: float
+    normal_x: float
+    normal_y: float
+    normal_z: float
+    pinch_strength: float
+    grab_strength: float
+    pinch_distance_mm: float
+    yaw_degrees: float
+
+
+@dataclass(frozen=True, slots=True)
 class GestureSignal:
     sequence: int
     monotonic_nanoseconds: int
@@ -51,6 +76,65 @@ class GestureSignal:
     right_meters_per_second: float
     clockwise_radians_per_second: float
     tracking: bool
+    hand: LeapHandSample | None = None
+    sensor_frame_id: int | None = None
+    sensor_frame_rate_hz: float | None = None
+    total_hand_count: int = 0
+    service_connected: bool = False
+    device_present: bool = False
+
+
+def gesture_event_payload(signal: GestureSignal) -> dict[str, object]:
+    """Build the single canonical Leap payload used by both bridge variants."""
+
+    hand = signal.hand
+    return {
+        "forwardMetersPerSecond": signal.forward_meters_per_second,
+        "rightMetersPerSecond": signal.right_meters_per_second,
+        "clockwiseRadiansPerSecond": signal.clockwise_radians_per_second,
+        "state": signal.state,
+        "reason": signal.reason,
+        "tracking": signal.tracking,
+        "vendorSequence": signal.sequence,
+        "sensorFrameId": signal.sensor_frame_id,
+        "sensorFrameRateHertz": signal.sensor_frame_rate_hz,
+        "totalHandCount": signal.total_hand_count,
+        "serviceConnected": signal.service_connected,
+        "devicePresent": signal.device_present,
+        "hand": (
+            None
+            if hand is None
+            else {
+                "handId": hand.hand_id,
+                "handedness": hand.handedness,
+                "visibleTimeSeconds": hand.visible_time_seconds,
+                "palmMillimeters": {
+                    "x": hand.palm_x_mm,
+                    "y": hand.palm_y_mm,
+                    "z": hand.palm_z_mm,
+                },
+                "velocityMillimetersPerSecond": {
+                    "x": hand.velocity_x_mm_per_second,
+                    "y": hand.velocity_y_mm_per_second,
+                    "z": hand.velocity_z_mm_per_second,
+                },
+                "direction": {
+                    "x": hand.direction_x,
+                    "y": hand.direction_y,
+                    "z": hand.direction_z,
+                },
+                "palmNormal": {
+                    "x": hand.normal_x,
+                    "y": hand.normal_y,
+                    "z": hand.normal_z,
+                },
+                "pinchStrength": hand.pinch_strength,
+                "grabStrength": hand.grab_strength,
+                "pinchDistanceMillimeters": hand.pinch_distance_mm,
+                "yawDegrees": hand.yaw_degrees,
+            }
+        ),
+    }
 
 
 class RobotBackend(Protocol):
@@ -68,6 +152,12 @@ class RobotBackend(Protocol):
     async def stop(self, *, reason: str) -> None: ...
 
     async def close(self) -> None: ...
+
+
+@dataclass(frozen=True, slots=True)
+class RobotCameraFrame:
+    sequence: int
+    jpeg: bytes
 
 
 def upstream_revision(repository: Path) -> str:
@@ -214,6 +304,44 @@ class VendorRobotProcess:
         except VendorProcessError:
             return
 
+    async def start_camera(self) -> None:
+        await self._request("camera_start", deadline_seconds=10.0)
+
+    async def camera_frame(self, *, after_sequence: int) -> RobotCameraFrame | None:
+        value = await self._request(
+            "camera_frame",
+            payload={"afterSequence": after_sequence},
+            deadline_seconds=1.0,
+        )
+        if value.get("ready") is not True:
+            return None
+        try:
+            sequence = value["sequence"]
+            if not isinstance(sequence, int) or isinstance(sequence, bool):
+                raise ValueError("camera frame sequence is invalid")
+            encoded = value["jpegBase64"]
+            if not isinstance(encoded, str) or len(encoded) > 1_500_000:
+                raise ValueError("camera frame encoding is invalid")
+            jpeg = base64.b64decode(encoded, validate=True)
+        except (KeyError, TypeError, ValueError, binascii.Error) as error:
+            raise VendorProcessError("Robot worker returned an invalid camera frame") from error
+        if sequence <= after_sequence:
+            return None
+        if not 32 <= len(jpeg) <= 1_048_576:
+            raise VendorProcessError("Robot worker camera frame is outside Fabric limits")
+        if not jpeg.startswith(b"\xff\xd8") or not jpeg.endswith(b"\xff\xd9"):
+            raise VendorProcessError("Robot worker camera payload is not a complete JPEG")
+        return RobotCameraFrame(sequence=sequence, jpeg=jpeg)
+
+    async def stop_camera(self) -> None:
+        process = self._process
+        if process is None or process.returncode is not None:
+            return
+        try:
+            await self._request("camera_stop", deadline_seconds=2.0)
+        except VendorProcessError:
+            return
+
     async def close(self) -> None:
         process = self._process
         if process is None:
@@ -322,6 +450,8 @@ class VendorLeapProcess:
             if frame.get("type") != "gesture":
                 continue
             try:
+                hand = _leap_hand_from_frame(frame.get("hand"))
+                frame_rate = frame.get("sensorFrameRateHertz")
                 yield GestureSignal(
                     sequence=int(frame["sequence"]),
                     monotonic_nanoseconds=int(frame["monotonicNanoseconds"]),
@@ -332,6 +462,14 @@ class VendorLeapProcess:
                     right_meters_per_second=float(frame["rightMetersPerSecond"]),
                     clockwise_radians_per_second=float(frame["clockwiseRadiansPerSecond"]),
                     tracking=bool(frame["tracking"]),
+                    hand=hand,
+                    sensor_frame_id=_optional_int(frame.get("sensorFrameId")),
+                    sensor_frame_rate_hz=(
+                        None if frame_rate is None else _finite_float(frame_rate)
+                    ),
+                    total_hand_count=int(frame.get("totalHandCount", 0)),
+                    service_connected=bool(frame.get("serviceConnected", False)),
+                    device_present=bool(frame.get("devicePresent", False)),
                 )
             except (KeyError, TypeError, ValueError) as error:
                 raise VendorProcessError("Leap worker emitted an invalid gesture frame") from error
@@ -448,6 +586,12 @@ def demo_gesture_signals() -> tuple[GestureSignal, ...]:
             right_meters_per_second=0.0,
             clockwise_radians_per_second=0.0,
             tracking=True,
+            hand=_demo_hand(pinch_strength=0.92),
+            sensor_frame_id=1,
+            sensor_frame_rate_hz=60.0,
+            total_hand_count=1,
+            service_connected=True,
+            device_present=True,
         ),
         GestureSignal(
             sequence=2,
@@ -459,7 +603,115 @@ def demo_gesture_signals() -> tuple[GestureSignal, ...]:
             right_meters_per_second=0.0,
             clockwise_radians_per_second=0.0,
             tracking=True,
+            hand=_demo_hand(pinch_strength=0.10),
+            sensor_frame_id=2,
+            sensor_frame_rate_hz=60.0,
+            total_hand_count=1,
+            service_connected=True,
+            device_present=True,
         ),
+    )
+
+
+def demo_hand_preview_signal(sequence: int) -> GestureSignal:
+    """Keep the simulator's hand display live without requesting movement."""
+
+    if sequence < 3:
+        raise ValueError("Demo preview sequences must follow the bounded pulse")
+    stopped = demo_gesture_signals()[-1]
+    return replace(
+        stopped,
+        sequence=sequence,
+        monotonic_nanoseconds=sequence * 1_000_000_000,
+        reason="simulated live hand preview - stopped",
+        sensor_frame_id=sequence,
+    )
+
+
+def _demo_hand(*, pinch_strength: float) -> LeapHandSample:
+    return LeapHandSample(
+        hand_id=1,
+        handedness="right",
+        visible_time_seconds=1.0,
+        palm_x_mm=0.0,
+        palm_y_mm=180.0,
+        palm_z_mm=-120.0,
+        velocity_x_mm_per_second=0.0,
+        velocity_y_mm_per_second=0.0,
+        velocity_z_mm_per_second=0.0,
+        direction_x=0.0,
+        direction_y=0.0,
+        direction_z=-1.0,
+        normal_x=0.0,
+        normal_y=1.0,
+        normal_z=0.0,
+        pinch_strength=pinch_strength,
+        grab_strength=0.15,
+        pinch_distance_mm=20.0 if pinch_strength >= 0.6 else 55.0,
+        yaw_degrees=0.0,
+    )
+
+
+def _finite_float(value: object) -> float:
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise ValueError("numeric Leap value must be a number")
+    result = float(value)
+    if not math.isfinite(result):
+        raise ValueError("Leap value must be finite")
+    return result
+
+
+def _optional_int(value: object) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise ValueError("Leap frame id must be an integer")
+    return value
+
+
+def _leap_hand_from_frame(value: object) -> LeapHandSample | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise ValueError("Leap hand must be an object")
+
+    def vector(name: str) -> tuple[float, float, float]:
+        candidate = value.get(name)
+        if not isinstance(candidate, dict):
+            raise ValueError(f"Leap hand {name} must be an object")
+        return (
+            _finite_float(candidate.get("x")),
+            _finite_float(candidate.get("y")),
+            _finite_float(candidate.get("z")),
+        )
+
+    palm = vector("palmMillimeters")
+    velocity = vector("velocityMillimetersPerSecond")
+    direction = vector("direction")
+    normal = vector("palmNormal")
+    handedness = str(value.get("handedness", "")).casefold()
+    if handedness not in {"left", "right"}:
+        raise ValueError("Leap handedness must be left or right")
+    return LeapHandSample(
+        hand_id=int(value["handId"]),
+        handedness=handedness,
+        visible_time_seconds=_finite_float(value["visibleTimeSeconds"]),
+        palm_x_mm=palm[0],
+        palm_y_mm=palm[1],
+        palm_z_mm=palm[2],
+        velocity_x_mm_per_second=velocity[0],
+        velocity_y_mm_per_second=velocity[1],
+        velocity_z_mm_per_second=velocity[2],
+        direction_x=direction[0],
+        direction_y=direction[1],
+        direction_z=direction[2],
+        normal_x=normal[0],
+        normal_y=normal[1],
+        normal_z=normal[2],
+        pinch_strength=_finite_float(value["pinchStrength"]),
+        grab_strength=_finite_float(value["grabStrength"]),
+        pinch_distance_mm=_finite_float(value["pinchDistanceMillimeters"]),
+        yaw_degrees=_finite_float(value["yawDegrees"]),
     )
 
 

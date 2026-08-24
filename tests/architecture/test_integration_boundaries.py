@@ -34,6 +34,7 @@ def test_fabric_core_imports_no_vendor_or_adapter_package() -> None:
         "cit_matter_smart_plug",
         "cit_mindwave_mobile2",
         "cit_robomaster_leap",
+        "cit_sphero_bolt",
         "cit_tello",
         "djitellopy",
         "pybricksdev",
@@ -116,7 +117,7 @@ def test_external_source_revisions_are_generated_once_for_python_and_windows() -
             encoding="utf-8"
         )
     )
-    for key in ("brain2devices", "robomaster-gesture-control", "bleak-dash"):
+    for key in ("brain2devices", "robomaster-gesture-control", "bleak-dash", "spherov2"):
         source = external_source(key)
         assert generated["sources"][key]["revision"] == source.revision
         assert generated["sources"][key]["repository"] == source.repository

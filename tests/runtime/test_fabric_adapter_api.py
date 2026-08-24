@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -497,3 +498,80 @@ def test_paused_session_discards_events_without_disconnecting_adapter(
             active_ack = websocket.receive_json()
             assert active_ack["acknowledgedFrameId"] == active_frame_id
             assert active_ack["streamSequence"] >= 1
+
+
+def test_adapter_conflict_logs_safe_frame_context_and_exact_code(
+    tmp_path: Path,
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.WARNING, logger="cit_runtime.fabric_adapters")
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "runtime.sqlite3",
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=bootstrap_identities(),
+        )
+    ) as client:
+        with client.websocket_connect("/api/v1/adapters/connect") as websocket:
+            websocket.send_json(
+                {
+                    "frameType": "adapter.authenticate",
+                    "frameId": str(uuid4()),
+                    "protocolVersion": 1,
+                    "credential": ADAPTER_TOKEN,
+                    "sentAt": NOW.isoformat(),
+                }
+            )
+            assert websocket.receive_json()["frameType"] == "adapter.welcome"
+            websocket.send_json(registration_frame())
+            assert websocket.receive_json()["frameType"] == "adapter.registered"
+
+            created = client.post(
+                "/api/v1/fabric/sessions",
+                headers=ADMIN_HEADERS,
+                json={
+                    "coursePackId": "glasses-agent-control",
+                    "coursePackVersion": "1.0.0",
+                    "siteId": "local-site",
+                    "roomId": "local-room",
+                    "mode": "simulation",
+                },
+            )
+            assert created.status_code == 201
+            session_id = str(created.json()["sessionId"])
+            for role, node_id in (
+                ("primary_glasses", "g2-sim-a"),
+                ("coding_agent", "codex-session-sim-a"),
+            ):
+                assigned = client.put(
+                    f"/api/v1/fabric/sessions/{session_id}/roles/{role}",
+                    headers=ADMIN_HEADERS,
+                    json={"nodeId": node_id},
+                )
+                assert assigned.status_code == 200
+
+            websocket.send_json(
+                adapter_event(
+                    frame_id=str(uuid4()),
+                    message_id=str(uuid4()),
+                    session_id=session_id,
+                    node_id="g2-sim-a",
+                    capability_name="interaction.intent.agent_prompt",
+                    sequence=1,
+                    data_classification="voice_transcript",
+                    payload={"text": "do-not-log-this-prompt"},
+                    correlation_id="inactive-session-observation",
+                )
+            )
+            with pytest.raises(WebSocketDisconnect) as disconnected:
+                websocket.receive_json()
+
+    assert disconnected.value.code == 4409
+    assert "SESSION_NOT_ACTIVE" in disconnected.value.reason
+    diagnostic = "\n".join(record.getMessage() for record in caplog.records)
+    assert "code=SESSION_NOT_ACTIVE" in diagnostic
+    assert "frame_type=adapter.event" in diagnostic
+    assert f"session_id={session_id}" in diagnostic
+    assert "node_id=g2-sim-a" in diagnostic
+    assert "do-not-log-this-prompt" not in diagnostic
+    assert ADAPTER_TOKEN not in diagnostic

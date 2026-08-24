@@ -54,6 +54,15 @@ it is an SPDX licence.
 | Hatchling and build       | Python package builds            | `MIT`                  |
 | FastAPI and Starlette     | Local runtime API                | `MIT` / `BSD-3-Clause` |
 | uvicorn and websockets    | Local runtime transport          | `BSD-3-Clause`         |
+| matter-ble-proxy          | Local Windows Matter BLE proxy   | `Apache-2.0`           |
+| aiohttp and multidict     | Transitive Matter BLE networking | `Apache-2.0` / `MIT`   |
+
+The pinned Windows Matter BLE graph includes `aiohttp` 3.14.3, whose installed
+metadata declares `Apache-2.0 AND MIT` and ships Apache-2.0 plus vendored
+`llhttp` MIT texts, and `multidict` 6.7.1, whose metadata spells Apache-2.0 as
+`Apache License 2.0`. The Python gate normalizes only these standard exact
+metadata values; both resulting SPDX identifiers remain subject to the same
+allowlist.
 
 ## Optional local vision runtime
 
@@ -79,7 +88,8 @@ authoritative.
 
 ## Optional hardware dependencies
 
-`adapters/lego-pybricks` and `adapters/wonder-workshop` declare optional
+`adapters/lego-pybricks`, `adapters/sphero-bolt`, and
+`adapters/wonder-workshop` declare optional
 `hardware` extras. They are not installed by default and are not required for
 ordinary build, test, or simulation. The Dash/Dot extra adds only Bleak; its
 small packet subset is implemented at the adapter boundary rather than pulling
@@ -94,6 +104,9 @@ an unofficial robot package into the runtime.
 | `mpy-cross-v5`, `mpy-cross-v6` | Transitive: MicroPython compilers                     | no licence metadata published — **not allowlisted**                 |
 | `aioserial`, `tqdm`            | Transitive                                            | `MPL-2.0`, `MPL-2.0 AND MIT` (allowed; metadata does not normalize) |
 | `bleak`                        | Direct optional Dash/Dot BLE transport                | `MIT`                                                               |
+| `spherov2`                     | Optional Sphero BOLT command and sensor protocol      | `MIT`                                                               |
+| `transforms3d`                 | Transitive spherov2 sensor transformation helper      | `BSD-3-Clause`                                                      |
+| `numpy`                        | Transitive spherov2 numerical helper                  | `BSD-3-Clause`                                                      |
 
 The Dash/Dot byte-level subset is adapted with attribution from
 [`mewmix/bleak-dash`](https://github.com/mewmix/bleak-dash) at revision
@@ -101,6 +114,13 @@ The Dash/Dot byte-level subset is adapted with attribution from
 License 2.0 to code adapted from `IlyaSukhanov/morseapi` and
 `havnfun/python-dash-robot`. CIT does not install or redistribute that package;
 the exact reference pin is maintained in `config/external-sources.yaml`.
+
+The optional Sphero BOLT boundary uses `spherov2` 0.12.1, pinned to
+[`artificial-intelligence-class/spherov2.py`](https://github.com/artificial-intelligence-class/spherov2.py)
+revision `4252ddb1a12a25db725257d66e3e8ec3057dd48b` under the MIT licence.
+It is reverse-engineered and not an official Sphero BOLT SDK. CIT supplies a
+modern exact-device Bleak adapter around it and does not claim physical
+firmware compatibility until the hardware checklist passes.
 
 Installing the extra therefore makes `pnpm license:check` fail on that machine. This is recorded, not resolved: see ADR-023 in `docs/DECISIONS.md`. No LEGO hardware work should proceed until the owner decides which way it goes.
 

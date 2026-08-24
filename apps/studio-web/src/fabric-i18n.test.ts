@@ -19,6 +19,7 @@ describe("Fabric classroom i18n", () => {
     const intentionallyShared = new Set([
       "language.ko",
       "language.en",
+      "leap.eyebrow",
       "matter.placeholder",
     ]);
     for (const key of fabricMessageKeys()) {

@@ -6,7 +6,10 @@ import { fabricTranslatorFor } from "./fabric-i18n.js";
 
 describe("tutor next-step guide", () => {
   it("starts with a plain lesson choice", () => {
-    expect(tutorGuide(undefined, [], false).stage).toBe("find_devices");
+    const findDevices = tutorGuide(undefined, [], false);
+    expect(findDevices.stage).toBe("find_devices");
+    expect(findDevices.targetId).toBe("device-discovery");
+    expect(findDevices.actionLabel).toBe("Go to device discovery");
     expect(tutorGuide(undefined, [], true).stage).toBe("choose_lesson");
     expect(tutorGuide(undefined, [], true).title).toBe("Choose today’s lesson");
   });
@@ -52,6 +55,7 @@ describe("tutor next-step guide", () => {
     const guide = tutorGuide(undefined, [], false, fabricTranslatorFor("ko"));
     expect(guide.title).toBe("교실 장치 찾기");
     expect(guide.description).toContain("USB");
+    expect(guide.actionLabel).toBe("장치 검색 단계로 이동");
   });
 });
 

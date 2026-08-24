@@ -26,6 +26,24 @@ is included, the button stays locked until the tutor confirms that every
 aircraft is grounded with its propellers removed or guarded. You can still use
 an individual card's connection button when troubleshooting one integration.
 
+After an adapter has connected successfully once, CIT remembers its fixed,
+allowlisted reconnect action for this Windows host. On later visits, **Connect
+remembered devices** reuses the exact local Matter, LEGO, Sphero, Dash/Dot, or
+other adapter profile without running the broad USB/Bluetooth/Wi-Fi/Android
+scan. The adjacent opt-in checkbox performs the same fast reconnect when the
+tutor page opens. The full **Find devices** button remains available for new,
+changed, missing, or partially connected hardware.
+
+Remembering a connection stores only the host ID, fixed reconnect action ID,
+grounded-aircraft requirement, actor, and timestamp in the Fabric SQLite
+database. Vendor credentials and raw discovery identifiers are not copied.
+Adapter-owned profiles remain the source of truth for exact device selection.
+Already-live adapter groups are left running. Automatic reconnect never carries
+an aircraft-grounded confirmation, so Tello actions are skipped until a tutor
+confirms grounded status and presses the remembered-device button manually.
+Reconnect does not arm a lesson or enable movement, motor, takeoff, agent tool,
+or plug power-on commands.
+
 Each integration has one of these states:
 
 | State          | Meaning                                                                |
@@ -154,12 +172,23 @@ clusters. Follow [Matter smart plugs on Windows](matter-smart-plug-windows.md).
 - Codex/Claude cards distinguish installed executables from supervised Agent
   Mesh sessions. **Connect glasses and agent** starts only the fixed bridge for
   an already approved session; it never creates an agent or grants a workspace.
-- LEGO cards show paired candidates but never choose the nearest BLE hub. In
+- LEGO cards show visible candidates but never choose the nearest BLE hub. Do
+  not pair a Pybricks hub in Windows Settings; remove an existing pairing. In
   the card, enter the exact Pybricks Bluetooth name, select the hub model, map
   its ports, and choose **Save and connect hub**. One sensor or motor is enough
   for monitoring; two motors are required before the node advertises ground
   mobility. Setup starts an unarmed monitoring session and issues no motor
   command.
+
+## Local BLE classroom robots
+
+- Sphero BOLT discovery accepts only exact `SB-XXXX` advertisements and returns
+  opaque `sphero-*` IDs. Do not pair BOLT in Windows Settings. Select the exact
+  robot in the card; connection starts unarmed sensor monitoring. Aim reset and
+  movement remain locked until the physical lesson is armed, and each movement
+  has a 750 ms local deadman. See [Sphero BOLT on Windows](sphero-bolt-windows.md).
+- Dash and Dot likewise use exact local advertisements and opaque IDs. They do
+  not share the Sphero adapter, state, protocol, or process.
 
 ## Command-line checks
 
@@ -172,6 +201,7 @@ pnpm hardware:brain:windows -- -Mode Preflight
 pnpm hardware:brain:windows -- -Mode Status
 pnpm hardware:brain:fabric:windows -- -Mode Preflight -Device All
 pnpm hardware:lego:windows -- -Mode Status
+pnpm hardware:sphero:windows -- -Mode Preflight
 ```
 
 The JSON scan is read-only and accepts no browser or device credential. Its

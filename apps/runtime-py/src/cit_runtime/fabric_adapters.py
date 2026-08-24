@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import time
 from collections import deque
 from dataclasses import dataclass, field
@@ -52,6 +53,8 @@ _MAX_FRAME_BYTES = 131_072
 _MAX_FRAMES_PER_SECOND = 200
 _MAX_SEEN_FRAME_IDS = 4096
 
+LOGGER = logging.getLogger(__name__)
+
 
 @dataclass(slots=True)
 class _AdapterConnection:
@@ -62,6 +65,15 @@ class _AdapterConnection:
     seen_frame_ids: set[str] = field(default_factory=set)
     seen_frame_order: deque[str] = field(default_factory=deque)
     frame_times: deque[float] = field(default_factory=deque)
+
+
+@dataclass(frozen=True, slots=True)
+class _AdapterFrameContext:
+    frame_type: str = "unknown"
+    frame_id: str = "unknown"
+    session_id: str = "none"
+    node_id: str = "none"
+    correlation_id: str = "none"
 
 
 class FabricAdapterConnections:
@@ -94,6 +106,8 @@ class FabricAdapterConnections:
             return
         await websocket.accept()
         connection: _AdapterConnection | None = None
+        principal: FabricPrincipal | None = None
+        frame_context = _AdapterFrameContext()
         try:
             authentication = await self._receive_model(
                 websocket,
@@ -121,6 +135,11 @@ class FabricAdapterConnections:
                 websocket,
                 AdapterRegistrationFrame,
                 deadline_seconds=_REGISTRATION_TIMEOUT_SECONDS,
+            )
+            frame_context = _AdapterFrameContext(
+                frame_type=registration.frameType,
+                frame_id=str(registration.frameId),
+                node_id=str(registration.nodes[0].nodeId),
             )
             _require_fresh_frame(registration.sentAt, now=self._clock())
             self._authorize_registration(principal, registration)
@@ -166,6 +185,11 @@ class FabricAdapterConnections:
                 frame_type = value.get("frameType")
                 if frame_type == "adapter.heartbeat":
                     heartbeat_frame = AdapterHeartbeatFrame.model_validate(value)
+                    frame_context = _AdapterFrameContext(
+                        frame_type=heartbeat_frame.frameType,
+                        frame_id=str(heartbeat_frame.frameId),
+                        node_id=str(heartbeat_frame.reports[0].nodeId),
+                    )
                     duplicate = self._remember_frame(
                         connection,
                         str(heartbeat_frame.frameId),
@@ -179,6 +203,13 @@ class FabricAdapterConnections:
                     )
                 elif frame_type == "adapter.event":
                     event_frame = AdapterEventFrame.model_validate(value)
+                    frame_context = _AdapterFrameContext(
+                        frame_type=event_frame.frameType,
+                        frame_id=str(event_frame.frameId),
+                        session_id=str(event_frame.event.sessionId),
+                        node_id=str(event_frame.event.sourceNodeId),
+                        correlation_id=str(event_frame.event.correlationId),
+                    )
                     duplicate_frame = self._remember_frame(
                         connection,
                         str(event_frame.frameId),
@@ -204,6 +235,13 @@ class FabricAdapterConnections:
                     )
                 elif frame_type == "adapter.command_lifecycle":
                     lifecycle_frame = AdapterCommandLifecycleFrame.model_validate(value)
+                    frame_context = _AdapterFrameContext(
+                        frame_type=lifecycle_frame.frameType,
+                        frame_id=str(lifecycle_frame.frameId),
+                        session_id=str(lifecycle_frame.lifecycle.sessionId),
+                        node_id=str(lifecycle_frame.lifecycle.targetNodeId),
+                        correlation_id=str(lifecycle_frame.lifecycle.correlationId),
+                    )
                     duplicate_frame = self._remember_frame(
                         connection,
                         str(lifecycle_frame.frameId),
@@ -237,8 +275,20 @@ class FabricAdapterConnections:
             await websocket.close(code=4403, reason="Adapter frame was not authorized")
         except FabricNotFoundError:
             await websocket.close(code=4404, reason="Adapter frame references unknown state")
-        except FabricConflictError:
-            await websocket.close(code=4409, reason="Adapter frame conflicts with current state")
+        except FabricConflictError as error:
+            LOGGER.warning(
+                "Fabric adapter frame rejected code=%s identity_id=%s frame_type=%s "
+                "frame_id=%s session_id=%s node_id=%s correlation_id=%s message=%s",
+                error.code,
+                principal.identity_id if principal is not None else "unknown",
+                frame_context.frame_type,
+                frame_context.frame_id,
+                frame_context.session_id,
+                frame_context.node_id,
+                frame_context.correlation_id,
+                str(error),
+            )
+            await websocket.close(code=4409, reason=f"Adapter frame conflict: {error.code}")
         except (ValidationError, ValueError, json.JSONDecodeError):
             await websocket.close(code=4400, reason="Adapter frame is invalid")
         except WebSocketDisconnect:

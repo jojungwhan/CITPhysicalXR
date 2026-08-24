@@ -23,6 +23,37 @@ following:
 A product name alone is not enough. The label or packaging must explicitly show
 Matter support and a setup code; CIT does not replace proprietary firmware.
 
+## Tapo P110M
+
+The Tapo P110M is supported through its standard Matter interface. CIT does not
+use the Tapo app, a TP-Link account, TP-Link's cloud API, a device ID, or a
+vendor local key.
+
+For CIT-owned, cloud-independent setup:
+
+1. Find the Matter QR/manual setup code on the plug casing or packaging.
+2. If the plug is new or belongs to another Matter fabric, hold **Reset for 10
+   seconds** to factory-reset it.
+3. Power-cycle the plug. Its Matter setup mode remains available for 15 minutes
+   after power-up; power-cycle it again if that window expires.
+4. Keep the Windows computer on the classroom LAN with local IPv6 and mDNS.
+   Commission the plug onto the configured **2.4 GHz Wi-Fi** from Classroom
+   Control.
+
+The generic Matter adapter always exposes bounded on/off and verified state for
+a standard `0x010A` endpoint. A P110M with firmware that exposes the standard
+Matter 1.3 Electrical Power/Energy Measurement clusters additionally publishes
+`telemetry.power.electrical` with W, V, A, kWh, Hz, and power factor fields.
+Older firmware or a controller/firmware combination without those clusters
+continues to work for on/off; CIT does not invent or retrieve proprietary
+telemetry. Firmware availability varies by hardware region, and CIT deliberately
+does not run vendor OTA updates.
+
+References: [TP-Link Matter setup guide](https://www.tp-link.com/us/support/faq/3520/),
+[P110M user guide](https://www.tp-link.com/us/document/124264/),
+[P110M firmware notes](https://www.tp-link.com/us/support/download/tapo-p110m/),
+and the [CSA Matter 1.3 announcement](https://csa-iot.org/newsroom/matter-1-3-specification-released/).
+
 ## One-time business-site installation
 
 Place the repository in its permanent location. On a normal Windows 11
@@ -80,20 +111,34 @@ pnpm hardware:install-business:windows -- -Mode Status
    until the pairing indicator flashes.
 4. Open **CIT Classroom Control** from the Desktop.
 5. Choose **Find devices**.
-6. On **Matter smart plugs (cloud-free)**, enter the exact code printed beside
-   the plug's Matter QR label and choose **Add plug locally**.
-7. Wait up to three minutes. Keep the plug powered and within Bluetooth range
+6. On **Matter smart plugs — Tapo P110M + compatible (cloud-free)**, complete
+   the three numbered steps. If step 1 says **Required**, enter the classroom's
+   exact 2.4 GHz Wi-Fi name and password and choose **Save Wi-Fi locally**. The
+   password goes only to the loopback controller through stdin and is not
+   written to the Fabric audit log.
+7. Put the plug in setup mode, choose **Find devices** again, enter the exact
+   code printed beside its Matter QR label, and choose **Add plug locally**.
+8. Wait up to three minutes. Keep the plug powered and within Bluetooth range
    during commissioning.
-8. The plug appears in **Everything connected to this classroom**. Connection
+9. The plug appears in **Everything connected to this classroom**. Connection
    places the approved endpoint in the off safe state.
-9. Choose **Classroom smart plug**, set up a physical lesson, assign the plug to
-   `classroom_plug`, complete the safety check, enable physical controls, and
-   start the lesson.
-10. Test **Turn on**, then **Turn off**. Confirm both the physical load and the
+10. Choose **Classroom smart plug**, set up a physical lesson, assign the plug to
+    `classroom_plug`, complete the safety check, enable physical controls, and
+    start the lesson.
+11. Test **Turn on**, then **Turn off**. Confirm both the physical load and the
     normalized state shown in CIT.
+12. For a compatible P110M firmware, open the sensor area and confirm
+    **Electrical telemetry** reports plausible values. Absence of this optional
+    card does not invalidate standard on/off support.
 
 The adapter accepts exactly one boolean command. Duplicate command IDs do not
 repeat an action, and adapter/Fabric shutdown requests the off safe state.
+
+On Windows, the launcher uses the pinned Python Bleak proxy to bridge the local
+Bluetooth radio to the loopback Matter controller. This avoids the less reliable
+Windows Noble connection path and does not contact a vendor service. The
+launcher also selects the active physical LAN interface for Matter traffic, so
+overlay adapters such as VPNs do not take precedence over the classroom LAN.
 
 ## Move or extend the setup
 
@@ -119,8 +164,10 @@ be powered and reachable.
 - **No Matter code on the product:** use different Matter-certified hardware.
   The Matter form accepts only its printed QR or manual setup code.
 - **Bluetooth unavailable:** confirm Windows Bluetooth is on and the native
-  build prerequisites completed. Check
-  `%LOCALAPPDATA%\CITPhysicalXR\matter\logs\matter-controller.stderr.log`.
+  build prerequisites completed. The Matter status should report **Windows BLE
+  proxy: ready**. Check `matter-ble-proxy.stderr.log` and
+  `matter-controller.stderr.log` under
+  `%LOCALAPPDATA%\CITPhysicalXR\matter\logs`.
 - **Wi-Fi commissioning fails:** verify the configured SSID/password, use the
   Wi-Fi band supported by the plug (often 2.4 GHz), and keep local IPv6/mDNS
   enabled.
@@ -128,13 +175,22 @@ be powered and reachable.
   or factory-reset the plug, then retry.
 - **Commissioned but offline:** check power and that Windows and the plug can
   communicate on the local network; client isolation blocks Matter.
-- **Adapter failure:** inspect the per-node logs under
-  `%LOCALAPPDATA%\CITPhysicalXR\matter\logs` and keep the load off.
+- **Adapter failure:** keep the load off and run
+  `pnpm hardware:matter:windows -- -Mode Status`. `available=True` confirms the
+  commissioned Matter endpoint is reachable; **Running Fabric adapters** is
+  the separate count that confirms those endpoints are connected to the CIT
+  UI. Inspect the per-node logs under
+  `%LOCALAPPDATA%\CITPhysicalXR\matter\logs`. Command diagnostics include the
+  node, command, active session, requested/verified boolean state, state-event
+  session, and shutdown safe-state result. Fabric rejection diagnostics include
+  the exact rejection code, frame type, node, session, and correlation ID, but
+  deliberately exclude credentials and event payloads.
 
 Run software-only verification with:
 
 ```powershell
 uv run pytest tests/adapters/test_matter_smart_plug.py `
   tests/runtime/test_fabric_discovery.py
-pnpm exec vitest run apps/studio-web/src/fabric-client.test.ts
+pnpm exec vitest run apps/studio-web/src/fabric-client.test.ts `
+  apps/studio-web/src/fabric-sensors.test.ts
 ```

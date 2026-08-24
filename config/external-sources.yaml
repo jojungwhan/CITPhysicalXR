@@ -15,3 +15,8 @@ sources:
     revision: 290f74e35a7c49206ba4bb8fa473708f9be85dc0
     localDirectory: bleak-dash-reference
     licenseBoundary: adapted-protocol
+  spherov2:
+    repository: https://github.com/artificial-intelligence-class/spherov2.py.git
+    revision: 4252ddb1a12a25db725257d66e3e8ec3057dd48b
+    localDirectory: spherov2-reference
+    licenseBoundary: optional-runtime-dependency

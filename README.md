@@ -104,8 +104,9 @@ without restarting any device. See
 The same page now includes an authenticated latest-frame camera wall, local
 on-demand YOLO object recognition, reviewed smart-plug actions, and normalized
 sensor cards. Meta snapshots use the optional existing Android companion;
-Brain2Devices Tello feeds now publish through the same in-memory camera wall,
-while RoboMaster camera publishing and physical device HIL remain separate
+Brain2Devices Tello feeds and the independent RoboMaster SDK camera publisher
+now publish through the same in-memory camera wall. The page also renders a
+reduced live Leap hand view while all physical device HIL remains separate
 hardware gates. See
 `docs/operations/classroom-cameras-and-sensors.md` for the exact support matrix
 instead of assuming a discovered device already has a live feed.
@@ -115,8 +116,23 @@ with `pnpm hardware:install-button:windows`. This is installation work, not a
 tutor startup step. Component-level PowerShell commands remain documented only
 for hardware technicians and developers.
 
-For a new Windows computer at a classroom or business site, use the guided
-business installer instead. The simplest path is to double-click
+For a new Windows computer at a classroom or business site, stay in this same
+page: choose **Install another PC**, download the verified Windows setup ZIP and
+site template, copy them by USB or a trusted private transfer, extract the ZIP,
+and double-click `Install-CIT.cmd`. The four bilingual steps explain new-network
+and device pairing. The site template contains names only; tokens, Wi-Fi
+passwords, Matter controller state, device credentials, logs, and recordings
+are never copied. See
+`docs/operations/install-another-windows-pc.md`.
+
+This is a network-assisted installer. Internet is required while it installs
+pinned Microsoft/OpenJS/Python/npm/PyPI/Git prerequisites, but no proprietary
+smart-plug cloud or account is used for classroom control. The page downloads
+through authenticated memory, verifies SHA-256 before saving, and serves only a
+prebuilt artifact; an HTTP request can never invoke a shell or build.
+
+Source-checkout technicians can still use the guided business installer
+directly. The simplest fallback is to double-click
 `install-cit-business-site.cmd`; it installs PowerShell 7 when needed, uses the
 initial names `business-site` / `classroom-a`, and opens Classroom Control when
 setup finishes.
@@ -129,8 +145,9 @@ pwsh -NoProfile -STA -File .\tools\hardware\install-business-site.ps1 `
 ```
 
 The installer adds the local Matter controller, exact-pinned Brain2Devices,
-the LEGO and Dash/Dot Bluetooth transports, asks once for classroom Wi-Fi, and creates the
-same tutor button. See
+the LEGO, Sphero BOLT, and Dash/Dot Bluetooth transports, asks once for
+classroom Wi-Fi, creates the same tutor button, and builds the authenticated
+handoff ZIP for the next computer. See
 `docs/operations/matter-smart-plug-windows.md`.
 Brain2Devices is cloned into CIT's per-user application-data directory and that
 managed path is saved in the site profile, so moving the CIT repository does
@@ -138,9 +155,9 @@ not repoint tutors at a developer checkout.
 
 The device scan reuses Brain2Devices' Windows multi-radio Tello scanner, checks
 MindWave/TGC, Ultraleap USB/service state, incoming RoboMaster STA broadcasts,
-Windows-visible Sphero BOLT `SB-XXXX` devices, exact Dash/Dot BLE advertisements,
+exact Sphero BOLT `SB-XXXX` and Dash/Dot BLE advertisements,
 Agent Mesh, coding-agent
-executables, commissioned Matter plug endpoints, and paired LEGO candidates. It sends no actuator, flight, power, agent, media,
+executables, commissioned Matter plug endpoints, and exact-name LEGO profiles. It sends no actuator, flight, power, agent, media,
 or SDK command. Instructor-only Tello and MindWave connection buttons use a
 closed Brain2Devices allowlist and then register separate canonical Fabric
 nodes; Tello additionally requires a grounded-aircraft confirmation. It
@@ -155,10 +172,15 @@ reported as physical evidence.
 ## Cloud-free Matter smart plugs
 
 New sites should use a Wi-Fi plug that explicitly carries the Matter logo and a
-Matter setup code. The **Matter smart plugs (cloud-free)** card in Classroom
-Control commissions it into the CIT-owned local fabric and exposes only
-`power.switch.set { on: boolean }` and `power.switch.state`. This path uses no
-proprietary vendor app, account, API, cloud, device ID, or local key.
+Matter setup code. The **Matter smart plugs — Tapo P110M + compatible
+(cloud-free)** card in Classroom Control commissions it into the CIT-owned
+local fabric and exposes `power.switch.set { on: boolean }` and
+`power.switch.state`. Tapo P110M is explicitly guided in the UI and needs no
+Tapo app or TP-Link account for this direct route. If its firmware exposes the
+standard Matter 1.3 electrical-measurement clusters, the same generic adapter
+also publishes `telemetry.power.electrical`; otherwise on/off remains fully
+available. This path uses no proprietary vendor app, account, API, cloud,
+device ID, or local key.
 
 The plug must actually run Matter firmware; branding alone is not enough. See
 `docs/operations/matter-smart-plug-windows.md` for installation, real-hardware
@@ -211,7 +233,24 @@ enter that exact name, select the model, and describe each connected port. A
 sensor-only hub is valid. CIT never connects to the nearest anonymous hub and
 joins only the shared unarmed monitoring session; it advertises ground mobility
 only when at least two ports are motors. No motor command is issued during
-setup.
+setup. Do not pair a Pybricks hub in Windows Settings; remove an existing
+Windows pairing and connect it through CIT/Pybricks by its exact advertised
+name.
+
+## Sphero BOLT in the same UI
+
+Charge BOLT, remove it from its cradle to wake it, close Sphero apps, and choose
+**Find devices**. Select the exact `SB-XXXX` name and choose **Connect selected
+BOLT robots**. Do not pair BOLT in Windows Settings. CIT connects directly over
+local BLE and uses no Sphero account or cloud service.
+
+Connection starts sensor monitoring with controls locked. After enabling
+physical controls on a clear floor, point the blue tail light toward the tutor
+and choose **Set this direction as forward**. The arrows request 0.10 m/s short
+nudges, the adapter rejects angular velocity and any vector above 0.20 m/s, and
+it stops locally after 350 ms. RGB/off and sensor information use the same
+unified page. See `docs/operations/sphero-bolt-windows.md`. Real firmware HIL is
+still pending and must pass that checklist before classroom movement is claimed.
 
 ## Wonder Workshop Dash and Dot in the same UI
 
@@ -283,6 +322,7 @@ Platform paths are stored separately and never translated between Windows and Li
 - `adapters/mindwave-mobile2`: publish-only, vendor-labelled Brain2Devices MindWave adapter
 - `apps/matter-controller`: pinned loopback-only Open Home Foundation Matter controller
 - `adapters/matter-smart-plug`: cloud-independent Matter `0x010A` plug adapter and safe-off boundary
+- `adapters/sphero-bolt`: exact-selection BOLT BLE adapter, simulator, sensors, bounded directional roll, and aim control
 - `adapters/wonder-workshop`: exact-selection Dash/Dot BLE adapter, simulator, sensors, and model-specific bounded controls
 - `firmware/lego-hub-agent`: the Pybricks program that runs on a hub
 - `packages/test-harness`: reusable adapter shape assertion
@@ -299,7 +339,7 @@ Platform paths are stored separately and never translated between Windows and Li
 
 - Read-only host discovery was exercised on Windows, but no physical actuator,
   headset, smart plug, or aircraft was connected or commanded in this change.
-  Tello, MindWave, LEGO, RoboMaster/Leap, and smart-plug paths therefore still
+  Tello, MindWave, LEGO, Sphero BOLT, RoboMaster/Leap, and smart-plug paths therefore still
   have software/simulator evidence only.
 - The business installer places Pybricks Bluetooth dependencies in the local
   hardware environment. Their optional transitive licence metadata remains a

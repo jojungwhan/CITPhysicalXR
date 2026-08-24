@@ -12,6 +12,7 @@ dependencies = [
   "cit-matter-smart-plug",
   "cit-mindwave-mobile2",
   "cit-robomaster-leap",
+  "cit-sphero-bolt",
   "cit-tello",
   "cit-wonder-workshop",
   "cit-runtime",
@@ -51,6 +52,7 @@ members = [
   "adapters/matter-smart-plug",
   "adapters/mindwave-mobile2",
   "adapters/robomaster-leap",
+  "adapters/sphero-bolt",
   "adapters/tello",
   "adapters/wonder-workshop",
   "apps/runtime-py",
@@ -70,6 +72,7 @@ cit-lego-pybricks = { workspace = true }
 cit-matter-smart-plug = { workspace = true }
 cit-mindwave-mobile2 = { workspace = true }
 cit-robomaster-leap = { workspace = true }
+cit-sphero-bolt = { workspace = true }
 cit-tello = { workspace = true }
 cit-wonder-workshop = { workspace = true }
 cit-runtime = { workspace = true }
@@ -106,10 +109,16 @@ exclude = ["packages/protocol-py/src/cit_protocol/generated.py"]
 module = ["pybricksdev.*"]
 ignore_missing_imports = true
 
-# Bleak is installed only with the independent Dash/Dot hardware extra. Its
-# imports are lazy so simulation and ordinary CI remain radio-independent.
+# Bleak is installed only with independent robot hardware extras. Imports are
+# lazy so simulation and ordinary CI remain radio-independent.
 [[tool.mypy.overrides]]
 module = ["bleak", "bleak.*"]
+ignore_missing_imports = true
+
+# spherov2 is isolated behind the optional BOLT hardware boundary and does not
+# publish typing metadata. The default environment intentionally omits it.
+[[tool.mypy.overrides]]
+module = ["spherov2", "spherov2.*"]
 ignore_missing_imports = true
 
 # OpenCV and NumPy are loaded only by the optional local vision extra. The

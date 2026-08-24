@@ -22,7 +22,7 @@ def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="cit-matter-admin")
     parser.add_argument(
         "operation",
-        choices=("inventory", "configure-wifi", "commission"),
+        choices=("inventory", "discover", "configure-wifi", "commission"),
     )
     parser.add_argument("--server-url", default="ws://127.0.0.1:5580/ws")
     return parser
@@ -34,6 +34,21 @@ async def _run(arguments: argparse.Namespace) -> dict[str, object]:
     try:
         if arguments.operation == "inventory":
             return _inventory(client)
+        if arguments.operation == "discover":
+            devices = await client.discover_commissionable_devices()
+            return {
+                "schemaVersion": "1.0",
+                "devices": [
+                    {
+                        "candidateId": device.candidate_id,
+                        "displayName": device.display_name,
+                        "vendorId": device.vendor_id,
+                        "productId": device.product_id,
+                        "longDiscriminator": device.long_discriminator,
+                    }
+                    for device in devices
+                ],
+            }
         document = _stdin_object()
         if arguments.operation == "configure-wifi":
             if set(document) != {"ssid", "password"}:
@@ -86,6 +101,7 @@ def _endpoint_json(endpoint: Any) -> dict[str, object]:
         "vendorName": endpoint.vendor_name,
         "productName": endpoint.product_name,
         "available": endpoint.available,
+        "electricalTelemetry": endpoint.electrical_telemetry,
     }
 
 
@@ -118,12 +134,15 @@ def main() -> None:
         # The child controller may include request context in low-level errors.
         # Keep technician output useful without reflecting any supplied secret.
         del error
-        message = (
-            "Matter commission failed; confirm the printed code, pairing mode, "
-            "Windows Bluetooth, and configured classroom Wi-Fi"
-            if arguments.operation == "commission"
-            else "Matter Wi-Fi setup failed; confirm the loopback controller is running"
-        )
+        if arguments.operation == "commission":
+            message = (
+                "Matter commission failed; confirm the printed code, pairing mode, "
+                "Windows Bluetooth, and configured classroom Wi-Fi"
+            )
+        elif arguments.operation == "configure-wifi":
+            message = "Matter Wi-Fi setup failed; confirm the loopback controller is running"
+        else:
+            message = "Matter discovery failed; confirm the loopback controller is running"
         print(message, file=sys.stderr)
         raise SystemExit(1) from None
     sys.stdout.write(json.dumps(result, separators=(",", ":")))

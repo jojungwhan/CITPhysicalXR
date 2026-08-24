@@ -19,16 +19,23 @@ import {
   FabricClient,
   type FabricAuditRecord,
   type FabricDiscoveryReport,
+  type FabricInstallationInfo,
   type FabricIntegrationDiscovery,
   type FabricMediaPairing,
   type FabricMediaSource,
+  type FabricRememberedConnections,
   type LegoConnectionConfiguration,
+  type SpheroBoltSelection,
   type WonderRobotSelection,
   type FabricPrincipal,
   type FabricSessionStartPolicy,
   type StoredFabricEvent,
   type StoredFabricLifecycle,
 } from "./fabric-client.js";
+import {
+  readAutoReconnectRemembered,
+  saveAutoReconnectRemembered,
+} from "./fabric-remembered-devices.js";
 import { discoveryLinkLabel } from "./fabric-discovery.js";
 import { consumeConsoleTicket } from "./fabric-console-access.js";
 import {
@@ -56,17 +63,26 @@ import {
 import {
   classifyFabricNodeIo,
   groupFabricCourseRolesByIo,
-  groupFabricIntegrationsByIo,
   isAvailableFabricNode,
   type FabricNodeIoKind,
 } from "./fabric-node-io.js";
+import {
+  connectedFabricDeviceCount,
+  groupFabricIntegrationsByReadiness,
+} from "./fabric-discovery-readiness.js";
 import { countActiveFabricCommands } from "./fabric-lifecycle.js";
 import { parallelFlowGroups } from "./fabric-parallel-flow.js";
-import { refreshedSessionSelection } from "./fabric-session-selection.js";
 import {
+  reconciledRoleSelections,
+  refreshedSessionSelection,
+} from "./fabric-session-selection.js";
+import {
+  assignedSmartPlugNodes,
   isSmartPlugNode,
+  isSmartPlugRole,
   isSwitchableLoadVisionLabel,
   latestSmartPlugState,
+  preferredSmartPlugControlSession,
   POWER_SET_CAPABILITY,
 } from "./fabric-smart-plug.js";
 import { latestSensorReadings } from "./fabric-sensors.js";
@@ -89,13 +105,38 @@ import {
 } from "./fabric-i18n.js";
 import { LOCALES, readSavedLocale, saveLocale, type Locale } from "./i18n.js";
 import { FabricBrainDemoPanel } from "./FabricBrainDemoPanel.js";
+import {
+  FabricDeviceControlModal,
+  type FabricDeviceControlSection,
+} from "./FabricDeviceControlModal.js";
 import { FabricDronePanel } from "./FabricDronePanel.js";
 import { FabricFleetSequencePanel } from "./FabricFleetSequencePanel.js";
+import { FabricInstallationPanel } from "./FabricInstallationPanel.js";
 import { FabricLegoSetup } from "./FabricLegoSetup.js";
+import { FabricLeapPanel } from "./FabricLeapPanel.js";
 import { FabricMatterSetup } from "./FabricMatterSetup.js";
+import { FabricSpheroPanel } from "./FabricSpheroPanel.js";
+import { FabricSpheroSetup } from "./FabricSpheroSetup.js";
+import { FabricSmartPlugPanel } from "./FabricSmartPlugPanel.js";
 import { FabricWonderWorkshopPanel } from "./FabricWonderWorkshopPanel.js";
 import { FabricWonderWorkshopSetup } from "./FabricWonderWorkshopSetup.js";
+import {
+  availableDeviceControlKinds,
+  requiresSpatialSafetyConfirmation,
+  resolvedDeviceControlKind,
+  type FabricDeviceControlKind,
+} from "./fabric-device-controls.js";
 import { isWonderNode } from "./fabric-wonder-workshop.js";
+import {
+  isSpheroNode,
+  preferredSpheroControlSession,
+} from "./fabric-sphero-bolt.js";
+import {
+  createSiteTemplate,
+  selectWindowsInstallationArtifact,
+  verifyInstallationArtifact,
+} from "./fabric-installation.js";
+import { saveBlobAsFile, saveTextAsFile } from "./download.js";
 
 type BusyAction = {
   key: FabricMessageKey;
@@ -112,6 +153,10 @@ export function FabricConsole() {
   const [discovery, setDiscovery] = useState<FabricDiscoveryReport | null>(
     null,
   );
+  const [rememberedConnections, setRememberedConnections] =
+    useState<FabricRememberedConnections | null>(null);
+  const [installation, setInstallation] =
+    useState<FabricInstallationInfo | null>(null);
   const [coursePacks, setCoursePacks] = useState<CoursePack[]>([]);
   const [sessions, setSessions] = useState<InteractionSession[]>([]);
   const [events, setEvents] = useState<StoredFabricEvent[]>([]);
@@ -135,7 +180,15 @@ export function FabricConsole() {
   );
   const [showAccessCode, setShowAccessCode] = useState(false);
   const [autoConnecting, setAutoConnecting] = useState(false);
+  const [autoReconnectRemembered, setAutoReconnectRemembered] = useState(
+    readAutoReconnectRemembered,
+  );
+  const [rememberedAircraftGrounded, setRememberedAircraftGrounded] =
+    useState(false);
   const [safetyConfirmed, setSafetyConfirmed] = useState(false);
+  const [deviceControlsOpen, setDeviceControlsOpen] = useState(false);
+  const [requestedDeviceControlKind, setRequestedDeviceControlKind] =
+    useState<FabricDeviceControlKind>();
   const [groundedConfirmations, setGroundedConfirmations] = useState<
     Record<string, boolean>
   >({});
@@ -144,6 +197,8 @@ export function FabricConsole() {
   const [error, setError] = useState<string | null>(null);
   const pollActive = useRef(false);
   const ticketAttempted = useRef(false);
+  const autoReconnectAttempted = useRef(false);
+  const roleSelectionSessionId = useRef("");
 
   const selectedSession = useMemo(
     () => sessions.find((session) => session.sessionId === selectedSessionId),
@@ -174,12 +229,19 @@ export function FabricConsole() {
     ) ||
       sessionStartPolicy?.sessionId !== selectedSession.sessionId ||
       sessionStartPolicy.requiresArming);
+  const requiresPositionSafetyConfirmation =
+    requiresArmingForStart &&
+    requiresSpatialSafetyConfirmation(selectedSession?.roleBindings ?? []);
   const canManageSessions = hasPermission(principal, "fabric.sessions.manage");
   const canAssignRoles = hasPermission(principal, "fabric.roles.assign");
   const canSubmitCommands = hasPermission(principal, "fabric.commands.submit");
   const canReadMedia = hasPermission(principal, "fabric.media.read");
   const canPairMedia = hasPermission(principal, "fabric.media.manage");
   const canAnalyzeVision = hasPermission(principal, "fabric.vision.analyze");
+  const canReadInstallation = hasPermission(
+    principal,
+    "fabric.installation.read",
+  );
   const canConnectDevices = hasPermission(
     principal,
     "fabric.discovery.connect",
@@ -205,6 +267,10 @@ export function FabricConsole() {
   );
   const discoveryConnectionsEnabled =
     canConnectDevices && discovery?.physicalActuationEnabled === true;
+  const rememberedRequiresGroundedConfirmation =
+    rememberedConnections?.connections.some(
+      (connection) => connection.requiresGroundedConfirmation,
+    ) === true;
   const canStopAll = hasPermission(principal, "fabric.stop_all");
   const availableNodes = useMemo(
     () => nodes.filter(isAvailableFabricNode),
@@ -214,6 +280,26 @@ export function FabricConsole() {
   const smartPlugNodes = useMemo(
     () => availableNodes.filter(isSmartPlugNode),
     [availableNodes],
+  );
+  const preferredSmartPlugSession = useMemo(
+    () =>
+      preferredSmartPlugControlSession(
+        sessions,
+        smartPlugNodes.map((node) => node.nodeId),
+      ),
+    [sessions, smartPlugNodes],
+  );
+  const spheroNodes = useMemo(
+    () => availableNodes.filter(isSpheroNode),
+    [availableNodes],
+  );
+  const preferredSpheroSession = useMemo(
+    () =>
+      preferredSpheroControlSession(
+        sessions,
+        spheroNodes.map((node) => node.nodeId),
+      ),
+    [sessions, spheroNodes],
   );
   const assignedDrones = useMemo(
     () =>
@@ -243,6 +329,40 @@ export function FabricConsole() {
       }),
     [availableNodes, selectedSession?.roleBindings],
   );
+  const assignedSpheroRobots = useMemo(
+    () =>
+      (selectedSession?.roleBindings ?? []).flatMap((binding) => {
+        const node = spheroNodes.find(
+          (candidate) => candidate.nodeId === binding.nodeId,
+        );
+        return node === undefined ? [] : [{ role: binding.role, node }];
+      }),
+    [selectedSession?.roleBindings, spheroNodes],
+  );
+  const deviceControlKinds = useMemo(
+    () =>
+      availableDeviceControlKinds({
+        sphero: spheroNodes.length,
+        wonder: assignedWonderRobots.length,
+        drone: assignedDrones.length,
+        smartPlug: smartPlugNodes.length,
+      }),
+    [
+      assignedDrones.length,
+      assignedWonderRobots.length,
+      smartPlugNodes.length,
+      spheroNodes.length,
+    ],
+  );
+  const activeDeviceControlKind = resolvedDeviceControlKind(
+    requestedDeviceControlKind,
+    deviceControlKinds,
+  );
+  const controlledDeviceCount =
+    spheroNodes.length +
+    assignedWonderRobots.length +
+    assignedDrones.length +
+    smartPlugNodes.length;
   const brainDemoBinding = selectedSession?.roleBindings.find(
     (binding) => binding.role === "brain_flight_demo",
   );
@@ -287,13 +407,32 @@ export function FabricConsole() {
   const selectedSmartPlug = smartPlugNodes.find(
     (node) => node.nodeId === smartPlugBinding?.nodeId,
   );
-  const smartPlugState = useMemo(
-    () => latestSmartPlugState(events, selectedSmartPlug?.nodeId),
-    [events, selectedSmartPlug?.nodeId],
+  const assignedSmartPlugs = useMemo(
+    () =>
+      assignedSmartPlugNodes(
+        selectedSession?.roleBindings ?? [],
+        smartPlugNodes,
+      ).map(({ role, node }) => ({
+        role,
+        node,
+        state: latestSmartPlugState(events, node.nodeId),
+      })),
+    [events, selectedSession?.roleBindings, smartPlugNodes],
   );
   const sensorReadings = useMemo(() => latestSensorReadings(events), [events]);
+  const leapNodes = useMemo(
+    () =>
+      availableNodes.filter(
+        (node) =>
+          node.pluginId === "cit.leap-motion" ||
+          node.publishedCapabilities.some(
+            (capability) => capability.name === "interaction.gesture.velocity",
+          ),
+      ),
+    [availableNodes],
+  );
   const canTurnSmartPlugOff =
-    canSubmitCommands && busy === null && smartPlugBinding !== undefined;
+    canSubmitCommands && busy === null && selectedSmartPlug !== undefined;
   const canTurnSmartPlugOn =
     canTurnSmartPlugOff &&
     selectedSession?.state === "active" &&
@@ -327,24 +466,44 @@ export function FabricConsole() {
       if (principal === null || pollActive.current) return;
       pollActive.current = true;
       try {
+        const rememberedPromise = client
+          .listRememberedConnections()
+          .catch((caught: unknown) => {
+            if (caught instanceof FabricApiError && caught.status === 404)
+              return null;
+            throw caught;
+          });
+        const installationPromise = canReadInstallation
+          ? client.getInstallationInfo().catch((caught: unknown) => {
+              if (caught instanceof FabricApiError && caught.status === 404)
+                return null;
+              throw caught;
+            })
+          : Promise.resolve(null);
         const [
           nextNodes,
           nextDiscovery,
           nextCourses,
           nextSessions,
           nextMediaSources,
+          nextRememberedConnections,
+          nextInstallation,
         ] = await Promise.all([
           client.listNodes(),
           client.getDiscovery(),
           client.listCoursePacks(),
           client.listSessions(),
           canReadMedia ? client.listMediaSources() : Promise.resolve([]),
+          rememberedPromise,
+          installationPromise,
         ]);
         setNodes(nextNodes);
         setDiscovery(nextDiscovery);
         setCoursePacks(nextCourses);
         setSessions(nextSessions);
         setMediaSources(nextMediaSources);
+        setRememberedConnections(nextRememberedConnections);
+        setInstallation(nextInstallation);
         setSelectedCourseKey(
           (current) =>
             current ||
@@ -397,7 +556,14 @@ export function FabricConsole() {
         pollActive.current = false;
       }
     },
-    [canReadMedia, client, principal, selectedSessionId, t],
+    [
+      canReadInstallation,
+      canReadMedia,
+      client,
+      principal,
+      selectedSessionId,
+      t,
+    ],
   );
 
   const setLocale = useCallback((nextLocale: Locale) => {
@@ -446,26 +612,30 @@ export function FabricConsole() {
 
   useEffect(() => {
     if (selectedSession === undefined) {
+      roleSelectionSessionId.current = "";
       setRoleSelections({});
       return;
     }
-    const selections = Object.fromEntries(
-      selectedSession.roleBindings.map((binding) => [
-        binding.role,
-        binding.nodeId,
-      ]),
+    const sameSession =
+      roleSelectionSessionId.current === selectedSession.sessionId;
+    roleSelectionSessionId.current = selectedSession.sessionId;
+    const requirements = (selectedCourse?.roles ?? []).map((requirement) => ({
+      role: requirement.role,
+      optional: requirement.optional,
+      candidateNodeIds: compatibleNodes(
+        nodes,
+        selectedSession,
+        requirement,
+      ).map((node) => node.nodeId),
+    }));
+    setRoleSelections((current) =>
+      reconciledRoleSelections(
+        current,
+        sameSession,
+        selectedSession.roleBindings,
+        requirements,
+      ),
     );
-    if (selectedCourse !== undefined) {
-      selectedCourse.roles.forEach((requirement) => {
-        if (selections[requirement.role] !== undefined) return;
-        if (requirement.optional) return;
-        const candidates = compatibleNodes(nodes, selectedSession, requirement);
-        if (candidates.length === 1) {
-          selections[requirement.role] = candidates[0]?.nodeId ?? "";
-        }
-      });
-    }
-    setRoleSelections(selections);
   }, [nodes, selectedCourse, selectedSession]);
 
   useEffect(
@@ -511,9 +681,12 @@ export function FabricConsole() {
 
   const signOut = () => {
     client.clearCredential();
+    setDeviceControlsOpen(false);
     setPrincipal(null);
     setNodes([]);
     setDiscovery(null);
+    setRememberedConnections(null);
+    setInstallation(null);
     setCoursePacks([]);
     setSessions([]);
     setSessionStartPolicy(null);
@@ -523,8 +696,46 @@ export function FabricConsole() {
     setLifecycle([]);
     setAudit([]);
     setGroundedConfirmations({});
+    setRememberedAircraftGrounded(false);
+    autoReconnectAttempted.current = false;
     setNotice(t("notice.signedOut"));
   };
+
+  const downloadInstallation = () =>
+    runAction("busy.downloadingInstaller", async () => {
+      const artifact = selectWindowsInstallationArtifact(installation);
+      if (artifact === undefined) {
+        throw new Error(t("installation.unavailableBody"));
+      }
+      const downloaded = await client.downloadInstallationArtifact(
+        artifact.artifactId,
+      );
+      try {
+        if (
+          downloaded.sha256 !== undefined &&
+          downloaded.sha256 !== artifact.sha256
+        ) {
+          throw new Error("response checksum mismatch");
+        }
+        await verifyInstallationArtifact(downloaded.blob, artifact.sha256);
+      } catch {
+        throw new Error(t("installation.checksumFailed"));
+      }
+      saveBlobAsFile(downloaded.blob, artifact.fileName);
+      setNotice(t("notice.installerDownloaded"));
+    });
+
+  const downloadSiteTemplate = () =>
+    runAction("busy.downloadingSiteTemplate", async () => {
+      saveTextAsFile(
+        createSiteTemplate(siteId, roomId),
+        "cit-site-template.json",
+        "application/json",
+      );
+      setNotice(
+        t("notice.siteTemplateDownloaded", { site: siteId, room: roomId }),
+      );
+    });
 
   const createSession = () =>
     runAction("busy.creatingSession", async () => {
@@ -567,6 +778,119 @@ export function FabricConsole() {
           : t("notice.lessonCreated"),
       );
     });
+
+  const openSmartPlugControls = () =>
+    runAction("busy.openingSmartPlugControls", async () => {
+      const controllableNodes = smartPlugNodes.slice(0, 2);
+      if (controllableNodes.length === 0) {
+        throw new Error(t("error.noSmartPlugs"));
+      }
+
+      let prepared = preferredSmartPlugSession;
+      const preparedNodeIds = new Set(
+        prepared?.roleBindings
+          .filter((binding) => isSmartPlugRole(binding.role))
+          .map((binding) => binding.nodeId) ?? [],
+      );
+      const coversConnectedPlugs = controllableNodes.every((node) =>
+        preparedNodeIds.has(node.nodeId),
+      );
+
+      if (prepared === undefined || !coversConnectedPlugs) {
+        if (!canManageSessions || !canAssignRoles) {
+          throw new Error(t("error.smartPlugSetupPermission"));
+        }
+        const coursePack = coursePacks.find(
+          (candidate) => candidate.coursePackId === "smart-plug-control",
+        );
+        if (coursePack === undefined) {
+          throw new Error(t("error.smartPlugCourse"));
+        }
+        prepared = await client.createSession({
+          coursePackId: coursePack.coursePackId,
+          coursePackVersion: coursePack.version,
+          siteId,
+          roomId,
+          mode: "physical",
+        });
+        for (const [index, node] of controllableNodes.entries()) {
+          prepared = await client.assignRole(
+            prepared.sessionId,
+            index === 0 ? "classroom_plug" : "classroom_plug_2",
+            node.nodeId,
+          );
+        }
+        setSessions((current) => [...current, prepared as InteractionSession]);
+      }
+
+      setSelectedSessionId(prepared.sessionId);
+      setSessionMode(prepared.mode);
+      setNotice(
+        t("notice.smartPlugControlsReady", {
+          count: controllableNodes.length,
+        }),
+      );
+      setRequestedDeviceControlKind("smart_plug");
+      setDeviceControlsOpen(true);
+    });
+
+  const openSpheroControls = () =>
+    runAction("busy.openingSpheroControls", async () => {
+      const controllableNodes = spheroNodes.slice(0, 4);
+      if (controllableNodes.length === 0) {
+        throw new Error(t("error.noSpheroRobots"));
+      }
+
+      let prepared = preferredSpheroSession;
+      const preparedNodeIds = new Set(
+        prepared?.roleBindings.map((binding) => binding.nodeId) ?? [],
+      );
+      const coversConnectedRobots = controllableNodes.every((node) =>
+        preparedNodeIds.has(node.nodeId),
+      );
+
+      if (prepared === undefined || !coversConnectedRobots) {
+        if (!canManageSessions || !canAssignRoles) {
+          throw new Error(t("error.spheroSetupPermission"));
+        }
+        const coursePack = coursePacks.find(
+          (candidate) => candidate.coursePackId === "device-monitoring",
+        );
+        if (coursePack === undefined) {
+          throw new Error(t("error.spheroCourse"));
+        }
+        prepared = await client.createSession({
+          coursePackId: coursePack.coursePackId,
+          coursePackVersion: coursePack.version,
+          siteId,
+          roomId,
+          mode: "physical",
+        });
+        for (const [index, node] of controllableNodes.entries()) {
+          prepared = await client.assignRole(
+            prepared.sessionId,
+            `robot_sensor_${index + 1}`,
+            node.nodeId,
+          );
+        }
+        setSessions((current) => [...current, prepared as InteractionSession]);
+      }
+
+      setSelectedSessionId(prepared.sessionId);
+      setSessionMode(prepared.mode);
+      setNotice(
+        t("notice.spheroControlsReady", { count: controllableNodes.length }),
+      );
+      setRequestedDeviceControlKind("sphero");
+      setDeviceControlsOpen(true);
+    });
+
+  const showDeviceControls = (kind?: FabricDeviceControlKind) => {
+    const resolved = resolvedDeviceControlKind(kind, deviceControlKinds);
+    if (resolved === undefined) return;
+    setRequestedDeviceControlKind(resolved);
+    setDeviceControlsOpen(true);
+  };
 
   const assignRole = (role: string) =>
     runAction("busy.assigningRole", async () => {
@@ -631,6 +955,67 @@ export function FabricConsole() {
       );
     });
 
+  const enableAndStartSmartPlugControls = () =>
+    runAction("busy.enablingPhysical", async () => {
+      if (selectedSession === undefined || assignedSmartPlugs.length === 0) {
+        throw new Error(t("error.smartPlugSession"));
+      }
+      let updated = selectedSession;
+      if (
+        updated.mode === "physical" &&
+        updated.state === "active" &&
+        updated.armed !== true
+      ) {
+        updated = await client.sessionAction(updated.sessionId, "pause");
+      }
+      if (updated.mode === "physical" && updated.armed !== true) {
+        updated = await client.sessionAction(updated.sessionId, "arm");
+      }
+      if (["ready", "paused"].includes(updated.state)) {
+        updated = await client.sessionAction(updated.sessionId, "start");
+      }
+      if (updated.state !== "active") {
+        throw new Error(t("error.smartPlugSessionNotReady"));
+      }
+
+      setSessions((current) => replaceSession(current, updated));
+      setNotice(t("notice.smartPlugPowerReady"));
+    });
+
+  const enableAndStartSpheroControls = () =>
+    runAction("busy.enablingPhysical", async () => {
+      if (selectedSession === undefined || assignedSpheroRobots.length === 0) {
+        throw new Error(t("error.spheroSession"));
+      }
+      if (
+        assignedSpheroRobots.some(({ node }) => !node.simulated) &&
+        !safetyConfirmed
+      ) {
+        throw new Error(t("error.spheroSafetyConfirmation"));
+      }
+
+      let updated = selectedSession;
+      if (
+        updated.mode === "physical" &&
+        updated.state === "active" &&
+        updated.armed !== true
+      ) {
+        updated = await client.sessionAction(updated.sessionId, "pause");
+      }
+      if (updated.mode === "physical" && updated.armed !== true) {
+        updated = await client.sessionAction(updated.sessionId, "arm");
+      }
+      if (["ready", "paused"].includes(updated.state)) {
+        updated = await client.sessionAction(updated.sessionId, "start");
+      }
+      if (updated.state !== "active") {
+        throw new Error(t("error.spheroSessionNotReady"));
+      }
+
+      setSessions((current) => replaceSession(current, updated));
+      setNotice(t("notice.spheroMovementReady"));
+    });
+
   const stopAll = () =>
     runAction("busy.emergencyStop", async () => {
       const result = await client.stopAll();
@@ -655,6 +1040,80 @@ export function FabricConsole() {
       ).length;
       setNotice(t("notice.deviceCheck", { connected, found }));
     });
+
+  const reconnectRememberedDevices = useCallback(
+    async (confirmGrounded: boolean): Promise<boolean> => {
+      if (busy !== null || principal === null) return false;
+      setBusy({ key: "busy.connectingRemembered" });
+      setError(null);
+      try {
+        const result = await client.reconnectRememberedDevices(confirmGrounded);
+        const [nextNodes, nextSessions, nextRememberedConnections] =
+          await Promise.all([
+            client.listNodes(),
+            client.listSessions(),
+            client.listRememberedConnections(),
+          ]);
+        setDiscovery(result.report);
+        setNodes(nextNodes);
+        setSessions(nextSessions);
+        setRememberedConnections(nextRememberedConnections);
+        setNotice(
+          t("notice.rememberedConnected", {
+            connected: result.connectedCount,
+            already: result.alreadyConnectedCount,
+            skipped: result.skippedCount,
+          }),
+        );
+        const failures = result.outcomes.filter(
+          (outcome) => outcome.status === "failed",
+        );
+        if (failures.length > 0) {
+          setError(
+            t("notice.someAttention", {
+              details: failures
+                .map((outcome) => `${outcome.actionId}: ${outcome.message}`)
+                .join(" "),
+            }),
+          );
+        }
+        return true;
+      } catch (caught) {
+        setError(describeFabricError(caught, t));
+        return false;
+      } finally {
+        setBusy(null);
+      }
+    },
+    [busy, client, principal, t],
+  );
+
+  useEffect(() => {
+    if (
+      principal === null ||
+      !autoReconnectRemembered ||
+      !canConnectDevices ||
+      discovery?.physicalActuationEnabled !== true ||
+      rememberedConnections === null ||
+      rememberedConnections.connections.length === 0 ||
+      busy !== null ||
+      autoReconnectAttempted.current
+    ) {
+      return;
+    }
+    autoReconnectAttempted.current = true;
+    // Aircraft remain excluded from unattended reconnect because this call
+    // deliberately does not carry a tutor's per-start grounded confirmation.
+    void reconnectRememberedDevices(false);
+  }, [
+    autoReconnectRemembered,
+    busy,
+    canConnectDevices,
+    discovery?.physicalActuationEnabled,
+    principal,
+    reconnectRememberedDevices,
+    rememberedConnections,
+  ]);
 
   const connectDiscovered = (integration: FabricIntegrationDiscovery) =>
     runAction(
@@ -687,6 +1146,13 @@ export function FabricConsole() {
       const result = await client.commissionMatterPlug(setupCode);
       setDiscovery(result.report);
       setNotice(t("notice.matterAdded"));
+    });
+
+  const configureMatterWifi = (ssid: string, password: string) =>
+    runAction("busy.configuringMatterWifi", async () => {
+      const result = await client.configureMatterWifi(ssid, password);
+      setDiscovery(result.report);
+      setNotice(t("notice.matterWifiConfigured"));
     });
 
   const connectLegoHub = (configuration: LegoConnectionConfiguration) =>
@@ -723,6 +1189,34 @@ export function FabricConsole() {
         setSelectedSessionId(monitoringSession.sessionId);
       }
       setNotice(t("notice.wonderConnected", { count: robots.length }));
+    });
+
+  const connectSpheroBolts = (robots: SpheroBoltSelection[]) =>
+    runAction("busy.connectingSphero", async () => {
+      const result = await client.connectSpheroBolts(robots);
+      setDiscovery(result.report);
+      const [nextNodes, nextSessions] = await Promise.all([
+        client.listNodes(),
+        client.listSessions(),
+      ]);
+      setNodes(nextNodes);
+      setSessions(nextSessions);
+      const connectedIds = new Set(
+        result.report.integrations.find(
+          (integration) => integration.integrationId === "sphero-bolt",
+        )?.connectedNodeIds ?? [],
+      );
+      const monitoringSession = [...nextSessions]
+        .reverse()
+        .find((session) =>
+          session.roleBindings.some((binding) =>
+            connectedIds.has(binding.nodeId),
+          ),
+        );
+      if (monitoringSession !== undefined) {
+        setSelectedSessionId(monitoringSession.sessionId);
+      }
+      setNotice(t("notice.spheroConnected", { count: robots.length }));
     });
 
   const connectAllDiscovered = () =>
@@ -901,11 +1395,18 @@ export function FabricConsole() {
       setNotice(commandResultNotice(label, terminal?.stage, t));
     });
 
-  const setSmartPlugPower = (on: boolean) =>
+  const setSmartPlugPower = (role: string, on: boolean) =>
     runAction("busy.smartPlug", async () => {
       if (selectedSession === undefined)
         throw new Error(t("error.smartPlugSession"));
-      if (smartPlugBinding === undefined)
+      const binding = selectedSession.roleBindings.find(
+        (candidate) => candidate.role === role,
+      );
+      if (
+        !isSmartPlugRole(role) ||
+        binding === undefined ||
+        !smartPlugNodes.some((node) => node.nodeId === binding.nodeId)
+      )
         throw new Error(t("error.assignPlug"));
       if (on && selectedSession.state !== "active")
         throw new Error(t("error.startLoad"));
@@ -923,11 +1424,11 @@ export function FabricConsole() {
         schemaVersion: "1.0",
         messageType: "command.requested",
         action: POWER_SET_CAPABILITY,
-        target: { role: "classroom_plug" },
+        target: { role },
         sessionId: selectedSession.sessionId,
         parameters: { on },
         priority,
-        idempotencyKey: `console-smart-plug:${on ? "on" : "off"}:${correlationId}`,
+        idempotencyKey: `console-smart-plug:${role}:${on ? "on" : "off"}:${correlationId}`,
         requestedAt: new Date().toISOString(),
         ttlMs: 2_000,
         safetyProfile: selectedSession.safetyProfile,
@@ -1006,6 +1507,38 @@ export function FabricConsole() {
         parameters,
         priority: "instructor_override",
         idempotencyKey: `console-wonder:${role}:${action}:${correlationId}`,
+        requestedAt: new Date().toISOString(),
+        ttlMs: action === "mobility.ground.stop" ? 1_000 : 2_000,
+        safetyProfile: selectedSession.safetyProfile,
+        correlationId,
+      });
+      setNotice(commandResultNotice(label, result.lifecycle.at(-1)?.stage, t));
+    });
+
+  const sendSpheroCommand = (
+    role: string,
+    action: string,
+    parameters: Record<string, number>,
+    label: string,
+  ) =>
+    runAction("busy.spheroCommand", async () => {
+      if (selectedSession === undefined)
+        throw new Error(t("error.monitoringSession"));
+      if (
+        !selectedSession.roleBindings.some((binding) => binding.role === role)
+      )
+        throw new Error(t("error.spheroUnassigned"));
+      const correlationId = crypto.randomUUID();
+      const result = await client.submitCommand({
+        messageId: crypto.randomUUID(),
+        schemaVersion: "1.0",
+        messageType: "command.requested",
+        action,
+        target: { role },
+        sessionId: selectedSession.sessionId,
+        parameters,
+        priority: "instructor_override",
+        idempotencyKey: `console-sphero:${role}:${action}:${correlationId}`,
         requestedAt: new Date().toISOString(),
         ttlMs: action === "mobility.ground.stop" ? 1_000 : 2_000,
         safetyProfile: selectedSession.safetyProfile,
@@ -1285,11 +1818,36 @@ export function FabricConsole() {
   }
 
   const nodeGroups = groupNodesByIo(availableNodes);
-  const discoveryGroups = groupFabricIntegrationsByIo(
-    (discovery?.integrations ?? []).map((integration) =>
-      localizeFabricIntegration(locale, integration, t),
-    ),
+  const localizedDiscoveryIntegrations = (discovery?.integrations ?? []).map(
+    (integration) => localizeFabricIntegration(locale, integration, t),
   );
+  const discoveryGroups = groupFabricIntegrationsByReadiness(
+    localizedDiscoveryIntegrations,
+  );
+  const discoveryTierPresentation = {
+    connected: {
+      marker: "✓",
+      title: t("discovery.tier.connected.title"),
+      description: t("discovery.tier.connected.description"),
+      empty: t("discovery.tier.connected.empty"),
+      count: connectedFabricDeviceCount(discoveryGroups.connected),
+    },
+    available: {
+      marker: "+",
+      title: t("discovery.tier.available.title"),
+      description: t("discovery.tier.available.description"),
+      empty: t("discovery.tier.available.empty"),
+      count: discoveryGroups.available.length,
+    },
+    unavailable: {
+      marker: "!",
+      title: t("discovery.tier.unavailable.title"),
+      description: t("discovery.tier.unavailable.description"),
+      empty: t("discovery.tier.unavailable.empty"),
+      count: discoveryGroups.unavailable.length,
+    },
+  } as const;
+  const discoveryTierOrder = ["connected", "available", "unavailable"] as const;
   const courseRoleGroups = groupFabricCourseRolesByIo(
     selectedSession === undefined || selectedCourse === undefined
       ? []
@@ -1300,6 +1858,152 @@ export function FabricConsole() {
         ),
   );
 
+  const deviceControlSections: FabricDeviceControlSection[] = [];
+  if (spheroNodes.length > 0) {
+    deviceControlSections.push({
+      kind: "sphero",
+      label: t("deviceControls.sphero"),
+      deviceCount: spheroNodes.length,
+      content: (
+        <FabricSpheroPanel
+          robots={assignedSpheroRobots}
+          connectedRobotCount={spheroNodes.length}
+          sessionState={selectedSession?.state ?? ""}
+          sessionArmed={selectedSession?.armed === true}
+          busy={busy !== null}
+          canSubmit={canSubmitCommands}
+          canManageSession={canManageSessions}
+          canOpenControls={
+            preferredSpheroSession !== undefined ||
+            (canManageSessions && canAssignRoles)
+          }
+          safetyConfirmed={safetyConfirmed}
+          onSafetyConfirmedChange={setSafetyConfirmed}
+          onOpenControls={() => void openSpheroControls()}
+          onEnableControls={() => void enableAndStartSpheroControls()}
+          onCommand={(role, action, parameters, label) =>
+            void sendSpheroCommand(role, action, parameters, label)
+          }
+          t={t}
+        />
+      ),
+    });
+  }
+  if (assignedWonderRobots.length > 0) {
+    deviceControlSections.push({
+      kind: "wonder",
+      label: t("deviceControls.wonder"),
+      deviceCount: assignedWonderRobots.length,
+      content: (
+        <FabricWonderWorkshopPanel
+          robots={assignedWonderRobots}
+          sessionState={selectedSession?.state ?? ""}
+          sessionArmed={selectedSession?.armed === true}
+          busy={busy !== null}
+          canSubmit={canSubmitCommands}
+          onCommand={(role, action, parameters, label) =>
+            void sendWonderCommand(role, action, parameters, label)
+          }
+          t={t}
+        />
+      ),
+    });
+  }
+  if (assignedDrones.length > 0) {
+    deviceControlSections.push({
+      kind: "drone",
+      label: t("deviceControls.drone"),
+      deviceCount: assignedDrones.length,
+      content: (
+        <FabricDronePanel
+          drones={assignedDrones}
+          busy={busy !== null}
+          canSubmit={canSubmitCommands}
+          onLand={(role) => void setDroneSafeState(role, false)}
+          onEmergencyStop={(role) => void setDroneSafeState(role, true)}
+          t={t}
+        />
+      ),
+    });
+  }
+  if (smartPlugNodes.length > 0) {
+    deviceControlSections.push({
+      kind: "smart_plug",
+      label: t("deviceControls.smartPlug"),
+      deviceCount: smartPlugNodes.length,
+      content: (
+        <FabricSmartPlugPanel
+          connectedPlugCount={smartPlugNodes.length}
+          plugs={assignedSmartPlugs}
+          sessionState={selectedSession?.state ?? ""}
+          sessionMode={selectedSession?.mode}
+          sessionArmed={selectedSession?.armed === true}
+          busy={busy !== null}
+          canSubmit={canSubmitCommands}
+          canManageSession={canManageSessions}
+          canOpenControls={
+            preferredSmartPlugSession !== undefined ||
+            (canManageSessions && canAssignRoles)
+          }
+          requiredRolesReady={requiredRolesReady}
+          onOpenControls={() => void openSmartPlugControls()}
+          onEnableControls={() => void enableAndStartSmartPlugControls()}
+          onPower={(role, on) => void setSmartPlugPower(role, on)}
+          locale={locale}
+          t={t}
+        />
+      ),
+    });
+  }
+
+  const renderDiscoveryCards = (
+    integrations: FabricIntegrationDiscovery[],
+    emptyMessage: string,
+  ) => (
+    <div className="fabric-discovery-grid">
+      {integrations.map((integration) => (
+        <FabricDiscoveryCard
+          key={integration.integrationId}
+          integration={integration}
+          t={t}
+          busy={busy}
+          canConnect={discoveryConnectionsEnabled}
+          groundedConfirmed={
+            groundedConfirmations[integration.integrationId] === true
+          }
+          onGroundedChange={(confirmed) =>
+            setGroundedConfirmations((current) => ({
+              ...current,
+              [integration.integrationId]: confirmed,
+            }))
+          }
+          onConnect={() => void connectDiscovered(integration)}
+          onCopySetup={() => void copySetupCommand(integration)}
+          onMatterCommission={commissionMatterPlug}
+          onMatterWifiConfigure={configureMatterWifi}
+          onOpenSmartPlugControls={() => void openSmartPlugControls()}
+          onOpenSpheroControls={() => void openSpheroControls()}
+          onLegoConnect={(configuration) => void connectLegoHub(configuration)}
+          onWonderConnect={(robots) => void connectWonderWorkshop(robots)}
+          onSpheroConnect={(robots) => void connectSpheroBolts(robots)}
+          canControlSmartPlugs={
+            canSubmitCommands &&
+            (preferredSmartPlugSession !== undefined ||
+              (canManageSessions && canAssignRoles))
+          }
+          canControlSphero={
+            canSubmitCommands &&
+            (preferredSpheroSession !== undefined ||
+              (canManageSessions && canAssignRoles))
+          }
+        />
+      ))}
+      {integrations.length === 0 && (
+        <p className="fabric-empty fabric-tier-empty">{emptyMessage}</p>
+      )}
+    </div>
+  );
+
   return (
     <div className="fabric-console">
       <header className="fabric-header">
@@ -1308,6 +2012,9 @@ export function FabricConsole() {
           <h1>{t("header.title")}</h1>
         </div>
         <FabricLanguageSwitch locale={locale} onChange={setLocale} t={t} />
+        <a className="fabric-install-link" href="#install-another-pc">
+          {t("header.installAnother")}
+        </a>
         <div className="fabric-identity">
           <span className="status-dot status-ok" />
           <div>
@@ -1318,6 +2025,16 @@ export function FabricConsole() {
             {t("header.signOut")}
           </button>
         </div>
+        <button
+          className="fabric-device-controls-launch"
+          type="button"
+          aria-haspopup="dialog"
+          disabled={deviceControlKinds.length === 0 || busy !== null}
+          onClick={() => showDeviceControls()}
+        >
+          <span>{t("deviceControls.open")}</span>
+          <strong>{controlledDeviceCount}</strong>
+        </button>
         <button
           className="fabric-emergency"
           type="button"
@@ -1348,30 +2065,16 @@ export function FabricConsole() {
             <h2 id="next-step-title">{guide.title}</h2>
             <p>{guide.description}</p>
             <button
-              className="fabric-primary-action"
+              className="fabric-guide-jump"
               type="button"
-              disabled={guide.stage === "find_devices" && busy !== null}
-              onClick={() => {
-                if (guide.stage === "find_devices") {
-                  void findDevices();
-                  return;
-                }
+              onClick={() =>
                 document
                   .getElementById(guide.targetId)
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" });
-              }}
+                  ?.scrollIntoView({ behavior: "smooth", block: "start" })
+              }
             >
-              {guide.stage === "find_devices"
-                ? t("guide.action.find")
-                : guide.stage === "choose_lesson"
-                  ? t("guide.action.choose")
-                  : guide.stage === "connect_devices"
-                    ? t("guide.action.connect")
-                    : guide.stage === "teach"
-                      ? t("guide.action.teach")
-                      : guide.stage === "lesson_ended"
-                        ? t("guide.action.ended")
-                        : t("guide.action.review")}
+              {guide.actionLabel}
+              <span aria-hidden="true">↓</span>
             </button>
           </div>
           <ol className="fabric-steps" aria-label={t("guide.progress")}>
@@ -1433,6 +2136,69 @@ export function FabricConsole() {
               <p>{t("discovery.safeBody")}</p>
             </div>
           </div>
+
+          {rememberedConnections !== null &&
+            rememberedConnections.connections.length > 0 && (
+              <div className="fabric-connect-all fabric-remembered-connect">
+                <div>
+                  <strong>
+                    {t("discovery.rememberedReady", {
+                      count: rememberedConnections.connections.length,
+                    })}
+                  </strong>
+                  <p>{t("discovery.rememberedHelp")}</p>
+                  <div className="fabric-remembered-options">
+                    <label className="fabric-auto-reconnect">
+                      <input
+                        type="checkbox"
+                        checked={autoReconnectRemembered}
+                        onChange={(event) => {
+                          const enabled = event.target.checked;
+                          saveAutoReconnectRemembered(enabled);
+                          setAutoReconnectRemembered(enabled);
+                          if (!enabled) autoReconnectAttempted.current = false;
+                        }}
+                      />
+                      <span>{t("discovery.autoReconnectRemembered")}</span>
+                    </label>
+                    {rememberedRequiresGroundedConfirmation && (
+                      <label className="fabric-grounded-confirmation">
+                        <input
+                          type="checkbox"
+                          checked={rememberedAircraftGrounded}
+                          onChange={(event) =>
+                            setRememberedAircraftGrounded(event.target.checked)
+                          }
+                        />
+                        <span>{t("discovery.aircraftGrounded")}</span>
+                      </label>
+                    )}
+                  </div>
+                  {rememberedRequiresGroundedConfirmation && (
+                    <small className="fabric-remembered-aircraft-note">
+                      {t("discovery.rememberedAircraftAutoSkip")}
+                    </small>
+                  )}
+                </div>
+                <button
+                  className="fabric-primary-action fabric-connect-all-button"
+                  type="button"
+                  disabled={!discoveryConnectionsEnabled || busy !== null}
+                  onClick={() =>
+                    void reconnectRememberedDevices(rememberedAircraftGrounded)
+                  }
+                >
+                  {busy?.key === "busy.connectingRemembered"
+                    ? t("discovery.reconnectingRemembered")
+                    : t("discovery.connectRemembered")}
+                  <small>
+                    {discovery?.physicalActuationEnabled
+                      ? t("discovery.rememberedNoScan")
+                      : t("discovery.startHost")}
+                  </small>
+                </button>
+              </div>
+            )}
 
           {connectableIntegrations.length > 0 && (
             <div className="fabric-connect-all">
@@ -1519,55 +2285,101 @@ export function FabricConsole() {
               <p>{t("discovery.loadingHelp")}</p>
             </div>
           ) : (
-            <div className="fabric-discovery-groups">
-              {fabricIoGroups(t).map((group) => (
-                <section
-                  className={`fabric-discovery-group is-${group.kind}`}
-                  key={group.kind}
+            <>
+              <nav
+                className="fabric-readiness-overview"
+                aria-label={t("discovery.readinessOverview")}
+              >
+                {discoveryTierOrder.map((kind) => {
+                  const tier = discoveryTierPresentation[kind];
+                  return (
+                    <button
+                      className={`fabric-readiness-jump is-${kind}`}
+                      type="button"
+                      key={kind}
+                      onClick={() => {
+                        const target = document.getElementById(
+                          `device-tier-${kind}`,
+                        );
+                        if (target instanceof HTMLDetailsElement) {
+                          target.open = true;
+                        }
+                        target?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "start",
+                        });
+                      }}
+                    >
+                      <span aria-hidden="true">{tier.marker}</span>
+                      <div>
+                        <strong>{tier.title}</strong>
+                        <small>{tier.description}</small>
+                      </div>
+                      <b>{tier.count}</b>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <div className="fabric-discovery-tiers">
+                {(["connected", "available"] as const).map((kind) => {
+                  const tier = discoveryTierPresentation[kind];
+                  return (
+                    <section
+                      className={`fabric-discovery-tier is-${kind}`}
+                      id={`device-tier-${kind}`}
+                      aria-labelledby={`device-tier-${kind}-title`}
+                      key={kind}
+                    >
+                      <header className="fabric-discovery-tier-heading">
+                        <span aria-hidden="true">{tier.marker}</span>
+                        <div>
+                          <h3 id={`device-tier-${kind}-title`}>{tier.title}</h3>
+                          <p>{tier.description}</p>
+                        </div>
+                        <strong
+                          aria-label={t("discovery.tier.count", {
+                            count: tier.count,
+                          })}
+                        >
+                          {tier.count}
+                        </strong>
+                      </header>
+                      {renderDiscoveryCards(discoveryGroups[kind], tier.empty)}
+                    </section>
+                  );
+                })}
+
+                <details
+                  className="fabric-discovery-tier is-unavailable"
+                  id="device-tier-unavailable"
                 >
-                  <header>
+                  <summary className="fabric-discovery-tier-heading">
+                    <span aria-hidden="true">
+                      {discoveryTierPresentation.unavailable.marker}
+                    </span>
                     <div>
-                      <h3>{group.title}</h3>
-                      <p>{group.discoveryDescription}</p>
+                      <h3 id="device-tier-unavailable-title">
+                        {discoveryTierPresentation.unavailable.title}
+                      </h3>
+                      <p>{discoveryTierPresentation.unavailable.description}</p>
                     </div>
-                    <strong>{discoveryGroups[group.kind].length}</strong>
-                  </header>
-                  <div className="fabric-discovery-grid">
-                    {discoveryGroups[group.kind].map((integration) => (
-                      <FabricDiscoveryCard
-                        key={integration.integrationId}
-                        integration={integration}
-                        t={t}
-                        busy={busy}
-                        canConnect={discoveryConnectionsEnabled}
-                        groundedConfirmed={
-                          groundedConfirmations[integration.integrationId] ===
-                          true
-                        }
-                        onGroundedChange={(confirmed) =>
-                          setGroundedConfirmations((current) => ({
-                            ...current,
-                            [integration.integrationId]: confirmed,
-                          }))
-                        }
-                        onConnect={() => void connectDiscovered(integration)}
-                        onCopySetup={() => void copySetupCommand(integration)}
-                        onMatterCommission={commissionMatterPlug}
-                        onLegoConnect={(configuration) =>
-                          void connectLegoHub(configuration)
-                        }
-                        onWonderConnect={(robots) =>
-                          void connectWonderWorkshop(robots)
-                        }
-                      />
-                    ))}
-                    {discoveryGroups[group.kind].length === 0 && (
-                      <p className="fabric-empty">{t("discovery.empty")}</p>
-                    )}
-                  </div>
-                </section>
-              ))}
-            </div>
+                    <strong
+                      aria-label={t("discovery.tier.count", {
+                        count: discoveryTierPresentation.unavailable.count,
+                      })}
+                    >
+                      {discoveryTierPresentation.unavailable.count}
+                    </strong>
+                    <i aria-hidden="true">⌄</i>
+                  </summary>
+                  {renderDiscoveryCards(
+                    discoveryGroups.unavailable,
+                    discoveryTierPresentation.unavailable.empty,
+                  )}
+                </details>
+              </div>
+            </>
           )}
         </section>
 
@@ -1874,7 +2686,9 @@ export function FabricConsole() {
               </strong>
               <p>
                 {selectedSession?.mode === "physical"
-                  ? t("safety.physicalHelp")
+                  ? requiresPositionSafetyConfirmation
+                    ? t("safety.physicalHelp")
+                    : t("safety.nonSpatialHelp")
                   : t("safety.simulationHelp")}
               </p>
             </div>
@@ -1882,7 +2696,7 @@ export function FabricConsole() {
 
           {selectedSession?.mode === "physical" &&
             !selectedSession.armed &&
-            requiresArmingForStart && (
+            requiresPositionSafetyConfirmation && (
               <label className="fabric-safety-confirmation">
                 <input
                   type="checkbox"
@@ -1904,7 +2718,7 @@ export function FabricConsole() {
                     !canManageSessions ||
                     busy !== null ||
                     !requiredRolesReady ||
-                    !safetyConfirmed ||
+                    (requiresPositionSafetyConfirmation && !safetyConfirmed) ||
                     !["ready", "paused", "active"].includes(
                       selectedSession.state,
                     )
@@ -2158,13 +2972,25 @@ export function FabricConsole() {
                     canTurnPlugOff={canTurnSmartPlugOff}
                     smartPlugName={selectedSmartPlug?.displayName}
                     onAnalyze={() => void analyzeMediaSource(source)}
-                    onPower={(on) => void setSmartPlugPower(on)}
+                    onPower={(on) =>
+                      void setSmartPlugPower("classroom_plug", on)
+                    }
                   />
                 ))}
               </div>
             )}
             <p className="fabric-privacy-note">{t("media.privacy")}</p>
           </section>
+        )}
+
+        {leapNodes.length > 0 && (
+          <FabricLeapPanel
+            client={client}
+            sessionId={selectedSession?.sessionId}
+            nodes={leapNodes}
+            locale={locale}
+            t={t}
+          />
         )}
 
         <section className="fabric-panel fabric-sensor-panel">
@@ -2239,99 +3065,6 @@ export function FabricConsole() {
           />
         )}
 
-        <FabricDronePanel
-          drones={assignedDrones}
-          busy={busy !== null}
-          canSubmit={canSubmitCommands}
-          onLand={(role) => void setDroneSafeState(role, false)}
-          onEmergencyStop={(role) => void setDroneSafeState(role, true)}
-          t={t}
-        />
-
-        {selectedSession !== undefined && (
-          <FabricWonderWorkshopPanel
-            robots={assignedWonderRobots}
-            sessionState={selectedSession.state}
-            sessionArmed={selectedSession.armed === true}
-            busy={busy !== null}
-            canSubmit={canSubmitCommands}
-            onCommand={(role, action, parameters, label) =>
-              void sendWonderCommand(role, action, parameters, label)
-            }
-            t={t}
-          />
-        )}
-
-        {(smartPlugNodes.length > 0 ||
-          selectedCourse?.roles.some(
-            (requirement) => requirement.role === "classroom_plug",
-          )) && (
-          <section className="fabric-panel fabric-smart-plug-panel">
-            <PanelHeading eyebrow={t("plug.eyebrow")} title={t("plug.title")} />
-            <div className="fabric-smart-plug-layout">
-              <div className="fabric-smart-plug-state">
-                <span
-                  className={`fabric-plug-indicator ${smartPlugState?.on ? "is-on" : "is-off"}`}
-                  aria-hidden="true"
-                >
-                  {smartPlugState?.on ? t("plug.onState") : t("plug.offState")}
-                </span>
-                <div>
-                  <strong>
-                    {selectedSmartPlug?.displayName ?? t("plug.noneAssigned")}
-                  </strong>
-                  <small>
-                    {selectedSmartPlug === undefined
-                      ? t("plug.compatible", { count: smartPlugNodes.length })
-                      : `${metadataText(selectedSmartPlug, "vendorBrand") ?? "compatible"} · ${metadataText(selectedSmartPlug, "model") ?? selectedSmartPlug.nodeId}`}
-                  </small>
-                  <small>
-                    {smartPlugState === undefined
-                      ? t("plug.stateUnknown")
-                      : t("plug.observed", {
-                          time: fabricFormatTime(
-                            smartPlugState.observedAt,
-                            locale,
-                          ),
-                          source:
-                            smartPlugState.source === undefined
-                              ? ""
-                              : ` · ${smartPlugState.source}`,
-                        })}
-                  </small>
-                </div>
-              </div>
-              <div className="fabric-smart-plug-actions">
-                <button
-                  className="fabric-power-on"
-                  type="button"
-                  disabled={!canTurnSmartPlugOn}
-                  onClick={() => void setSmartPlugPower(true)}
-                >
-                  {t("plug.turnOn")}
-                  <small>
-                    {selectedSession?.state === "active" &&
-                    (selectedSession.mode !== "physical" ||
-                      selectedSession.armed)
-                      ? t("plug.turnOnHelp")
-                      : t("plug.afterSafety")}
-                  </small>
-                </button>
-                <button
-                  className="fabric-power-off"
-                  type="button"
-                  disabled={!canTurnSmartPlugOff}
-                  onClick={() => void setSmartPlugPower(false)}
-                >
-                  {t("plug.turnOff")}
-                  <small>{t("plug.turnOffHelp")}</small>
-                </button>
-              </div>
-            </div>
-            <p className="fabric-help">{t("plug.help")}</p>
-          </section>
-        )}
-
         <section className="fabric-panel fabric-node-panel">
           <PanelHeading eyebrow={t("nodes.eyebrow")} title={t("nodes.title")} />
           <p className="fabric-help">{t("nodes.intro")}</p>
@@ -2359,6 +3092,16 @@ export function FabricConsole() {
             />
           </div>
         </section>
+
+        <FabricInstallationPanel
+          info={installation}
+          locale={locale}
+          busy={busy !== null}
+          canDownload={canReadInstallation}
+          onDownload={() => void downloadInstallation()}
+          onDownloadSiteTemplate={() => void downloadSiteTemplate()}
+          t={t}
+        />
 
         <details className="fabric-advanced">
           <summary>
@@ -2462,6 +3205,14 @@ export function FabricConsole() {
           )}
         </details>
       </main>
+      <FabricDeviceControlModal
+        open={deviceControlsOpen && activeDeviceControlKind !== undefined}
+        activeKind={activeDeviceControlKind}
+        sections={deviceControlSections}
+        onActiveKindChange={setRequestedDeviceControlKind}
+        onClose={() => setDeviceControlsOpen(false)}
+        t={t}
+      />
     </div>
   );
 }
@@ -2520,7 +3271,8 @@ function FabricRoleAssignment({
         </option>
         {candidates.map((node) => (
           <option key={node.nodeId} value={node.nodeId}>
-            {node.displayName} · {fabricConnectionState(node, t)}
+            {node.displayName} · {node.nodeId} ·{" "}
+            {fabricConnectionState(node, t)}
           </option>
         ))}
       </select>
@@ -2610,8 +3362,14 @@ function FabricDiscoveryCard({
   onConnect,
   onCopySetup,
   onMatterCommission,
+  onMatterWifiConfigure,
+  onOpenSmartPlugControls,
+  onOpenSpheroControls,
   onLegoConnect,
   onWonderConnect,
+  onSpheroConnect,
+  canControlSmartPlugs,
+  canControlSphero,
 }: {
   integration: FabricIntegrationDiscovery;
   t: FabricTranslate;
@@ -2622,8 +3380,14 @@ function FabricDiscoveryCard({
   onConnect: () => void;
   onCopySetup: () => void;
   onMatterCommission: (setupCode: string) => Promise<boolean>;
+  onMatterWifiConfigure: (ssid: string, password: string) => Promise<boolean>;
+  onOpenSmartPlugControls: () => void;
+  onOpenSpheroControls: () => void;
   onLegoConnect: (configuration: LegoConnectionConfiguration) => void;
   onWonderConnect: (robots: WonderRobotSelection[]) => void;
+  onSpheroConnect: (robots: SpheroBoltSelection[]) => void;
+  canControlSmartPlugs: boolean;
+  canControlSphero: boolean;
 }) {
   const status = discoveryStatus(integration.status, t);
   const connected = integration.status === "connected";
@@ -2650,12 +3414,33 @@ function FabricDiscoveryCard({
 
       <p className="fabric-discovery-summary">{integration.summary}</p>
 
+      {connected && integration.connectedNodeIds.length > 0 && (
+        <div className="fabric-connected-devices">
+          <strong>
+            {t("discovery.connectedDevices", {
+              count: integration.connectedNodeIds.length,
+            })}
+          </strong>
+          <ul>
+            {integration.connectedNodeIds.map((nodeId) => (
+              <li key={nodeId}>
+                <span className="status-dot status-ok" aria-hidden="true" />
+                <code>{nodeId}</code>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {integration.integrationId === "matter-smart-plugs" && (
         <FabricMatterSetup
-          busy={busy?.key === "busy.addingMatter"}
+          candidates={integration.candidates}
+          commissioning={busy?.key === "busy.addingMatter"}
+          configuringWifi={busy?.key === "busy.configuringMatterWifi"}
           canConnect={canConnect}
           connected={connected}
           onCommission={onMatterCommission}
+          onConfigureWifi={onMatterWifiConfigure}
           t={t}
         />
       )}
@@ -2681,8 +3466,20 @@ function FabricDiscoveryCard({
           />
         )}
 
+      {integration.integrationId === "sphero-bolt" && !connected && (
+        <FabricSpheroSetup
+          candidates={integration.candidates}
+          busy={busy?.key === "busy.connectingSphero"}
+          canConnect={canConnect}
+          onConnect={onSpheroConnect}
+          t={t}
+        />
+      )}
+
       {integration.candidates.length > 0 &&
-        integration.integrationId !== "wonder-workshop-dash-dot" && (
+        integration.integrationId !== "matter-smart-plugs" &&
+        integration.integrationId !== "wonder-workshop-dash-dot" &&
+        integration.integrationId !== "sphero-bolt" && (
           <ul className="fabric-candidate-list">
             {integration.candidates.map((candidate, index) => (
               <li key={`${candidate.candidateId}:${index}`}>
@@ -2727,6 +3524,26 @@ function FabricDiscoveryCard({
         )}
 
       <div className="fabric-discovery-actions">
+        {integration.integrationId === "matter-smart-plugs" && connected && (
+          <button
+            className="fabric-open-plug-controls"
+            type="button"
+            disabled={!canControlSmartPlugs || busy !== null}
+            onClick={onOpenSmartPlugControls}
+          >
+            {t("plug.openControls")}
+          </button>
+        )}
+        {integration.integrationId === "sphero-bolt" && connected && (
+          <button
+            className="fabric-open-sphero-controls"
+            type="button"
+            disabled={!canControlSphero || busy !== null}
+            onClick={onOpenSpheroControls}
+          >
+            {t("sphero.openControls")}
+          </button>
+        )}
         {integration.actionId !== undefined && !connected && (
           <button
             className="fabric-connect-device"
@@ -2769,13 +3586,6 @@ function FabricDiscoveryCard({
         {integration.setupCommand !== undefined && !connected && (
           <code>{integration.setupCommand}</code>
         )}
-        {integration.connectedNodeIds.length > 0 && (
-          <small>
-            {t("discovery.nodes", {
-              nodes: integration.connectedNodeIds.join(", "),
-            })}
-          </small>
-        )}
         <p>{integration.safetyNote}</p>
       </details>
     </article>
@@ -2809,9 +3619,11 @@ function MediaFeedCard({
 }) {
   const [frameUrl, setFrameUrl] = useState<string | null>(null);
   const [visibleSequence, setVisibleSequence] = useState(0);
+  const [previewRate, setPreviewRate] = useState(0);
   const [frameMessage, setFrameMessage] = useState(() => t("media.waitFrame"));
   const etag = useRef<string | undefined>(undefined);
   const frameUrlRef = useRef<string | null>(null);
+  const frameTimes = useRef<number[]>([]);
 
   useEffect(
     () => () => {
@@ -2839,6 +3651,17 @@ function MediaFeedCard({
           setFrameUrl(nextUrl);
           setVisibleSequence(frame.sequence ?? 0);
           setFrameMessage("");
+          const receivedAt = performance.now();
+          frameTimes.current = [...frameTimes.current, receivedAt].filter(
+            (value) => receivedAt - value <= 3_000,
+          );
+          const first = frameTimes.current[0];
+          setPreviewRate(
+            first === undefined || receivedAt <= first
+              ? 0
+              : ((frameTimes.current.length - 1) * 1_000) /
+                  (receivedAt - first),
+          );
         }
       } catch (caught) {
         if (!active) return;
@@ -2848,7 +3671,11 @@ function MediaFeedCard({
             : describeFabricError(caught, t),
         );
       } finally {
-        if (active) timer = window.setTimeout(() => void load(), 750);
+        if (active)
+          timer = window.setTimeout(
+            () => void load(),
+            source.captureMode === "video" ? 250 : 1_500,
+          );
       }
     };
     void load();
@@ -2856,7 +3683,7 @@ function MediaFeedCard({
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [client, source.sourceId, t]);
+  }, [client, source.captureMode, source.sourceId, t]);
 
   const analysis = source.latestAnalysis;
   const overlayVisible =
@@ -2930,6 +3757,11 @@ function MediaFeedCard({
                 time: fabricFormatTime(source.lastFrameAt, locale),
               })}
         </span>
+        {source.captureMode === "video" && previewRate > 0 && (
+          <span>
+            {t("media.previewRate", { rate: previewRate.toFixed(1) })}
+          </span>
+        )}
       </div>
       <button
         className="fabric-analyze-button"

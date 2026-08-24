@@ -20,7 +20,7 @@ from cit_protocol import (
     to_wire,
 )
 from fastapi import Depends, FastAPI, Header, Query, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from .fabric import (
@@ -43,9 +43,17 @@ from .fabric_discovery import (
     FabricDiscoveryError,
     FabricDiscoveryReport,
     FabricDiscoveryService,
+    FabricRememberedConnection,
+    FabricRememberedConnectionResult,
+    FabricRememberedConnections,
     LegoConnectionConfiguration,
+    MatterWifiConfiguration,
+    SpheroBoltConnectionConfiguration,
     WonderWorkshopConnectionConfiguration,
+    remembered_connection_policies_for_nodes,
+    remembered_connection_policy,
 )
+from .fabric_installation import FabricInstallationCatalog, FabricInstallationInfo
 from .fabric_persistence import FABRIC_PAGE_LIMIT, FabricIdentityRecord
 from .fabric_repository import SQLiteFabricRepository
 
@@ -152,6 +160,7 @@ def install_fabric_api(
     clock: Callable[[], datetime],
     allowed_origins: frozenset[str],
     stop_all: StopAll,
+    installation_catalog: FabricInstallationCatalog,
 ) -> None:
     def current_time() -> datetime:
         return clock()
@@ -371,6 +380,54 @@ def install_fabric_api(
     ) -> list[PluginManifest]:
         return list(get_repository().list_fabric_plugins())
 
+    @app.get(
+        "/api/v1/fabric/installation",
+        response_model=FabricInstallationInfo,
+        response_model_exclude_none=True,
+    )
+    async def installation_info(
+        _principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.installation.read")),
+        ],
+    ) -> FabricInstallationInfo:
+        return installation_catalog.info
+
+    @app.get("/api/v1/fabric/installation/artifacts/{artifact_id}")
+    async def download_installation_artifact(
+        artifact_id: str,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.installation.read")),
+        ],
+    ) -> FileResponse:
+        selected = installation_catalog.artifact(artifact_id)
+        if selected is None:
+            raise FabricNotFoundError(
+                "INSTALLATION_ARTIFACT_NOT_FOUND",
+                "The requested installation package is not available",
+            )
+        artifact, artifact_path = selected
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.installation.download",
+            resource_type="installation_artifact",
+            resource_id=artifact.artifactId,
+            at=current_time(),
+            details={
+                "fileName": artifact.fileName,
+                "sizeBytes": artifact.sizeBytes,
+                "sha256": artifact.sha256,
+            },
+        )
+        return FileResponse(
+            artifact_path,
+            media_type=artifact.mediaType,
+            filename=artifact.fileName,
+            headers={"X-CIT-SHA256": artifact.sha256},
+        )
+
     @app.get("/api/v1/fabric/nodes", response_model=list[IntegrationNode])
     async def nodes(
         principal: Annotated[
@@ -401,6 +458,58 @@ def install_fabric_api(
         return get_fabric().list_nodes(
             site_id=principal.site_id,
             room_id=principal.room_id,
+        )
+
+    def remember_connection_action(
+        action_id: str,
+        principal: FabricPrincipal,
+        *,
+        at: datetime | None = None,
+    ) -> None:
+        policy = remembered_connection_policy(action_id)
+        if policy is None:
+            return
+        report = get_discovery().current(visible_nodes(principal))
+        get_repository().remember_fabric_connection(
+            host_id=report.hostId,
+            reconnect_action_id=policy.action_id,
+            requires_grounded_confirmation=policy.requires_grounded_confirmation,
+            remembered_at=at or current_time(),
+            remembered_by=principal.identity_id,
+        )
+
+    def remembered_connections_for(
+        principal: FabricPrincipal,
+    ) -> FabricRememberedConnections:
+        nodes = visible_nodes(principal)
+        report = get_discovery().current(nodes)
+        records = get_repository().list_fabric_remembered_connections(host_id=report.hostId)
+        known_actions = {record.reconnect_action_id for record in records}
+        added = False
+        for policy, last_seen_at in remembered_connection_policies_for_nodes(nodes):
+            if policy.action_id in known_actions:
+                continue
+            get_repository().remember_fabric_connection(
+                host_id=report.hostId,
+                reconnect_action_id=policy.action_id,
+                requires_grounded_confirmation=policy.requires_grounded_confirmation,
+                remembered_at=last_seen_at,
+                remembered_by="runtime-node-history",
+            )
+            added = True
+        if added:
+            records = get_repository().list_fabric_remembered_connections(host_id=report.hostId)
+        return FabricRememberedConnections(
+            hostId=report.hostId,
+            connections=[
+                FabricRememberedConnection(
+                    actionId=record.reconnect_action_id,
+                    requiresGroundedConfirmation=(record.requires_grounded_confirmation),
+                    rememberedAt=record.remembered_at,
+                )
+                for record in records
+                if remembered_connection_policy(record.reconnect_action_id) is not None
+            ],
         )
 
     @app.get(
@@ -442,6 +551,57 @@ def install_fabric_api(
             },
         )
         return report
+
+    @app.get(
+        "/api/v1/fabric/discovery/remembered",
+        response_model=FabricRememberedConnections,
+        response_model_exclude_none=True,
+    )
+    async def remembered_connections(
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.nodes.read")),
+        ],
+    ) -> FabricRememberedConnections:
+        return remembered_connections_for(principal)
+
+    @app.post(
+        "/api/v1/fabric/discovery/remembered/connect",
+        response_model=FabricRememberedConnectionResult,
+        response_model_exclude_none=True,
+    )
+    async def reconnect_remembered_connections(
+        request: DiscoveryActionRequest,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.discovery.connect")),
+        ],
+    ) -> FabricRememberedConnectionResult:
+        remembered = remembered_connections_for(principal)
+        result = await get_discovery().reconnect_remembered(
+            remembered.connections,
+            confirm_grounded=request.confirmGrounded,
+            nodes=lambda: visible_nodes(principal),
+        )
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.discovery.reconnect_remembered",
+            resource_type="host",
+            resource_id=remembered.hostId,
+            at=current_time(),
+            outcome="failed" if result.failedCount else "succeeded",
+            details={
+                "rememberedCount": len(remembered.connections),
+                "connectedCount": result.connectedCount,
+                "alreadyConnectedCount": result.alreadyConnectedCount,
+                "skippedCount": result.skippedCount,
+                "failedCount": result.failedCount,
+                "groundedConfirmed": request.confirmGrounded,
+                "broadScanPerformed": False,
+            },
+        )
+        return result
 
     @app.post(
         "/api/v1/fabric/discovery/actions/{action_id}",
@@ -487,6 +647,54 @@ def install_fabric_api(
             outcome="succeeded",
             details={"groundedConfirmed": request.confirmGrounded},
         )
+        remember_connection_action(action_id, principal)
+        return result
+
+    @app.post(
+        "/api/v1/fabric/sphero-bolt/connect",
+        response_model=FabricDiscoveryActionResult,
+        response_model_exclude_none=True,
+    )
+    async def connect_sphero_bolt_robots(
+        request: SpheroBoltConnectionConfiguration,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.discovery.connect")),
+        ],
+    ) -> FabricDiscoveryActionResult:
+        try:
+            result = await get_discovery().connect_sphero_bolts(
+                request,
+                nodes=lambda: visible_nodes(principal),
+            )
+        except FabricDiscoveryError as error:
+            _audit(
+                get_repository(),
+                principal,
+                action="fabric.sphero_bolt.connect",
+                resource_type="integration_action",
+                resource_id="cit.sphero-bolt",
+                at=current_time(),
+                outcome="denied",
+                details={"code": error.code},
+            )
+            raise
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.sphero_bolt.connect",
+            resource_type="integration_action",
+            resource_id="cit.sphero-bolt",
+            at=current_time(),
+            outcome="succeeded",
+            details={
+                "candidateCount": len(request.robots),
+                "candidateIds": [robot.candidateId for robot in request.robots],
+                "movementCommandIssued": False,
+                "aimCommandIssued": False,
+            },
+        )
+        remember_connection_action("cit.sphero-bolt.reconnect", principal)
         return result
 
     @app.post(
@@ -532,6 +740,51 @@ def install_fabric_api(
                 "movementCommandIssued": False,
             },
         )
+        remember_connection_action("cit.wonder-workshop.reconnect", principal)
+        return result
+
+    @app.post(
+        "/api/v1/fabric/matter/wifi",
+        response_model=FabricDiscoveryActionResult,
+        response_model_exclude_none=True,
+    )
+    async def configure_matter_wifi(
+        request: MatterWifiConfiguration,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.discovery.connect")),
+        ],
+    ) -> FabricDiscoveryActionResult:
+        try:
+            result = await get_discovery().configure_matter_wifi(
+                request,
+                nodes=lambda: visible_nodes(principal),
+            )
+        except FabricDiscoveryError as error:
+            _audit(
+                get_repository(),
+                principal,
+                action="fabric.matter.configure_wifi",
+                resource_type="integration_action",
+                resource_id="cit.matter-smart-plug",
+                at=current_time(),
+                outcome="denied",
+                details={"code": error.code},
+            )
+            raise
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.matter.configure_wifi",
+            resource_type="integration_action",
+            resource_id="cit.matter-smart-plug",
+            at=current_time(),
+            outcome="succeeded",
+            details={
+                "inputRetained": False,
+                "vendorAccountUsed": False,
+            },
+        )
         return result
 
     @app.post(
@@ -573,6 +826,7 @@ def install_fabric_api(
             outcome="succeeded",
             details={"inputRetained": False, "vendorAccountUsed": False},
         )
+        remember_connection_action("cit.matter-smart-plug.connect", principal)
         return result
 
     @app.post(
@@ -618,6 +872,7 @@ def install_fabric_api(
                 "motorCommandIssued": False,
             },
         )
+        remember_connection_action("cit.lego-pybricks.connect", principal)
         return result
 
     @app.get(

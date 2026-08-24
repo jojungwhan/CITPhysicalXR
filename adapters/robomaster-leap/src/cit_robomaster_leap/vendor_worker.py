@@ -7,9 +7,11 @@ by the CIT runtime.  Keep its syntax compatible with Python 3.8.
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import math
 import sys
+import threading
 import time
 from collections import deque
 from contextlib import redirect_stdout
@@ -46,6 +48,114 @@ def _install_repository(path: str) -> Path:
     return repository
 
 
+class _RoboMasterCameraPump:
+    """Keep DJI frame reads off the safety-sensitive command loop."""
+
+    def __init__(self, robot: Any):
+        self.robot = robot
+        self.camera: Any = None
+        self.thread: threading.Thread | None = None
+        self.stop_event = threading.Event()
+        self.lock = threading.Lock()
+        self.sequence = 0
+        self.jpeg: bytes | None = None
+        self.error: str | None = None
+
+    def start(self) -> None:
+        if self.thread is not None and self.thread.is_alive():
+            return
+        self.stop()
+        camera = self.robot.camera
+        with redirect_stdout(sys.stderr):
+            result = camera.start_video_stream(display=False, resolution="360p")
+        if result is False:
+            raise RuntimeError("RoboMaster SDK camera stream did not start")
+        self.camera = camera
+        self.stop_event.clear()
+        with self.lock:
+            self.sequence = 0
+            self.jpeg = None
+            self.error = None
+        self.thread = threading.Thread(
+            target=self._capture,
+            name="CITRoboMasterCamera",
+            daemon=True,
+        )
+        self.thread.start()
+
+    def snapshot(self, after_sequence: int) -> dict[str, Any]:
+        with self.lock:
+            if self.error:
+                raise RuntimeError(self.error)
+            if self.jpeg is None or self.sequence <= after_sequence:
+                return {"ready": False, "sequence": self.sequence}
+            return {
+                "ready": True,
+                "sequence": self.sequence,
+                "jpegBase64": base64.b64encode(self.jpeg).decode("ascii"),
+            }
+
+    def stop(self) -> None:
+        self.stop_event.set()
+        thread = self.thread
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=1.5)
+        self.thread = None
+        camera = self.camera
+        self.camera = None
+        if camera is not None:
+            try:
+                with redirect_stdout(sys.stderr):
+                    camera.stop_video_stream()
+            except Exception:
+                pass
+        with self.lock:
+            self.jpeg = None
+
+    def _capture(self) -> None:
+        camera = self.camera
+        if camera is None:
+            return
+        try:
+            while not self.stop_event.is_set():
+                frame = camera.read_cv2_image(timeout=0.5, strategy="newest")
+                if frame is None:
+                    continue
+                encoded = _encode_camera_jpeg(frame)
+                with self.lock:
+                    self.sequence += 1
+                    self.jpeg = encoded
+                    self.error = None
+        except Exception as exc:
+            if not self.stop_event.is_set():
+                with self.lock:
+                    self.error = str(exc)[:500] or type(exc).__name__
+
+
+def _encode_camera_jpeg(frame: Any) -> bytes:
+    try:
+        import cv2
+    except ImportError as exc:
+        raise RuntimeError("OpenCV is required for the RoboMaster camera preview") from exc
+
+    candidate = frame
+    height, width = candidate.shape[:2]
+    if width > 960:
+        ratio = 960.0 / float(width)
+        candidate = cv2.resize(candidate, (960, max(1, round(height * ratio))))
+    for quality in (78, 68, 58):
+        ok, encoded = cv2.imencode(
+            ".jpg",
+            candidate,
+            [int(cv2.IMWRITE_JPEG_QUALITY), quality],
+        )
+        if ok:
+            jpeg = bytes(encoded)
+            if 32 <= len(jpeg) <= 1_048_576:
+                return jpeg
+    raise RuntimeError("RoboMaster camera frame exceeded the 1 MiB classroom limit")
+
+
 def _robot(args: argparse.Namespace) -> int:
     _install_repository(args.repository)
     with redirect_stdout(sys.stderr):
@@ -72,6 +182,7 @@ def _robot(args: argparse.Namespace) -> int:
         )
 
     pump: Any = None
+    camera_pump: _RoboMasterCameraPump | None = None
     connected = False
     seen: set[str] = set()
     seen_order: deque[str] = deque()
@@ -152,7 +263,35 @@ def _robot(args: argparse.Namespace) -> int:
                         pump.halt()
                         robot.stop()
                     _write({"requestId": request_id, "ok": True, "stopped": True})
+                elif operation == "camera_start":
+                    if args.robot_mode != "sdk":
+                        raise RuntimeError("RoboMaster live camera requires the DJI SDK transport")
+                    if camera_pump is None:
+                        camera_pump = _RoboMasterCameraPump(robot)
+                    camera_pump.start()
+                    _write({"requestId": request_id, "ok": True, "camera": "started"})
+                elif operation == "camera_frame":
+                    if camera_pump is None:
+                        raise RuntimeError("RoboMaster camera is not started")
+                    after_sequence = int(request.get("afterSequence", 0))
+                    if after_sequence < 0:
+                        raise ValueError("afterSequence cannot be negative")
+                    _write(
+                        {
+                            "requestId": request_id,
+                            "ok": True,
+                            **camera_pump.snapshot(after_sequence),
+                        }
+                    )
+                elif operation == "camera_stop":
+                    if camera_pump is not None:
+                        camera_pump.stop()
+                        camera_pump = None
+                    _write({"requestId": request_id, "ok": True, "camera": "stopped"})
                 elif operation == "shutdown":
+                    if camera_pump is not None:
+                        camera_pump.stop()
+                        camera_pump = None
                     with redirect_stdout(sys.stderr):
                         pump.halt()
                         robot.stop()
@@ -170,6 +309,8 @@ def _robot(args: argparse.Namespace) -> int:
                     }
                 )
     finally:
+        if camera_pump is not None:
+            camera_pump.stop()
         with redirect_stdout(sys.stderr):
             if pump is not None:
                 pump.close()
@@ -181,7 +322,46 @@ def _robot(args: argparse.Namespace) -> int:
     return 0
 
 
-def _decision_payload(decision: Any, sequence: int) -> dict[str, Any]:
+def _hand_payload(hand: Any) -> dict[str, Any] | None:
+    if hand is None:
+        return None
+    return {
+        "handId": int(hand.hand_id),
+        "handedness": str(hand.handedness).casefold(),
+        "visibleTimeSeconds": float(hand.visible_time_s),
+        "palmMillimeters": {
+            "x": float(hand.palm_x_mm),
+            "y": float(hand.palm_y_mm),
+            "z": float(hand.palm_z_mm),
+        },
+        "velocityMillimetersPerSecond": {
+            "x": float(hand.velocity_x_mm_s),
+            "y": float(hand.velocity_y_mm_s),
+            "z": float(hand.velocity_z_mm_s),
+        },
+        "direction": {
+            "x": float(hand.direction_x),
+            "y": float(hand.direction_y),
+            "z": float(hand.direction_z),
+        },
+        "palmNormal": {
+            "x": float(hand.normal_x),
+            "y": float(hand.normal_y),
+            "z": float(hand.normal_z),
+        },
+        "pinchStrength": float(hand.pinch_strength),
+        "grabStrength": float(hand.grab_strength),
+        "pinchDistanceMillimeters": float(hand.pinch_distance_mm),
+        "yawDegrees": float(hand.yaw_degrees),
+    }
+
+
+def _decision_payload(
+    decision: Any,
+    sequence: int,
+    frame: Any,
+    source: Any,
+) -> dict[str, Any]:
     command = decision.command
     hand_present = decision.hand is not None
     return {
@@ -195,6 +375,12 @@ def _decision_payload(decision: Any, sequence: int) -> dict[str, Any]:
         "rightMetersPerSecond": float(command.right_m_s),
         "clockwiseRadiansPerSecond": math.radians(float(command.clockwise_deg_s)),
         "tracking": hand_present,
+        "hand": _hand_payload(decision.hand),
+        "sensorFrameId": None if frame is None else int(frame.frame_id),
+        "sensorFrameRateHertz": None if frame is None else float(frame.framerate),
+        "totalHandCount": 0 if frame is None else int(frame.total_hand_count),
+        "serviceConnected": bool(source.service_connected),
+        "devicePresent": bool(source.device_present),
     }
 
 
@@ -254,9 +440,14 @@ def _leap(args: argparse.Namespace) -> int:
             )
             urgent_stop = was_moving and not moving
             due = now - last_emit_at >= (1.0 / 15.0)
-            if urgent_stop or (due and (moving or signature != last_signature)):
+            # Continue emitting reduced hand samples while a hand is present so
+            # the browser can render a responsive semantic visualization. Raw
+            # Leap frames and anatomical images never cross this boundary.
+            if urgent_stop or (
+                due and (moving or decision.hand is not None or signature != last_signature)
+            ):
                 sequence += 1
-                _write(_decision_payload(decision, sequence))
+                _write(_decision_payload(decision, sequence, frame, source))
                 last_emit_at = now
                 last_signature = signature
             was_moving = moving

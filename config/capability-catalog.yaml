@@ -20,6 +20,21 @@ capabilities:
     constraints:
       payload:
         on: { type: boolean }
+  power_electrical_state:
+    name: telemetry.power.electrical
+    version: "1.0"
+    maximumRateHz: 1
+    latencyClass: ui_feedback
+    safetyClassification: informational
+    dataClassification: operational
+    constraints:
+      payload:
+        activePowerWatts: { type: number, unit: W }
+        voltageVolts: { type: number, unit: V }
+        activeCurrentAmperes: { type: number, unit: A }
+        cumulativeEnergyKilowattHours: { type: number, unit: kWh }
+        frequencyHertz: { type: number, unit: Hz }
+        powerFactorRatio: { type: number, minimum: -1, maximum: 1 }
   gesture_velocity:
     name: interaction.gesture.velocity
     version: "1.0"
@@ -231,3 +246,10 @@ capabilities:
       arguments:
         panDegrees: { minimum: -53, maximum: 53 }
         tiltDegrees: { minimum: -5, maximum: 10 }
+  sphero_aim_reset:
+    name: sphero.aim.reset
+    version: "1.0"
+    maximumRateHz: 0.5
+    latencyClass: interactive
+    safetyClassification: bounded_physical
+    dataClassification: operational

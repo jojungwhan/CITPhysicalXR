@@ -308,8 +308,10 @@ function Show-Preflight {
     }
     Write-Host "PASS Ultraleap service $($leapService.DisplayName) is running"
     if (-not $FleetInputOnly -and $RobotTransport -eq "sdk") {
-      & $ExternalPython -c "import robomaster; print('PASS DJI SDK import')"
-      if ($LASTEXITCODE -ne 0) { throw "The DJI RoboMaster SDK is unavailable" }
+      & $ExternalPython -c "import cv2, robomaster; print('PASS DJI SDK and OpenCV camera imports')"
+      if ($LASTEXITCODE -ne 0) {
+        throw "The DJI RoboMaster SDK or OpenCV camera dependency is unavailable"
+      }
     } elseif (-not $FleetInputOnly -and $env:OS -ne "Windows_NT") {
       throw "The stock S1 app transport is Windows-only"
     }
@@ -440,11 +442,13 @@ function New-AdapterCredential(
   [string]$SecretPath
 ) {
   $identityId = "$IdentityPrefix-$($SessionId.Substring(0, [Math]::Min(16, $SessionId.Length)))"
+  $permissions = @("fabric.adapters.connect", "fabric.events.publish", "fabric.nodes.write")
+  if ($PluginId -eq "cit.robomaster-s1") { $permissions += "fabric.media.publish" }
   $response = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/auth/identities" -Credential $BootstrapCredential -Body @{
     identityId = $identityId
     actorType = "adapter"
     roles = @("plugin.$PluginId")
-    permissions = @("fabric.adapters.connect", "fabric.events.publish", "fabric.nodes.write")
+    permissions = $permissions
     siteId = $SiteId
     roomId = $RoomId
     sessionId = $SessionId
@@ -497,7 +501,8 @@ function Start-Adapter(
       "--node-id", $RobotNodeId,
       "--robot-mode", $(if ($Live) { $RobotTransport } else { "dry-run" }),
       "--connection", $Connection,
-      "--protocol", $Protocol
+      "--protocol", $Protocol,
+      "--publish-camera"
     )
     if ($RobotIp) { $robotArguments += @("--robot-ip", $RobotIp) }
     if ($LocalIp) { $robotArguments += @("--local-ip", $LocalIp) }

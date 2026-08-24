@@ -27,7 +27,7 @@ from urllib.request import Request, urlopen
 from uuid import uuid4
 
 from cit_protocol import IntegrationNode
-from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, model_validator
 
 from .fabric_integration_catalog import IntegrationDescriptor, load_integration_catalog
 
@@ -223,6 +223,144 @@ class FabricDiscoveryActionResult(BaseModel):
     report: FabricDiscoveryReport
 
 
+class FabricRememberedConnection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    actionId: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]*$", max_length=96)
+    requiresGroundedConfirmation: bool
+    rememberedAt: datetime
+
+
+class FabricRememberedConnections(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schemaVersion: Literal["1.0"] = "1.0"
+    hostId: str = Field(min_length=1, max_length=160)
+    connections: list[FabricRememberedConnection] = Field(default_factory=list, max_length=32)
+
+
+class FabricRememberedConnectionOutcome(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    actionId: str = Field(pattern=r"^[a-z0-9][a-z0-9._-]*$", max_length=96)
+    status: Literal["connected", "already_connected", "skipped", "failed"]
+    message: str = Field(min_length=1, max_length=500)
+    code: str | None = Field(default=None, max_length=96)
+
+
+class FabricRememberedConnectionResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schemaVersion: Literal["1.0"] = "1.0"
+    connectedCount: int = Field(ge=0, le=32)
+    alreadyConnectedCount: int = Field(ge=0, le=32)
+    skippedCount: int = Field(ge=0, le=32)
+    failedCount: int = Field(ge=0, le=32)
+    outcomes: list[FabricRememberedConnectionOutcome] = Field(
+        default_factory=list,
+        max_length=32,
+    )
+    report: FabricDiscoveryReport
+
+
+@dataclass(frozen=True, slots=True)
+class RememberedConnectionPolicy:
+    action_id: str
+    integration_ids: tuple[str, ...]
+    requires_grounded_confirmation: bool = False
+
+
+_REMEMBERED_CONNECTION_POLICIES: Mapping[str, RememberedConnectionPolicy] = MappingProxyType(
+    {
+        policy.action_id: policy
+        for policy in (
+            RememberedConnectionPolicy(
+                "cit.glasses-agent.connect",
+                ("even-realities-g2", "meta-rayban", "coding-agents"),
+            ),
+            RememberedConnectionPolicy(
+                "cit.robomaster-leap.connect",
+                ("leap-motion", "robomaster-s1"),
+            ),
+            RememberedConnectionPolicy(
+                "cit.matter-smart-plug.connect",
+                ("matter-smart-plugs",),
+            ),
+            RememberedConnectionPolicy(
+                "cit.lego-pybricks.connect",
+                ("lego-hubs",),
+            ),
+            RememberedConnectionPolicy(
+                "cit.wonder-workshop.reconnect",
+                ("wonder-workshop-dash-dot",),
+            ),
+            RememberedConnectionPolicy(
+                "cit.sphero-bolt.reconnect",
+                ("sphero-bolt",),
+            ),
+            RememberedConnectionPolicy(
+                "brain2devices.mindwave.connect",
+                ("mindwave-mobile2",),
+            ),
+            RememberedConnectionPolicy(
+                "brain2devices.tello.connect-all",
+                ("tello-drones",),
+                requires_grounded_confirmation=True,
+            ),
+        )
+    }
+)
+
+_REMEMBERED_CONNECTION_ALIASES: Mapping[str, str] = MappingProxyType(
+    {"brain2devices.tello.connect-primary": "brain2devices.tello.connect-all"}
+)
+
+
+def remembered_connection_policy(action_id: str) -> RememberedConnectionPolicy | None:
+    canonical_action = _REMEMBERED_CONNECTION_ALIASES.get(action_id, action_id)
+    return _REMEMBERED_CONNECTION_POLICIES.get(canonical_action)
+
+
+def remembered_connection_policies_for_nodes(
+    nodes: Iterable[IntegrationNode],
+) -> tuple[tuple[RememberedConnectionPolicy, datetime], ...]:
+    physical_nodes = tuple(node for node in nodes if node.physical and not node.simulated)
+    catalog = load_integration_catalog()
+    matches: list[tuple[RememberedConnectionPolicy, datetime]] = []
+    for policy in _REMEMBERED_CONNECTION_POLICIES.values():
+        descriptors = tuple(catalog.require(value) for value in policy.integration_ids)
+        matching = tuple(
+            node
+            for node in physical_nodes
+            if any(descriptor.matches(node) for descriptor in descriptors)
+        )
+        if matching:
+            matches.append((policy, max(node.lastSeenAt for node in matching)))
+    return tuple(matches)
+
+
+class MatterWifiConfiguration(BaseModel):
+    """Ephemeral credentials used only to provision the local Matter controller."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    ssid: str = Field(min_length=1, max_length=32)
+    password: SecretStr = Field(min_length=8, max_length=63)
+
+    @model_validator(mode="after")
+    def validate_wifi_values(self) -> MatterWifiConfiguration:
+        if (
+            self.ssid != self.ssid.strip()
+            or len(self.ssid.encode("utf-8")) > 32
+            or any(ord(character) < 32 or ord(character) == 127 for character in self.ssid)
+        ):
+            raise ValueError("Wi-Fi name must be trimmed printable text of at most 32 bytes")
+        password = self.password.get_secret_value()
+        if any(ord(character) < 32 or ord(character) == 127 for character in password):
+            raise ValueError("Wi-Fi password must not contain control characters")
+        return self
+
+
 class LegoConnectionConfiguration(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -271,6 +409,27 @@ class WonderWorkshopConnectionConfiguration(BaseModel):
         return self
 
 
+class SpheroBoltSelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    candidateId: str = Field(pattern=r"^sphero-[a-f0-9]{12}$")
+
+
+class SpheroBoltConnectionConfiguration(BaseModel):
+    """Exact opaque BOLT candidates selected by a tutor in the local UI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    robots: list[SpheroBoltSelection] = Field(min_length=1, max_length=4)
+
+    @model_validator(mode="after")
+    def validate_candidate_ids(self) -> SpheroBoltConnectionConfiguration:
+        candidate_ids = [robot.candidateId for robot in self.robots]
+        if len(candidate_ids) != len(set(candidate_ids)):
+            raise ValueError("Sphero BOLT candidates must be unique")
+        return self
+
+
 class FabricDiscoveryError(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
@@ -282,12 +441,18 @@ class DiscoveryRunner(Protocol):
 
     async def perform(self, action_id: str, *, confirm_grounded: bool) -> str: ...
 
+    async def configure_matter_wifi(self, configuration: MatterWifiConfiguration) -> str: ...
+
     async def commission_matter(self, setup_code: str) -> str: ...
 
     async def connect_lego(self, configuration: LegoConnectionConfiguration) -> str: ...
 
     async def connect_wonder_workshop(
         self, configuration: WonderWorkshopConnectionConfiguration
+    ) -> str: ...
+
+    async def connect_sphero_bolts(
+        self, configuration: SpheroBoltConnectionConfiguration
     ) -> str: ...
 
 
@@ -347,6 +512,85 @@ class FabricDiscoveryService:
             report=report,
         )
 
+    async def reconnect_remembered(
+        self,
+        connections: Iterable[FabricRememberedConnection],
+        *,
+        confirm_grounded: bool,
+        nodes: NodeProvider,
+    ) -> FabricRememberedConnectionResult:
+        outcomes: list[FabricRememberedConnectionOutcome] = []
+        async with self._connection_lock:
+            for connection in connections:
+                policy = remembered_connection_policy(connection.actionId)
+                if policy is None:
+                    outcomes.append(
+                        FabricRememberedConnectionOutcome(
+                            actionId=connection.actionId,
+                            status="failed",
+                            code="REMEMBERED_CONNECTION_NOT_ALLOWED",
+                            message="The remembered connection action is no longer allowlisted.",
+                        )
+                    )
+                    continue
+                if _policy_has_live_node(policy, nodes()):
+                    outcomes.append(
+                        FabricRememberedConnectionOutcome(
+                            actionId=connection.actionId,
+                            status="already_connected",
+                            message="A matching CIT adapter is already connected.",
+                        )
+                    )
+                    continue
+                if policy.requires_grounded_confirmation and not confirm_grounded:
+                    outcomes.append(
+                        FabricRememberedConnectionOutcome(
+                            actionId=connection.actionId,
+                            status="skipped",
+                            code="GROUNDED_CONFIRMATION_REQUIRED",
+                            message=(
+                                "The remembered aircraft connection was skipped until a tutor "
+                                "confirms that every aircraft is grounded."
+                            ),
+                        )
+                    )
+                    continue
+                try:
+                    message = await self._runner.perform(
+                        connection.actionId,
+                        confirm_grounded=confirm_grounded,
+                    )
+                except FabricDiscoveryError as error:
+                    outcomes.append(
+                        FabricRememberedConnectionOutcome(
+                            actionId=connection.actionId,
+                            status="failed",
+                            code=error.code,
+                            message=str(error),
+                        )
+                    )
+                    continue
+                outcomes.append(
+                    FabricRememberedConnectionOutcome(
+                        actionId=connection.actionId,
+                        status="connected",
+                        message=message,
+                    )
+                )
+        # Deliberately avoid the broad host scan used by perform(). Adapter
+        # launchers wait for registration, so the live-node overlay is enough.
+        report = self.current(nodes())
+        return FabricRememberedConnectionResult(
+            connectedCount=sum(outcome.status == "connected" for outcome in outcomes),
+            alreadyConnectedCount=sum(
+                outcome.status == "already_connected" for outcome in outcomes
+            ),
+            skippedCount=sum(outcome.status == "skipped" for outcome in outcomes),
+            failedCount=sum(outcome.status == "failed" for outcome in outcomes),
+            outcomes=outcomes,
+            report=report,
+        )
+
     async def commission_matter(
         self,
         setup_code: str,
@@ -367,6 +611,22 @@ class FabricDiscoveryService:
         report = await self.scan(nodes())
         return FabricDiscoveryActionResult(
             actionId="cit.matter-smart-plug.commission",
+            accepted=True,
+            message=message,
+            report=report,
+        )
+
+    async def configure_matter_wifi(
+        self,
+        configuration: MatterWifiConfiguration,
+        *,
+        nodes: NodeProvider,
+    ) -> FabricDiscoveryActionResult:
+        async with self._connection_lock:
+            message = await self._runner.configure_matter_wifi(configuration)
+        report = await self.scan(nodes())
+        return FabricDiscoveryActionResult(
+            actionId="cit.matter-smart-plug.configure-wifi",
             accepted=True,
             message=message,
             report=report,
@@ -404,6 +664,22 @@ class FabricDiscoveryService:
             report=report,
         )
 
+    async def connect_sphero_bolts(
+        self,
+        configuration: SpheroBoltConnectionConfiguration,
+        *,
+        nodes: NodeProvider,
+    ) -> FabricDiscoveryActionResult:
+        async with self._connection_lock:
+            message = await self._runner.connect_sphero_bolts(configuration)
+        report = await self.scan(nodes())
+        return FabricDiscoveryActionResult(
+            actionId="cit.sphero-bolt.configure-connect",
+            accepted=True,
+            message=message,
+            report=report,
+        )
+
 
 class UnavailableDiscoveryRunner:
     """Safe default for tests and embedded runtimes without a host probe."""
@@ -428,6 +704,13 @@ class UnavailableDiscoveryRunner:
             "Local Matter commissioning is unavailable in this runtime",
         )
 
+    async def configure_matter_wifi(self, configuration: MatterWifiConfiguration) -> str:
+        del configuration
+        raise FabricDiscoveryError(
+            "MATTER_WIFI_CONFIGURATION_UNAVAILABLE",
+            "Local Matter Wi-Fi configuration is unavailable in this runtime",
+        )
+
     async def connect_lego(self, configuration: LegoConnectionConfiguration) -> str:
         del configuration
         raise FabricDiscoveryError(
@@ -442,6 +725,13 @@ class UnavailableDiscoveryRunner:
         raise FabricDiscoveryError(
             "WONDER_CONNECTION_UNAVAILABLE",
             "Local Dash and Dot connection is unavailable in this runtime",
+        )
+
+    async def connect_sphero_bolts(self, configuration: SpheroBoltConnectionConfiguration) -> str:
+        del configuration
+        raise FabricDiscoveryError(
+            "SPHERO_CONNECTION_UNAVAILABLE",
+            "Local Sphero BOLT connection is unavailable in this runtime",
         )
 
 
@@ -548,6 +838,34 @@ class PowerShellDiscoveryRunner:
                     ),
                     "The configured LEGO hub connected for unarmed sensor monitoring. "
                     "Motor control remains locked until it is assigned to an armed lesson.",
+                ),
+                "cit.wonder-workshop.reconnect": _LauncherAction(
+                    "wonder-workshop.ps1",
+                    (
+                        "-Mode",
+                        "Start",
+                        *common,
+                        "-StateRoot",
+                        str(self._state_root.parent / "wonder-workshop"),
+                        "-SkipBuild",
+                        "-NoOpenConsole",
+                    ),
+                    "Remembered Dash and Dot profiles reconnected for unarmed sensor "
+                    "monitoring. No movement command was issued.",
+                ),
+                "cit.sphero-bolt.reconnect": _LauncherAction(
+                    "sphero-bolt.ps1",
+                    (
+                        "-Mode",
+                        "Start",
+                        *common,
+                        "-StateRoot",
+                        str(self._state_root.parent / "sphero-bolt"),
+                        "-SkipBuild",
+                        "-NoOpenConsole",
+                    ),
+                    "Remembered Sphero BOLT profiles reconnected for unarmed sensor "
+                    "monitoring. No aim or movement command was issued.",
                 ),
             }
         )
@@ -742,6 +1060,36 @@ class PowerShellDiscoveryRunner:
             "Its bounded adapter is connected in an unstarted, disarmed lesson."
         )
 
+    async def configure_matter_wifi(self, configuration: MatterWifiConfiguration) -> str:
+        password = configuration.password.get_secret_value()
+        await self._run_input_launcher(
+            "matter-smart-plug.ps1",
+            "-Mode",
+            "ConfigureWifi",
+            "-SharedFabricRoot",
+            str(self._state_root),
+            "-FabricPort",
+            str(self._fabric_port),
+            "-SkipBuild",
+            "-NoOpenConsole",
+            input_text=json.dumps(
+                {"ssid": configuration.ssid, "password": password},
+                separators=(",", ":"),
+            ),
+            redactions=(password,),
+            timeout_seconds=45,
+            error_prefix="MATTER_WIFI_CONFIGURATION",
+            operation_name="Matter Wi-Fi configuration",
+            timeout_message="Matter Wi-Fi configuration timed out; retry from the local console",
+            failure_message=(
+                "Matter Wi-Fi configuration failed; confirm the local controller and credentials"
+            ),
+        )
+        return (
+            "Classroom Wi-Fi was stored only in the local Matter controller. "
+            "No vendor account or cloud service was used."
+        )
+
     async def connect_lego(self, configuration: LegoConnectionConfiguration) -> str:
         await self._run_input_launcher(
             "lego-pybricks.ps1",
@@ -805,6 +1153,38 @@ class PowerShellDiscoveryRunner:
         return (
             f"{count} selected Dash/Dot robot(s) connected for unarmed sensor monitoring. "
             "CIT issued no movement command."
+        )
+
+    async def connect_sphero_bolts(self, configuration: SpheroBoltConnectionConfiguration) -> str:
+        await self._run_input_launcher(
+            "sphero-bolt.ps1",
+            "-Mode",
+            "ConfigureStart",
+            "-SharedFabricRoot",
+            str(self._state_root),
+            "-StateRoot",
+            str(self._state_root.parent / "sphero-bolt"),
+            "-FabricPort",
+            str(self._fabric_port),
+            "-SkipBuild",
+            "-NoOpenConsole",
+            input_text=configuration.model_dump_json(),
+            redactions=(),
+            timeout_seconds=120,
+            error_prefix="SPHERO_CONNECTION",
+            operation_name="Sphero BOLT connection",
+            timeout_message=(
+                "Sphero BOLT connection timed out; keep the selected SB-XXXX robots awake, "
+                "nearby, and disconnected from other apps"
+            ),
+            failure_message=(
+                "Sphero BOLT connection failed; check Bluetooth, robot power, and exact selection"
+            ),
+        )
+        count = len(configuration.robots)
+        return (
+            f"{count} selected Sphero BOLT robot(s) connected for unarmed sensor monitoring. "
+            "CIT issued no aim or movement command."
         )
 
     async def _run_launcher(self, script_name: str, *arguments: str) -> None:
@@ -1146,6 +1526,19 @@ def _overlay_connected_nodes(
             )
         )
     return report.model_copy(update={"integrations": integrations})
+
+
+def _policy_has_live_node(
+    policy: RememberedConnectionPolicy,
+    nodes: Iterable[IntegrationNode],
+) -> bool:
+    catalog = load_integration_catalog()
+    descriptors = tuple(catalog.require(value) for value in policy.integration_ids)
+    return any(
+        node.connectionState.value in {"connected", "degraded"}
+        and any(descriptor.matches(node) for descriptor in descriptors)
+        for node in nodes
+    )
 
 
 def _canonicalize_discovery_report(report: FabricDiscoveryReport) -> FabricDiscoveryReport:

@@ -206,6 +206,35 @@ export interface FabricDiscoveryActionResult {
   report: FabricDiscoveryReport;
 }
 
+export interface FabricRememberedConnection {
+  actionId: string;
+  requiresGroundedConfirmation: boolean;
+  rememberedAt: string;
+}
+
+export interface FabricRememberedConnections {
+  schemaVersion: "1.0";
+  hostId: string;
+  connections: FabricRememberedConnection[];
+}
+
+export interface FabricRememberedConnectionOutcome {
+  actionId: string;
+  status: "connected" | "already_connected" | "skipped" | "failed";
+  message: string;
+  code?: string;
+}
+
+export interface FabricRememberedConnectionResult {
+  schemaVersion: "1.0";
+  connectedCount: number;
+  alreadyConnectedCount: number;
+  skippedCount: number;
+  failedCount: number;
+  outcomes: FabricRememberedConnectionOutcome[];
+  report: FabricDiscoveryReport;
+}
+
 export interface LegoConnectionConfiguration {
   hubName: string;
   hubModel: "spike-prime" | "spike-essential" | "robot-inventor";
@@ -219,6 +248,35 @@ export interface WonderWorkshopConnectionConfiguration {
 export interface WonderRobotSelection {
   candidateId: string;
   model: "dash" | "dot";
+}
+
+export interface SpheroBoltSelection {
+  candidateId: string;
+}
+
+export interface FabricInstallationArtifact {
+  artifactId: string;
+  fileName: string;
+  mediaType: "application/zip";
+  sizeBytes: number;
+  sha256: string;
+}
+
+export interface FabricInstallationInfo {
+  schemaVersion: "1.0";
+  available: boolean;
+  product: "CITPhysicalXR";
+  version?: string;
+  revision?: string;
+  generatedAt?: string;
+  platform: "windows-x64";
+  requiresInternet: boolean;
+  artifacts: FabricInstallationArtifact[];
+}
+
+export interface FabricInstallationDownload {
+  blob: Blob;
+  sha256?: string;
 }
 
 interface FabricErrorBody {
@@ -320,12 +378,59 @@ export class FabricClient {
     return this.#request("/api/v1/fabric/nodes");
   }
 
+  getInstallationInfo(): Promise<FabricInstallationInfo> {
+    return this.#request("/api/v1/fabric/installation");
+  }
+
+  async downloadInstallationArtifact(
+    artifactId: string,
+  ): Promise<FabricInstallationDownload> {
+    if (!/^[a-z0-9][a-z0-9._-]{0,95}$/.test(artifactId)) {
+      throw new Error("The installation artifact identifier is invalid.");
+    }
+    if (this.#credential === undefined) {
+      throw new Error("Enter a CIT Fabric credential before connecting.");
+    }
+    const response = await this.#fetch(
+      `${this.#baseUrl}/api/v1/fabric/installation/artifacts/${encodeURIComponent(artifactId)}`,
+      {
+        cache: "no-store",
+        credentials: "omit",
+        headers: {
+          Accept: "application/zip",
+          Authorization: `Bearer ${this.#credential}`,
+        },
+      },
+    );
+    if (!response.ok) {
+      await this.#readResponse<never>(response);
+    }
+    return {
+      blob: await response.blob(),
+      ...optionalString("sha256", response.headers.get("x-cit-sha256")),
+    };
+  }
+
   getDiscovery(): Promise<FabricDiscoveryReport> {
     return this.#request("/api/v1/fabric/discovery");
   }
 
   scanDevices(): Promise<FabricDiscoveryReport> {
     return this.#request("/api/v1/fabric/discovery/scan", { method: "POST" });
+  }
+
+  listRememberedConnections(): Promise<FabricRememberedConnections> {
+    return this.#request("/api/v1/fabric/discovery/remembered");
+  }
+
+  reconnectRememberedDevices(
+    confirmGrounded = false,
+  ): Promise<FabricRememberedConnectionResult> {
+    return this.#request("/api/v1/fabric/discovery/remembered/connect", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmGrounded }),
+    });
   }
 
   runDiscoveryAction(
@@ -367,6 +472,37 @@ export class FabricClient {
     });
   }
 
+  configureMatterWifi(
+    ssid: string,
+    password: string,
+  ): Promise<FabricDiscoveryActionResult> {
+    const normalizedSsid = ssid.trim();
+    const containsControlCharacter = (value: string) =>
+      Array.from(value).some((character) => {
+        const code = character.charCodeAt(0);
+        return code < 32 || code === 127;
+      });
+    if (
+      normalizedSsid !== ssid ||
+      normalizedSsid.length === 0 ||
+      new TextEncoder().encode(normalizedSsid).length > 32 ||
+      containsControlCharacter(normalizedSsid)
+    ) {
+      throw new Error("Enter the exact printable Wi-Fi name (SSID).");
+    }
+    if (
+      password.length < 8 ||
+      password.length > 63 ||
+      containsControlCharacter(password)
+    ) {
+      throw new Error("Enter the 8–63 character classroom Wi-Fi password.");
+    }
+    return this.#request("/api/v1/fabric/matter/wifi", {
+      method: "POST",
+      body: JSON.stringify({ ssid: normalizedSsid, password }),
+    });
+  }
+
   connectLegoHub(
     configuration: LegoConnectionConfiguration,
   ): Promise<FabricDiscoveryActionResult> {
@@ -393,6 +529,24 @@ export class FabricClient {
       throw new Error("Select between one and four exact Dash/Dot robots.");
     }
     return this.#request("/api/v1/fabric/wonder-workshop/connect", {
+      method: "POST",
+      body: JSON.stringify({ robots }),
+    });
+  }
+
+  connectSpheroBolts(
+    robots: SpheroBoltSelection[],
+  ): Promise<FabricDiscoveryActionResult> {
+    const candidateIds = robots.map((robot) => robot.candidateId);
+    if (
+      robots.length < 1 ||
+      robots.length > 4 ||
+      new Set(candidateIds).size !== candidateIds.length ||
+      robots.some((robot) => !/^sphero-[a-f0-9]{12}$/.test(robot.candidateId))
+    ) {
+      throw new Error("Select between one and four exact Sphero BOLT robots.");
+    }
+    return this.#request("/api/v1/fabric/sphero-bolt/connect", {
       method: "POST",
       body: JSON.stringify({ robots }),
     });

@@ -214,6 +214,14 @@ function Prepare-WonderWorkshopBluetooth {
   )
 }
 
+function Prepare-SpheroBoltBluetooth {
+  $uv = Resolve-Executable "uv"
+  Write-Host "Preparing the independent Sphero BOLT Bluetooth transport..."
+  Invoke-Checked $uv @(
+    "sync", "--package", "cit-sphero-bolt", "--extra", "hardware", "--frozen", "--inexact"
+  )
+}
+
 function Save-SiteProfile {
   foreach ($entry in @(@("SiteId", $SiteId), @("RoomId", $RoomId))) {
     if ([string]$entry[1] -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
@@ -294,9 +302,12 @@ Invoke-Checked $uv @("sync", "--all-packages", "--frozen", "--extra", "smart-plu
 Write-Host "Preparing the pinned CIT web, controller, and Windows Bluetooth dependencies..."
 Invoke-Checked $corepackPath @("pnpm@10.28.2", "install", "--frozen-lockfile")
 Invoke-Checked $corepackPath @("pnpm@10.28.2", "build")
+Write-Host "Building the authenticated transfer package for the next classroom computer..."
+Invoke-Checked $corepackPath @("pnpm@10.28.2", "release:windows:bundle")
 Prepare-Brain2Devices
 Prepare-LegoBluetooth
 Prepare-WonderWorkshopBluetooth
+Prepare-SpheroBoltBluetooth
 Save-SiteProfile
 
 & $matterLauncher -Mode ControllerStart -SiteId $SiteId -RoomId $RoomId -SkipBuild

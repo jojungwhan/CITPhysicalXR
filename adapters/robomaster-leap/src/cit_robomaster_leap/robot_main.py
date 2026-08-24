@@ -12,6 +12,7 @@ from cit_integration_sdk import FabricConnectionConfiguration
 
 from .backend import VendorConfiguration, VendorRobotProcess
 from .independent_bridges import FabricRoboMasterBridge, RobotBridgeConfiguration
+from .media import RoboMasterMediaPublisher
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -35,6 +36,11 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--serial-number")
     parser.add_argument("--max-speed", type=float, default=0.35)
     parser.add_argument("--max-yaw", type=float, default=35.0)
+    parser.add_argument(
+        "--publish-camera",
+        action="store_true",
+        help="Publish an ephemeral preview for SDK and simulator transports",
+    )
     return parser
 
 
@@ -70,6 +76,20 @@ async def _run(arguments: argparse.Namespace) -> None:
         site_id=arguments.site_id,
         room_id=arguments.room_id,
     )
+    robot = VendorRobotProcess(vendor)
+    media_publisher = (
+        RoboMasterMediaPublisher(
+            fabric_origin=connection.fabric_origin,
+            credential=arguments.adapter_token,
+            site_id=arguments.site_id,
+            room_id=arguments.room_id,
+            node_id=arguments.node_id,
+            backend=robot,
+            simulated=arguments.robot_mode == "dry-run",
+        )
+        if arguments.publish_camera and arguments.robot_mode in {"dry-run", "sdk"}
+        else None
+    )
     await FabricRoboMasterBridge(
         RobotBridgeConfiguration(
             connection=connection,
@@ -77,8 +97,9 @@ async def _run(arguments: argparse.Namespace) -> None:
             node_id=arguments.node_id,
             activation_file=arguments.activation_file.resolve(),
             robot_mode=arguments.robot_mode,
+            media_publisher=media_publisher,
         ),
-        robot=VendorRobotProcess(vendor),
+        robot=robot,
     ).run()
 
 

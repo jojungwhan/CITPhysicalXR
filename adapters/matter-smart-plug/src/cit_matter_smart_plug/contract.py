@@ -9,12 +9,13 @@ from cit_integration_sdk import capability_descriptor, capability_name
 from cit_protocol import IntegrationNode, PluginManifest
 
 PLUGIN_ID = "cit.matter-smart-plug"
-PLUGIN_VERSION = "0.1.0"
+PLUGIN_VERSION = "0.2.0"
 RUNTIME_VERSION = "python-3.11"
 MATTER_SERVER_VERSION = "1.4.0"
 
 POWER_SET_CAPABILITY = capability_name("power_switch_set")
 POWER_STATE_CAPABILITY = capability_name("power_switch_state")
+ELECTRICAL_STATE_CAPABILITY = capability_name("power_electrical_state")
 
 
 def _state_capability() -> dict[str, Any]:
@@ -23,6 +24,10 @@ def _state_capability() -> dict[str, Any]:
 
 def _set_capability() -> dict[str, Any]:
     return capability_descriptor("power_switch_set", "consume")
+
+
+def _electrical_capability() -> dict[str, Any]:
+    return capability_descriptor("power_electrical_state", "publish")
 
 
 def build_manifest() -> PluginManifest:
@@ -44,7 +49,7 @@ def build_manifest() -> PluginManifest:
                     "controllerAlias": {"const": "local-cit-matter"},
                 },
             },
-            "publishedCapabilities": [_state_capability()],
+            "publishedCapabilities": [_state_capability(), _electrical_capability()],
             "consumedCapabilities": [_set_capability()],
             "requiredPermissions": ["local_network"],
             "safetyClassification": "electrical",
@@ -71,7 +76,11 @@ def build_node(
     display_name: str,
     vendor_name: str,
     product_name: str,
+    electrical_telemetry: bool = False,
 ) -> IntegrationNode:
+    published_capabilities = [_state_capability()]
+    if electrical_telemetry:
+        published_capabilities.append(_electrical_capability())
     return IntegrationNode.model_validate(
         {
             "schemaVersion": "1.0",
@@ -87,7 +96,7 @@ def build_node(
             "healthState": "healthy",
             "physical": True,
             "simulated": False,
-            "publishedCapabilities": [_state_capability()],
+            "publishedCapabilities": published_capabilities,
             "consumedCapabilities": [_set_capability()],
             "configurationSchema": {},
             "safetyClassification": "electrical",
@@ -107,6 +116,7 @@ def build_node(
                 "cloudDependency": False,
                 "vendorAccountRequired": False,
                 "arbitraryClustersExposed": False,
+                "electricalTelemetry": electrical_telemetry,
             },
         }
     )

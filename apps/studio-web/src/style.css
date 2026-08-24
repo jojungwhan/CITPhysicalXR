@@ -112,6 +112,33 @@ body {
   background: #672c22;
 }
 
+.fabric-device-controls-launch {
+  display: inline-flex;
+  min-height: 44px;
+  padding: 8px 10px 8px 14px;
+  align-items: center;
+  gap: 10px;
+  border-color: rgb(117 199 255 / 38%);
+  color: #dff2ff;
+  background: rgb(117 199 255 / 10%);
+}
+
+.fabric-device-controls-launch strong {
+  display: grid;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 7px;
+  place-items: center;
+  border-radius: 999px;
+  color: #10202a;
+  background: var(--fabric-blue);
+  font-size: 0.76rem;
+}
+
+.fabric-device-controls-launch:disabled strong {
+  background: #718078;
+}
+
 main.fabric-main {
   width: min(1420px, calc(100% - 36px));
   padding: 24px 0 72px;
@@ -145,6 +172,17 @@ main.fabric-main {
   color: #aebbb2;
   font-size: 1.02rem;
   line-height: 1.6;
+}
+
+.fabric-guide-jump {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fabric-guide-jump span {
+  color: var(--fabric-green);
+  font-weight: 900;
 }
 
 .fabric-steps {
@@ -410,47 +448,173 @@ main.fabric-main {
   gap: 11px;
 }
 
-.fabric-discovery-groups {
+.fabric-readiness-overview {
+  display: grid;
+  margin: 14px 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.fabric-readiness-jump {
+  display: grid;
+  min-width: 0;
+  min-height: 86px;
+  padding: 12px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+  border: 1px solid rgb(255 255 255 / 8%);
+  background: rgb(0 0 0 / 15%);
+  transition:
+    border-color 140ms ease,
+    background 140ms ease,
+    transform 140ms ease;
+}
+
+.fabric-readiness-jump:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.fabric-readiness-jump > span,
+.fabric-discovery-tier-heading > span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  color: #0e1b12;
+  background: #9aa69e;
+  font-weight: 900;
+}
+
+.fabric-readiness-jump > div,
+.fabric-discovery-tier-heading > div {
+  min-width: 0;
+}
+
+.fabric-readiness-jump strong,
+.fabric-readiness-jump small {
+  display: block;
+}
+
+.fabric-readiness-jump strong {
+  color: #edf5ef;
+  font-size: 0.88rem;
+}
+
+.fabric-readiness-jump small {
+  margin-top: 3px;
+  color: #8f9e94;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.fabric-readiness-jump > b {
+  color: #f5faf6;
+  font-size: 1.45rem;
+}
+
+.fabric-readiness-jump.is-connected {
+  border-color: rgb(158 234 100 / 30%);
+  background: rgb(158 234 100 / 7%);
+}
+
+.fabric-readiness-jump.is-connected > span,
+.fabric-discovery-tier.is-connected .fabric-discovery-tier-heading > span {
+  background: var(--fabric-green);
+}
+
+.fabric-readiness-jump.is-available {
+  border-color: rgb(117 199 255 / 28%);
+  background: rgb(117 199 255 / 6%);
+}
+
+.fabric-readiness-jump.is-available > span,
+.fabric-discovery-tier.is-available .fabric-discovery-tier-heading > span {
+  background: var(--fabric-blue);
+}
+
+.fabric-readiness-jump.is-unavailable {
+  border-color: rgb(255 157 98 / 22%);
+  background: rgb(255 157 98 / 5%);
+}
+
+.fabric-readiness-jump.is-unavailable > span,
+.fabric-discovery-tier.is-unavailable .fabric-discovery-tier-heading > span {
+  background: #ffb181;
+}
+
+.fabric-discovery-tiers {
   display: grid;
   gap: 14px;
 }
 
-.fabric-discovery-group {
+.fabric-discovery-tier {
+  margin-top: 0;
   padding: 13px;
+  scroll-margin-top: 104px;
   border: 1px solid rgb(255 255 255 / 8%);
   border-radius: 13px;
   background: rgb(0 0 0 / 12%);
 }
 
-.fabric-discovery-group > header {
-  display: flex;
+.fabric-discovery-tier.is-connected {
+  border-color: rgb(158 234 100 / 20%);
+  background: rgb(158 234 100 / 3%);
+}
+
+.fabric-discovery-tier.is-available {
+  border-color: rgb(117 199 255 / 18%);
+  background: rgb(117 199 255 / 2%);
+}
+
+.fabric-discovery-tier.is-unavailable {
+  border-color: rgb(255 157 98 / 16%);
+}
+
+.fabric-discovery-tier-heading {
+  display: grid;
   margin-bottom: 11px;
-  align-items: flex-start;
-  gap: 12px;
+  grid-template-columns: 32px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
 }
 
-.fabric-discovery-group > header > div {
-  min-width: 0;
-  margin-right: auto;
+.fabric-discovery-tier > summary.fabric-discovery-tier-heading {
+  margin: 0;
+  grid-template-columns: 32px minmax(0, 1fr) auto 18px;
+  cursor: pointer;
+  list-style: none;
 }
 
-.fabric-discovery-group > header h3,
-.fabric-discovery-group > header p {
+.fabric-discovery-tier > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fabric-discovery-tier[open] > summary.fabric-discovery-tier-heading {
+  margin-bottom: 11px;
+}
+
+.fabric-discovery-tier-heading h3,
+.fabric-discovery-tier-heading p {
   margin: 0;
 }
 
-.fabric-discovery-group > header h3 {
+.fabric-discovery-tier-heading h3 {
   color: #f0f6f1;
   font-size: 1rem;
 }
 
-.fabric-discovery-group > header p {
+.fabric-discovery-tier-heading p {
   margin-top: 3px;
   color: #84938a;
   font-size: 0.78rem;
+  line-height: 1.4;
 }
 
-.fabric-discovery-group > header > strong {
+.fabric-discovery-tier-heading > strong {
   display: grid;
   min-width: 28px;
   height: 28px;
@@ -460,12 +624,34 @@ main.fabric-main {
   background: var(--fabric-green);
 }
 
-.fabric-discovery-group.is-bidirectional > header > strong {
-  background: #d9b6ff;
+.fabric-discovery-tier.is-available > .fabric-discovery-tier-heading > strong {
+  background: var(--fabric-blue);
 }
 
-.fabric-discovery-group.is-output > header > strong {
-  background: var(--fabric-blue);
+.fabric-discovery-tier.is-unavailable
+  > .fabric-discovery-tier-heading
+  > strong {
+  background: #ffb181;
+}
+
+.fabric-discovery-tier-heading > i {
+  color: #9eaca3;
+  font-size: 1.15rem;
+  font-style: normal;
+  transition: transform 140ms ease;
+}
+
+.fabric-discovery-tier[open] > summary > i {
+  transform: rotate(180deg);
+}
+
+.fabric-tier-empty {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: 18px;
+  border: 1px dashed rgb(255 255 255 / 10%);
+  border-radius: 10px;
+  text-align: center;
 }
 
 .fabric-discovery-loading {
@@ -474,6 +660,7 @@ main.fabric-main {
 
 .fabric-discovery-card {
   min-width: 0;
+  scroll-margin-top: 104px;
   padding: 14px;
   border: 1px solid rgb(255 255 255 / 9%);
   border-radius: 12px;
@@ -491,6 +678,44 @@ main.fabric-main {
 
 .fabric-discovery-card.is-setup-required {
   border-color: rgb(255 157 98 / 27%);
+}
+
+.fabric-connected-devices {
+  display: grid;
+  margin: 10px 0;
+  padding: 9px 10px;
+  gap: 7px;
+  border: 1px solid rgb(158 234 100 / 18%);
+  border-radius: 9px;
+  background: rgb(158 234 100 / 5%);
+}
+
+.fabric-connected-devices > strong {
+  color: #c9f4ad;
+  font-size: 0.72rem;
+}
+
+.fabric-connected-devices ul {
+  display: flex;
+  margin: 0;
+  padding: 0;
+  flex-wrap: wrap;
+  gap: 6px;
+  list-style: none;
+}
+
+.fabric-connected-devices li {
+  display: inline-flex;
+  padding: 5px 8px;
+  align-items: center;
+  gap: 6px;
+  border-radius: 99px;
+  color: #dfe9e1;
+  background: rgb(0 0 0 / 22%);
+}
+
+.fabric-connected-devices code {
+  font-size: 0.68rem;
 }
 
 .fabric-discovery-card > header {
@@ -645,6 +870,51 @@ main.fabric-main {
   margin-bottom: 0 !important;
 }
 
+.fabric-remembered-connect {
+  border-color: rgb(117 199 255 / 30%);
+  background: linear-gradient(
+    110deg,
+    rgb(117 199 255 / 10%),
+    rgb(158 234 100 / 5%)
+  );
+}
+
+.fabric-remembered-options {
+  display: flex;
+  margin-top: 10px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.fabric-auto-reconnect {
+  display: flex;
+  padding: 9px 11px;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid rgb(117 199 255 / 25%);
+  border-radius: 9px;
+  color: #c3def1;
+  background: rgb(117 199 255 / 6%);
+  font-size: 0.76rem;
+  line-height: 1.4;
+}
+
+.fabric-auto-reconnect input {
+  width: 18px;
+  min-height: 18px;
+  flex: 0 0 auto;
+}
+
+.fabric-remembered-aircraft-note {
+  display: block;
+  max-width: 720px;
+  margin-top: 8px;
+  color: #d3a68f;
+  font-size: 0.72rem;
+  line-height: 1.4;
+}
+
 .fabric-connect-all-button {
   min-width: 250px;
   flex: 0 0 auto;
@@ -753,8 +1023,19 @@ main.fabric-main {
   background: rgb(117 199 255 / 8%) !important;
 }
 
+.fabric-open-plug-controls {
+  color: #102013 !important;
+  background: var(--fabric-green) !important;
+}
+
+.fabric-open-sphero-controls {
+  color: #0c1b24 !important;
+  background: var(--fabric-blue) !important;
+}
+
 .fabric-matter-setup,
 .fabric-lego-setup,
+.fabric-sphero-setup,
 .fabric-wonder-setup,
 .fabric-smart-plug-setup {
   display: grid;
@@ -768,6 +1049,7 @@ main.fabric-main {
 
 .fabric-matter-setup > strong,
 .fabric-lego-setup > strong,
+.fabric-sphero-setup > strong,
 .fabric-wonder-setup > strong,
 .fabric-smart-plug-setup > strong {
   color: #e8f5ea;
@@ -777,6 +1059,8 @@ main.fabric-main {
 .fabric-matter-setup > small,
 .fabric-lego-setup p,
 .fabric-lego-setup > small,
+.fabric-sphero-setup p,
+.fabric-sphero-setup > small,
 .fabric-wonder-setup p,
 .fabric-wonder-setup > small,
 .fabric-smart-plug-setup p,
@@ -789,6 +1073,7 @@ main.fabric-main {
 
 .fabric-matter-setup label,
 .fabric-lego-setup label,
+.fabric-sphero-setup label,
 .fabric-wonder-setup label,
 .fabric-smart-plug-setup label {
   margin: 0;
@@ -797,9 +1082,169 @@ main.fabric-main {
 
 .fabric-matter-setup button,
 .fabric-lego-setup button,
+.fabric-sphero-setup button,
 .fabric-wonder-setup button,
 .fabric-smart-plug-setup button {
   min-height: 40px;
+}
+
+.fabric-add-another-device > summary {
+  position: relative;
+  padding-right: 28px;
+  color: #c9f4ad;
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 800;
+  list-style: none;
+}
+
+.fabric-add-another-device > summary::-webkit-details-marker {
+  display: none;
+}
+
+.fabric-add-another-device > summary::after {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  content: "+";
+  color: #9eea64;
+  font-size: 1.05rem;
+  transform: translateY(-50%);
+}
+
+.fabric-add-another-device[open] > summary {
+  margin-bottom: 3px;
+}
+
+.fabric-add-another-device[open] > summary::after {
+  content: "−";
+}
+
+.fabric-matter-stage {
+  display: grid;
+  padding: 11px;
+  gap: 9px;
+  border: 1px solid rgb(255 255 255 / 13%);
+  border-radius: 9px;
+  background: rgb(5 15 11 / 38%);
+}
+
+.fabric-matter-stage > header {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 9px;
+}
+
+.fabric-matter-stage > header > span {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  color: #07120c;
+  border-radius: 50%;
+  background: #dce6df;
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.fabric-matter-stage > header > div {
+  display: grid;
+  gap: 3px;
+}
+
+.fabric-matter-stage > header strong {
+  color: #eef7f0;
+  font-size: 0.82rem;
+}
+
+.fabric-matter-stage > header small,
+.fabric-matter-wifi-form > small {
+  color: #9aada0;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.fabric-matter-stage > header b {
+  padding: 3px 7px;
+  color: #f6d997;
+  border: 1px solid rgb(255 194 71 / 28%);
+  border-radius: 999px;
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+.fabric-matter-stage.is-ready {
+  border-color: rgb(158 234 100 / 34%);
+  background: rgb(158 234 100 / 8%);
+}
+
+.fabric-matter-stage.is-ready > header > span {
+  background: #a9e881;
+}
+
+.fabric-matter-stage.is-ready > header b {
+  color: #c9f4ad;
+  border-color: rgb(158 234 100 / 32%);
+}
+
+.fabric-matter-stage.is-locked {
+  opacity: 0.66;
+}
+
+.fabric-matter-wifi-form {
+  display: grid;
+  gap: 8px;
+  padding-left: 37px;
+}
+
+.fabric-matter-nearby {
+  display: grid;
+  margin: 0;
+  padding: 0 0 0 37px;
+  gap: 4px;
+  color: #c9f4ad;
+  font-size: 0.75rem;
+}
+
+.fabric-matter-stage > label,
+.fabric-matter-stage > button,
+.fabric-matter-stage > small {
+  margin-left: 37px;
+}
+
+.fabric-matter-stage > small {
+  color: #94a69a;
+  font-size: 0.72rem;
+  line-height: 1.45;
+}
+
+.fabric-matter-model-guide {
+  display: grid;
+  padding: 10px;
+  gap: 6px;
+  border: 1px solid rgb(117 199 255 / 25%);
+  border-radius: 9px;
+  background: rgb(117 199 255 / 6%);
+}
+
+.fabric-matter-model-guide > strong {
+  color: #b9dfff;
+  font-size: 0.8rem;
+}
+
+.fabric-matter-model-guide ol {
+  margin: 0;
+  padding-left: 1.3rem;
+  color: #c8d3ca;
+  font-size: 0.75rem;
+  line-height: 1.5;
+}
+
+.fabric-matter-model-guide small {
+  color: #94a69a;
+  font-size: 0.72rem;
+  line-height: 1.45;
 }
 
 .fabric-smart-plug-options {
@@ -886,7 +1331,8 @@ main.fabric-main {
   gap: 7px;
 }
 
-.fabric-wonder-setup fieldset {
+.fabric-wonder-setup fieldset,
+.fabric-sphero-setup fieldset {
   display: grid;
   margin: 2px 0;
   padding: 9px;
@@ -895,21 +1341,35 @@ main.fabric-main {
   border-radius: 8px;
 }
 
-.fabric-wonder-setup legend {
+.fabric-wonder-setup legend,
+.fabric-sphero-setup legend {
   padding: 0 5px;
   color: #94a69a;
   font-size: 0.74rem;
 }
 
-.fabric-wonder-setup fieldset label {
+.fabric-wonder-setup fieldset label,
+.fabric-sphero-setup fieldset label {
   display: flex;
   align-items: center;
   gap: 8px;
 }
 
 .fabric-wonder-setup fieldset label span,
-.fabric-wonder-setup fieldset label small {
+.fabric-wonder-setup fieldset label small,
+.fabric-sphero-setup fieldset label span,
+.fabric-sphero-setup fieldset label small {
   display: block;
+}
+
+.fabric-sphero-setup ol {
+  display: grid;
+  margin: 0;
+  padding-left: 20px;
+  gap: 4px;
+  color: #a9b8ae;
+  font-size: 0.76rem;
+  line-height: 1.45;
 }
 
 .fabric-device-help {
@@ -1457,15 +1917,243 @@ main.fabric-main {
 
 .fabric-test-panel,
 .fabric-media-panel,
+.fabric-leap-panel,
 .fabric-sensor-panel,
 .fabric-drone-panel,
 .fabric-brain-demo-panel,
 .fabric-fleet-sequence-panel,
 .fabric-smart-plug-panel,
+.fabric-sphero-panel,
 .fabric-wonder-panel,
 .fabric-audit-panel,
 .fabric-node-panel {
   margin-top: 16px;
+}
+
+.fabric-smart-plug-panel,
+.fabric-sphero-panel {
+  scroll-margin-top: 104px;
+}
+
+.fabric-device-control-dialog {
+  width: min(1120px, calc(100vw - 28px));
+  max-width: none;
+  max-height: min(92vh, 980px);
+  margin: auto;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid rgb(117 199 255 / 32%);
+  border-radius: 20px;
+  color: #e8f0ea;
+  background: #0c110e;
+  box-shadow: 0 30px 100px rgb(0 0 0 / 62%);
+  font: inherit;
+}
+
+.fabric-device-control-dialog::backdrop {
+  background: rgb(2 5 3 / 78%);
+  backdrop-filter: blur(6px);
+}
+
+.fabric-device-control-shell {
+  display: grid;
+  max-height: min(92vh, 980px);
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.fabric-device-control-header {
+  display: flex;
+  padding: 22px 24px 18px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  background:
+    radial-gradient(circle at 0 0, rgb(117 199 255 / 12%), transparent 45%),
+    #101713;
+}
+
+.fabric-device-control-header h2 {
+  margin: 5px 0 7px;
+  color: #f0f6f1;
+  font-size: clamp(1.35rem, 3vw, 1.8rem);
+}
+
+.fabric-device-control-header > div > p:last-child {
+  max-width: 720px;
+  margin: 0;
+  color: #9daca2;
+  line-height: 1.5;
+}
+
+.fabric-device-control-close {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  flex: 0 0 auto;
+  place-items: center;
+  border-color: rgb(255 255 255 / 16%);
+  color: #dbe6de;
+  background: rgb(255 255 255 / 6%);
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.fabric-device-control-tabs {
+  display: flex;
+  padding: 10px 14px;
+  gap: 8px;
+  overflow-x: auto;
+  border-bottom: 1px solid rgb(255 255 255 / 8%);
+  background: #0e1511;
+  scrollbar-width: thin;
+}
+
+.fabric-device-control-tabs button {
+  display: inline-flex;
+  min-width: max-content;
+  min-height: 42px;
+  padding: 8px 10px 8px 13px;
+  align-items: center;
+  gap: 9px;
+  border-color: rgb(255 255 255 / 12%);
+  color: #aebbb2;
+  background: rgb(255 255 255 / 3%);
+}
+
+.fabric-device-control-tabs button strong {
+  display: grid;
+  min-width: 23px;
+  height: 23px;
+  padding: 0 6px;
+  place-items: center;
+  border-radius: 999px;
+  color: #b9c7be;
+  background: rgb(255 255 255 / 8%);
+  font-size: 0.7rem;
+}
+
+.fabric-device-control-tabs button.is-current {
+  border-color: rgb(158 234 100 / 44%);
+  color: #eff8f0;
+  background: rgb(158 234 100 / 11%);
+}
+
+.fabric-device-control-tabs button.is-current strong {
+  color: #122015;
+  background: var(--fabric-green);
+}
+
+.fabric-device-control-body {
+  min-height: 0;
+  padding: 16px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.fabric-device-control-body .fabric-panel {
+  margin: 0;
+}
+
+.fabric-device-control-footer {
+  display: flex;
+  padding: 12px 16px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-top: 1px solid rgb(255 255 255 / 8%);
+  background: #101713;
+}
+
+.fabric-device-control-footer span {
+  color: #839188;
+  font-size: 0.76rem;
+}
+
+.fabric-device-control-footer button {
+  min-width: 100px;
+}
+
+.fabric-smart-plug-list {
+  display: grid;
+  gap: 12px;
+}
+
+.fabric-plug-control-entry,
+.fabric-plug-safety-gate,
+.fabric-sphero-control-entry,
+.fabric-sphero-safety-gate {
+  display: flex;
+  margin-bottom: 12px;
+  padding: 12px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid rgb(158 234 100 / 24%);
+  border-radius: 10px;
+  background: rgb(158 234 100 / 6%);
+}
+
+.fabric-plug-control-entry > div,
+.fabric-plug-safety-gate > div,
+.fabric-sphero-control-entry > div,
+.fabric-sphero-safety-gate > div {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+.fabric-plug-control-entry strong,
+.fabric-plug-safety-gate strong,
+.fabric-sphero-control-entry strong,
+.fabric-sphero-safety-gate strong {
+  color: #e8f5ea;
+}
+
+.fabric-plug-control-entry span,
+.fabric-plug-safety-gate span,
+.fabric-sphero-control-entry span,
+.fabric-sphero-safety-gate span {
+  color: #91a397;
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.fabric-plug-safety-gate label,
+.fabric-sphero-safety-gate label {
+  display: flex;
+  margin-top: 7px;
+  align-items: flex-start;
+  gap: 7px;
+  cursor: pointer;
+}
+
+.fabric-plug-safety-gate label input,
+.fabric-sphero-safety-gate label input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin-top: 3px;
+  flex: 0 0 auto;
+}
+
+.fabric-plug-control-entry button,
+.fabric-plug-safety-gate button,
+.fabric-sphero-control-entry button,
+.fabric-sphero-safety-gate button {
+  flex: 0 0 auto;
+}
+
+.fabric-plug-safety-gate,
+.fabric-sphero-safety-gate {
+  border-color: rgb(255 194 71 / 28%);
+  background: rgb(255 194 71 / 6%);
+}
+
+.fabric-sphero-control-entry {
+  border-color: rgb(117 199 255 / 28%);
+  background: rgb(117 199 255 / 6%);
 }
 
 .fabric-smart-plug-layout,
@@ -1629,6 +2317,13 @@ main.fabric-main {
 .fabric-wonder-control-group > strong {
   color: #b9c8bd;
   font-size: 0.77rem;
+}
+
+.fabric-wonder-control-group > p {
+  margin: 0;
+  color: #84938a;
+  font-size: 0.74rem;
+  line-height: 1.45;
 }
 
 .fabric-wonder-buttons {
@@ -2175,6 +2870,249 @@ main.fabric-main {
   font-size: 0.82rem;
 }
 
+.fabric-leap-panel {
+  overflow: hidden;
+  border-color: rgb(96 165 250 / 22%);
+  background:
+    radial-gradient(circle at 14% 0%, rgb(96 165 250 / 10%), transparent 38%),
+    linear-gradient(145deg, rgb(8 17 25 / 98%), rgb(9 15 12 / 98%));
+}
+
+.fabric-leap-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.fabric-leap-heading > div {
+  max-width: 760px;
+}
+
+.fabric-leap-heading .eyebrow,
+.fabric-leap-heading h2,
+.fabric-leap-heading p {
+  margin: 0;
+}
+
+.fabric-leap-heading h2 {
+  margin-top: 3px;
+  color: #f0f7ff;
+}
+
+.fabric-leap-heading p {
+  margin-top: 7px;
+  color: #9cafbd;
+  font-size: 0.84rem;
+  line-height: 1.55;
+}
+
+.fabric-leap-layout {
+  display: grid;
+  margin-top: 16px;
+  grid-template-columns: minmax(320px, 1.35fr) minmax(280px, 0.9fr);
+  gap: 16px;
+}
+
+.fabric-leap-stage,
+.fabric-leap-readout {
+  min-width: 0;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 14px;
+  background: rgb(0 0 0 / 22%);
+}
+
+.fabric-leap-stage {
+  position: relative;
+  padding: 12px 12px 28px;
+}
+
+.fabric-leap-stage svg {
+  display: block;
+  width: 100%;
+  max-height: 390px;
+}
+
+.leap-stage-bg {
+  fill: url("#leap-stage-glow");
+  stroke: rgb(147 197 253 / 28%);
+  stroke-width: 0.5;
+}
+
+.leap-grid-line,
+.leap-axis {
+  fill: none;
+  stroke: rgb(255 255 255 / 7%);
+  stroke-width: 0.35;
+}
+
+.leap-axis {
+  stroke: rgb(147 197 253 / 22%);
+  stroke-dasharray: 2 2;
+}
+
+.leap-sensor {
+  fill: #151e24;
+  stroke: #60a5fa;
+  stroke-width: 0.8;
+  filter: drop-shadow(0 0 4px rgb(96 165 250 / 58%));
+}
+
+.leap-arm,
+.leap-finger {
+  fill: none;
+  stroke: #a7f3d0;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 3px rgb(52 211 153 / 52%));
+}
+
+.leap-arm {
+  stroke-width: 3.8;
+}
+
+.leap-finger {
+  stroke-width: 2.4;
+}
+
+.leap-palm {
+  fill: rgb(52 211 153 / 28%);
+  stroke: #6ee7b7;
+  stroke-width: 1;
+}
+
+.leap-palm-center {
+  fill: #ecfdf5;
+}
+
+.leap-hand.is-left .leap-arm,
+.leap-hand.is-left .leap-finger {
+  stroke: #93c5fd;
+}
+
+.leap-hand.is-left .leap-palm {
+  fill: rgb(96 165 250 / 28%);
+  stroke: #93c5fd;
+}
+
+.leap-search-pulse circle {
+  fill: none;
+  stroke: rgb(147 197 253 / 34%);
+  stroke-width: 0.8;
+  transform-origin: 50px 48px;
+  animation: fabric-leap-pulse 2.2s ease-out infinite;
+}
+
+.leap-search-pulse circle:last-child {
+  animation-delay: 0.8s;
+}
+
+@keyframes fabric-leap-pulse {
+  0% {
+    opacity: 0.75;
+    transform: scale(0.7);
+  }
+
+  100% {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+.fabric-leap-axis-labels {
+  position: absolute;
+  right: 16px;
+  bottom: 8px;
+  left: 16px;
+  display: flex;
+  justify-content: space-between;
+  color: #71889a;
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+}
+
+.fabric-leap-readout {
+  display: grid;
+  padding: 16px;
+  align-content: start;
+  gap: 12px;
+}
+
+.fabric-leap-primary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.fabric-leap-primary strong {
+  color: #f1f7f3;
+}
+
+.fabric-leap-primary span {
+  color: #6ee7b7;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.76rem;
+  font-weight: 850;
+}
+
+.fabric-leap-readout > p,
+.fabric-leap-readout > small {
+  margin: 0;
+  color: #91a39a;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.fabric-leap-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fabric-leap-metrics > div {
+  display: grid;
+  min-width: 0;
+  padding: 10px;
+  gap: 3px;
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: 9px;
+  background: rgb(255 255 255 / 3%);
+}
+
+.fabric-leap-metrics span {
+  color: #789088;
+  font-size: 0.68rem;
+}
+
+.fabric-leap-metrics strong {
+  overflow: hidden;
+  color: #e6f4eb;
+  font-size: 0.86rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 820px) {
+  .fabric-leap-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .fabric-leap-heading {
+    display: grid;
+  }
+
+  .fabric-leap-heading .fabric-media-state {
+    width: fit-content;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .leap-search-pulse circle {
+    animation: none;
+  }
+}
+
 .fabric-sensor-card {
   padding-bottom: 10px;
 }
@@ -2566,7 +3504,8 @@ main.fabric-main {
 .fabric-console button:focus-visible,
 .fabric-console input:focus-visible,
 .fabric-console select:focus-visible,
-.fabric-console summary:focus-visible {
+.fabric-console summary:focus-visible,
+.fabric-console [tabindex]:focus-visible {
   outline: 3px solid rgb(117 199 255 / 70%);
   outline-offset: 2px;
 }
@@ -2579,6 +3518,10 @@ main.fabric-main {
   .fabric-test-actions,
   .fabric-smart-plug-layout,
   .fabric-smart-plug-actions,
+  .fabric-plug-control-entry,
+  .fabric-plug-safety-gate,
+  .fabric-sphero-control-entry,
+  .fabric-sphero-safety-gate,
   .fabric-drone-row,
   .fabric-drone-actions,
   .fabric-demo-actions,
@@ -2588,6 +3531,10 @@ main.fabric-main {
 
   .fabric-smart-plug-layout,
   .fabric-smart-plug-actions,
+  .fabric-plug-control-entry,
+  .fabric-plug-safety-gate,
+  .fabric-sphero-control-entry,
+  .fabric-sphero-safety-gate,
   .fabric-drone-row,
   .fabric-drone-actions,
   .fabric-demo-actions,
@@ -2597,6 +3544,20 @@ main.fabric-main {
 
   .fabric-demo-mode {
     align-items: flex-start;
+  }
+
+  .fabric-plug-control-entry,
+  .fabric-plug-safety-gate,
+  .fabric-sphero-control-entry,
+  .fabric-sphero-safety-gate {
+    align-items: stretch;
+  }
+
+  .fabric-plug-control-entry > button,
+  .fabric-plug-safety-gate > button,
+  .fabric-sphero-control-entry > button,
+  .fabric-sphero-safety-gate > button {
+    width: 100%;
   }
 
   .fabric-demo-signal {
@@ -2624,12 +3585,71 @@ main.fabric-main {
     justify-self: start;
   }
 
+  .fabric-device-controls-launch,
+  .fabric-emergency {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .fabric-device-control-dialog {
+    width: calc(100vw - 12px);
+    max-height: calc(100dvh - 12px);
+    border-radius: 14px;
+  }
+
+  .fabric-device-control-shell {
+    max-height: calc(100dvh - 12px);
+  }
+
+  .fabric-device-control-header {
+    padding: 17px 16px 14px;
+    gap: 14px;
+  }
+
+  .fabric-device-control-tabs {
+    scrollbar-width: none;
+  }
+
+  .fabric-device-control-tabs button {
+    padding: 7px 8px;
+    gap: 6px;
+    font-size: 0.78rem;
+  }
+
+  .fabric-device-control-tabs button strong {
+    min-width: 21px;
+    height: 21px;
+    padding: 0 5px;
+  }
+
+  .fabric-device-control-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .fabric-device-control-body {
+    padding: 10px;
+  }
+
+  .fabric-device-control-footer {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .fabric-device-control-footer button {
+    width: 100%;
+  }
+
   .fabric-discovery-heading {
     flex-direction: column;
   }
 
   .fabric-find-devices {
     width: 100%;
+  }
+
+  .fabric-readiness-overview {
+    grid-template-columns: 1fr;
   }
 
   .fabric-connect-all {
@@ -2907,6 +3927,317 @@ code {
 @media (max-width: 600px) {
   main {
     padding: 36px 0 72px;
+  }
+}
+
+.fabric-install-link {
+  display: inline-flex;
+  min-height: 40px;
+  padding: 8px 12px;
+  align-items: center;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 9px;
+  color: #d8e7dd;
+  background: rgb(255 255 255 / 4%);
+  font-size: 0.8rem;
+  font-weight: 750;
+  text-decoration: none;
+}
+
+.fabric-install-link:hover {
+  border-color: rgb(158 234 100 / 48%);
+  color: #f5fff7;
+}
+
+.fabric-installation-panel {
+  scroll-margin-top: 104px;
+  margin-top: 18px;
+  padding: clamp(22px, 4vw, 34px);
+  border-color: rgb(117 199 255 / 24%);
+  background:
+    radial-gradient(circle at 100% 0%, rgb(117 199 255 / 9%), transparent 34%),
+    #111815;
+}
+
+.fabric-installation-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 18px;
+}
+
+.fabric-installation-heading > div {
+  min-width: 0;
+  margin-right: auto;
+}
+
+.fabric-installation-heading h2 {
+  margin: 4px 0 10px;
+  color: #f2f8f4;
+  font-size: clamp(1.4rem, 2.6vw, 2rem);
+}
+
+.fabric-installation-heading .fabric-panel-intro {
+  max-width: 820px;
+  margin: 0;
+}
+
+.fabric-installation-platform {
+  flex: 0 0 auto;
+  padding: 7px 10px;
+  border: 1px solid rgb(117 199 255 / 28%);
+  border-radius: 999px;
+  color: #ccecff;
+  background: rgb(117 199 255 / 8%);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.fabric-installation-network {
+  margin: 22px 0;
+  padding: 15px 17px;
+  border: 1px solid rgb(235 187 87 / 30%);
+  border-radius: 12px;
+  background: rgb(235 187 87 / 8%);
+}
+
+.fabric-installation-network strong {
+  color: #ffe2a3;
+}
+
+.fabric-installation-network p {
+  margin: 6px 0;
+  color: #d3dcd5;
+  line-height: 1.5;
+}
+
+.fabric-installation-network small {
+  color: #9eaca3;
+}
+
+.fabric-installation-steps {
+  display: grid;
+  margin: 0 0 22px;
+  padding: 0;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  list-style: none;
+}
+
+.fabric-installation-steps li {
+  display: flex;
+  min-width: 0;
+  padding: 14px;
+  align-items: flex-start;
+  gap: 11px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 12px;
+  background: rgb(0 0 0 / 14%);
+}
+
+.fabric-installation-steps li > span {
+  display: grid;
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  place-items: center;
+  border-radius: 50%;
+  color: #10202a;
+  background: var(--fabric-blue);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.fabric-installation-steps strong {
+  display: block;
+  color: #edf6f0;
+  font-size: 0.86rem;
+}
+
+.fabric-installation-steps p {
+  margin: 5px 0 0;
+  color: #93a198;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.fabric-installation-package {
+  display: grid;
+  padding: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(220px, 0.32fr);
+  gap: 20px;
+  border: 1px solid rgb(158 234 100 / 20%);
+  border-radius: 14px;
+  background: rgb(158 234 100 / 5%);
+}
+
+.fabric-installation-package h3 {
+  margin: 5px 0 12px;
+  overflow-wrap: anywhere;
+  color: #f1f8f3;
+  font-size: 1rem;
+}
+
+.fabric-installation-package dl {
+  display: flex;
+  margin: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.fabric-installation-package dl > div {
+  min-width: 110px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: rgb(0 0 0 / 16%);
+}
+
+.fabric-installation-package dt {
+  color: #77867d;
+  font-size: 0.68rem;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+
+.fabric-installation-package dd {
+  margin: 3px 0 0;
+  color: #dce8df;
+  font-size: 0.82rem;
+}
+
+.fabric-installation-checksum {
+  margin-top: 12px;
+}
+
+.fabric-installation-checksum span,
+.fabric-installation-checksum code {
+  display: block;
+}
+
+.fabric-installation-checksum span {
+  margin-bottom: 4px;
+  color: #77867d;
+  font-size: 0.7rem;
+  font-weight: 750;
+}
+
+.fabric-installation-checksum code {
+  overflow-wrap: anywhere;
+  color: #a9b8af;
+  font-size: 0.72rem;
+}
+
+.fabric-installation-actions {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.fabric-installation-actions button {
+  width: 100%;
+}
+
+.fabric-installation-actions button small {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.66rem;
+}
+
+.fabric-installation-actions > small {
+  color: #829087;
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+
+.fabric-installation-permission {
+  color: #f0bd89 !important;
+}
+
+.fabric-installation-unavailable {
+  padding: 18px;
+  border: 1px dashed rgb(255 255 255 / 18%);
+  border-radius: 12px;
+  background: rgb(0 0 0 / 12%);
+}
+
+.fabric-installation-unavailable strong {
+  color: #dce8df;
+}
+
+.fabric-installation-unavailable p {
+  color: #8e9c93;
+}
+
+.fabric-installation-unavailable summary {
+  cursor: pointer;
+  color: #9eb0a5;
+  font-size: 0.78rem;
+}
+
+.fabric-installation-unavailable code {
+  display: block;
+  width: fit-content;
+  margin-top: 9px;
+  padding: 8px 10px;
+  border-radius: 7px;
+  color: #d9e9de;
+  background: #080c09;
+}
+
+.fabric-installation-boundaries {
+  display: grid;
+  margin-top: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.fabric-installation-boundaries > div {
+  padding: 13px 15px;
+  border: 1px solid rgb(255 255 255 / 7%);
+  border-radius: 10px;
+  background: rgb(0 0 0 / 10%);
+}
+
+.fabric-installation-boundaries strong {
+  color: #dce8df;
+  font-size: 0.8rem;
+}
+
+.fabric-installation-boundaries p {
+  margin: 5px 0 0;
+  color: #87958c;
+  font-size: 0.74rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 980px) {
+  .fabric-installation-steps {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .fabric-installation-package {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 800px) {
+  .fabric-install-link {
+    justify-self: start;
+  }
+}
+
+@media (max-width: 580px) {
+  .fabric-installation-heading {
+    display: grid;
+  }
+
+  .fabric-installation-platform {
+    width: fit-content;
+  }
+
+  .fabric-installation-steps,
+  .fabric-installation-boundaries {
+    grid-template-columns: 1fr;
   }
 }
 

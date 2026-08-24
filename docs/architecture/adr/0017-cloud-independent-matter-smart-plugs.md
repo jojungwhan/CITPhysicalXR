@@ -30,7 +30,10 @@ fabric.
   endpoint and pass it to the fixed launcher over stdin.
 - Never place setup codes or Wi-Fi passwords in command-line arguments, URLs,
   Fabric events, audit details, or repository files.
-- Expose only canonical `power.switch.set` and `power.switch.state` capabilities.
+- Expose canonical `power.switch.set` and `power.switch.state` capabilities.
+  Advertise read-only `telemetry.power.electrical` per endpoint only when the
+  device exposes the standard Matter 1.3 Electrical Power/Energy Measurement
+  clusters; never fall back to a vendor API.
 - Require the Matter Descriptor cluster to identify device type `0x010A`; do not
   turn arbitrary OnOff clusters into electrical outputs.
 - Bind the controller only to `127.0.0.1`, disable its separate dashboard and
@@ -47,6 +50,8 @@ dependency.
 ## Consequences
 
 - New purchases must explicitly support Matter and include a Matter setup code.
+- Tapo P110M is one compatible product instance, not a separate vendor adapter;
+  the same contract remains available to any conforming `0x010A` endpoint.
 - Existing non-Matter Tuya/Gosund firmware still needs its legacy local-key
   adapter, a supported firmware conversion, or replacement hardware.
 - Initial Wi-Fi commissioning on Windows uses Bluetooth and currently requires
