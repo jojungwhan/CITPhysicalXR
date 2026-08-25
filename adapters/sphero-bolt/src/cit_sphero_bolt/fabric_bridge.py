@@ -13,10 +13,13 @@ from cit_integration_sdk import (
     FabricAdapterClient,
     FabricConnectionConfiguration,
 )
+from cit_integration_sdk.bounded_demo import BoundedGroundDemonstration
 from cit_protocol import FabricResolvedCommand, HealthReport
 
 from .fabric_contract import (
     AIM_RESET_CAPABILITY,
+    GROUND_DEMONSTRATION_CAPABILITY,
+    GROUND_NUDGE_CAPABILITY,
     GROUND_STOP_CAPABILITY,
     GROUND_VELOCITY_CAPABILITY,
     LIGHT_SET_CAPABILITY,
@@ -46,6 +49,10 @@ class SpheroCommandHandler:
         self._write_lock = asyncio.Lock()
         self._last_velocity_at: float | None = None
         self._velocity_active = False
+        self._demonstration = BoundedGroundDemonstration(
+            drive=self._demo_drive,
+            stop=self._demo_stop,
+        )
 
     async def execute(self, command: FabricResolvedCommand) -> tuple[dict[str, object], bool]:
         if command.targetNodeId != self.node_id:
@@ -56,6 +63,24 @@ class SpheroCommandHandler:
         if self._replay.contains(replay_key):
             return self._replay.get(replay_key), True
         parameters = command.parameters.model_dump(mode="json")
+        if command.action == GROUND_DEMONSTRATION_CAPABILITY:
+            self._expect_keys(parameters, {"distanceMeters"})
+            distance = self._number(parameters, "distanceMeters")
+            await self._demonstration.start(distance_meters=distance)
+            details = {
+                "started": True,
+                "distanceMetersEachWay": distance,
+                "preemptibleBy": GROUND_STOP_CAPABILITY,
+            }
+            self._replay.remember(replay_key, details)
+            return details, False
+        if command.action in {
+            GROUND_STOP_CAPABILITY,
+            GROUND_VELOCITY_CAPABILITY,
+            GROUND_NUDGE_CAPABILITY,
+            AIM_RESET_CAPABILITY,
+        }:
+            await self._demonstration.cancel(reason="superseded_by_command")
         async with self._write_lock:
             details = await self._execute_once(command.action, parameters)
         self._replay.remember(replay_key, details)
@@ -84,6 +109,29 @@ class SpheroCommandHandler:
             self._velocity_active = roll.speed_value > 0
             self._last_velocity_at = time.monotonic() if self._velocity_active else None
             return {
+                "headingDegrees": roll.heading_degrees,
+                "speedValue": roll.speed_value,
+                "watchdogMilliseconds": SPHERO_DEADMAN_MILLISECONDS,
+            }
+        if action == GROUND_NUDGE_CAPABILITY:
+            self._expect_keys(parameters, {"direction"})
+            direction = self._direction(parameters)
+            if direction == "stop":
+                await self.transport.stop()
+                self._velocity_active = False
+                self._last_velocity_at = None
+                return {"direction": direction, "safeState": "stopped"}
+            forward, right = {
+                "forward": (0.12, 0.0),
+                "backward": (-0.12, 0.0),
+                "left": (0.0, -0.12),
+                "right": (0.0, 0.12),
+            }[direction]
+            roll = await self.transport.set_velocity(forward, right, 0.0)
+            self._velocity_active = roll.speed_value > 0
+            self._last_velocity_at = time.monotonic() if self._velocity_active else None
+            return {
+                "direction": direction,
                 "headingDegrees": roll.heading_degrees,
                 "speedValue": roll.speed_value,
                 "watchdogMilliseconds": SPHERO_DEADMAN_MILLISECONDS,
@@ -119,6 +167,16 @@ class SpheroCommandHandler:
         return False
 
     async def safe_stop(self) -> None:
+        await self._demonstration.cancel(reason="safe_stop", force_stop=True)
+
+    async def _demo_drive(self, direction: str, _pulse: int) -> None:
+        forward = 0.12 if direction == "forward" else -0.12
+        async with self._write_lock:
+            roll = await self.transport.set_velocity(forward, 0.0, 0.0)
+            self._velocity_active = roll.speed_value > 0
+            self._last_velocity_at = time.monotonic() if self._velocity_active else None
+
+    async def _demo_stop(self, _reason: str) -> None:
         if self.transport.connected:
             async with self._write_lock:
                 await self.transport.stop()
@@ -136,6 +194,13 @@ class SpheroCommandHandler:
         if isinstance(raw, bool) or not isinstance(raw, (int, float)):
             raise ValueError(f"{name} must be numeric")
         return float(raw)
+
+    @staticmethod
+    def _direction(parameters: dict[str, object]) -> str:
+        value = parameters.get("direction")
+        if value not in {"forward", "backward", "left", "right", "stop"}:
+            raise ValueError("direction must be forward, backward, left, right, or stop")
+        return str(value)
 
     @classmethod
     def _integer(

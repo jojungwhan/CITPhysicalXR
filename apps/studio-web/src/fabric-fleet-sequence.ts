@@ -69,6 +69,63 @@ export const isFleetSequenceInputNode = (node: IntegrationNode) =>
     (capability) => capability.name === FLEET_SEQUENCE_INTENT_CAPABILITY,
   );
 
+export const assignedFleetSequenceInputNodes = (
+  nodes: readonly IntegrationNode[],
+  roleBindings: readonly { role: string; nodeId: string }[],
+): IntegrationNode[] => {
+  const boundNodeIds = new Set(roleBindings.map((binding) => binding.nodeId));
+  return nodes.filter(
+    (node) => boundNodeIds.has(node.nodeId) && isFleetSequenceInputNode(node),
+  );
+};
+
+interface FleetSequenceControlSession {
+  sessionId: string;
+  state: string;
+  armed?: boolean;
+  updatedAt: string;
+  roleBindings: readonly { role: string; nodeId: string }[];
+}
+
+const CONTROL_SESSION_STATE_PRIORITY: Readonly<Record<string, number>> = {
+  active: 3,
+  paused: 2,
+  ready: 1,
+  draft: 0,
+};
+
+/** Resolve the adapter-owned fleet session without coupling controls to the lesson picker. */
+export function preferredFleetSequenceControlSession<
+  T extends FleetSequenceControlSession,
+>(sessions: readonly T[], controllerNodeIds: readonly string[]): T | undefined {
+  const connectedControllers = new Set(controllerNodeIds);
+  return sessions
+    .flatMap((session) => {
+      const statePriority = CONTROL_SESSION_STATE_PRIORITY[session.state];
+      if (statePriority === undefined) return [];
+      const binding = session.roleBindings.find(
+        (candidate) =>
+          candidate.role === "fleet_sequence_controller" &&
+          connectedControllers.has(candidate.nodeId),
+      );
+      if (binding === undefined) return [];
+      return [
+        {
+          session,
+          statePriority,
+          armedPriority: session.armed === true ? 1 : 0,
+          updatedAt: Date.parse(session.updatedAt) || 0,
+        },
+      ];
+    })
+    .sort(
+      (left, right) =>
+        right.statePriority - left.statePriority ||
+        right.armedPriority - left.armedPriority ||
+        right.updatedAt - left.updatedAt,
+    )[0]?.session;
+}
+
 export const latestFleetSequenceStatus = (
   events: StoredFabricEvent[],
   nodeId: string | undefined,

@@ -12,7 +12,8 @@ param(
   [switch]$AllowLanMedia,
   [string]$LanAddress = "",
   [switch]$SkipBuild,
-  [switch]$NoOpenConsole
+  [switch]$NoOpenConsole,
+  [string]$BrowserExecutable = ""
 )
 
 Set-StrictMode -Version Latest
@@ -50,6 +51,7 @@ $runtimeDataRoot = Join-Path $StateRoot "runtime"
 $bootstrapSecretPath = Join-Path $secretRoot "fabric-bootstrap.dpapi"
 $fabricOrigin = "http://127.0.0.1:$FabricPort"
 $fabricProcessMarker = "cit_runtime.fabric_service:create_persistent_fabric_app"
+$browserProfileRoot = Join-Path $StateRoot "browser-profile"
 
 function Test-PrivateIPv4([string]$Address) {
   $parsed = $null
@@ -172,6 +174,71 @@ function Get-ProcessCommandLine([int]$ProcessId) {
   return [string]$process.CommandLine
 }
 
+function Resolve-TutorBrowserExecutable {
+  if ($BrowserExecutable) {
+    $resolved = [IO.Path]::GetFullPath($BrowserExecutable)
+    Assert-Path $resolved "Classroom Control browser"
+    return $resolved
+  }
+
+  $candidates = @()
+  foreach ($name in @("msedge.exe", "chrome.exe")) {
+    $command = Get-Command $name -ErrorAction SilentlyContinue
+    if ($null -ne $command) { $candidates += $command.Source }
+  }
+  foreach ($root in @(${env:ProgramFiles(x86)}, $env:ProgramFiles, $env:LOCALAPPDATA)) {
+    if (-not $root) { continue }
+    $candidates += Join-Path $root "Microsoft\Edge\Application\msedge.exe"
+    $candidates += Join-Path $root "Google\Chrome\Application\chrome.exe"
+  }
+  $browser = $candidates |
+    Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } |
+    Select-Object -First 1
+  if (-not $browser) {
+    throw "Microsoft Edge or Google Chrome is required for the single Classroom Control window"
+  }
+  return [IO.Path]::GetFullPath([string]$browser)
+}
+
+function Get-OwnedTutorBrowserProcesses {
+  return @(
+    Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+      Where-Object {
+        $commandLine = [string]$_.CommandLine
+        $commandLine -and
+          $commandLine.Contains("--user-data-dir", [StringComparison]::OrdinalIgnoreCase) -and
+          $commandLine.Contains($browserProfileRoot, [StringComparison]::OrdinalIgnoreCase)
+      }
+  )
+}
+
+function Stop-OwnedTutorBrowser {
+  $owned = @(Get-OwnedTutorBrowserProcesses)
+  foreach ($process in $owned) {
+    Stop-Process -Id ([int]$process.ProcessId) -Force -ErrorAction SilentlyContinue
+  }
+  if ($owned.Count -gt 0) {
+    Wait-Until {
+      @(Get-OwnedTutorBrowserProcesses).Count -eq 0
+    } "The previous Classroom Control window did not close" 10
+  }
+}
+
+function Start-OwnedTutorBrowser([string]$Url) {
+  $browser = Resolve-TutorBrowserExecutable
+  New-Item -ItemType Directory -Path $browserProfileRoot -Force | Out-Null
+  Stop-OwnedTutorBrowser
+  Start-Process `
+    -FilePath $browser `
+    -ArgumentList @(
+      "--app=$Url",
+      "--user-data-dir=`"$browserProfileRoot`"",
+      "--no-first-run",
+      "--disable-session-crashed-bubble"
+    ) `
+    -PassThru | Out-Null
+}
+
 function Stop-ExactProcess([object]$ProcessId) {
   if ($null -eq $ProcessId) { return }
   $numericId = [int]$ProcessId
@@ -260,7 +327,7 @@ function Build-Systems {
     # the same guided startup. It never captures or analyzes a camera frame;
     # inference remains an explicit tutor action in Classroom Control.
     Invoke-External $uv @(
-      "sync", "--all-packages", "--frozen",
+      "sync", "--all-packages", "--frozen", "--inexact",
       "--extra", "vision",
       "--extra", "smart-plug-lan"
     ) $repositoryRoot
@@ -277,7 +344,9 @@ function Build-Systems {
     Write-Warning "Local object recognition could not be prepared: $($_.Exception.Message)"
     # Restore the deterministic default environment after an interrupted or
     # rejected optional dependency install.
-    Invoke-External $uv @("sync", "--all-packages", "--frozen", "--extra", "smart-plug-lan") $repositoryRoot
+    Invoke-External $uv @(
+      "sync", "--all-packages", "--frozen", "--inexact", "--extra", "smart-plug-lan"
+    ) $repositoryRoot
   }
   Invoke-External (Resolve-Executable "pnpm.cmd") @("install", "--frozen-lockfile") $repositoryRoot
   Invoke-External (Resolve-Executable "pnpm.cmd") @("build") $repositoryRoot
@@ -444,6 +513,8 @@ function Open-TutorConsole([string]$Credential) {
   if (-not (Get-ListeningProcessId $FabricPort)) {
     throw "CIT Classroom Control is not running; use -Mode Start first"
   }
+  $consoleUrl = "$fabricOrigin/fabric"
+  $automaticSignIn = $false
   try {
     $handoff = Invoke-JsonApi `
       -Method POST `
@@ -451,17 +522,22 @@ function Open-TutorConsole([string]$Credential) {
       -Credential $Credential
     if (-not $handoff.ticket) { throw "CIT did not return a classroom access link" }
     $ticket = [Uri]::EscapeDataString([string]$handoff.ticket)
-    Start-Process -FilePath "$fabricOrigin/fabric#console-ticket=$ticket" | Out-Null
-    Write-Host "Opened Classroom Control with automatic local sign-in."
-    Write-Host "The access link expires quickly and can be used only once."
+    $consoleUrl = "$fabricOrigin/fabric#console-ticket=$ticket"
+    $automaticSignIn = $true
   } catch {
     Write-Warning "Automatic sign-in is unavailable: $($_.Exception.Message)"
-    Start-Process -FilePath "$fabricOrigin/fabric" | Out-Null
+  }
+  Start-OwnedTutorBrowser $consoleUrl
+  if ($automaticSignIn) {
+    Write-Host "Opened Classroom Control with automatic local sign-in."
+    Write-Host "The access link expires quickly and can be used only once."
+  } else {
     Write-Host "The page will show the access-code fallback."
   }
 }
 
 function Stop-Fabric([hashtable]$State, [string]$Credential) {
+  Stop-OwnedTutorBrowser
   if ($Credential -and (Get-ListeningProcessId $FabricPort)) {
     try {
       $null = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/safety/stop-all" -Credential $Credential

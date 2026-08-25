@@ -5,33 +5,70 @@ integrations:
     category: interaction
     ioType: bidirectional
     icon: glasses
+    imagePath: ./device-images/even-realities-g2.webp
     connectionMethod: Android, Bluetooth, or Agent Mesh
     setupSteps:
-      - Connect an Android phone by authorized USB or Wi-Fi debugging for setup diagnostics, or use an already provisioned Agent Mesh phone path.
-      - Start the provisioned Even companion bridge on the phone or classroom host.
-      - Wear the G2 and confirm that its voice or button interaction appears in Agent Mesh.
-      - Use the Coding agents card's Connect button to attach the shared bridge; this card then reports the G2 independently.
+      - Keep Tailscale connected on the paired Android phone, then open the Even app.
+      - Open the provisioned CIT glasses prototype in Even Hub.
+      - Choose Connect G2 on this card, wear the glasses, and use one voice or button interaction.
+      - Scan again; CIT reports the G2 as connected after the live companion check-in.
+      - Assign G2 and a Codex or Claude session in the Glasses and coding agents lesson to send voice or button prompts and receive completion text.
+      - To control devices, choose Glasses device control, assign G2 and each intended RoboMaster, Sphero, LEGO, Dash, or Tello fleet controller, then start and arm the lesson.
+      - Say an exact CIT command such as CIT robots forward or CIT drones take off. Movement and takeoff require a second glasses press.
+      - Telegram stays on the paired phone; enable Telegram in Even app > Settings > Notification to mirror its phone notifications to G2.
     safetyNote: Only semantic interactions and bounded display text enter the Fabric; raw microphone data is not discovered or recorded.
     selectors:
       pluginIds: [cit.agent-mesh-bridge]
-      capabilityAny: [interaction.intent.agent_prompt, display.text.render]
+      capabilityAny:
+        [
+          interaction.intent.agent_prompt,
+          interaction.intent.device_control,
+          display.text.render,
+        ]
       models: [even-realities-g2]
+
+  - integrationId: even-realities-r1
+    displayName: Even R1 smart ring
+    category: interaction
+    ioType: input
+    icon: ring
+    imagePath: ./device-images/even-realities-r1.webp
+    connectionMethod: Bluetooth through the Even app and paired G2
+    setupSteps:
+      - Pair G2 with the Even app first, then add the R1 ring in the same app.
+      - Open the provisioned CIT glasses plugin in Even Hub on the phone.
+      - Choose Connect R1 input on this card, then tap or scroll R1 once so the shared Agent Mesh bridge registers the ring input.
+      - Choose R1 smart-ring device control, assign Even R1 to the input role, and assign each intended robot or drone controller to an output role.
+      - Start the session and arm each physical output. Scroll for short ground movement, tap for zero velocity, or double-tap to request the separately armed Tello sequence.
+    safetyNote: Ring gestures are normalized as structured input. A double-tap proposes only the bounded classroom cue and cannot bypass session, arming, arbitration, or drone safety checks.
+    selectors:
+      pluginIds: [cit.agent-mesh-bridge]
+      capabilityAny: [interaction.gesture.smart_ring]
+      models: [even-realities-r1]
 
   - integrationId: meta-rayban
     displayName: Meta Ray-Ban
     category: interaction
     ioType: bidirectional
     icon: glasses
+    imagePath: ./device-images/meta-rayban.webp
     connectionMethod: Android, Bluetooth, or Agent Mesh
     setupSteps:
       - Connect an Android phone by authorized USB or Wi-Fi debugging for setup diagnostics, or use an already provisioned Agent Mesh phone path.
       - Start the approved Meta phone bridge and keep the phone on the classroom network.
       - Wear the glasses and confirm that their semantic interaction appears in Agent Mesh.
       - Use the Coding agents card's Connect button for agent requests; use the separate media source control when camera streaming is enabled.
+      - To control devices, choose Glasses device control, assign Meta and each intended robot or Tello fleet controller, then start and arm the lesson.
+      - Tap the Meta voice button and say an exact CIT command. Movement and takeoff require a second tap; stop and land are submitted immediately.
     safetyNote: Agent Mesh carries semantic interactions only. Camera media uses the explicit media companion and is never recorded by discovery.
     selectors:
       pluginIds: [cit.agent-mesh-bridge]
-      capabilityAny: [interaction.intent.agent_prompt, display.text.render]
+      capabilityAny:
+        [
+          interaction.intent.agent_prompt,
+          interaction.intent.device_control,
+          display.text.render,
+        ]
       models: [meta-rayban]
 
   - integrationId: coding-agents
@@ -39,6 +76,7 @@ integrations:
     category: coding_agent
     ioType: bidirectional
     icon: terminal
+    imagePath: ./device-images/coding-agents.webp
     connectionMethod: Local supervised process
     setupSteps:
       - Start Codex or Claude in the approved lesson workspace.
@@ -53,6 +91,7 @@ integrations:
     category: interaction
     ioType: input
     icon: hand
+    imagePath: ./device-images/leap-motion.webp
     connectionMethod: USB / Ultraleap service
     setupSteps:
       - Plug the controller directly into USB and start Ultraleap Tracking.
@@ -68,6 +107,7 @@ integrations:
     category: robot
     ioType: bidirectional
     icon: robot
+    imagePath: ./device-images/robomaster-s1.webp
     connectionMethod: Wi-Fi, USB/RNDIS, or DJI app bridge
     setupSteps:
       - Power the robot on with its wheels raised for the first test.
@@ -84,6 +124,7 @@ integrations:
     category: robot
     ioType: bidirectional
     icon: sphero
+    imagePath: ./device-images/sphero-bolt.webp
     connectionMethod: Bluetooth Low Energy (BLE)
     setupSteps:
       - Charge BOLT, remove it from the cradle to wake it, and note its exact SB-XXXX advertised name. Do not pair it in Windows Settings.
@@ -96,11 +137,30 @@ integrations:
       capabilityAny: [mobility.ground.set_velocity, robot.sensor.state]
       models: [sphero-bolt]
 
+  - integrationId: sphero-ollie
+    displayName: Sphero Ollie
+    category: robot
+    ioType: bidirectional
+    icon: sphero
+    imagePath: ./device-images/sphero-ollie.webp
+    connectionMethod: Bluetooth Low Energy (BLE)
+    setupSteps:
+      - Charge Ollie, switch it on, and note its exact 2B-XXXX advertised name. Do not pair it in Windows Settings.
+      - Close Sphero Edu or another program that is currently connected to this robot.
+      - Choose Find devices, select the exact 2B-XXXX robot, and choose Connect.
+      - Put Ollie on a clear floor, point its blue tail light toward the tutor, and set the forward direction before the first short movement.
+    safetyNote: Discovery is read-only and never selects the nearest robot. Movement uses a conservative speed-value ceiling with a 750 ms local deadman stop; aim and movement require an armed physical lesson.
+    selectors:
+      pluginIds: [cit.sphero-ollie]
+      capabilityAny: [mobility.ground.set_velocity, robot.sensor.state]
+      models: [sphero-ollie]
+
   - integrationId: wonder-workshop-dash-dot
     displayName: Wonder Workshop Dash and Dot
     category: robot
     ioType: bidirectional
     icon: wonder
+    imagePath: ./device-images/wonder-workshop-dash-dot.webp
     connectionMethod: Local Bluetooth Low Energy (BLE)
     setupSteps:
       - Charge and switch on Dash or Dot, then place it near this Windows computer.
@@ -119,13 +179,14 @@ integrations:
     category: drone
     ioType: bidirectional
     icon: drone
+    imagePath: ./device-images/tello-drones.webp
     connectionMethod: One Wi-Fi route per aircraft
     setupSteps:
       - Remove propellers for the first connection test and power on each grounded aircraft.
       - Use one physical USB Wi-Fi adapter per stock Tello, or unique station-mode addresses.
-      - Choose Connect grounded drones, then assign the fleet controller and each input on the integrated page.
-      - Flight remains a separate one-shot arm with four tutor confirmations.
-    safetyNote: Discovery and connection send no takeoff or movement command. Aircraft nodes expose telemetry, land, and emergency stop; a separate controller exposes only the bounded ordered sequence.
+      - Choose Connect and prepare grounded drones. Connected compatible inputs and outputs are selected automatically when the lesson is created.
+      - Confirm flight safety once. The prepare action starts and arms the session while the one-shot controller remains dormant until MindWave, R1, another approved input, or the tutor triggers it.
+    safetyNote: Discovery and connection send no takeoff or movement command. Manual controls are bounded and instructor-confirmed; the separate fleet controller exposes only one-to-eight-aircraft ordered arm, start, and stop.
     selectors:
       pluginIds: [cit.tello, cit.brain2devices-fleet]
       capabilityAny:
@@ -140,6 +201,7 @@ integrations:
     category: sensor
     ioType: input
     icon: brain
+    imagePath: ./device-images/mindwave-mobile2.webp
     connectionMethod: Bluetooth through ThinkGear Connector
     setupSteps:
       - Pair MindWave Mobile 2 in Windows Bluetooth settings.
@@ -155,21 +217,23 @@ integrations:
     category: drone
     ioType: bidirectional
     icon: brain
+    imagePath: ./device-images/mindwave-tello-demo.webp
     connectionMethod: Local bounded Brain2Devices compatibility node
     setupSteps:
       - Connect exactly one Brain2Devices fleet slot and MindWave from the device cards above.
       - Assign the bounded demo controller in the Devices, sensors, cameras, and safe demos lesson.
-      - Practice in Simulation first; physical arming requires the on-screen instructor checklist.
+      - Attention is selected by default. Confirm safety once, then choose Connect, prepare, and arm; the lesson session starts automatically.
     safetyNote: This one-shot workflow is independent from the sensor and drone adapters. It exposes no general takeoff or movement command and cannot be armed by an autonomous agent.
     selectors:
       pluginIds: [cit.brain2devices-demo]
       capabilityAny: [mobility.flight.brain_demo.arm]
 
   - integrationId: matter-smart-plugs
-    displayName: Matter smart plugs — Tapo P110M + compatible (cloud-free)
+    displayName: Matter smart plugs
     category: smart_device
     ioType: bidirectional
     icon: plug
+    imagePath: ./device-images/matter-smart-plugs.webp
     connectionMethod: Local Matter over Wi-Fi / IPv6
     setupSteps:
       - Tapo P110M is supported with the Matter code printed on the plug or packaging; no Tapo app or TP-Link account is required.
@@ -185,6 +249,7 @@ integrations:
     category: robot
     ioType: bidirectional
     icon: lego
+    imagePath: ./device-images/lego-hubs.webp
     connectionMethod: Direct local Bluetooth Low Energy / Pybricks
     setupSteps:
       - Install Pybricks firmware on the supported hub.

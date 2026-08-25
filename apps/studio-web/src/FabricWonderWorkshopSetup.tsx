@@ -40,7 +40,11 @@ export function FabricWonderWorkshopSetup({
   return (
     <div className="fabric-wonder-setup">
       <strong>{t("wonder.setup")}</strong>
-      <p>{t("wonder.setupHelp")}</p>
+      <details className="fabric-setup-tips">
+        <summary>{t("common.moreInfo")}</summary>
+        <p>{t("wonder.setupHelp")}</p>
+        <small>{t("wonder.connectSafety")}</small>
+      </details>
       {selectable.length === 0 ? (
         <small>{t("wonder.noneVisible")}</small>
       ) : (
@@ -97,7 +101,6 @@ export function FabricWonderWorkshopSetup({
       >
         {busy ? t("wonder.connecting") : t("wonder.connectSelected")}
       </button>
-      <small>{t("wonder.connectSafety")}</small>
     </div>
   );
 }

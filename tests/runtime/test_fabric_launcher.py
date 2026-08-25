@@ -5,6 +5,9 @@ import os
 import shutil
 import socket
 import subprocess
+import threading
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import pytest
@@ -27,12 +30,175 @@ def test_shared_launcher_uses_one_use_fragment_ticket_without_printing_a_token()
     assert '"Open"' in launcher
 
 
+@pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows UI")
+def test_shared_launcher_replaces_its_owned_browser_window(tmp_path: Path) -> None:
+    """Opening Classroom Control twice leaves one isolated CIT browser process."""
+
+    class TicketHandler(BaseHTTPRequestHandler):
+        def do_POST(self) -> None:
+            if self.path != "/api/v1/fabric/auth/console-tickets":
+                self.send_error(404)
+                return
+            payload = b'{"ticket":"test-console-ticket"}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+
+        def log_message(self, format: str, *args: object) -> None:
+            del format, args
+
+    state_root = tmp_path / "fabric state"
+    secret_root = state_root / "secrets"
+    secret_root.mkdir(parents=True)
+    credential_path = secret_root / "fabric-bootstrap.dpapi"
+    protect_secret = """
+$plain = [Console]::In.ReadToEnd()
+$secure = ConvertTo-SecureString -String $plain -AsPlainText -Force
+$ciphertext = ConvertFrom-SecureString -SecureString $secure
+[IO.File]::WriteAllText(
+  $env:CITXR_TEST_CREDENTIAL_PATH,
+  $ciphertext,
+  [Text.UTF8Encoding]::new($false)
+)
+""".strip()
+    protect_environment = os.environ.copy()
+    protect_environment["CITXR_TEST_CREDENTIAL_PATH"] = str(credential_path)
+    subprocess.run(
+        ["pwsh", "-NoProfile", "-NonInteractive", "-Command", protect_secret],
+        input="test-bootstrap-credential",
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        env=protect_environment,
+    )
+
+    fake_browser = tmp_path / "cit-test-browser.cmd"
+    invocation_log = tmp_path / "browser-invocations.log"
+    fake_browser.write_text(
+        f'@echo off\r\necho %*>>"{invocation_log}"\r\n'
+        'pwsh -NoProfile -Command "Start-Sleep -Seconds 30"\r\n',
+        encoding="utf-8",
+    )
+    browser_profile = state_root / "browser-profile"
+
+    def owned_browser_processes() -> list[int]:
+        environment = os.environ.copy()
+        environment["CITXR_TEST_BROWSER_PROFILE"] = str(browser_profile)
+        query = """
+$matches = @(Get-CimInstance Win32_Process | Where-Object {
+  $_.CommandLine -and $_.CommandLine.Contains(
+    $env:CITXR_TEST_BROWSER_PROFILE,
+    [StringComparison]::OrdinalIgnoreCase
+  )
+} | ForEach-Object { [int]$_.ProcessId })
+[Console]::Out.Write(($matches | ConvertTo-Json -Compress))
+""".strip()
+        completed = subprocess.run(
+            ["pwsh", "-NoProfile", "-NonInteractive", "-Command", query],
+            check=True,
+            capture_output=True,
+            text=True,
+            timeout=10,
+            env=environment,
+        )
+        if not completed.stdout:
+            return []
+        parsed = json.loads(completed.stdout)
+        return [parsed] if isinstance(parsed, int) else parsed
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), TicketHandler)
+    server_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    server_thread.start()
+    unrelated = subprocess.Popen(
+        ["pwsh", "-NoProfile", "-NonInteractive", "-Command", "Start-Sleep -Seconds 30"]
+    )
+    launcher = REPOSITORY_ROOT / "tools" / "hardware" / "interaction-fabric-console.ps1"
+    command = [
+        "pwsh",
+        "-NoProfile",
+        "-NonInteractive",
+        "-File",
+        str(launcher),
+        "-Mode",
+        "Open",
+        "-FabricPort",
+        str(server.server_port),
+        "-StateRoot",
+        str(state_root),
+        "-BrowserExecutable",
+        str(fake_browser),
+    ]
+
+    try:
+        subprocess.run(command, check=True, capture_output=True, text=True, timeout=15)
+        first_deadline = time.monotonic() + 5
+        first: list[int] = []
+        while time.monotonic() < first_deadline and len(first) != 1:
+            first = owned_browser_processes()
+            time.sleep(0.05)
+        assert len(first) == 1
+
+        subprocess.run(command, check=True, capture_output=True, text=True, timeout=15)
+        second_deadline = time.monotonic() + 5
+        second: list[int] = []
+        while time.monotonic() < second_deadline:
+            second = owned_browser_processes()
+            if len(second) == 1 and second != first:
+                break
+            time.sleep(0.05)
+
+        assert len(second) == 1
+        assert second != first
+        assert unrelated.poll() is None
+        assert len(invocation_log.read_text(encoding="utf-8").splitlines()) == 2
+    finally:
+        for process_id in owned_browser_processes():
+            subprocess.run(
+                [
+                    "pwsh",
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-Command",
+                    f"Stop-Process -Id {process_id} -Force",
+                ],
+                check=False,
+                capture_output=True,
+                text=True,
+                timeout=10,
+            )
+        unrelated.terminate()
+        unrelated.wait(timeout=10)
+        server.shutdown()
+        server.server_close()
+
+
 def test_shared_launcher_hides_disconnected_adapter_history_from_live_status() -> None:
     launcher = _launcher("interaction-fabric-console.ps1")
 
     assert 'Where-Object { $_.connectionState -in @("connected", "degraded") }' in launcher
     assert 'Write-Host "Connected nodes: $($nodes.Count)"' in launcher
     assert 'Write-Host "Offline adapter records hidden: $offlineNodeCount"' in launcher
+
+
+def test_runtime_launchers_preserve_business_installed_python_hardware_extras() -> None:
+    for name in (
+        "brain2devices-fabric-adapters.ps1",
+        "glasses-agent-hardware-test.ps1",
+        "interaction-fabric-console.ps1",
+        "lego-pybricks.ps1",
+        "matter-smart-plug.ps1",
+        "robomaster-leap-hardware-test.ps1",
+        "sphero-bolt.ps1",
+        "wonder-workshop.ps1",
+    ):
+        launcher = _launcher(name)
+        sync_count = launcher.count('"sync"') + launcher.count("& uv sync")
+
+        assert sync_count > 0, name
+        assert launcher.count("--inexact") >= sync_count, name
 
 
 def test_component_launchers_reopen_the_single_shared_tutor_console() -> None:
@@ -92,6 +258,58 @@ def test_matter_launcher_and_probe_expose_wifi_readiness_before_commissioning() 
     assert "Running Fabric adapters:" in launcher
     assert "Offline Fabric adapter records:" in launcher
     assert "Test-ExactProcess $record.adapterPid $adapterMarker" in launcher
+
+
+def test_matter_controller_retries_windows_reserved_operational_ports() -> None:
+    launcher = _launcher("matter-smart-plug.ps1")
+
+    assert "$controllerStartupAttempts = 3" in launcher
+    assert "Test-RetryableMatterPortFailure" in launcher
+    assert '"listen EACCES: permission denied"' in launcher
+    assert "Stop-ExactProcess $process.Id $controllerMarker" in launcher
+    assert "Stop-ExactProcess $State.controllerLauncherPid $controllerMarker" in launcher
+    assert "Stop-ExactProcess $state.controllerLauncherPid $controllerMarker" in launcher
+    assert "Matter controller selected a Windows-reserved operational port" in launcher
+
+
+@pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows launcher")
+def test_matter_status_handles_an_empty_adapter_inventory(tmp_path: Path) -> None:
+    with socket.socket() as fabric_listener, socket.socket() as matter_listener:
+        fabric_listener.bind(("127.0.0.1", 0))
+        matter_listener.bind(("127.0.0.1", 0))
+        fabric_port = fabric_listener.getsockname()[1]
+        matter_port = matter_listener.getsockname()[1]
+
+    launcher = REPOSITORY_ROOT / "tools" / "hardware" / "matter-smart-plug.ps1"
+    completed = subprocess.run(
+        [
+            "pwsh",
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            str(launcher),
+            "-Mode",
+            "Status",
+            "-FabricPort",
+            str(fabric_port),
+            "-MatterPort",
+            str(matter_port),
+            "-StateRoot",
+            str(tmp_path / "matter"),
+            "-SharedFabricRoot",
+            str(tmp_path / "fabric"),
+            "-DisableBluetooth",
+            "-NoOpenConsole",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    assert "Recorded Fabric adapters: 0" in completed.stdout
+    assert "Running Fabric adapters: 0" in completed.stdout
+    assert completed.stderr == ""
 
 
 def test_independent_monitoring_launchers_join_one_shared_session() -> None:
@@ -289,10 +507,18 @@ def test_glasses_and_leap_launchers_can_attach_inputs_to_a_shared_fleet_session(
     for launcher in (glasses, leap):
         assert "[string]$FabricSessionId" in launcher
         assert "[switch]$FleetInputOnly" in launcher
-        assert 'coursePackId -ne "device-monitoring"' in launcher
-        assert '"fleet_sequence_input_$_"' in launcher
         assert "interaction.intent.flight_sequence_start" in launcher
 
+    assert "[switch]$DeviceControlInputOnly" in glasses
+    assert "$requiredCoursePacks = if ($DeviceControlInputOnly)" in glasses
+    assert '"glasses-device-control"' in glasses
+    assert '"synchronized-motor-control"' in glasses
+    assert "[switch]$DoNotStartSession" in glasses
+    assert '"fleet_sequence_input"' in glasses
+    assert '"glasses_input"' in glasses
+    assert "interaction.intent.device_control" in glasses
+    assert 'coursePackId -ne "device-monitoring"' in leap
+    assert '"fleet_sequence_input_$_"' in leap
     assert "$State.bridgeSessionId -eq $SessionId" in glasses
     assert "cit_robomaster_leap.robot_main" in leap
     assert "if (-not $FleetInputOnly)" in leap
@@ -350,11 +576,15 @@ if ($ResultPath) {
     report = json.loads(completed.stdout)
 
     assert report["schemaVersion"] == "1.0"
-    assert len(report["integrations"]) == 11
+    assert len(report["integrations"]) == 13
     sphero = next(item for item in report["integrations"] if item["integrationId"] == "sphero-bolt")
     assert sphero["connectionMethod"] == "Local Bluetooth Low Energy (BLE)"
     assert "actionId" not in sphero
     assert "750 ms" in sphero["safetyNote"]
+    ollie = next(item for item in report["integrations"] if item["integrationId"] == "sphero-ollie")
+    assert ollie["connectionMethod"] == "Local Bluetooth Low Energy (BLE)"
+    assert "actionId" not in ollie
+    assert "750 ms" in ollie["safetyNote"]
     wonder = next(
         item
         for item in report["integrations"]
@@ -380,13 +610,17 @@ def test_wonder_launcher_tolerates_transient_non_node_api_values() -> None:
 
 def test_sphero_launcher_is_exact_selection_and_fail_safe() -> None:
     launcher = _launcher("sphero-bolt.ps1")
+    ollie_launcher = _launcher("sphero-ollie.ps1")
 
     assert "^sphero-[a-f0-9]{12}$" in launcher
-    assert "cit_sphero_bolt.fabric_main" in launcher
+    assert '"cit_sphero_bolt"' in launcher
+    assert '"cit_sphero_ollie"' in launcher
+    assert "^sphero-ollie-[a-f0-9]{12}$" in launcher
     assert "Start-Sleep -Milliseconds 900" in launcher
     assert "$nodes = @(Expand-Sequence (Invoke-JsonApi" in launcher
     assert '.PSObject.Properties["nodeId"]' in launcher
     assert '.PSObject.Properties["connectionState"]' in launcher
+    assert "-RobotVariant ollie" in ollie_launcher
 
 
 @pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows probe")
@@ -451,6 +685,9 @@ exit /b 1
     g2 = next(
         item for item in report["integrations"] if item["integrationId"] == "even-realities-g2"
     )
+    r1 = next(
+        item for item in report["integrations"] if item["integrationId"] == "even-realities-r1"
+    )
     android = next(
         candidate for candidate in g2["candidates"] if candidate["candidateId"] == "g2-android-1"
     )
@@ -459,6 +696,14 @@ exit /b 1
     assert android["linkState"] == "attached"
     assert android["status"] == "found"
     assert "Even app is installed" in android["detail"]
+    assert g2["actionId"] == "cit.even-g2.connect"
+    r1_android = next(
+        candidate for candidate in r1["candidates"] if candidate["candidateId"] == "r1-android-1"
+    )
+    assert r1["status"] == "ready"
+    assert r1["actionId"] == "cit.even-r1.connect"
+    assert r1_android["status"] == "ready"
+    assert "Pair R1" in r1_android["detail"]
     assert "CIT-PRIVATE-SERIAL" not in completed.stdout
     assert completed.stderr == ""
 

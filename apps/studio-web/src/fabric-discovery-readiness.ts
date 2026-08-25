@@ -70,3 +70,10 @@ export const connectedFabricDeviceCount = (
         : count,
     0,
   );
+
+export const fabricDiscoveryTierOpenByDefault = (
+  kind: FabricDiscoveryReadiness,
+  connectedIntegrationCount: number,
+): boolean =>
+  (kind === "connected" && connectedIntegrationCount > 0) ||
+  (kind === "available" && connectedIntegrationCount === 0);

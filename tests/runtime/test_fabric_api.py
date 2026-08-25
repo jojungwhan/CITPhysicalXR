@@ -84,7 +84,10 @@ def test_explicit_physical_mode_and_robot_course_are_visible(tmp_path: Path) -> 
         "device-monitoring",
         "gesture-ground-robot",
         "glasses-agent-control",
+        "glasses-device-control",
+        "smart-ring-device-control",
         "simultaneous-device-cue",
+        "synchronized-motor-control",
         "smart-plug-control",
     }
     glasses = next(
@@ -92,15 +95,58 @@ def test_explicit_physical_mode_and_robot_course_are_visible(tmp_path: Path) -> 
         for course_pack in course_pack_values
         if course_pack["coursePackId"] == "glasses-agent-control"
     )
+    glasses_control = next(
+        course_pack
+        for course_pack in course_pack_values
+        if course_pack["coursePackId"] == "glasses-device-control"
+    )
     simultaneous = next(
         course_pack
         for course_pack in course_pack_values
         if course_pack["coursePackId"] == "simultaneous-device-cue"
     )
+    ring = next(
+        course_pack
+        for course_pack in course_pack_values
+        if course_pack["coursePackId"] == "smart-ring-device-control"
+    )
     assert all("parallelGroup" not in flow for flow in glasses["flows"])
+    assert {
+        flow["parallelGroup"] for flow in glasses_control["flows"] if "parallelGroup" in flow
+    } == {"glasses-ground-control"}
+    assert glasses_control["roles"][0]["oneOfCapabilities"] == ["interaction.intent.device_control"]
     assert {flow["parallelGroup"] for flow in simultaneous["flows"] if "parallelGroup" in flow} == {
         "simultaneous-classroom-cue"
     }
+    assert (
+        len([role for role in simultaneous["roles"] if role["role"].startswith("ground_output_")])
+        == 8
+    )
+    assert ring["roles"][0] == {
+        "role": "smart_ring_input",
+        "ioType": "input",
+        "oneOfCapabilities": ["interaction.gesture.smart_ring"],
+        "optional": False,
+    }
+    ground_ring_flows = [
+        flow
+        for flow in ring["flows"]
+        if flow["command"]["action"] == "mobility.ground.set_velocity"
+    ]
+    assert len(ground_ring_flows) == 24
+    assert {flow["parallelGroup"] for flow in ground_ring_flows} == {"r1-ground-control"}
+    assert {flow["trigger"]["payloadEquals"]["gesture"] for flow in ground_ring_flows} == {
+        "tap",
+        "scroll_up",
+        "scroll_down",
+    }
+    flight_flow = next(
+        flow
+        for flow in ring["flows"]
+        if flow["command"]["action"] == "mobility.flight.fleet_sequence.start"
+    )
+    assert flight_flow["trigger"]["payloadEquals"] == {"gesture": "double_tap"}
+    assert flight_flow["safetyProfile"] == "classroom-drone-monitoring"
 
 
 def test_monitoring_session_is_reused_for_independent_adapters(tmp_path: Path) -> None:
@@ -258,14 +304,16 @@ def test_event_listing_can_return_the_latest_window_in_chronological_order(
     assert [item["event"]["payload"]["sequence"] for item in response.json()] == [3, 4, 5]
 
 
-def test_fabric_console_serves_its_favicon_from_the_same_origin(tmp_path: Path) -> None:
+def test_fabric_console_serves_static_images_from_the_same_origin(tmp_path: Path) -> None:
     studio_path = tmp_path / "studio"
     (studio_path / "assets").mkdir(parents=True)
+    (studio_path / "device-images").mkdir()
     (studio_path / "index.html").write_text("<!doctype html><title>Fabric</title>")
     (studio_path / "favicon.svg").write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>',
         encoding="utf-8",
     )
+    (studio_path / "device-images" / "test-device.webp").write_bytes(b"RIFF-test-WEBP")
 
     with TestClient(
         create_fabric_app(
@@ -278,10 +326,13 @@ def test_fabric_console_serves_its_favicon_from_the_same_origin(tmp_path: Path) 
     ) as client:
         console = client.get("/fabric")
         favicon = client.get("/favicon.svg")
+        device_image = client.get("/device-images/test-device.webp")
 
     assert console.status_code == 200
     assert favicon.status_code == 200
     assert favicon.headers["content-type"].startswith("image/svg+xml")
+    assert device_image.status_code == 200
+    assert device_image.headers["content-type"].startswith("image/webp")
 
 
 def test_scoped_observer_token_is_hash_only_and_cannot_mutate(tmp_path: Path) -> None:

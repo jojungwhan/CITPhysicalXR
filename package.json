@@ -38,6 +38,7 @@
     "hardware:robot:windows": "pwsh -NoProfile -File tools/hardware/robomaster-leap-hardware-test.ps1",
     "hardware:lego:windows": "pwsh -NoProfile -File tools/hardware/lego-pybricks.ps1",
     "hardware:sphero:windows": "pwsh -NoProfile -File tools/hardware/sphero-bolt.ps1",
+    "hardware:sphero-ollie:windows": "pwsh -NoProfile -File tools/hardware/sphero-ollie.ps1",
     "hardware:wonder:windows": "pwsh -NoProfile -File tools/hardware/wonder-workshop.ps1",
     "hardware:matter:windows": "pwsh -NoProfile -File tools/hardware/matter-smart-plug.ps1",
     "hardware:install-business:windows": "pwsh -NoProfile -STA -File tools/hardware/install-business-site.ps1"

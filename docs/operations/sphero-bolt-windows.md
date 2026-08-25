@@ -11,11 +11,12 @@ account, app, or cloud service for CIT control.
    connected to that robot. One BLE client can normally control it at a time.
 3. Open **CIT Classroom Control** from the Windows shortcut and choose
    **Start classroom devices**.
-4. Choose **Find devices**. In **Sphero BOLT**, tick the exact `SB-XXXX` robot
-   you are holding and choose **Connect selected BOLT robots**. CIT does not
-   select the strongest or nearest advertisement.
-5. Connection starts sensor monitoring only. Select the monitoring lesson and
-   choose **Enable physical controls** only with BOLT on a clear floor.
+4. Choose **Find devices**. In **Sphero BOLT**, choose the button showing the
+   exact `SB-XXXX` ID on the robot you are holding. CIT does not select the
+   strongest or nearest advertisement.
+5. Connection starts sensor monitoring only. Put BOLT on a clear floor; the
+   first direct aim, light, or movement control prepares the local control
+   session automatically.
 6. Turn BOLT until its blue tail light points toward you. Choose **Set this
    direction as forward**. The direction away from you is now forward.
 7. Test **Stop**, an LED colour, and one arrow. Each arrow is a 0.20 m/s bounded
@@ -42,6 +43,11 @@ pnpm hardware:sphero:windows -- -Mode Preflight -Simulation
 
 Tutors should use the UI, not these commands. The CLI remains available for
 installation diagnostics and recovery.
+
+If the UI reports that BOLT Bluetooth support is missing, run the current
+business installer once. Operational Fabric and device launchers preserve
+those pinned optional hardware packages during later workspace syncs; they do
+not remove BOLT support when another integration starts.
 
 ## Required physical acceptance evidence
 

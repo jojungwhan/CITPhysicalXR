@@ -163,17 +163,18 @@ closed Brain2Devices allowlist and then register separate canonical Fabric
 nodes; Tello additionally requires a grounded-aircraft confirmation. It
 exposes telemetry, land, and emergency stop only—never takeoff or movement.
 
-Even G2 and Meta Ray-Ban have separate setup and status cards because their
+Even R1, Even G2, and Meta Ray-Ban have separate setup and status cards because their
 companion and media features differ. They intentionally share the authenticated
-Agent Mesh transport. Real glasses acceptance still requires the owner hardware procedure in
-`docs/operations/agent-mesh-bridge.md`; simulator and software tests are not
-reported as physical evidence.
+Agent Mesh transport. R1 is input-only and publishes structured touch gestures;
+see `docs/operations/even-r1-smart-ring.md`. Real wearable acceptance still
+requires the owner hardware procedure in `docs/operations/agent-mesh-bridge.md`;
+simulator and software tests are not reported as physical evidence.
 
 ## Cloud-free Matter smart plugs
 
 New sites should use a Wi-Fi plug that explicitly carries the Matter logo and a
-Matter setup code. The **Matter smart plugs — Tapo P110M + compatible
-(cloud-free)** card in Classroom Control commissions it into the CIT-owned
+Matter setup code. The **Matter smart plugs** card in Classroom Control
+commissions it into the CIT-owned
 local fabric and exposes `power.switch.set { on: boolean }` and
 `power.switch.state`. Tapo P110M is explicitly guided in the UI and needs no
 Tapo app or TP-Link account for this direct route. If its firmware exposes the
@@ -259,11 +260,10 @@ then choose **Find devices**. The Dash and Dot card lists exact visible names
 and signal levels. Select up to four robots and choose **Connect selected
 robots**; no shell command, vendor account, or cloud service is required.
 
-The shared monitoring lesson starts with controls locked. Dot shows lights,
-three fixed sound cues, and sensors. Dash additionally shows short movement
-nudges, an always-visible stop, and bounded head controls. Physical sound,
-movement, and head motion require the tutor to enable physical controls; every
-Dash movement expires at the adapter after 350 ms. See
+Dot shows lights, three fixed sound cues, and sensors. Dash additionally shows
+short movement nudges, an always-visible stop, and bounded head controls. The
+first direct output command prepares the local control session automatically;
+every Dash movement expires at the adapter after 350 ms. See
 `docs/operations/wonder-workshop-dash-dot.md` for real-hardware checks.
 
 ## RoboMaster S1 and Leap Motion
@@ -330,7 +330,9 @@ Platform paths are stored separately and never translated between Windows and Li
 - `apps/studio-web`: the Studio console -- device cards, session controls, drive controls, and a live event stream
 - `apps/agent-mesh-bridge`: authenticated Agent Mesh compatibility adapter with a durable local outbox
 - `course-packs/glasses-agent-control`: capability-based glasses/agent reference lesson
+- `course-packs/glasses-device-control`: confirmed G2/Meta voice intents to assigned ground robots and the independently armed Tello fleet
 - `course-packs/gesture-ground-robot`: Leap semantic velocity to interchangeable ground-mobility role
+- `course-packs/smart-ring-device-control`: Even R1 semantic gestures to assigned ground outputs and an independently armed Tello sequence
 - `course-packs/smart-plug-control`: approved electrical output assigned through the `classroom_plug` role
 - `apps/quest-godot`: text-only Godot scene scaffold; no OpenXR or export setup
 - `docs/REUSE_AUDIT.md`: exact external checkout evidence and reuse decisions

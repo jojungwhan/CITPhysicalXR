@@ -145,6 +145,8 @@ def test_manifest_and_node_expose_only_bounded_bolt_capabilities() -> None:
     assert build_manifest().pluginId == "cit.sphero-bolt"
     assert {capability.name for capability in node.consumedCapabilities} == {
         "mobility.ground.set_velocity",
+        "mobility.ground.nudge",
+        "mobility.ground.demonstration.start",
         "mobility.ground.stop",
         "robot.light.set",
         "sphero.aim.reset",
@@ -160,6 +162,25 @@ def test_manifest_and_node_expose_only_bounded_bolt_capabilities() -> None:
         "maximum": 0,
     }
     assert node.metadata.model_dump(mode="json")["watchdogMilliseconds"] == 750
+
+
+@pytest.mark.asyncio
+async def test_structured_nudge_maps_left_and_stop_without_vendor_data() -> None:
+    transport = FakeSpheroTransport()
+    await transport.connect()
+    handler = SpheroCommandHandler(
+        node_id="sphero-bolt-aabbccddeeff",
+        transport=transport,
+    )
+
+    details, _ = await handler.execute(_command("mobility.ground.nudge", {"direction": "left"}))
+    stopped, _ = await handler.execute(_command("mobility.ground.nudge", {"direction": "stop"}))
+
+    assert details["direction"] == "left"
+    assert stopped == {"direction": "stop", "safeState": "stopped"}
+    assert transport.commands[0][0] == "velocity"
+    assert transport.commands[0][1][:3] == (0.0, -0.12, 0.0)
+    assert transport.commands[1] == ("stop", ())
 
 
 @pytest.mark.asyncio

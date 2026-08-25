@@ -36,6 +36,11 @@ interface SmartPlugStoredEvent {
   };
 }
 
+interface SmartPlugHealthNode {
+  lastSeenAt: string;
+  metadata?: Readonly<Record<string, unknown>>;
+}
+
 export interface SmartPlugState {
   on: boolean;
   observedAt: string;
@@ -139,4 +144,25 @@ export const latestSmartPlugState = (
     };
   }
   return undefined;
+};
+
+export const smartPlugStateFromHealth = (
+  node: SmartPlugHealthNode,
+): SmartPlugState | undefined => {
+  const metrics = node.metadata?.healthMetrics;
+  if (
+    metrics === null ||
+    typeof metrics !== "object" ||
+    Array.isArray(metrics)
+  ) {
+    return undefined;
+  }
+  const on = (metrics as Readonly<Record<string, unknown>>).on;
+  if (typeof on !== "boolean" || node.lastSeenAt.trim() === "") {
+    return undefined;
+  }
+  return {
+    on,
+    observedAt: node.lastSeenAt,
+  };
 };

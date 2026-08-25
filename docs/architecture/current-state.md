@@ -151,15 +151,16 @@ cross-repository cutover.
 - MindWave and Tello: separate `cit.mindwave-mobile2` and `cit.tello` adapters
   now register canonical Fabric nodes through one shared SDK. MindWave is
   publish-only and emits vendor-labelled eSense/signal/blink events with no raw
-  EEG. Tello publishes telemetry, consumes only land/emergency-stop, and copies
+  EEG. Tello publishes telemetry; consumes instructor-confirmed bounded
+  takeoff, discrete movement, rotation, land, and emergency-stop; and copies
   Brain2Devices' latest JPEG into the ephemeral Fabric media plane. A separate
   `cit.brain2devices-demo` node exposes one exact instructor-gated arm plus a
-  safe stop; no ordinary Tello takeoff or movement capability exists. Software
-  tests pass; physical flight/video HIL remains open. A fourth independent
+  safe stop. Core and adapter policy independently validate ordinary manual
+  flight commands. Software tests pass; physical flight/video HIL remains open. A fourth independent
   `cit.brain2devices-fleet` process exposes only ordered arm/start/stop and
-  status. It confirms each of two to eight aircraft before advancing and lands
-  the selected/attempted fleet on stop or failure. Tutor button, Leap, G2, and
-  Meta inputs converge on the same one-shot contract; their Windows Connect
+  status. It confirms each of one to eight aircraft before advancing and lands
+  the selected/attempted fleet on stop or failure. Tutor button, Leap, R1, G2,
+  and Meta inputs converge on the same one-shot contract; their Windows Connect
   actions attach input-only nodes to the existing monitoring session.
 - Quest: upstream contains authoring/runtime placeholders and simulators, not a
   production headset application.

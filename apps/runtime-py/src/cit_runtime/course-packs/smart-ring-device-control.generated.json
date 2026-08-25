@@ -1,0 +1,949 @@
+{
+  "schemaVersion": "1.0",
+  "coursePackId": "smart-ring-device-control",
+  "version": "1.0.0",
+  "displayName": "R1 smart-ring device control",
+  "description": "Uses structured Even R1 touch gestures as an input for up to eight assigned ground robots. Scroll up/down sends one short bounded forward/backward cue, tap requests zero velocity, and double-tap may start only the separately armed Tello fleet sequence.",
+  "roles": [
+    {
+      "role": "smart_ring_input",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.gesture.smart_ring"],
+      "optional": false
+    },
+    {
+      "role": "ground_output_1",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.set_velocity"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_2",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.set_velocity"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_3",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.set_velocity"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_4",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.set_velocity"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_5",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.set_velocity"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_6",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.set_velocity"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_7",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.set_velocity"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_8",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.set_velocity"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_controller",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.flight.fleet_sequence.start"],
+      "optional": true
+    }
+  ],
+  "flows": [
+    {
+      "flowId": "r1-scroll-up-to-ground-output-1",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_1"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_1"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-up-to-ground-output-2",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_2"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_2"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-up-to-ground-output-3",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_3"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_3"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-up-to-ground-output-4",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_4"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_4"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-up-to-ground-output-5",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_5"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_5"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-up-to-ground-output-6",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_6"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_6"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-up-to-ground-output-7",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_7"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_7"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-up-to-ground-output-8",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_8"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_8"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-down-to-ground-output-1",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": -0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_1"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_1"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-down-to-ground-output-2",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": -0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_2"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_2"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-down-to-ground-output-3",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": -0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_3"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_3"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-down-to-ground-output-4",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": -0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_4"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_4"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-down-to-ground-output-5",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": -0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_5"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_5"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-down-to-ground-output-6",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": -0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_6"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_6"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-down-to-ground-output-7",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": -0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_7"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_7"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-scroll-down-to-ground-output-8",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": -0.12,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_8"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_8"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-tap-stop-ground-output-1",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_1"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_1"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-tap-stop-ground-output-2",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_2"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_2"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-tap-stop-ground-output-3",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_3"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_3"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-tap-stop-ground-output-4",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_4"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_4"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-tap-stop-ground-output-5",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_5"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_5"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-tap-stop-ground-output-6",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_6"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_6"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-tap-stop-ground-output-7",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_7"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_7"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-tap-stop-ground-output-8",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.set_velocity",
+        "fixedParameters": {
+          "forwardMetersPerSecond": 0,
+          "rightMetersPerSecond": 0,
+          "clockwiseRadiansPerSecond": 0
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_8"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-ground-robot",
+      "outputRoles": ["ground_output_8"],
+      "parallelGroup": "r1-ground-control",
+      "enabled": true
+    },
+    {
+      "flowId": "r1-double-tap-to-armed-tello-fleet",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 1000,
+        "payloadEquals": {
+          "gesture": "double_tap"
+        }
+      },
+      "command": {
+        "action": "mobility.flight.fleet_sequence.start",
+        "fixedParameters": {},
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "fleet_sequence_controller"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["fleet_sequence_controller"],
+      "enabled": true
+    }
+  ],
+  "safetyProfile": "classroom-drone-monitoring",
+  "simulatorRequired": true,
+  "assessmentEvents": [
+    "interaction.gesture.smart_ring",
+    "telemetry.motion.commanded",
+    "telemetry.flight.fleet_sequence.status"
+  ],
+  "fallbackBehavior": "Report unavailable outputs separately. Ground adapters enter their local watchdog stop state, and the Tello fleet remains dormant until a tutor has completed its independent checklist and one-shot arm."
+}

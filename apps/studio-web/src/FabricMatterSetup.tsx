@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import type { FabricDiscoveryCandidate } from "./fabric-client.js";
 import type { FabricTranslate } from "./fabric-i18n.js";
+import { FabricInfoDisclosure } from "./FabricInfoDisclosure.js";
 
 export function FabricMatterSetup({
   candidates,
@@ -50,7 +51,12 @@ export function FabricMatterSetup({
 
   const setupStages = (
     <>
-      <p>{t("matter.help")}</p>
+      <FabricInfoDisclosure
+        className="fabric-matter-overview-info"
+        label={t("common.moreInfo")}
+      >
+        <p>{t("matter.help")}</p>
+      </FabricInfoDisclosure>
 
       <section
         className={`fabric-matter-stage ${wifiReady ? "is-ready" : "is-required"}`}
@@ -60,13 +66,16 @@ export function FabricMatterSetup({
           <span aria-hidden="true">1</span>
           <div>
             <strong id="matter-wifi-stage">{t("matter.wifi.title")}</strong>
-            <small>
-              {wifiReady
-                ? t("matter.wifi.ready")
-                : wifiCandidate
-                  ? t("matter.wifi.required")
-                  : t("matter.wifi.scanFirst")}
-            </small>
+            <FabricInfoDisclosure label={t("common.moreInfo")}>
+              <p>
+                {wifiReady
+                  ? t("matter.wifi.ready")
+                  : wifiCandidate
+                    ? t("matter.wifi.required")
+                    : t("matter.wifi.scanFirst")}
+              </p>
+              <p>{t("matter.wifi.memory")}</p>
+            </FabricInfoDisclosure>
           </div>
           <b>{wifiReady ? t("matter.ready") : t("matter.required")}</b>
         </header>
@@ -109,7 +118,6 @@ export function FabricMatterSetup({
                 ? t("matter.wifi.saving")
                 : t("matter.wifi.save")}
             </button>
-            <small>{t("matter.wifi.memory")}</small>
           </div>
         )}
       </section>
@@ -122,7 +130,9 @@ export function FabricMatterSetup({
           <span aria-hidden="true">2</span>
           <div>
             <strong id="matter-device-stage">{t("matter.device.title")}</strong>
-            <small>{t("matter.device.help")}</small>
+            <FabricInfoDisclosure label={t("common.moreInfo")}>
+              <p>{t("matter.device.help")}</p>
+            </FabricInfoDisclosure>
           </div>
           <b>
             {nearbyDevices.length > 0
@@ -147,9 +157,12 @@ export function FabricMatterSetup({
           <span aria-hidden="true">3</span>
           <div>
             <strong id="matter-code-stage">{t("matter.code.title")}</strong>
-            <small>
-              {wifiReady ? t("matter.code.help") : t("matter.code.locked")}
-            </small>
+            <FabricInfoDisclosure label={t("common.moreInfo")}>
+              <p>
+                {wifiReady ? t("matter.code.help") : t("matter.code.locked")}
+              </p>
+              <p>{t("matter.memory")}</p>
+            </FabricInfoDisclosure>
           </div>
         </header>
         <label>
@@ -179,7 +192,6 @@ export function FabricMatterSetup({
               ? t("matter.addAnotherButton")
               : t("matter.addLocally")}
         </button>
-        <small>{t("matter.memory")}</small>
       </section>
 
       <details className="fabric-advanced-setup">
@@ -196,15 +208,10 @@ export function FabricMatterSetup({
     </>
   );
 
-  return connected ? (
+  return (
     <details className="fabric-matter-setup fabric-add-another-device">
-      <summary>{t("matter.addAnother")}</summary>
-      {setupStages}
+      <summary>{connected ? t("matter.addAnother") : t("matter.add")}</summary>
+      <div className="fabric-matter-setup-content">{setupStages}</div>
     </details>
-  ) : (
-    <div className="fabric-matter-setup">
-      <strong>{t("matter.add")}</strong>
-      {setupStages}
-    </div>
   );
 }

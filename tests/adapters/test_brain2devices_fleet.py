@@ -158,6 +158,40 @@ async def test_simulated_sequence_requires_arm_and_launches_once_in_selected_ord
         )
 
 
+@pytest.mark.asyncio
+async def test_single_drone_sequence_can_be_armed_for_an_r1_trigger() -> None:
+    async def no_wait(_seconds: float) -> None:
+        await asyncio.sleep(0)
+
+    backend = SimulatedFleetSequenceBackend(
+        drone_ids=("primary",),
+        sleep=no_wait,
+    )
+    handler = FleetSequenceCommandHandler(backend, node_id="fleet-sequence-a")
+    await backend.start()
+    settings = arm_settings(
+        droneIds=["primary"],
+        allowedSourceNodeIds=["r1-a"],
+    )
+
+    armed = await handler.execute(command(ARM_CAPABILITY, parameters=settings))
+    started = await handler.execute(
+        command(
+            START_CAPABILITY,
+            priority="lesson_automation",
+            source_node_id="r1-a",
+        )
+    )
+    for _ in range(20):
+        if (await backend.status())["phase"] == "completed":
+            break
+        await asyncio.sleep(0)
+
+    assert armed["armed"] is True
+    assert started["triggeredBy"] == "r1-a"
+    assert backend.command_log == ["takeoff:primary"]
+
+
 class FakeBrain2DevicesFleetApi:
     def __init__(self, *, reject_drone_id: str | None = None) -> None:
         self.opened = False
@@ -201,6 +235,21 @@ class FakeBrain2DevicesFleetApi:
             elif action == "land":
                 drone["flight"] = "landed"
         return {"accepted": True}
+
+
+@pytest.mark.asyncio
+async def test_physical_controller_is_available_with_one_connected_tello() -> None:
+    api = FakeBrain2DevicesFleetApi()
+    api.drones = {"primary": api.drones["primary"]}
+    backend = Brain2DevicesApiFleetSequenceBackend(api=api)
+
+    status = await backend.start()
+
+    assert status["available"] is True
+    assert status["phase"] == "idle"
+    available = status["availableDrones"]
+    assert isinstance(available, list)
+    assert [drone["id"] for drone in available if isinstance(drone, Mapping)] == ["primary"]
 
 
 @pytest.mark.asyncio
@@ -261,7 +310,8 @@ async def test_physical_sequence_confirms_each_takeoff_and_lands_on_partial_fail
     assert api.commands == [
         ("takeoff", ("primary",)),
         ("takeoff", ("drone-2",)),
-        ("land", ("primary", "drone-2")),
+        ("land", ("primary",)),
+        ("land", ("drone-2",)),
     ]
     assert api.drones["primary"]["flight"] == "landed"
 
@@ -292,7 +342,9 @@ async def test_physical_stop_cancels_the_remaining_order_and_lands_every_selecti
     assert status["active"] is False
     assert api.commands == [
         ("takeoff", ("primary",)),
-        ("land", ("primary", "drone-2", "drone-3")),
+        ("land", ("primary",)),
+        ("land", ("drone-2",)),
+        ("land", ("drone-3",)),
     ]
 
 

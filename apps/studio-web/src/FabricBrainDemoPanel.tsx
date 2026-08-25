@@ -15,6 +15,9 @@ interface FabricBrainDemoPanelProps {
   sessionArmed: boolean;
   busy: boolean;
   canSubmit: boolean;
+  canManageSession: boolean;
+  safetyConfirmed: boolean;
+  onSafetyConfirmedChange: (confirmed: boolean) => void;
   onArm: (settings: BrainDemoSettings) => void;
   onStop: () => void;
   locale: Locale;
@@ -29,6 +32,9 @@ export function FabricBrainDemoPanel({
   sessionArmed,
   busy,
   canSubmit,
+  canManageSession,
+  safetyConfirmed,
+  onSafetyConfirmedChange,
   onArm,
   onStop,
   locale,
@@ -41,20 +47,18 @@ export function FabricBrainDemoPanel({
   const [blinkEnabled, setBlinkEnabled] = useState(false);
   const [blinkThreshold, setBlinkThreshold] = useState(50);
   const [dwellSeconds, setDwellSeconds] = useState(2);
-  const [instructorPresent, setInstructorPresent] = useState(false);
-  const [flightAreaClear, setFlightAreaClear] = useState(false);
-  const [emergencyPlanReady, setEmergencyPlanReady] = useState(false);
-
   const signalSelected = attentionEnabled || meditationEnabled || blinkEnabled;
-  const safetyReady =
-    simulated || (instructorPresent && flightAreaClear && emergencyPlanReady);
+  const safetyReady = simulated || safetyConfirmed;
   const sessionReady = sessionState === "active" && (simulated || sessionArmed);
+  const sessionCanBePrepared = ["ready", "paused", "active"].includes(
+    sessionState,
+  );
   const canArm =
     canSubmit &&
     !busy &&
     signalSelected &&
     safetyReady &&
-    sessionReady &&
+    (sessionReady || (canManageSession && sessionCanBePrepared)) &&
     status?.armed !== true &&
     status?.demoRunning !== true;
   const canStop = canSubmit && !busy;
@@ -156,19 +160,9 @@ export function FabricBrainDemoPanel({
         <fieldset className="fabric-demo-checklist">
           <legend>{t("brain.flightCheck")}</legend>
           <SafetyCheck
-            checked={instructorPresent}
-            onChange={setInstructorPresent}
-            text={t("brain.present")}
-          />
-          <SafetyCheck
-            checked={flightAreaClear}
-            onChange={setFlightAreaClear}
-            text={t("brain.areaClear")}
-          />
-          <SafetyCheck
-            checked={emergencyPlanReady}
-            onChange={setEmergencyPlanReady}
-            text={t("brain.emergencyReady")}
+            checked={safetyConfirmed}
+            onChange={onSafetyConfirmedChange}
+            text={t("flight.confirmOnce")}
           />
         </fieldset>
       )}
@@ -187,9 +181,9 @@ export function FabricBrainDemoPanel({
               blinkEnabled,
               blinkThreshold,
               dwellSeconds,
-              instructorPresent: simulated || instructorPresent,
-              flightAreaClear: simulated || flightAreaClear,
-              emergencyPlanReady: simulated || emergencyPlanReady,
+              instructorPresent: simulated || safetyConfirmed,
+              flightAreaClear: simulated || safetyConfirmed,
+              emergencyPlanReady: simulated || safetyConfirmed,
             })
           }
         >

@@ -295,6 +295,14 @@ def create_fabric_app(
             raise ValueError("studio_directory must contain index.html and an assets directory")
         app.mount("/assets", StaticFiles(directory=assets_path), name="fabric-studio-assets")
 
+        device_images_path = configured_studio / "device-images"
+        if device_images_path.is_dir():
+            app.mount(
+                "/device-images",
+                StaticFiles(directory=device_images_path),
+                name="fabric-device-images",
+            )
+
         favicon_path = configured_studio / "favicon.svg"
         if favicon_path.is_file():
 

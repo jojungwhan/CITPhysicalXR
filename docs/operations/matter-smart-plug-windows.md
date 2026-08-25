@@ -111,7 +111,7 @@ pnpm hardware:install-business:windows -- -Mode Status
    until the pairing indicator flashes.
 4. Open **CIT Classroom Control** from the Desktop.
 5. Choose **Find devices**.
-6. On **Matter smart plugs — Tapo P110M + compatible (cloud-free)**, complete
+6. On **Matter smart plugs**, complete
    the three numbered steps. If step 1 says **Required**, enter the classroom's
    exact 2.4 GHz Wi-Fi name and password and choose **Save Wi-Fi locally**. The
    password goes only to the loopback controller through stdin and is not
@@ -122,10 +122,10 @@ pnpm hardware:install-business:windows -- -Mode Status
    during commissioning.
 9. The plug appears in **Everything connected to this classroom**. Connection
    places the approved endpoint in the off safe state.
-10. Choose **Classroom smart plug**, set up a physical lesson, assign the plug to
-    `classroom_plug`, complete the safety check, enable physical controls, and
-    start the lesson.
-11. Test **Turn on**, then **Turn off**. Confirm both the physical load and the
+10. Choose **Classroom smart plug** and connect the plug. No separate control
+    activation step is needed.
+11. Test **Turn on**, then **Turn off**. The first direct command prepares the
+    local control session automatically. Confirm both the physical load and the
     normalized state shown in CIT.
 12. For a compatible P110M firmware, open the sensor area and confirm
     **Electrical telemetry** reports plausible values. Absence of this optional

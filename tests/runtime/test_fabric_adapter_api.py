@@ -7,6 +7,9 @@ from typing import Any
 from uuid import uuid4
 
 import pytest
+from cit_matter_smart_plug import build_manifest as build_matter_manifest
+from cit_matter_smart_plug import build_node as build_matter_node
+from cit_protocol import to_wire
 from cit_runtime.fabric_auth import (
     ADAPTER_PERMISSIONS,
     FABRIC_PERMISSIONS,
@@ -19,6 +22,7 @@ from starlette.websockets import WebSocketDisconnect
 NOW = datetime(2026, 8, 21, 3, 0, 0, tzinfo=UTC)
 ADMIN_TOKEN = "cit-admin-" + "a" * 40
 ADAPTER_TOKEN = "cit-adapter-" + "b" * 40
+MATTER_ADAPTER_TOKEN = "cit-adapter-" + "c" * 40
 ADMIN_HEADERS = {"Authorization": f"Bearer {ADMIN_TOKEN}"}
 
 
@@ -36,6 +40,15 @@ def bootstrap_identities() -> tuple[FabricBootstrapIdentity, ...]:
             token=ADAPTER_TOKEN,
             actor_type="adapter",
             roles=("plugin.cit.agent-mesh-bridge",),
+            permissions=tuple(sorted(ADAPTER_PERMISSIONS)),
+            site_id="local-site",
+            room_id="local-room",
+        ),
+        FabricBootstrapIdentity(
+            identity_id="matter-smart-plug-a",
+            token=MATTER_ADAPTER_TOKEN,
+            actor_type="adapter",
+            roles=("plugin.cit.matter-smart-plug",),
             permissions=tuple(sorted(ADAPTER_PERMISSIONS)),
             site_id="local-site",
             room_id="local-room",
@@ -165,6 +178,33 @@ def registration_frame() -> dict[str, Any]:
     }
 
 
+def matter_registration_frame() -> dict[str, Any]:
+    return {
+        "frameType": "adapter.register",
+        "frameId": str(uuid4()),
+        "protocolVersion": 1,
+        "manifest": to_wire(build_matter_manifest()),
+        "nodes": [
+            to_wire(
+                build_matter_node(
+                    at=NOW,
+                    host_id="matter-host-a",
+                    site_id="local-site",
+                    room_id="local-room",
+                    node_id="matter-8-ep1",
+                    matter_node_id=8,
+                    endpoint_id=1,
+                    display_name="Classroom plug",
+                    vendor_name="Matter",
+                    product_name="On/Off Plug-in Unit",
+                    electrical_telemetry=True,
+                )
+            )
+        ],
+        "sentAt": NOW.isoformat(),
+    }
+
+
 def create_started_session(client: TestClient) -> str:
     created = client.post(
         "/api/v1/fabric/sessions",
@@ -208,8 +248,9 @@ def adapter_event(
     data_classification: str,
     payload: dict[str, object],
     correlation_id: str,
+    causation_id: str | None = None,
 ) -> dict[str, Any]:
-    return {
+    frame: dict[str, Any] = {
         "frameType": "adapter.event",
         "frameId": frame_id,
         "protocolVersion": 1,
@@ -234,6 +275,9 @@ def adapter_event(
         },
         "sentAt": NOW.isoformat(),
     }
+    if causation_id is not None:
+        frame["event"]["causationId"] = causation_id
+    return frame
 
 
 def lifecycle_frame(command: dict[str, Any], stage: str) -> dict[str, Any]:
@@ -498,6 +542,144 @@ def test_paused_session_discards_events_without_disconnecting_adapter(
             active_ack = websocket.receive_json()
             assert active_ack["acknowledgedFrameId"] == active_frame_id
             assert active_ack["streamSequence"] >= 1
+
+
+def test_safe_off_result_does_not_disconnect_matter_adapter(tmp_path: Path) -> None:
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "runtime.sqlite3",
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=bootstrap_identities(),
+            allow_physical_fabric=True,
+        )
+    ) as client:
+        with client.websocket_connect("/api/v1/adapters/connect") as websocket:
+            websocket.send_json(
+                {
+                    "frameType": "adapter.authenticate",
+                    "frameId": str(uuid4()),
+                    "protocolVersion": 1,
+                    "credential": MATTER_ADAPTER_TOKEN,
+                    "sentAt": NOW.isoformat(),
+                }
+            )
+            assert websocket.receive_json()["frameType"] == "adapter.welcome"
+            websocket.send_json(matter_registration_frame())
+            assert websocket.receive_json()["frameType"] == "adapter.registered"
+
+            created = client.post(
+                "/api/v1/fabric/sessions",
+                headers=ADMIN_HEADERS,
+                json={
+                    "coursePackId": "smart-plug-control",
+                    "coursePackVersion": "1.0.0",
+                    "siteId": "local-site",
+                    "roomId": "local-room",
+                    "mode": "physical",
+                },
+            )
+            assert created.status_code == 201
+            session_id = str(created.json()["sessionId"])
+            assigned = client.put(
+                f"/api/v1/fabric/sessions/{session_id}/roles/classroom_plug",
+                headers=ADMIN_HEADERS,
+                json={"nodeId": "matter-8-ep1"},
+            )
+            assert assigned.status_code == 200
+            assert assigned.json()["state"] == "ready"
+
+            correlation_id = str(uuid4())
+            requested = client.post(
+                "/api/v1/fabric/commands",
+                headers=ADMIN_HEADERS,
+                json={
+                    "messageId": str(uuid4()),
+                    "schemaVersion": "1.0",
+                    "messageType": "command.requested",
+                    "action": "power.switch.set",
+                    "target": {"role": "classroom_plug"},
+                    "sessionId": session_id,
+                    "parameters": {"on": False},
+                    "priority": "instructor_override",
+                    "idempotencyKey": str(uuid4()),
+                    "requestedAt": NOW.isoformat(),
+                    "ttlMs": 2_000,
+                    "safetyProfile": "classroom-smart-plug",
+                    "correlationId": correlation_id,
+                },
+            )
+            assert requested.status_code == 202
+            command_frame = websocket.receive_json()
+            assert command_frame["frameType"] == "adapter.command"
+            command = command_frame["command"]
+
+            for stage in ("ACCEPTED", "RUNNING", "SUCCEEDED"):
+                reported = lifecycle_frame(command, stage)
+                websocket.send_json(reported)
+                assert websocket.receive_json()["acknowledgedFrameId"] == reported["frameId"]
+
+            state_frame_id = str(uuid4())
+            websocket.send_json(
+                adapter_event(
+                    frame_id=state_frame_id,
+                    message_id=str(uuid4()),
+                    session_id=session_id,
+                    node_id="matter-8-ep1",
+                    capability_name="power.switch.state",
+                    sequence=1,
+                    data_classification="operational",
+                    payload={"on": False, "source": "command"},
+                    correlation_id=correlation_id,
+                    causation_id=command["commandId"],
+                )
+            )
+            state_ack = websocket.receive_json()
+            assert state_ack["frameType"] == "adapter.ack"
+            assert state_ack["acknowledgedFrameId"] == state_frame_id
+            assert state_ack["status"] == "accepted"
+
+            electrical_frame_id = str(uuid4())
+            websocket.send_json(
+                adapter_event(
+                    frame_id=electrical_frame_id,
+                    message_id=str(uuid4()),
+                    session_id=session_id,
+                    node_id="matter-8-ep1",
+                    capability_name="telemetry.power.electrical",
+                    sequence=2,
+                    data_classification="operational",
+                    payload={
+                        "activePowerWatts": 0.0,
+                        "source": "command",
+                        "standard": "Matter 1.3",
+                    },
+                    correlation_id=correlation_id,
+                    causation_id=command["commandId"],
+                )
+            )
+            electrical_ack = websocket.receive_json()
+            assert electrical_ack["frameType"] == "adapter.ack"
+            assert electrical_ack["acknowledgedFrameId"] == electrical_frame_id
+            assert electrical_ack["status"] == "accepted"
+
+            nodes = client.get("/api/v1/fabric/nodes", headers=ADMIN_HEADERS)
+            assert nodes.status_code == 200
+            [plug] = [item for item in nodes.json() if item["nodeId"] == "matter-8-ep1"]
+            assert plug["connectionState"] == "connected"
+            recorded = client.get(
+                "/api/v1/fabric/events",
+                headers=ADMIN_HEADERS,
+                params={"sessionId": session_id},
+            )
+            assert recorded.status_code == 200
+            assert [item["event"]["payload"] for item in recorded.json()] == [
+                {"on": False, "source": "command"},
+                {
+                    "activePowerWatts": 0.0,
+                    "source": "command",
+                    "standard": "Matter 1.3",
+                },
+            ]
 
 
 def test_adapter_conflict_logs_safe_frame_context_and_exact_code(

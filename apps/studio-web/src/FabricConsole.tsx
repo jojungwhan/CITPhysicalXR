@@ -12,12 +12,14 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type ReactNode,
 } from "react";
 
 import {
   FabricApiError,
   FabricClient,
   type FabricAuditRecord,
+  type FabricDiscoveryCandidate,
   type FabricDiscoveryReport,
   type FabricInstallationInfo,
   type FabricIntegrationDiscovery,
@@ -26,6 +28,7 @@ import {
   type FabricRememberedConnections,
   type LegoConnectionConfiguration,
   type SpheroBoltSelection,
+  type SpheroOllieSelection,
   type WonderRobotSelection,
   type FabricPrincipal,
   type FabricSessionStartPolicy,
@@ -33,11 +36,16 @@ import {
   type StoredFabricLifecycle,
 } from "./fabric-client.js";
 import {
-  readAutoReconnectRemembered,
-  saveAutoReconnectRemembered,
-} from "./fabric-remembered-devices.js";
-import { discoveryLinkLabel } from "./fabric-discovery.js";
+  canRunFabricDiscoveryConnection,
+  discoveryLinkLabel,
+} from "./fabric-discovery.js";
 import { consumeConsoleTicket } from "./fabric-console-access.js";
+import { awaitFabricCommandTerminal } from "./fabric-command-chain.js";
+import {
+  directControlSessionActions,
+  plannedControlAssignments,
+  sessionCoversNodes,
+} from "./fabric-control-session.js";
 import {
   BRAIN_DEMO_ARM_CAPABILITY,
   BRAIN_DEMO_STOP_CAPABILITY,
@@ -48,16 +56,18 @@ import {
 import {
   FLIGHT_EMERGENCY_STOP_CAPABILITY,
   FLIGHT_LAND_CAPABILITY,
-  isSafeStateTelloNode,
+  isTelloNode,
   isSafetyDroneRole,
+  preferredTelloControlSession,
 } from "./fabric-drone.js";
 import {
+  assignedFleetSequenceInputNodes,
   FLEET_SEQUENCE_ARM_CAPABILITY,
   FLEET_SEQUENCE_START_CAPABILITY,
   FLEET_SEQUENCE_STOP_CAPABILITY,
   isFleetSequenceControllerNode,
-  isFleetSequenceInputNode,
   latestFleetSequenceStatus,
+  preferredFleetSequenceControlSession,
   type FleetSequenceSettings,
 } from "./fabric-fleet-sequence.js";
 import {
@@ -68,24 +78,38 @@ import {
 } from "./fabric-node-io.js";
 import {
   connectedFabricDeviceCount,
+  fabricDiscoveryTierOpenByDefault,
   groupFabricIntegrationsByReadiness,
 } from "./fabric-discovery-readiness.js";
 import { countActiveFabricCommands } from "./fabric-lifecycle.js";
+import { fabricMediaFrameAvailable } from "./fabric-media.js";
+import {
+  clearAircraftGroundedConfirmation,
+  clearFlightSafetyConfirmation,
+  readAircraftGroundedConfirmation,
+  readFlightSafetyConfirmation,
+  saveAircraftGroundedConfirmation,
+  saveFlightSafetyConfirmation,
+} from "./fabric-session-confirmations.js";
 import { parallelFlowGroups } from "./fabric-parallel-flow.js";
 import {
+  automaticRoleAssignments,
   reconciledRoleSelections,
   refreshedSessionSelection,
 } from "./fabric-session-selection.js";
 import {
-  assignedSmartPlugNodes,
   isSmartPlugNode,
   isSmartPlugRole,
   isSwitchableLoadVisionLabel,
   latestSmartPlugState,
   preferredSmartPlugControlSession,
   POWER_SET_CAPABILITY,
+  smartPlugStateFromHealth,
 } from "./fabric-smart-plug.js";
-import { latestSensorReadings } from "./fabric-sensors.js";
+import {
+  latestSensorReadings,
+  type FabricSensorReading,
+} from "./fabric-sensors.js";
 import { tutorGuide } from "./fabric-tutor-guide.js";
 import {
   fabricCapabilityName,
@@ -105,32 +129,41 @@ import {
 } from "./fabric-i18n.js";
 import { LOCALES, readSavedLocale, saveLocale, type Locale } from "./i18n.js";
 import { FabricBrainDemoPanel } from "./FabricBrainDemoPanel.js";
-import {
-  FabricDeviceControlModal,
-  type FabricDeviceControlSection,
-} from "./FabricDeviceControlModal.js";
+import { FabricDeviceIoPanel } from "./FabricDeviceIoPanel.js";
 import { FabricDronePanel } from "./FabricDronePanel.js";
+import {
+  FabricDiscoveryActions,
+  type FabricDiscoveryActionFeedback,
+} from "./FabricDiscoveryActions.js";
 import { FabricFleetSequencePanel } from "./FabricFleetSequencePanel.js";
+import { FabricG2Guide } from "./FabricG2Guide.js";
+import { FabricInfoDisclosure } from "./FabricInfoDisclosure.js";
 import { FabricInstallationPanel } from "./FabricInstallationPanel.js";
 import { FabricLegoSetup } from "./FabricLegoSetup.js";
 import { FabricLeapPanel } from "./FabricLeapPanel.js";
 import { FabricMatterSetup } from "./FabricMatterSetup.js";
 import { FabricSpheroPanel } from "./FabricSpheroPanel.js";
 import { FabricSpheroSetup } from "./FabricSpheroSetup.js";
+import { FabricSetupProgress } from "./FabricSetupProgress.js";
 import { FabricSmartPlugPanel } from "./FabricSmartPlugPanel.js";
+import { FabricSynchronizedMotionPanel } from "./FabricSynchronizedMotionPanel.js";
 import { FabricWonderWorkshopPanel } from "./FabricWonderWorkshopPanel.js";
 import { FabricWonderWorkshopSetup } from "./FabricWonderWorkshopSetup.js";
+import { requiresSpatialSafetyConfirmation } from "./fabric-device-controls.js";
 import {
-  availableDeviceControlKinds,
-  requiresSpatialSafetyConfirmation,
-  resolvedDeviceControlKind,
-  type FabricDeviceControlKind,
-} from "./fabric-device-controls.js";
-import { isWonderNode } from "./fabric-wonder-workshop.js";
+  isWonderNode,
+  WONDER_STOP_CAPABILITY,
+} from "./fabric-wonder-workshop.js";
 import {
   isSpheroNode,
   preferredSpheroControlSession,
+  SPHERO_STOP_CAPABILITY,
 } from "./fabric-sphero-bolt.js";
+import {
+  synchronizedInputKinds,
+  synchronizedMotionCommands,
+  type SynchronizedMotionDirection,
+} from "./fabric-synchronized-motion.js";
 import {
   createSiteTemplate,
   selectWindowsInstallationArtifact,
@@ -142,6 +175,10 @@ type BusyAction = {
   key: FabricMessageKey;
   values?: Record<string, string | number>;
 } | null;
+
+type IntegrationActionFeedback = FabricDiscoveryActionFeedback & {
+  integrationId: string;
+};
 
 export function FabricConsole() {
   const [locale, setLocaleState] = useState<Locale>(readSavedLocale);
@@ -160,6 +197,7 @@ export function FabricConsole() {
   const [coursePacks, setCoursePacks] = useState<CoursePack[]>([]);
   const [sessions, setSessions] = useState<InteractionSession[]>([]);
   const [events, setEvents] = useState<StoredFabricEvent[]>([]);
+  const [fleetEvents, setFleetEvents] = useState<StoredFabricEvent[]>([]);
   const [mediaSources, setMediaSources] = useState<FabricMediaSource[]>([]);
   const [mediaPairing, setMediaPairing] = useState<FabricMediaPairing | null>(
     null,
@@ -180,25 +218,35 @@ export function FabricConsole() {
   );
   const [showAccessCode, setShowAccessCode] = useState(false);
   const [autoConnecting, setAutoConnecting] = useState(false);
-  const [autoReconnectRemembered, setAutoReconnectRemembered] = useState(
-    readAutoReconnectRemembered,
+  const [aircraftGroundedConfirmed, setAircraftGroundedConfirmed] = useState(
+    readAircraftGroundedConfirmation,
   );
-  const [rememberedAircraftGrounded, setRememberedAircraftGrounded] =
+  const [safetyConfirmed, setSafetyConfirmed] = useState(
+    readFlightSafetyConfirmation,
+  );
+  const [synchronizedMotionEnabled, setSynchronizedMotionEnabled] =
     useState(false);
-  const [safetyConfirmed, setSafetyConfirmed] = useState(false);
-  const [deviceControlsOpen, setDeviceControlsOpen] = useState(false);
-  const [requestedDeviceControlKind, setRequestedDeviceControlKind] =
-    useState<FabricDeviceControlKind>();
-  const [groundedConfirmations, setGroundedConfirmations] = useState<
-    Record<string, boolean>
-  >({});
+  const [
+    includeTelloInSynchronizedMotion,
+    setIncludeTelloInSynchronizedMotion,
+  ] = useState(false);
+  const [synchronizedMotionSessionId, setSynchronizedMotionSessionId] =
+    useState("");
   const [busy, setBusy] = useState<BusyAction>(null);
   const [notice, setNotice] = useState(() => t("notice.ready"));
   const [error, setError] = useState<string | null>(null);
+  const [integrationActionFeedback, setIntegrationActionFeedback] =
+    useState<IntegrationActionFeedback | null>(null);
   const pollActive = useRef(false);
   const ticketAttempted = useRef(false);
-  const autoReconnectAttempted = useRef(false);
   const roleSelectionSessionId = useRef("");
+  const physicalModeDefaulted = useRef(false);
+  const safetyConfirmationSessionId = useRef(selectedSessionId);
+
+  const updateSafetyConfirmation = useCallback((confirmed: boolean) => {
+    setSafetyConfirmed(confirmed);
+    saveFlightSafetyConfirmation(confirmed);
+  }, []);
 
   const selectedSession = useMemo(
     () => sessions.find((session) => session.sessionId === selectedSessionId),
@@ -248,10 +296,8 @@ export function FabricConsole() {
   );
   const connectableIntegrations = useMemo(
     () =>
-      discovery?.integrations.filter(
-        (integration) =>
-          integration.actionId !== undefined &&
-          integration.status !== "connected",
+      discovery?.integrations.filter((integration) =>
+        canRunFabricDiscoveryConnection(integration),
       ) ?? [],
     [discovery],
   );
@@ -262,15 +308,16 @@ export function FabricConsole() {
       ),
     [connectableIntegrations],
   );
-  const allAircraftGrounded = groundedConnections.every(
-    (integration) => groundedConfirmations[integration.integrationId] === true,
-  );
+  const allAircraftGrounded =
+    groundedConnections.length === 0 || aircraftGroundedConfirmed;
   const discoveryConnectionsEnabled =
     canConnectDevices && discovery?.physicalActuationEnabled === true;
   const rememberedRequiresGroundedConfirmation =
     rememberedConnections?.connections.some(
       (connection) => connection.requiresGroundedConfirmation,
     ) === true;
+  const showAircraftGroundedConfirmation =
+    groundedConnections.length > 0 || rememberedRequiresGroundedConfirmation;
   const canStopAll = hasPermission(principal, "fabric.stop_all");
   const availableNodes = useMemo(
     () => nodes.filter(isAvailableFabricNode),
@@ -301,22 +348,62 @@ export function FabricConsole() {
       ),
     [sessions, spheroNodes],
   );
+  const controlledSmartPlugNodes = useMemo(
+    () => smartPlugNodes.slice(0, 2),
+    [smartPlugNodes],
+  );
+  const smartPlugControlSession =
+    preferredSmartPlugSession !== undefined &&
+    sessionCoversNodes(
+      preferredSmartPlugSession,
+      controlledSmartPlugNodes,
+      (role) => isSmartPlugRole(role),
+    )
+      ? preferredSmartPlugSession
+      : undefined;
+  const controlledSpheroNodes = useMemo(
+    () => spheroNodes.slice(0, 8),
+    [spheroNodes],
+  );
+  const spheroControlSession =
+    preferredSpheroSession !== undefined &&
+    sessionCoversNodes(preferredSpheroSession, controlledSpheroNodes)
+      ? preferredSpheroSession
+      : undefined;
+  const telloNodes = useMemo(
+    () => availableNodes.filter(isTelloNode),
+    [availableNodes],
+  );
+  const controlledTelloNodes = useMemo(
+    () => telloNodes.slice(0, 8),
+    [telloNodes],
+  );
+  const preferredTelloSession = useMemo(
+    () =>
+      preferredTelloControlSession(
+        sessions,
+        controlledTelloNodes.map((node) => node.nodeId),
+      ),
+    [sessions, controlledTelloNodes],
+  );
+  const telloControlSession =
+    preferredTelloSession !== undefined &&
+    sessionCoversNodes(
+      preferredTelloSession,
+      controlledTelloNodes,
+      isSafetyDroneRole,
+    )
+      ? preferredTelloSession
+      : undefined;
   const assignedDrones = useMemo(
     () =>
-      (selectedSession?.roleBindings ?? [])
-        .filter((binding) => isSafetyDroneRole(binding.role))
-        .map((binding) => ({
-          role: binding.role,
-          node: availableNodes.find(
-            (node) =>
-              node.nodeId === binding.nodeId && isSafeStateTelloNode(node),
-          ),
-        }))
-        .filter(
-          (item): item is { role: string; node: IntegrationNode } =>
-            item.node !== undefined,
-        ),
-    [availableNodes, selectedSession?.roleBindings],
+      plannedControlAssignments(
+        controlledTelloNodes,
+        telloControlSession,
+        (index) => `safety_drone_${index + 1}`,
+        isSafetyDroneRole,
+      ),
+    [controlledTelloNodes, telloControlSession?.roleBindings],
   );
   const assignedWonderRobots = useMemo(
     () =>
@@ -331,38 +418,28 @@ export function FabricConsole() {
   );
   const assignedSpheroRobots = useMemo(
     () =>
-      (selectedSession?.roleBindings ?? []).flatMap((binding) => {
-        const node = spheroNodes.find(
-          (candidate) => candidate.nodeId === binding.nodeId,
-        );
-        return node === undefined ? [] : [{ role: binding.role, node }];
-      }),
-    [selectedSession?.roleBindings, spheroNodes],
+      plannedControlAssignments(
+        controlledSpheroNodes,
+        spheroControlSession,
+        (index) => `robot_sensor_${index + 1}`,
+      ),
+    [controlledSpheroNodes, spheroControlSession?.roleBindings],
   );
-  const deviceControlKinds = useMemo(
-    () =>
-      availableDeviceControlKinds({
-        sphero: spheroNodes.length,
-        wonder: assignedWonderRobots.length,
-        drone: assignedDrones.length,
-        smartPlug: smartPlugNodes.length,
-      }),
-    [
-      assignedDrones.length,
-      assignedWonderRobots.length,
-      smartPlugNodes.length,
-      spheroNodes.length,
-    ],
+  const synchronizedMotionSession = sessions.find(
+    (session) => session.sessionId === synchronizedMotionSessionId,
   );
-  const activeDeviceControlKind = resolvedDeviceControlKind(
-    requestedDeviceControlKind,
-    deviceControlKinds,
+  const synchronizedInputNodes = useMemo(() => {
+    const assignedNodeIds = new Set(
+      synchronizedMotionSession?.roleBindings.map(
+        (binding) => binding.nodeId,
+      ) ?? [],
+    );
+    return availableNodes.filter((node) => assignedNodeIds.has(node.nodeId));
+  }, [availableNodes, synchronizedMotionSession?.roleBindings]);
+  const synchronizedInputs = useMemo(
+    () => synchronizedInputKinds(synchronizedInputNodes),
+    [synchronizedInputNodes],
   );
-  const controlledDeviceCount =
-    spheroNodes.length +
-    assignedWonderRobots.length +
-    assignedDrones.length +
-    smartPlugNodes.length;
   const brainDemoBinding = selectedSession?.roleBindings.find(
     (binding) => binding.role === "brain_flight_demo",
   );
@@ -375,68 +452,69 @@ export function FabricConsole() {
     () => latestBrainDemoStatus(events, brainDemoController?.nodeId),
     [brainDemoController?.nodeId, events],
   );
-  const fleetSequenceBinding = selectedSession?.roleBindings.find(
+  const fleetSequenceControllerNodes = useMemo(
+    () => availableNodes.filter(isFleetSequenceControllerNode),
+    [availableNodes],
+  );
+  const fleetControlSession = useMemo(
+    () =>
+      preferredFleetSequenceControlSession(
+        sessions,
+        fleetSequenceControllerNodes.map((node) => node.nodeId),
+      ),
+    [fleetSequenceControllerNodes, sessions],
+  );
+  const fleetSequenceBinding = fleetControlSession?.roleBindings.find(
     (binding) => binding.role === "fleet_sequence_controller",
   );
-  const fleetSequenceController = availableNodes.find(
+  const fleetSequenceController = fleetSequenceControllerNodes.find(
     (node) =>
       node.nodeId === fleetSequenceBinding?.nodeId &&
       isFleetSequenceControllerNode(node),
   );
   const fleetSequenceInputNodes = useMemo(
     () =>
-      (selectedSession?.roleBindings ?? [])
-        .filter((binding) => isFleetSequenceInputRole(binding.role))
-        .flatMap((binding) => {
-          const node = availableNodes.find(
-            (candidate) =>
-              candidate.nodeId === binding.nodeId &&
-              isFleetSequenceInputNode(candidate),
-          );
-          return node === undefined ? [] : [node];
-        }),
-    [availableNodes, selectedSession?.roleBindings],
+      assignedFleetSequenceInputNodes(
+        availableNodes,
+        fleetControlSession?.roleBindings ?? [],
+      ),
+    [availableNodes, fleetControlSession?.roleBindings],
   );
   const fleetSequenceStatus = useMemo(
-    () => latestFleetSequenceStatus(events, fleetSequenceController?.nodeId),
-    [events, fleetSequenceController?.nodeId],
-  );
-  const smartPlugBinding = selectedSession?.roleBindings.find(
-    (binding) => binding.role === "classroom_plug",
-  );
-  const selectedSmartPlug = smartPlugNodes.find(
-    (node) => node.nodeId === smartPlugBinding?.nodeId,
+    () =>
+      latestFleetSequenceStatus(fleetEvents, fleetSequenceController?.nodeId),
+    [fleetEvents, fleetSequenceController?.nodeId],
   );
   const assignedSmartPlugs = useMemo(
     () =>
-      assignedSmartPlugNodes(
-        selectedSession?.roleBindings ?? [],
-        smartPlugNodes,
+      plannedControlAssignments(
+        controlledSmartPlugNodes,
+        smartPlugControlSession,
+        (index) =>
+          index === 0 ? "classroom_plug" : `classroom_plug_${index + 1}`,
+        isSmartPlugRole,
       ).map(({ role, node }) => ({
         role,
         node,
-        state: latestSmartPlugState(events, node.nodeId),
+        state:
+          latestSmartPlugState(events, node.nodeId) ??
+          smartPlugStateFromHealth(node),
       })),
-    [events, selectedSession?.roleBindings, smartPlugNodes],
+    [controlledSmartPlugNodes, events, smartPlugControlSession?.roleBindings],
   );
+  const selectedSmartPlug = assignedSmartPlugs[0]?.node;
   const sensorReadings = useMemo(() => latestSensorReadings(events), [events]);
-  const leapNodes = useMemo(
-    () =>
-      availableNodes.filter(
-        (node) =>
-          node.pluginId === "cit.leap-motion" ||
-          node.publishedCapabilities.some(
-            (capability) => capability.name === "interaction.gesture.velocity",
-          ),
-      ),
-    [availableNodes],
-  );
   const canTurnSmartPlugOff =
     canSubmitCommands && busy === null && selectedSmartPlug !== undefined;
+  const canPrepareSmartPlugControls =
+    canManageSessions &&
+    (smartPlugControlSession !== undefined || canAssignRoles);
   const canTurnSmartPlugOn =
     canTurnSmartPlugOff &&
-    selectedSession?.state === "active" &&
-    (selectedSession.mode !== "physical" || selectedSession.armed === true);
+    (canPrepareSmartPlugControls ||
+      (smartPlugControlSession?.state === "active" &&
+        (smartPlugControlSession.mode !== "physical" ||
+          smartPlugControlSession.armed === true)));
   const requiredRoles = useMemo(
     () =>
       selectedCourse?.roles
@@ -504,6 +582,17 @@ export function FabricConsole() {
         setMediaSources(nextMediaSources);
         setRememberedConnections(nextRememberedConnections);
         setInstallation(nextInstallation);
+        const nextFleetControllerIds = nextNodes
+          .filter(
+            (node) =>
+              isAvailableFabricNode(node) &&
+              isFleetSequenceControllerNode(node),
+          )
+          .map((node) => node.nodeId);
+        const nextFleetSession = preferredFleetSequenceControlSession(
+          nextSessions,
+          nextFleetControllerIds,
+        );
         setSelectedCourseKey(
           (current) =>
             current ||
@@ -534,6 +623,16 @@ export function FabricConsole() {
         } else {
           setEvents([]);
           setSessionStartPolicy(null);
+        }
+        if (nextFleetSession === undefined) {
+          setFleetEvents([]);
+        } else {
+          try {
+            setFleetEvents(await client.listEvents(nextFleetSession.sessionId));
+          } catch (caught) {
+            if (!(caught instanceof FabricApiError && caught.status === 403))
+              throw caught;
+          }
         }
         try {
           setLifecycle(await client.listLifecycle());
@@ -638,10 +737,59 @@ export function FabricConsole() {
     );
   }, [nodes, selectedCourse, selectedSession]);
 
-  useEffect(
-    () => setSafetyConfirmed(false),
-    [selectedSessionId, selectedSession?.armed],
-  );
+  useEffect(() => {
+    if (safetyConfirmationSessionId.current === selectedSessionId) return;
+    safetyConfirmationSessionId.current = selectedSessionId;
+    setSafetyConfirmed(false);
+    clearFlightSafetyConfirmation();
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    if (!safetyConfirmed) setIncludeTelloInSynchronizedMotion(false);
+  }, [safetyConfirmed]);
+
+  useEffect(() => {
+    if (
+      synchronizedMotionEnabled &&
+      synchronizedMotionSession !== undefined &&
+      (synchronizedMotionSession.state !== "active" ||
+        synchronizedMotionSession.armed !== true)
+    ) {
+      setSynchronizedMotionEnabled(false);
+      setIncludeTelloInSynchronizedMotion(false);
+      setSynchronizedMotionSessionId("");
+    }
+  }, [synchronizedMotionEnabled, synchronizedMotionSession]);
+
+  useEffect(() => {
+    if (synchronizedMotionSessionId !== "") return;
+    const active = sessions
+      .filter(
+        (session) =>
+          session.coursePackId === "synchronized-motor-control" &&
+          session.state === "active" &&
+          session.armed === true,
+      )
+      .sort(
+        (left, right) =>
+          (Date.parse(right.updatedAt) || 0) -
+          (Date.parse(left.updatedAt) || 0),
+      )[0];
+    if (active === undefined) return;
+    setSynchronizedMotionSessionId(active.sessionId);
+    setSynchronizedMotionEnabled(true);
+  }, [sessions, synchronizedMotionSessionId]);
+
+  useEffect(() => {
+    if (
+      !physicalModeDefaulted.current &&
+      selectedSessionId === "" &&
+      discovery?.physicalActuationEnabled === true
+    ) {
+      physicalModeDefaulted.current = true;
+      setSessionMode("physical");
+    }
+  }, [discovery?.physicalActuationEnabled, selectedSessionId]);
 
   const runAction = async (
     key: FabricMessageKey,
@@ -681,7 +829,8 @@ export function FabricConsole() {
 
   const signOut = () => {
     client.clearCredential();
-    setDeviceControlsOpen(false);
+    clearAircraftGroundedConfirmation();
+    clearFlightSafetyConfirmation();
     setPrincipal(null);
     setNodes([]);
     setDiscovery(null);
@@ -691,13 +840,17 @@ export function FabricConsole() {
     setSessions([]);
     setSessionStartPolicy(null);
     setEvents([]);
+    setFleetEvents([]);
     setMediaSources([]);
     setMediaPairing(null);
     setLifecycle([]);
     setAudit([]);
-    setGroundedConfirmations({});
-    setRememberedAircraftGrounded(false);
-    autoReconnectAttempted.current = false;
+    setSafetyConfirmed(false);
+    setAircraftGroundedConfirmed(false);
+    setSynchronizedMotionEnabled(false);
+    setIncludeTelloInSynchronizedMotion(false);
+    setSynchronizedMotionSessionId("");
+    physicalModeDefaulted.current = false;
     setNotice(t("notice.signedOut"));
   };
 
@@ -754,20 +907,25 @@ export function FabricConsole() {
       });
       let prepared = created;
       let automaticAssignments = 0;
-      const usedNodes = new Set<string>();
-      for (const requirement of coursePack.roles) {
-        const candidates = compatibleNodes(nodes, prepared, requirement).filter(
-          (node) => !usedNodes.has(node.nodeId),
-        );
-        if (candidates.length !== 1) continue;
-        const candidate = candidates[0];
-        if (candidate === undefined) continue;
-        prepared = await client.assignRole(
-          prepared.sessionId,
-          requirement.role,
-          candidate.nodeId,
-        );
-        usedNodes.add(candidate.nodeId);
+      const defaults = automaticRoleAssignments(
+        prepared.roleBindings,
+        coursePack.roles.map((requirement) => ({
+          role: requirement.role,
+          optional: requirement.optional,
+          candidateNodeIds: compatibleNodes(nodes, prepared, requirement).map(
+            (node) => node.nodeId,
+          ),
+        })),
+      );
+      for (const [role, nodeId] of Object.entries(defaults)) {
+        if (
+          prepared.roleBindings.some(
+            (binding) => binding.role === role && binding.nodeId === nodeId,
+          )
+        ) {
+          continue;
+        }
+        prepared = await client.assignRole(prepared.sessionId, role, nodeId);
         automaticAssignments += 1;
       }
       setSessions((current) => [...current, prepared]);
@@ -779,118 +937,367 @@ export function FabricConsole() {
       );
     });
 
-  const openSmartPlugControls = () =>
-    runAction("busy.openingSmartPlugControls", async () => {
-      const controllableNodes = smartPlugNodes.slice(0, 2);
-      if (controllableNodes.length === 0) {
-        throw new Error(t("error.noSmartPlugs"));
-      }
-
-      let prepared = preferredSmartPlugSession;
-      const preparedNodeIds = new Set(
-        prepared?.roleBindings
-          .filter((binding) => isSmartPlugRole(binding.role))
-          .map((binding) => binding.nodeId) ?? [],
+  const ensureSmartPlugControlSession = async () => {
+    if (controlledSmartPlugNodes.length === 0) {
+      throw new Error(t("error.noSmartPlugs"));
+    }
+    if (smartPlugControlSession !== undefined) return smartPlugControlSession;
+    if (!canManageSessions || !canAssignRoles) {
+      throw new Error(t("error.smartPlugSetupPermission"));
+    }
+    const coursePack = coursePacks.find(
+      (candidate) => candidate.coursePackId === "smart-plug-control",
+    );
+    if (coursePack === undefined) {
+      throw new Error(t("error.smartPlugCourse"));
+    }
+    let prepared = await client.createSession({
+      coursePackId: coursePack.coursePackId,
+      coursePackVersion: coursePack.version,
+      siteId,
+      roomId,
+      mode: "physical",
+    });
+    for (const [index, node] of controlledSmartPlugNodes.entries()) {
+      prepared = await client.assignRole(
+        prepared.sessionId,
+        index === 0 ? "classroom_plug" : "classroom_plug_2",
+        node.nodeId,
       );
-      const coversConnectedPlugs = controllableNodes.every((node) =>
-        preparedNodeIds.has(node.nodeId),
-      );
+    }
+    setSessions((current) => [...current, prepared]);
+    return prepared;
+  };
 
-      if (prepared === undefined || !coversConnectedPlugs) {
-        if (!canManageSessions || !canAssignRoles) {
-          throw new Error(t("error.smartPlugSetupPermission"));
-        }
-        const coursePack = coursePacks.find(
-          (candidate) => candidate.coursePackId === "smart-plug-control",
+  const ensureSpheroControlSession = async () => {
+    if (controlledSpheroNodes.length === 0) {
+      throw new Error(t("error.noSpheroRobots"));
+    }
+    if (spheroControlSession !== undefined) return spheroControlSession;
+    if (!canManageSessions || !canAssignRoles) {
+      throw new Error(t("error.spheroSetupPermission"));
+    }
+    const coursePack = coursePacks.find(
+      (candidate) => candidate.coursePackId === "device-monitoring",
+    );
+    if (coursePack === undefined) {
+      throw new Error(t("error.spheroCourse"));
+    }
+    let prepared = await client.createSession({
+      coursePackId: coursePack.coursePackId,
+      coursePackVersion: coursePack.version,
+      siteId,
+      roomId,
+      mode: "physical",
+    });
+    for (const [index, node] of controlledSpheroNodes.entries()) {
+      prepared = await client.assignRole(
+        prepared.sessionId,
+        `robot_sensor_${index + 1}`,
+        node.nodeId,
+      );
+    }
+    setSessions((current) => [...current, prepared]);
+    return prepared;
+  };
+
+  const ensureTelloControlSession = async () => {
+    if (controlledTelloNodes.length === 0) {
+      throw new Error(t("error.noTelloDrones"));
+    }
+    if (telloControlSession !== undefined) return telloControlSession;
+    if (!canManageSessions || !canAssignRoles) {
+      throw new Error(t("error.telloSetupPermission"));
+    }
+    const coursePack = coursePacks.find(
+      (candidate) => candidate.coursePackId === "device-monitoring",
+    );
+    if (coursePack === undefined) {
+      throw new Error(t("error.telloCourse"));
+    }
+    let prepared = await client.createSession({
+      coursePackId: coursePack.coursePackId,
+      coursePackVersion: coursePack.version,
+      siteId,
+      roomId,
+      mode: "physical",
+    });
+    for (const [index, node] of controlledTelloNodes.entries()) {
+      prepared = await client.assignRole(
+        prepared.sessionId,
+        `safety_drone_${index + 1}`,
+        node.nodeId,
+      );
+    }
+    setSessions((current) => [...current, prepared]);
+    return prepared;
+  };
+
+  const createSynchronizedMotionSession = async () => {
+    if (controlledSpheroNodes.length === 0) {
+      throw new Error(t("error.noSynchronizedMotors"));
+    }
+    if (!canManageSessions || !canAssignRoles) {
+      throw new Error(t("error.spheroSetupPermission"));
+    }
+    const coursePack = coursePacks.find(
+      (candidate) => candidate.coursePackId === "synchronized-motor-control",
+    );
+    if (coursePack === undefined) {
+      throw new Error(t("error.spheroCourse"));
+    }
+    const firstTarget = controlledSpheroNodes[0];
+    if (firstTarget === undefined) {
+      throw new Error(t("error.noSynchronizedMotors"));
+    }
+    let prepared = await client.createSession({
+      coursePackId: coursePack.coursePackId,
+      coursePackVersion: coursePack.version,
+      siteId: firstTarget.siteId,
+      roomId: firstTarget.roomId,
+      mode: "physical",
+    });
+    for (const [index, node] of controlledSpheroNodes.entries()) {
+      prepared = await client.assignRole(
+        prepared.sessionId,
+        `ground_output_${index + 1}`,
+        node.nodeId,
+      );
+    }
+    const fleetController = fleetSequenceControllerNodes.find(
+      (node) =>
+        node.siteId === prepared.siteId && node.roomId === prepared.roomId,
+    );
+    if (fleetController !== undefined) {
+      prepared = await client.assignRole(
+        prepared.sessionId,
+        "fleet_sequence_controller",
+        fleetController.nodeId,
+      );
+    }
+    setSessions((current) => [...current, prepared]);
+    setSynchronizedMotionSessionId(prepared.sessionId);
+    return prepared;
+  };
+
+  const attachSynchronizedInputs = async (session: InteractionSession) => {
+    let prepared = session;
+    if (prepared.state === "active") {
+      prepared = await client.sessionAction(prepared.sessionId, "pause");
+    }
+    if (prepared.mode === "physical" && prepared.armed !== true) {
+      prepared = await client.sessionAction(prepared.sessionId, "arm");
+    }
+
+    const errors: unknown[] = [];
+    const hasWearableProjection = availableNodes.some(
+      (node) => node.pluginId === "cit.agent-mesh-bridge",
+    );
+    if (hasWearableProjection) {
+      try {
+        await client.runDiscoveryAction(
+          "cit.glasses-device-control.connect",
+          false,
+          prepared.sessionId,
         );
-        if (coursePack === undefined) {
-          throw new Error(t("error.smartPlugCourse"));
+      } catch (caught) {
+        errors.push(caught);
+      }
+    }
+
+    const hasMindWave = availableNodes.some(
+      (node) => node.metadata.model === "mindwave-mobile2",
+    );
+    if (hasMindWave) {
+      try {
+        await client.runDiscoveryAction(
+          "cit.synchronized-mindwave.connect",
+          false,
+          prepared.sessionId,
+        );
+      } catch (caught) {
+        errors.push(caught);
+      }
+    }
+
+    const latest = (await client.listSessions()).find(
+      (candidate) => candidate.sessionId === prepared.sessionId,
+    );
+    if (latest !== undefined) prepared = latest;
+    if (prepared.state !== "active") {
+      prepared = await client.sessionAction(prepared.sessionId, "start");
+    }
+    setSessions((current) => replaceSession(current, prepared));
+    return { session: prepared, errors };
+  };
+
+  const setSynchronizedMotion = (enabled: boolean) =>
+    runAction(
+      enabled ? "busy.syncPreparing" : "busy.syncDisabling",
+      async () => {
+        if (enabled) {
+          const created = await createSynchronizedMotionSession();
+          await attachSynchronizedInputs(created);
+          setSynchronizedMotionEnabled(true);
+          setNotice(t("sync.ready", { count: controlledSpheroNodes.length }));
+          return;
         }
-        prepared = await client.createSession({
-          coursePackId: coursePack.coursePackId,
-          coursePackVersion: coursePack.version,
-          siteId,
-          roomId,
-          mode: "physical",
-        });
-        for (const [index, node] of controllableNodes.entries()) {
-          prepared = await client.assignRole(
-            prepared.sessionId,
-            index === 0 ? "classroom_plug" : "classroom_plug_2",
-            node.nodeId,
-          );
+
+        const session = synchronizedMotionSession;
+        if (
+          session !== undefined &&
+          !["stopped", "emergency_stopped", "failed"].includes(session.state)
+        ) {
+          if (session.state === "active") {
+            const correlationId = crypto.randomUUID();
+            const groundBindings = session.roleBindings.filter((binding) =>
+              /^ground_output_[1-8]$/.test(binding.role),
+            );
+            await Promise.allSettled(
+              groundBindings.map((binding, index) =>
+                client.submitCommand({
+                  messageId: crypto.randomUUID(),
+                  schemaVersion: "1.0",
+                  messageType: "command.requested",
+                  action: SPHERO_STOP_CAPABILITY,
+                  target: { role: binding.role },
+                  sessionId: session.sessionId,
+                  parameters: {},
+                  priority: "instructor_override",
+                  idempotencyKey: `console-sync:disable:${index}:${correlationId}`,
+                  requestedAt: new Date().toISOString(),
+                  ttlMs: 1_000,
+                  safetyProfile: session.safetyProfile,
+                  correlationId,
+                }),
+              ),
+            );
+          }
+          const stopped = await client.sessionAction(session.sessionId, "stop");
+          setSessions((current) => replaceSession(current, stopped));
         }
-        setSessions((current) => [...current, prepared as InteractionSession]);
+        setSynchronizedMotionEnabled(false);
+        setIncludeTelloInSynchronizedMotion(false);
+        setSynchronizedMotionSessionId("");
+        setNotice(t("sync.disabled"));
+      },
+    );
+
+  const connectSynchronizedInputs = () =>
+    runAction("busy.syncWearables", async () => {
+      if (
+        !synchronizedMotionEnabled ||
+        synchronizedMotionSession === undefined
+      ) {
+        throw new Error(t("error.noSynchronizedMotors"));
+      }
+      const hasInput = availableNodes.some(
+        (node) =>
+          node.pluginId === "cit.agent-mesh-bridge" ||
+          node.metadata.model === "mindwave-mobile2",
+      );
+      if (!hasInput) throw new Error(t("error.noSynchronizedInputs"));
+      const attached = await attachSynchronizedInputs(
+        synchronizedMotionSession,
+      );
+      if (attached.errors.length > 0) throw attached.errors[0];
+      setNotice(t("sync.ready", { count: controlledSpheroNodes.length }));
+    });
+
+  const sendSynchronizedMotion = (direction: SynchronizedMotionDirection) =>
+    runAction("busy.syncCommand", async () => {
+      if (
+        !synchronizedMotionEnabled ||
+        synchronizedMotionSession === undefined
+      ) {
+        throw new Error(t("error.noSynchronizedMotors"));
+      }
+      let groundSession = synchronizedMotionSession;
+      if (direction !== "stop") {
+        groundSession = await prepareDirectControlSession(groundSession);
+      }
+      const groundRobots = controlledSpheroNodes.flatMap((node) => {
+        const binding = groundSession.roleBindings.find(
+          (candidate) =>
+            candidate.nodeId === node.nodeId &&
+            /^ground_output_[1-8]$/.test(candidate.role),
+        );
+        return binding === undefined ? [] : [{ role: binding.role, node }];
+      });
+
+      let flightSession: InteractionSession | undefined;
+      let drones: typeof assignedDrones = [];
+      if (
+        includeTelloInSynchronizedMotion &&
+        safetyConfirmed &&
+        direction !== "stop" &&
+        controlledTelloNodes.length > 0
+      ) {
+        flightSession = await ensureTelloControlSession();
+        flightSession = await prepareDirectControlSession(flightSession);
+        drones = plannedControlAssignments(
+          controlledTelloNodes,
+          flightSession,
+          (index) => `safety_drone_${index + 1}`,
+          isSafetyDroneRole,
+        );
       }
 
-      setSelectedSessionId(prepared.sessionId);
-      setSessionMode(prepared.mode);
-      setNotice(
-        t("notice.smartPlugControlsReady", {
-          count: controllableNodes.length,
+      const commands = synchronizedMotionCommands({
+        direction,
+        groundRobots,
+        drones,
+        includeTello: includeTelloInSynchronizedMotion,
+        flightConfirmed: safetyConfirmed,
+      });
+      if (commands.length === 0) {
+        throw new Error(t("error.noSynchronizedMotors"));
+      }
+      const correlationId = crypto.randomUUID();
+      const results = await Promise.allSettled(
+        commands.map((command, index) => {
+          const session =
+            command.kind === "flight" ? flightSession : groundSession;
+          if (session === undefined) {
+            return Promise.reject(new Error("Missing bounded control session"));
+          }
+          return client.submitCommand({
+            messageId: crypto.randomUUID(),
+            schemaVersion: "1.0",
+            messageType: "command.requested",
+            action: command.action,
+            target: { role: command.role },
+            sessionId: session.sessionId,
+            parameters: command.parameters,
+            priority: "instructor_override",
+            idempotencyKey: `console-sync:${direction}:${index}:${correlationId}`,
+            requestedAt: new Date().toISOString(),
+            ttlMs: command.kind === "flight" ? 10_000 : 2_000,
+            safetyProfile: session.safetyProfile,
+            correlationId,
+          });
         }),
       );
-      setRequestedDeviceControlKind("smart_plug");
-      setDeviceControlsOpen(true);
-    });
-
-  const openSpheroControls = () =>
-    runAction("busy.openingSpheroControls", async () => {
-      const controllableNodes = spheroNodes.slice(0, 4);
-      if (controllableNodes.length === 0) {
-        throw new Error(t("error.noSpheroRobots"));
-      }
-
-      let prepared = preferredSpheroSession;
-      const preparedNodeIds = new Set(
-        prepared?.roleBindings.map((binding) => binding.nodeId) ?? [],
-      );
-      const coversConnectedRobots = controllableNodes.every((node) =>
-        preparedNodeIds.has(node.nodeId),
-      );
-
-      if (prepared === undefined || !coversConnectedRobots) {
-        if (!canManageSessions || !canAssignRoles) {
-          throw new Error(t("error.spheroSetupPermission"));
-        }
-        const coursePack = coursePacks.find(
-          (candidate) => candidate.coursePackId === "device-monitoring",
+      const succeeded = results.filter(
+        (result) =>
+          result.status === "fulfilled" &&
+          result.value.lifecycle.at(-1)?.stage === "SUCCEEDED",
+      ).length;
+      if (succeeded !== commands.length) {
+        throw new Error(
+          t("error.syncPartial", {
+            failed: commands.length - succeeded,
+            count: commands.length,
+          }),
         );
-        if (coursePack === undefined) {
-          throw new Error(t("error.spheroCourse"));
-        }
-        prepared = await client.createSession({
-          coursePackId: coursePack.coursePackId,
-          coursePackVersion: coursePack.version,
-          siteId,
-          roomId,
-          mode: "physical",
-        });
-        for (const [index, node] of controllableNodes.entries()) {
-          prepared = await client.assignRole(
-            prepared.sessionId,
-            `robot_sensor_${index + 1}`,
-            node.nodeId,
-          );
-        }
-        setSessions((current) => [...current, prepared as InteractionSession]);
       }
-
-      setSelectedSessionId(prepared.sessionId);
-      setSessionMode(prepared.mode);
       setNotice(
-        t("notice.spheroControlsReady", { count: controllableNodes.length }),
+        t("sync.sent", {
+          direction: t(`sync.${direction}` as "sync.forward"),
+          count: succeeded,
+        }),
       );
-      setRequestedDeviceControlKind("sphero");
-      setDeviceControlsOpen(true);
     });
-
-  const showDeviceControls = (kind?: FabricDeviceControlKind) => {
-    const resolved = resolvedDeviceControlKind(kind, deviceControlKinds);
-    if (resolved === undefined) return;
-    setRequestedDeviceControlKind(resolved);
-    setDeviceControlsOpen(true);
-  };
 
   const assignRole = (role: string) =>
     runAction("busy.assigningRole", async () => {
@@ -929,6 +1336,9 @@ export function FabricConsole() {
         action,
       );
       setSessions((current) => replaceSession(current, updated));
+      if (action === "disarm" || action === "stop") {
+        updateSafetyConfirmation(false);
+      }
       setNotice(
         t("notice.lessonStatus", {
           status: fabricSessionState(updated, t),
@@ -936,88 +1346,55 @@ export function FabricConsole() {
       );
     });
 
-  const enablePhysicalControls = () =>
-    runAction("busy.enablingPhysical", async () => {
+  const prepareDirectControlSession = async (
+    session: InteractionSession,
+  ): Promise<InteractionSession> => {
+    let updated = session;
+    for (const action of directControlSessionActions(session)) {
+      updated = await client.sessionAction(updated.sessionId, action);
+      setSessions((current) => replaceSession(current, updated));
+    }
+    if (
+      updated.state !== "active" ||
+      (updated.mode === "physical" && updated.armed !== true)
+    ) {
+      throw new Error(t("error.directControlSessionNotReady"));
+    }
+    return updated;
+  };
+
+  const startSelectedSession = () =>
+    runAction("busy.changingSession", async () => {
       if (selectedSession === undefined)
-        throw new Error(t("error.selectPhysicalSession"));
-      const resume = selectedSession.state === "active";
+        throw new Error(t("error.selectSession"));
+      if (
+        requiresPositionSafetyConfirmation &&
+        !safetyConfirmed &&
+        selectedSession.armed !== true
+      ) {
+        throw new Error(t("error.safetyConfirmation"));
+      }
       let updated = selectedSession;
-      if (resume) {
-        updated = await client.sessionAction(updated.sessionId, "pause");
+      if (
+        updated.mode === "physical" &&
+        updated.armed !== true &&
+        requiresArmingForStart
+      ) {
+        updated = await client.sessionAction(updated.sessionId, "arm");
+        setSessions((current) => replaceSession(current, updated));
       }
-      updated = await client.sessionAction(updated.sessionId, "arm");
-      if (resume) {
-        updated = await client.sessionAction(updated.sessionId, "start");
-      }
+      updated = await client.sessionAction(updated.sessionId, "start");
       setSessions((current) => replaceSession(current, updated));
       setNotice(
-        resume ? t("notice.physicalResumed") : t("notice.physicalReady"),
+        t("notice.lessonStatus", {
+          status: fabricSessionState(updated, t),
+        }),
       );
-    });
-
-  const enableAndStartSmartPlugControls = () =>
-    runAction("busy.enablingPhysical", async () => {
-      if (selectedSession === undefined || assignedSmartPlugs.length === 0) {
-        throw new Error(t("error.smartPlugSession"));
-      }
-      let updated = selectedSession;
-      if (
-        updated.mode === "physical" &&
-        updated.state === "active" &&
-        updated.armed !== true
-      ) {
-        updated = await client.sessionAction(updated.sessionId, "pause");
-      }
-      if (updated.mode === "physical" && updated.armed !== true) {
-        updated = await client.sessionAction(updated.sessionId, "arm");
-      }
-      if (["ready", "paused"].includes(updated.state)) {
-        updated = await client.sessionAction(updated.sessionId, "start");
-      }
-      if (updated.state !== "active") {
-        throw new Error(t("error.smartPlugSessionNotReady"));
-      }
-
-      setSessions((current) => replaceSession(current, updated));
-      setNotice(t("notice.smartPlugPowerReady"));
-    });
-
-  const enableAndStartSpheroControls = () =>
-    runAction("busy.enablingPhysical", async () => {
-      if (selectedSession === undefined || assignedSpheroRobots.length === 0) {
-        throw new Error(t("error.spheroSession"));
-      }
-      if (
-        assignedSpheroRobots.some(({ node }) => !node.simulated) &&
-        !safetyConfirmed
-      ) {
-        throw new Error(t("error.spheroSafetyConfirmation"));
-      }
-
-      let updated = selectedSession;
-      if (
-        updated.mode === "physical" &&
-        updated.state === "active" &&
-        updated.armed !== true
-      ) {
-        updated = await client.sessionAction(updated.sessionId, "pause");
-      }
-      if (updated.mode === "physical" && updated.armed !== true) {
-        updated = await client.sessionAction(updated.sessionId, "arm");
-      }
-      if (["ready", "paused"].includes(updated.state)) {
-        updated = await client.sessionAction(updated.sessionId, "start");
-      }
-      if (updated.state !== "active") {
-        throw new Error(t("error.spheroSessionNotReady"));
-      }
-
-      setSessions((current) => replaceSession(current, updated));
-      setNotice(t("notice.spheroMovementReady"));
     });
 
   const stopAll = () =>
     runAction("busy.emergencyStop", async () => {
+      updateSafetyConfirmation(false);
       const result = await client.stopAll();
       setNotice(
         t("notice.emergencyStop", {
@@ -1040,6 +1417,25 @@ export function FabricConsole() {
       ).length;
       setNotice(t("notice.deviceCheck", { connected, found }));
     });
+
+  const scanIntegration = (integration: FabricIntegrationDiscovery) =>
+    runAction(
+      "busy.scanningIntegration",
+      async () => {
+        const report = await client.scanDevices();
+        setDiscovery(report);
+        const refreshed = report.integrations.find(
+          (candidate) => candidate.integrationId === integration.integrationId,
+        );
+        setNotice(
+          t("notice.integrationScanned", {
+            name: integration.displayName,
+            status: discoveryStatus(refreshed?.status ?? "not_found", t).label,
+          }),
+        );
+      },
+      { name: integration.displayName },
+    );
 
   const reconnectRememberedDevices = useCallback(
     async (confirmGrounded: boolean): Promise<boolean> => {
@@ -1088,58 +1484,80 @@ export function FabricConsole() {
     [busy, client, principal, t],
   );
 
-  useEffect(() => {
-    if (
-      principal === null ||
-      !autoReconnectRemembered ||
-      !canConnectDevices ||
-      discovery?.physicalActuationEnabled !== true ||
-      rememberedConnections === null ||
-      rememberedConnections.connections.length === 0 ||
-      busy !== null ||
-      autoReconnectAttempted.current
-    ) {
-      return;
-    }
-    autoReconnectAttempted.current = true;
-    // Aircraft remain excluded from unattended reconnect because this call
-    // deliberately does not carry a tutor's per-start grounded confirmation.
-    void reconnectRememberedDevices(false);
-  }, [
-    autoReconnectRemembered,
-    busy,
-    canConnectDevices,
-    discovery?.physicalActuationEnabled,
-    principal,
-    reconnectRememberedDevices,
-    rememberedConnections,
-  ]);
-
-  const connectDiscovered = (integration: FabricIntegrationDiscovery) =>
-    runAction(
+  const connectDiscovered = (integration: FabricIntegrationDiscovery) => {
+    const name = localizeFabricIntegration(locale, integration, t).displayName;
+    setIntegrationActionFeedback({
+      integrationId: integration.integrationId,
+      tone: "pending",
+      message: `${t("busy.connectingDevice", { name })}…`,
+    });
+    return runAction(
       "busy.connectingDevice",
       async () => {
-        if (integration.actionId === undefined) {
-          throw new Error(t("error.setupFirst"));
+        try {
+          if (integration.actionId === undefined) {
+            throw new Error(t("error.setupFirst"));
+          }
+          const confirmed = aircraftGroundedConfirmed;
+          if (integration.requiresGroundedConfirmation && !confirmed) {
+            throw new Error(t("error.grounded"));
+          }
+          const result = await client.runDiscoveryAction(
+            integration.actionId,
+            confirmed,
+          );
+          const [nextNodes, nextSessions] = await Promise.all([
+            client.listNodes(),
+            client.listSessions(),
+          ]);
+          const successMessage = t("notice.integrationConnected", { name });
+          setDiscovery(result.report);
+          setNodes(nextNodes);
+          setSessions(nextSessions);
+          setNotice(successMessage);
+          setIntegrationActionFeedback({
+            integrationId: integration.integrationId,
+            tone: "success",
+            message: successMessage,
+          });
+        } catch (caught) {
+          setIntegrationActionFeedback({
+            integrationId: integration.integrationId,
+            tone: "error",
+            message: describeFabricError(caught, t),
+          });
+          throw caught;
         }
-        const confirmed =
-          groundedConfirmations[integration.integrationId] === true;
-        if (integration.requiresGroundedConfirmation && !confirmed) {
-          throw new Error(t("error.grounded"));
-        }
-        const result = await client.runDiscoveryAction(
-          integration.actionId,
-          confirmed,
-        );
-        setDiscovery(result.report);
-        setNotice(
-          t("notice.integrationConnected", {
-            name: localizeFabricIntegration(locale, integration, t).displayName,
-          }),
-        );
       },
-      { name: localizeFabricIntegration(locale, integration, t).displayName },
+      { name },
     );
+  };
+
+  const connectGlassesControlInputs = () =>
+    runAction("busy.connectingGlassesControl", async () => {
+      if (
+        selectedSession === undefined ||
+        selectedSession.coursePackId !== "glasses-device-control"
+      ) {
+        throw new Error(t("error.glassesControlSession"));
+      }
+      if (selectedSession.mode !== "physical") {
+        throw new Error(t("error.glassesControlPhysical"));
+      }
+      const result = await client.runDiscoveryAction(
+        "cit.glasses-device-control.connect",
+        false,
+        selectedSession.sessionId,
+      );
+      const [nextNodes, nextSessions] = await Promise.all([
+        client.listNodes(),
+        client.listSessions(),
+      ]);
+      setDiscovery(result.report);
+      setNodes(nextNodes);
+      setSessions(nextSessions);
+      setNotice(t("notice.glassesControlConnected"));
+    });
 
   const commissionMatterPlug = (setupCode: string) =>
     runAction("busy.addingMatter", async () => {
@@ -1219,6 +1637,34 @@ export function FabricConsole() {
       setNotice(t("notice.spheroConnected", { count: robots.length }));
     });
 
+  const connectSpheroOllies = (robots: SpheroOllieSelection[]) =>
+    runAction("busy.connectingOllie", async () => {
+      const result = await client.connectSpheroOllies(robots);
+      setDiscovery(result.report);
+      const [nextNodes, nextSessions] = await Promise.all([
+        client.listNodes(),
+        client.listSessions(),
+      ]);
+      setNodes(nextNodes);
+      setSessions(nextSessions);
+      const connectedIds = new Set(
+        result.report.integrations.find(
+          (integration) => integration.integrationId === "sphero-ollie",
+        )?.connectedNodeIds ?? [],
+      );
+      const monitoringSession = [...nextSessions]
+        .reverse()
+        .find((session) =>
+          session.roleBindings.some((binding) =>
+            connectedIds.has(binding.nodeId),
+          ),
+        );
+      if (monitoringSession !== undefined) {
+        setSelectedSessionId(monitoringSession.sessionId);
+      }
+      setNotice(t("notice.ollieConnected", { count: robots.length }));
+    });
+
   const connectAllDiscovered = () =>
     runAction("busy.connectingAll", async () => {
       if (connectableIntegrations.length === 0) {
@@ -1249,6 +1695,12 @@ export function FabricConsole() {
         }
       }
       if (latestReport !== null) setDiscovery(latestReport);
+      const [nextNodes, nextSessions] = await Promise.all([
+        client.listNodes(),
+        client.listSessions(),
+      ]);
+      setNodes(nextNodes);
+      setSessions(nextSessions);
 
       const connectionSummary =
         connectedNames.length === 0
@@ -1397,9 +1849,8 @@ export function FabricConsole() {
 
   const setSmartPlugPower = (role: string, on: boolean) =>
     runAction("busy.smartPlug", async () => {
-      if (selectedSession === undefined)
-        throw new Error(t("error.smartPlugSession"));
-      const binding = selectedSession.roleBindings.find(
+      let controlSession = await ensureSmartPlugControlSession();
+      const binding = controlSession.roleBindings.find(
         (candidate) => candidate.role === role,
       );
       if (
@@ -1408,10 +1859,9 @@ export function FabricConsole() {
         !smartPlugNodes.some((node) => node.nodeId === binding.nodeId)
       )
         throw new Error(t("error.assignPlug"));
-      if (on && selectedSession.state !== "active")
-        throw new Error(t("error.startLoad"));
-      if (on && selectedSession.mode === "physical" && !selectedSession.armed)
-        throw new Error(t("error.armLoad"));
+      if (on) {
+        controlSession = await prepareDirectControlSession(controlSession);
+      }
       const correlationId = crypto.randomUUID();
       const priority: FabricCommandPriority =
         principal?.roles.some((roleName) =>
@@ -1425,13 +1875,13 @@ export function FabricConsole() {
         messageType: "command.requested",
         action: POWER_SET_CAPABILITY,
         target: { role },
-        sessionId: selectedSession.sessionId,
+        sessionId: controlSession.sessionId,
         parameters: { on },
         priority,
         idempotencyKey: `console-smart-plug:${role}:${on ? "on" : "off"}:${correlationId}`,
         requestedAt: new Date().toISOString(),
         ttlMs: 2_000,
-        safetyProfile: selectedSession.safetyProfile,
+        safetyProfile: controlSession.safetyProfile,
         correlationId,
       });
       const terminal = result.lifecycle.at(-1);
@@ -1444,44 +1894,50 @@ export function FabricConsole() {
       );
     });
 
-  const setDroneSafeState = (role: string, emergency: boolean) =>
-    runAction(
-      emergency ? "busy.telloEmergency" : "busy.telloLand",
-      async () => {
-        if (selectedSession === undefined)
-          throw new Error(t("error.monitoringSession"));
-        if (
-          !selectedSession.roleBindings.some((binding) => binding.role === role)
-        )
-          throw new Error(t("error.droneUnassigned"));
-        const correlationId = crypto.randomUUID();
-        const result = await client.submitCommand({
-          messageId: crypto.randomUUID(),
-          schemaVersion: "1.0",
-          messageType: "command.requested",
-          action: emergency
-            ? FLIGHT_EMERGENCY_STOP_CAPABILITY
-            : FLIGHT_LAND_CAPABILITY,
-          target: { role },
-          sessionId: selectedSession.sessionId,
-          parameters: {},
-          priority: emergency ? "emergency_stop" : "instructor_override",
-          idempotencyKey: `console-tello:${emergency ? "emergency" : "land"}:${correlationId}`,
-          requestedAt: new Date().toISOString(),
-          ttlMs: 5_000,
-          safetyProfile: selectedSession.safetyProfile,
-          correlationId,
-        });
-        const terminal = result.lifecycle.at(-1);
-        setNotice(
-          commandResultNotice(
-            emergency ? t("drone.emergency") : t("drone.land"),
-            terminal?.stage,
-            t,
-          ),
-        );
-      },
-    );
+  const sendTelloCommand = (
+    role: string,
+    action: string,
+    parameters: Record<string, unknown>,
+    label: string,
+  ) =>
+    runAction("busy.telloCommand", async () => {
+      let controlSession = await ensureTelloControlSession();
+      const binding = controlSession.roleBindings.find(
+        (candidate) => candidate.role === role,
+      );
+      if (
+        !isSafetyDroneRole(role) ||
+        binding === undefined ||
+        !telloNodes.some((node) => node.nodeId === binding.nodeId)
+      ) {
+        throw new Error(t("error.droneUnassigned"));
+      }
+      const isSafeState =
+        action === FLIGHT_LAND_CAPABILITY ||
+        action === FLIGHT_EMERGENCY_STOP_CAPABILITY;
+      if (!isSafeState) {
+        controlSession = await prepareDirectControlSession(controlSession);
+      }
+      const correlationId = crypto.randomUUID();
+      const emergency = action === FLIGHT_EMERGENCY_STOP_CAPABILITY;
+      if (emergency) updateSafetyConfirmation(false);
+      const result = await client.submitCommand({
+        messageId: crypto.randomUUID(),
+        schemaVersion: "1.0",
+        messageType: "command.requested",
+        action,
+        target: { role },
+        sessionId: controlSession.sessionId,
+        parameters,
+        priority: emergency ? "emergency_stop" : "instructor_override",
+        idempotencyKey: `console-tello:${action}:${correlationId}`,
+        requestedAt: new Date().toISOString(),
+        ttlMs: action === FLIGHT_LAND_CAPABILITY ? 5_000 : 10_000,
+        safetyProfile: controlSession.safetyProfile,
+        correlationId,
+      });
+      setNotice(commandResultNotice(label, result.lifecycle.at(-1)?.stage, t));
+    });
 
   const sendWonderCommand = (
     role: string,
@@ -1496,6 +1952,10 @@ export function FabricConsole() {
         !selectedSession.roleBindings.some((binding) => binding.role === role)
       )
         throw new Error(t("error.wonderUnassigned"));
+      const controlSession =
+        action === WONDER_STOP_CAPABILITY
+          ? selectedSession
+          : await prepareDirectControlSession(selectedSession);
       const correlationId = crypto.randomUUID();
       const result = await client.submitCommand({
         messageId: crypto.randomUUID(),
@@ -1503,13 +1963,13 @@ export function FabricConsole() {
         messageType: "command.requested",
         action,
         target: { role },
-        sessionId: selectedSession.sessionId,
+        sessionId: controlSession.sessionId,
         parameters,
         priority: "instructor_override",
         idempotencyKey: `console-wonder:${role}:${action}:${correlationId}`,
         requestedAt: new Date().toISOString(),
         ttlMs: action === "mobility.ground.stop" ? 1_000 : 2_000,
-        safetyProfile: selectedSession.safetyProfile,
+        safetyProfile: controlSession.safetyProfile,
         correlationId,
       });
       setNotice(commandResultNotice(label, result.lifecycle.at(-1)?.stage, t));
@@ -1522,12 +1982,12 @@ export function FabricConsole() {
     label: string,
   ) =>
     runAction("busy.spheroCommand", async () => {
-      if (selectedSession === undefined)
-        throw new Error(t("error.monitoringSession"));
-      if (
-        !selectedSession.roleBindings.some((binding) => binding.role === role)
-      )
+      let controlSession = await ensureSpheroControlSession();
+      if (!controlSession.roleBindings.some((binding) => binding.role === role))
         throw new Error(t("error.spheroUnassigned"));
+      if (action !== SPHERO_STOP_CAPABILITY) {
+        controlSession = await prepareDirectControlSession(controlSession);
+      }
       const correlationId = crypto.randomUUID();
       const result = await client.submitCommand({
         messageId: crypto.randomUUID(),
@@ -1535,13 +1995,13 @@ export function FabricConsole() {
         messageType: "command.requested",
         action,
         target: { role },
-        sessionId: selectedSession.sessionId,
+        sessionId: controlSession.sessionId,
         parameters,
         priority: "instructor_override",
         idempotencyKey: `console-sphero:${role}:${action}:${correlationId}`,
         requestedAt: new Date().toISOString(),
         ttlMs: action === "mobility.ground.stop" ? 1_000 : 2_000,
-        safetyProfile: selectedSession.safetyProfile,
+        safetyProfile: controlSession.safetyProfile,
         correlationId,
       });
       setNotice(commandResultNotice(label, result.lifecycle.at(-1)?.stage, t));
@@ -1553,10 +2013,7 @@ export function FabricConsole() {
         throw new Error(t("error.monitoringSession"));
       if (brainDemoBinding === undefined || brainDemoController === undefined)
         throw new Error(t("error.brainController"));
-      if (selectedSession.state !== "active")
-        throw new Error(t("error.startDemo"));
-      if (selectedSession.mode === "physical" && !selectedSession.armed)
-        throw new Error(t("error.armFlight"));
+      const controlSession = await prepareDirectControlSession(selectedSession);
       const correlationId = crypto.randomUUID();
       const result = await client.submitCommand({
         messageId: crypto.randomUUID(),
@@ -1564,13 +2021,13 @@ export function FabricConsole() {
         messageType: "command.requested",
         action: BRAIN_DEMO_ARM_CAPABILITY,
         target: { role: "brain_flight_demo" },
-        sessionId: selectedSession.sessionId,
+        sessionId: controlSession.sessionId,
         parameters: { ...settings },
         priority: "instructor_override",
         idempotencyKey: `console-brain-demo:arm:${correlationId}`,
         requestedAt: new Date().toISOString(),
         ttlMs: 5_000,
-        safetyProfile: selectedSession.safetyProfile,
+        safetyProfile: controlSession.safetyProfile,
         correlationId,
       });
       const terminal = result.lifecycle.at(-1);
@@ -1605,17 +2062,15 @@ export function FabricConsole() {
 
   const armFleetSequence = (settings: FleetSequenceSettings) =>
     runAction("busy.fleetArm", async () => {
-      if (selectedSession === undefined)
+      if (fleetControlSession === undefined)
         throw new Error(t("error.fleetLesson"));
       if (
         fleetSequenceBinding === undefined ||
         fleetSequenceController === undefined
       )
         throw new Error(t("error.fleetController"));
-      if (selectedSession.state !== "active")
-        throw new Error(t("error.startSequence"));
-      if (selectedSession.mode === "physical" && !selectedSession.armed)
-        throw new Error(t("error.armFlight"));
+      const controlSession =
+        await prepareDirectControlSession(fleetControlSession);
       const correlationId = crypto.randomUUID();
       const result = await client.submitCommand({
         messageId: crypto.randomUUID(),
@@ -1623,13 +2078,13 @@ export function FabricConsole() {
         messageType: "command.requested",
         action: FLEET_SEQUENCE_ARM_CAPABILITY,
         target: { role: "fleet_sequence_controller" },
-        sessionId: selectedSession.sessionId,
+        sessionId: controlSession.sessionId,
         parameters: { ...settings },
         priority: "instructor_override",
         idempotencyKey: `console-fleet-sequence:arm:${correlationId}`,
         requestedAt: new Date().toISOString(),
         ttlMs: 5_000,
-        safetyProfile: selectedSession.safetyProfile,
+        safetyProfile: controlSession.safetyProfile,
         correlationId,
       });
       setNotice(
@@ -1639,7 +2094,7 @@ export function FabricConsole() {
 
   const startFleetSequence = () =>
     runAction("busy.fleetStart", async () => {
-      if (selectedSession === undefined)
+      if (fleetControlSession === undefined)
         throw new Error(t("error.fleetLesson"));
       if (
         fleetSequenceBinding === undefined ||
@@ -1653,13 +2108,13 @@ export function FabricConsole() {
         messageType: "command.requested",
         action: FLEET_SEQUENCE_START_CAPABILITY,
         target: { role: "fleet_sequence_controller" },
-        sessionId: selectedSession.sessionId,
+        sessionId: fleetControlSession.sessionId,
         parameters: {},
         priority: "instructor_override",
         idempotencyKey: `console-fleet-sequence:start:${correlationId}`,
         requestedAt: new Date().toISOString(),
         ttlMs: 2_000,
-        safetyProfile: selectedSession.safetyProfile,
+        safetyProfile: fleetControlSession.safetyProfile,
         correlationId,
       });
       setNotice(
@@ -1671,9 +2126,66 @@ export function FabricConsole() {
       );
     });
 
+  const launchFleetSequence = (settings: FleetSequenceSettings) =>
+    runAction("busy.fleetStart", async () => {
+      if (fleetControlSession === undefined)
+        throw new Error(t("error.fleetLesson"));
+      if (
+        fleetSequenceBinding === undefined ||
+        fleetSequenceController === undefined
+      )
+        throw new Error(t("error.fleetController"));
+      const controlSession =
+        await prepareDirectControlSession(fleetControlSession);
+      const armCorrelationId = crypto.randomUUID();
+      const armResult = await client.submitCommand({
+        messageId: crypto.randomUUID(),
+        schemaVersion: "1.0",
+        messageType: "command.requested",
+        action: FLEET_SEQUENCE_ARM_CAPABILITY,
+        target: { role: "fleet_sequence_controller" },
+        sessionId: controlSession.sessionId,
+        parameters: { ...settings },
+        priority: "instructor_override",
+        idempotencyKey: `console-fleet-sequence:arm-and-start:${armCorrelationId}`,
+        requestedAt: new Date().toISOString(),
+        ttlMs: 5_000,
+        safetyProfile: controlSession.safetyProfile,
+        correlationId: armCorrelationId,
+      });
+      const armStage = (await awaitFabricCommandTerminal(client, armResult))
+        .stage;
+      if (armStage !== "SUCCEEDED") {
+        throw new Error(commandResultNotice(t("fleet.arm"), armStage, t));
+      }
+      const startCorrelationId = crypto.randomUUID();
+      const startResult = await client.submitCommand({
+        messageId: crypto.randomUUID(),
+        schemaVersion: "1.0",
+        messageType: "command.requested",
+        action: FLEET_SEQUENCE_START_CAPABILITY,
+        target: { role: "fleet_sequence_controller" },
+        sessionId: controlSession.sessionId,
+        parameters: {},
+        priority: "instructor_override",
+        idempotencyKey: `console-fleet-sequence:start:${startCorrelationId}`,
+        requestedAt: new Date().toISOString(),
+        ttlMs: 2_000,
+        safetyProfile: controlSession.safetyProfile,
+        correlationId: startCorrelationId,
+      });
+      setNotice(
+        commandResultNotice(
+          t("fleet.takeoffOneByOne"),
+          startResult.lifecycle.at(-1)?.stage,
+          t,
+        ),
+      );
+    });
+
   const stopFleetSequence = () =>
     runAction("busy.fleetStop", async () => {
-      if (selectedSession === undefined)
+      if (fleetControlSession === undefined)
         throw new Error(t("error.fleetLesson"));
       if (
         fleetSequenceBinding === undefined ||
@@ -1687,13 +2199,13 @@ export function FabricConsole() {
         messageType: "command.requested",
         action: FLEET_SEQUENCE_STOP_CAPABILITY,
         target: { role: "fleet_sequence_controller" },
-        sessionId: selectedSession.sessionId,
+        sessionId: fleetControlSession.sessionId,
         parameters: {},
         priority: "instructor_override",
         idempotencyKey: `console-fleet-sequence:stop:${correlationId}`,
         requestedAt: new Date().toISOString(),
         ttlMs: 5_000,
-        safetyProfile: selectedSession.safetyProfile,
+        safetyProfile: fleetControlSession.safetyProfile,
         correlationId,
       });
       setNotice(
@@ -1828,26 +2340,22 @@ export function FabricConsole() {
     connected: {
       marker: "✓",
       title: t("discovery.tier.connected.title"),
-      description: t("discovery.tier.connected.description"),
       empty: t("discovery.tier.connected.empty"),
       count: connectedFabricDeviceCount(discoveryGroups.connected),
     },
     available: {
       marker: "+",
       title: t("discovery.tier.available.title"),
-      description: t("discovery.tier.available.description"),
       empty: t("discovery.tier.available.empty"),
       count: discoveryGroups.available.length,
     },
     unavailable: {
       marker: "!",
       title: t("discovery.tier.unavailable.title"),
-      description: t("discovery.tier.unavailable.description"),
       empty: t("discovery.tier.unavailable.empty"),
       count: discoveryGroups.unavailable.length,
     },
   } as const;
-  const discoveryTierOrder = ["connected", "available", "unavailable"] as const;
   const courseRoleGroups = groupFabricCourseRolesByIo(
     selectedSession === undefined || selectedCourse === undefined
       ? []
@@ -1858,146 +2366,187 @@ export function FabricConsole() {
         ),
   );
 
-  const deviceControlSections: FabricDeviceControlSection[] = [];
-  if (spheroNodes.length > 0) {
-    deviceControlSections.push({
-      kind: "sphero",
-      label: t("deviceControls.sphero"),
-      deviceCount: spheroNodes.length,
-      content: (
-        <FabricSpheroPanel
-          robots={assignedSpheroRobots}
-          connectedRobotCount={spheroNodes.length}
-          sessionState={selectedSession?.state ?? ""}
-          sessionArmed={selectedSession?.armed === true}
-          busy={busy !== null}
-          canSubmit={canSubmitCommands}
-          canManageSession={canManageSessions}
-          canOpenControls={
-            preferredSpheroSession !== undefined ||
-            (canManageSessions && canAssignRoles)
-          }
-          safetyConfirmed={safetyConfirmed}
-          onSafetyConfirmedChange={setSafetyConfirmed}
-          onOpenControls={() => void openSpheroControls()}
-          onEnableControls={() => void enableAndStartSpheroControls()}
-          onCommand={(role, action, parameters, label) =>
-            void sendSpheroCommand(role, action, parameters, label)
-          }
-          t={t}
-        />
-      ),
-    });
-  }
-  if (assignedWonderRobots.length > 0) {
-    deviceControlSections.push({
-      kind: "wonder",
-      label: t("deviceControls.wonder"),
-      deviceCount: assignedWonderRobots.length,
-      content: (
-        <FabricWonderWorkshopPanel
-          robots={assignedWonderRobots}
-          sessionState={selectedSession?.state ?? ""}
-          sessionArmed={selectedSession?.armed === true}
-          busy={busy !== null}
-          canSubmit={canSubmitCommands}
-          onCommand={(role, action, parameters, label) =>
-            void sendWonderCommand(role, action, parameters, label)
-          }
-          t={t}
-        />
-      ),
-    });
-  }
-  if (assignedDrones.length > 0) {
-    deviceControlSections.push({
-      kind: "drone",
-      label: t("deviceControls.drone"),
-      deviceCount: assignedDrones.length,
-      content: (
-        <FabricDronePanel
-          drones={assignedDrones}
-          busy={busy !== null}
-          canSubmit={canSubmitCommands}
-          onLand={(role) => void setDroneSafeState(role, false)}
-          onEmergencyStop={(role) => void setDroneSafeState(role, true)}
-          t={t}
-        />
-      ),
-    });
-  }
-  if (smartPlugNodes.length > 0) {
-    deviceControlSections.push({
-      kind: "smart_plug",
-      label: t("deviceControls.smartPlug"),
-      deviceCount: smartPlugNodes.length,
-      content: (
-        <FabricSmartPlugPanel
-          connectedPlugCount={smartPlugNodes.length}
-          plugs={assignedSmartPlugs}
-          sessionState={selectedSession?.state ?? ""}
-          sessionMode={selectedSession?.mode}
-          sessionArmed={selectedSession?.armed === true}
-          busy={busy !== null}
-          canSubmit={canSubmitCommands}
-          canManageSession={canManageSessions}
-          canOpenControls={
-            preferredSmartPlugSession !== undefined ||
-            (canManageSessions && canAssignRoles)
-          }
-          requiredRolesReady={requiredRolesReady}
-          onOpenControls={() => void openSmartPlugControls()}
-          onEnableControls={() => void enableAndStartSmartPlugControls()}
-          onPower={(role, on) => void setSmartPlugPower(role, on)}
-          locale={locale}
-          t={t}
-        />
-      ),
-    });
-  }
+  const inlineControlsForIntegration = (
+    integration: FabricIntegrationDiscovery,
+    connectedNodes: IntegrationNode[],
+  ): ReactNode => {
+    const connectedNodeIds = new Set(connectedNodes.map((node) => node.nodeId));
+    switch (integration.integrationId) {
+      case "matter-smart-plugs":
+        return (
+          <FabricSmartPlugPanel
+            plugs={assignedSmartPlugs.filter(({ node }) =>
+              connectedNodeIds.has(node.nodeId),
+            )}
+            sessionState={smartPlugControlSession?.state ?? ""}
+            sessionMode={smartPlugControlSession?.mode}
+            sessionArmed={smartPlugControlSession?.armed === true}
+            busy={busy !== null}
+            canSubmit={canSubmitCommands}
+            canManageSession={
+              canManageSessions &&
+              (smartPlugControlSession !== undefined || canAssignRoles)
+            }
+            requiredRolesReady={assignedSmartPlugs.length > 0}
+            onPower={(role, on) => void setSmartPlugPower(role, on)}
+            locale={locale}
+            t={t}
+          />
+        );
+      case "sphero-bolt":
+      case "sphero-ollie":
+        return (
+          <FabricSpheroPanel
+            robots={assignedSpheroRobots.filter(({ node }) =>
+              connectedNodeIds.has(node.nodeId),
+            )}
+            variant={
+              integration.integrationId === "sphero-ollie" ? "ollie" : "bolt"
+            }
+            sessionState={spheroControlSession?.state ?? ""}
+            sessionArmed={spheroControlSession?.armed === true}
+            busy={busy !== null}
+            canSubmit={canSubmitCommands}
+            canManageSession={
+              canManageSessions &&
+              (spheroControlSession !== undefined || canAssignRoles)
+            }
+            onCommand={(role, action, parameters, label) =>
+              void sendSpheroCommand(role, action, parameters, label)
+            }
+            t={t}
+          />
+        );
+      case "wonder-workshop-dash-dot":
+        return (
+          <FabricWonderWorkshopPanel
+            robots={assignedWonderRobots.filter(({ node }) =>
+              connectedNodeIds.has(node.nodeId),
+            )}
+            sessionState={selectedSession?.state ?? ""}
+            sessionArmed={selectedSession?.armed === true}
+            busy={busy !== null}
+            canSubmit={canSubmitCommands}
+            canManageSession={canManageSessions}
+            onCommand={(role, action, parameters, label) =>
+              void sendWonderCommand(role, action, parameters, label)
+            }
+            t={t}
+          />
+        );
+      case "tello-drones":
+        return (
+          <>
+            <FabricDronePanel
+              drones={assignedDrones.filter(({ node }) =>
+                connectedNodeIds.has(node.nodeId),
+              )}
+              sessionState={telloControlSession?.state ?? ""}
+              sessionArmed={telloControlSession?.armed === true}
+              busy={busy !== null}
+              canSubmit={canSubmitCommands}
+              canManageSession={
+                canManageSessions &&
+                (telloControlSession !== undefined || canAssignRoles)
+              }
+              safetyConfirmed={safetyConfirmed}
+              onSafetyConfirmedChange={updateSafetyConfirmation}
+              onCommand={(role, action, parameters, label) =>
+                void sendTelloCommand(role, action, parameters, label)
+              }
+              t={t}
+            />
+            {fleetSequenceController !== undefined &&
+              fleetControlSession !== undefined && (
+                <FabricFleetSequencePanel
+                  controllerName={fleetSequenceController.displayName}
+                  simulated={fleetSequenceController.simulated}
+                  {...(fleetSequenceStatus === undefined
+                    ? {}
+                    : { status: fleetSequenceStatus })}
+                  inputNodes={fleetSequenceInputNodes}
+                  sessionState={fleetControlSession.state}
+                  sessionArmed={fleetControlSession.armed === true}
+                  busy={busy !== null}
+                  canSubmit={canSubmitCommands}
+                  canManageSession={canManageSessions}
+                  safetyConfirmed={safetyConfirmed}
+                  onSafetyConfirmedChange={updateSafetyConfirmation}
+                  onArm={(settings) => void armFleetSequence(settings)}
+                  onLaunch={(settings) => void launchFleetSequence(settings)}
+                  onStart={() => void startFleetSequence()}
+                  onStop={() => void stopFleetSequence()}
+                  locale={locale}
+                  t={t}
+                />
+              )}
+          </>
+        );
+      case "leap-motion":
+        return (
+          <FabricLeapPanel
+            client={client}
+            sessionId={selectedSession?.sessionId}
+            nodes={connectedNodes}
+            locale={locale}
+            t={t}
+          />
+        );
+      default:
+        return undefined;
+    }
+  };
 
   const renderDiscoveryCards = (
     integrations: FabricIntegrationDiscovery[],
     emptyMessage: string,
   ) => (
     <div className="fabric-discovery-grid">
-      {integrations.map((integration) => (
-        <FabricDiscoveryCard
-          key={integration.integrationId}
-          integration={integration}
-          t={t}
-          busy={busy}
-          canConnect={discoveryConnectionsEnabled}
-          groundedConfirmed={
-            groundedConfirmations[integration.integrationId] === true
-          }
-          onGroundedChange={(confirmed) =>
-            setGroundedConfirmations((current) => ({
-              ...current,
-              [integration.integrationId]: confirmed,
-            }))
-          }
-          onConnect={() => void connectDiscovered(integration)}
-          onCopySetup={() => void copySetupCommand(integration)}
-          onMatterCommission={commissionMatterPlug}
-          onMatterWifiConfigure={configureMatterWifi}
-          onOpenSmartPlugControls={() => void openSmartPlugControls()}
-          onOpenSpheroControls={() => void openSpheroControls()}
-          onLegoConnect={(configuration) => void connectLegoHub(configuration)}
-          onWonderConnect={(robots) => void connectWonderWorkshop(robots)}
-          onSpheroConnect={(robots) => void connectSpheroBolts(robots)}
-          canControlSmartPlugs={
-            canSubmitCommands &&
-            (preferredSmartPlugSession !== undefined ||
-              (canManageSessions && canAssignRoles))
-          }
-          canControlSphero={
-            canSubmitCommands &&
-            (preferredSpheroSession !== undefined ||
-              (canManageSessions && canAssignRoles))
-          }
-        />
-      ))}
+      {integrations.map((integration) => {
+        const connectedNodes = integration.connectedNodeIds.flatMap(
+          (nodeId) => {
+            const node = availableNodes.find(
+              (candidate) => candidate.nodeId === nodeId,
+            );
+            return node === undefined ? [] : [node];
+          },
+        );
+        return (
+          <FabricDiscoveryCard
+            key={integration.integrationId}
+            integration={integration}
+            connectedNodes={connectedNodes}
+            readings={sensorReadings}
+            inlineControls={inlineControlsForIntegration(
+              integration,
+              connectedNodes,
+            )}
+            locale={locale}
+            t={t}
+            busy={busy}
+            {...(integrationActionFeedback?.integrationId ===
+            integration.integrationId
+              ? { actionFeedback: integrationActionFeedback }
+              : {})}
+            canConnect={discoveryConnectionsEnabled}
+            groundedConfirmed={
+              !integration.requiresGroundedConfirmation ||
+              aircraftGroundedConfirmed
+            }
+            onScan={() => void scanIntegration(integration)}
+            onConnect={() => void connectDiscovered(integration)}
+            onCopySetup={() => void copySetupCommand(integration)}
+            onMatterCommission={commissionMatterPlug}
+            onMatterWifiConfigure={configureMatterWifi}
+            onLegoConnect={(configuration) =>
+              void connectLegoHub(configuration)
+            }
+            onWonderConnect={(robots) => void connectWonderWorkshop(robots)}
+            onSpheroConnect={(robots) => void connectSpheroBolts(robots)}
+            onSpheroOllieConnect={(robots) => void connectSpheroOllies(robots)}
+          />
+        );
+      })}
       {integrations.length === 0 && (
         <p className="fabric-empty fabric-tier-empty">{emptyMessage}</p>
       )}
@@ -2012,7 +2561,16 @@ export function FabricConsole() {
           <h1>{t("header.title")}</h1>
         </div>
         <FabricLanguageSwitch locale={locale} onChange={setLocale} t={t} />
-        <a className="fabric-install-link" href="#install-another-pc">
+        <a
+          className="fabric-install-link"
+          href="#install-another-pc"
+          onClick={() => {
+            const installation = document.getElementById("install-another-pc");
+            if (installation instanceof HTMLDetailsElement) {
+              installation.open = true;
+            }
+          }}
+        >
           {t("header.installAnother")}
         </a>
         <div className="fabric-identity">
@@ -2025,16 +2583,6 @@ export function FabricConsole() {
             {t("header.signOut")}
           </button>
         </div>
-        <button
-          className="fabric-device-controls-launch"
-          type="button"
-          aria-haspopup="dialog"
-          disabled={deviceControlKinds.length === 0 || busy !== null}
-          onClick={() => showDeviceControls()}
-        >
-          <span>{t("deviceControls.open")}</span>
-          <strong>{controlledDeviceCount}</strong>
-        </button>
         <button
           className="fabric-emergency"
           type="button"
@@ -2059,51 +2607,17 @@ export function FabricConsole() {
           </div>
         )}
 
-        <section className="fabric-next-step" aria-labelledby="next-step-title">
-          <div className="fabric-guide-copy">
-            <p className="eyebrow">{t("header.nextStep")}</p>
-            <h2 id="next-step-title">{guide.title}</h2>
-            <p>{guide.description}</p>
-            <button
-              className="fabric-guide-jump"
-              type="button"
-              onClick={() =>
-                document
-                  .getElementById(guide.targetId)
-                  ?.scrollIntoView({ behavior: "smooth", block: "start" })
-              }
-            >
-              {guide.actionLabel}
-              <span aria-hidden="true">↓</span>
-            </button>
-          </div>
-          <ol className="fabric-steps" aria-label={t("guide.progress")}>
-            {[
-              t("guide.step.find"),
-              t("guide.step.choose"),
-              t("guide.step.assign"),
-              t("guide.step.safety"),
-              t("guide.step.teach"),
-            ].map((label, index) => {
-              const step = index + 1;
-              return (
-                <li
-                  className={
-                    step < guide.step
-                      ? "is-complete"
-                      : step === guide.step
-                        ? "is-current"
-                        : undefined
-                  }
-                  key={label}
-                >
-                  <span>{step < guide.step ? "✓" : step}</span>
-                  <strong>{label}</strong>
-                </li>
-              );
-            })}
-          </ol>
-        </section>
+        <FabricSetupProgress
+          ariaLabel={t("guide.progress")}
+          currentStep={guide.step}
+          steps={[
+            { label: t("guide.step.find"), targetId: "device-discovery" },
+            { label: t("guide.step.choose"), targetId: "lesson-setup" },
+            { label: t("guide.step.assign"), targetId: "device-setup" },
+            { label: t("guide.step.safety"), targetId: "lesson-safety" },
+            { label: t("guide.step.teach"), targetId: "live-controls" },
+          ]}
+        />
 
         <section
           className="fabric-panel fabric-discovery-panel"
@@ -2113,8 +2627,14 @@ export function FabricConsole() {
           <div className="fabric-discovery-heading">
             <div>
               <p className="eyebrow">{t("discovery.step")}</p>
-              <h2 id="device-discovery-title">{t("discovery.title")}</h2>
-              <p className="fabric-panel-intro">{t("discovery.intro")}</p>
+              <div className="fabric-title-with-info">
+                <h2 id="device-discovery-title">{t("discovery.title")}</h2>
+                <FabricInfoDisclosure label={t("common.moreInfo")}>
+                  <p>{t("discovery.intro")}</p>
+                  <strong>{t("discovery.safeTitle")}</strong>
+                  <p>{t("discovery.safeBody")}</p>
+                </FabricInfoDisclosure>
+              </div>
             </div>
             <button
               className="fabric-primary-action fabric-find-devices"
@@ -2129,129 +2649,93 @@ export function FabricConsole() {
             </button>
           </div>
 
-          <div className="fabric-discovery-safety">
-            <span aria-hidden="true">✓</span>
-            <div>
-              <strong>{t("discovery.safeTitle")}</strong>
-              <p>{t("discovery.safeBody")}</p>
-            </div>
-          </div>
+          {showAircraftGroundedConfirmation && (
+            <label className="fabric-grounded-confirmation fabric-shared-grounded-confirmation">
+              <input
+                type="checkbox"
+                checked={aircraftGroundedConfirmed}
+                onChange={(event) => {
+                  const confirmed = event.target.checked;
+                  setAircraftGroundedConfirmed(confirmed);
+                  saveAircraftGroundedConfirmation(confirmed);
+                }}
+              />
+              <span>{t("discovery.aircraftGrounded")}</span>
+            </label>
+          )}
 
-          {rememberedConnections !== null &&
-            rememberedConnections.connections.length > 0 && (
-              <div className="fabric-connect-all fabric-remembered-connect">
-                <div>
-                  <strong>
-                    {t("discovery.rememberedReady", {
-                      count: rememberedConnections.connections.length,
-                    })}
-                  </strong>
-                  <p>{t("discovery.rememberedHelp")}</p>
-                  <div className="fabric-remembered-options">
-                    <label className="fabric-auto-reconnect">
-                      <input
-                        type="checkbox"
-                        checked={autoReconnectRemembered}
-                        onChange={(event) => {
-                          const enabled = event.target.checked;
-                          saveAutoReconnectRemembered(enabled);
-                          setAutoReconnectRemembered(enabled);
-                          if (!enabled) autoReconnectAttempted.current = false;
-                        }}
-                      />
-                      <span>{t("discovery.autoReconnectRemembered")}</span>
-                    </label>
-                    {rememberedRequiresGroundedConfirmation && (
-                      <label className="fabric-grounded-confirmation">
-                        <input
-                          type="checkbox"
-                          checked={rememberedAircraftGrounded}
-                          onChange={(event) =>
-                            setRememberedAircraftGrounded(event.target.checked)
-                          }
-                        />
-                        <span>{t("discovery.aircraftGrounded")}</span>
-                      </label>
-                    )}
+          <div className="fabric-discovery-connect-grid">
+            {rememberedConnections !== null &&
+              rememberedConnections.connections.length > 0 && (
+                <div className="fabric-connect-all fabric-remembered-connect">
+                  <div>
+                    <div className="fabric-compact-title">
+                      <strong>
+                        {t("discovery.rememberedReady", {
+                          count: rememberedConnections.connections.length,
+                        })}
+                      </strong>
+                      <FabricInfoDisclosure label={t("common.moreInfo")}>
+                        <p>{t("discovery.rememberedHelp")}</p>
+                      </FabricInfoDisclosure>
+                    </div>
                   </div>
-                  {rememberedRequiresGroundedConfirmation && (
-                    <small className="fabric-remembered-aircraft-note">
-                      {t("discovery.rememberedAircraftAutoSkip")}
+                  <button
+                    className="fabric-primary-action fabric-connect-all-button"
+                    type="button"
+                    disabled={!discoveryConnectionsEnabled || busy !== null}
+                    onClick={() =>
+                      void reconnectRememberedDevices(aircraftGroundedConfirmed)
+                    }
+                  >
+                    {busy?.key === "busy.connectingRemembered"
+                      ? t("discovery.reconnectingRemembered")
+                      : t("discovery.connectRemembered")}
+                    <small>
+                      {discovery?.physicalActuationEnabled
+                        ? t("discovery.rememberedNoScan")
+                        : t("discovery.startHost")}
                     </small>
-                  )}
+                  </button>
+                </div>
+              )}
+
+            {connectableIntegrations.length > 0 && (
+              <div className="fabric-connect-all">
+                <div>
+                  <div className="fabric-compact-title">
+                    <strong>
+                      {t("discovery.connectionsReady", {
+                        count: connectableIntegrations.length,
+                      })}
+                    </strong>
+                    <FabricInfoDisclosure label={t("common.moreInfo")}>
+                      <p>{t("discovery.connectAllHelp")}</p>
+                    </FabricInfoDisclosure>
+                  </div>
                 </div>
                 <button
                   className="fabric-primary-action fabric-connect-all-button"
                   type="button"
-                  disabled={!discoveryConnectionsEnabled || busy !== null}
-                  onClick={() =>
-                    void reconnectRememberedDevices(rememberedAircraftGrounded)
+                  disabled={
+                    !discoveryConnectionsEnabled ||
+                    busy !== null ||
+                    !allAircraftGrounded
                   }
+                  onClick={() => void connectAllDiscovered()}
                 >
-                  {busy?.key === "busy.connectingRemembered"
-                    ? t("discovery.reconnectingRemembered")
-                    : t("discovery.connectRemembered")}
+                  {busy?.key === "busy.connectingAll"
+                    ? t("discovery.connecting")
+                    : t("discovery.connectAll")}
                   <small>
                     {discovery?.physicalActuationEnabled
-                      ? t("discovery.rememberedNoScan")
+                      ? t("discovery.offState")
                       : t("discovery.startHost")}
                   </small>
                 </button>
               </div>
             )}
-
-          {connectableIntegrations.length > 0 && (
-            <div className="fabric-connect-all">
-              <div>
-                <strong>
-                  {t("discovery.connectionsReady", {
-                    count: connectableIntegrations.length,
-                  })}
-                </strong>
-                <p>{t("discovery.connectAllHelp")}</p>
-                {groundedConnections.length > 0 && (
-                  <label className="fabric-grounded-confirmation">
-                    <input
-                      type="checkbox"
-                      checked={allAircraftGrounded}
-                      onChange={(event) => {
-                        const confirmed = event.target.checked;
-                        setGroundedConfirmations((current) => ({
-                          ...current,
-                          ...Object.fromEntries(
-                            groundedConnections.map((integration) => [
-                              integration.integrationId,
-                              confirmed,
-                            ]),
-                          ),
-                        }));
-                      }}
-                    />
-                    <span>{t("discovery.aircraftGrounded")}</span>
-                  </label>
-                )}
-              </div>
-              <button
-                className="fabric-primary-action fabric-connect-all-button"
-                type="button"
-                disabled={
-                  !discoveryConnectionsEnabled ||
-                  busy !== null ||
-                  !allAircraftGrounded
-                }
-                onClick={() => void connectAllDiscovered()}
-              >
-                {busy?.key === "busy.connectingAll"
-                  ? t("discovery.connecting")
-                  : t("discovery.connectAll")}
-                <small>
-                  {discovery?.physicalActuationEnabled
-                    ? t("discovery.offState")
-                    : t("discovery.startHost")}
-                </small>
-              </button>
-            </div>
-          )}
+          </div>
 
           {discovery !== null && (
             <div className="fabric-discovery-meta">
@@ -2278,6 +2762,22 @@ export function FabricConsole() {
             </div>
           )}
 
+          <FabricSynchronizedMotionPanel
+            enabled={synchronizedMotionEnabled}
+            includeTello={includeTelloInSynchronizedMotion}
+            groundCount={controlledSpheroNodes.length}
+            telloCount={controlledTelloNodes.length}
+            availableInputs={synchronizedInputs}
+            busy={busy !== null}
+            canManage={canManageSessions && canAssignRoles && canSubmitCommands}
+            flightConfirmed={safetyConfirmed}
+            onEnabledChange={(enabled) => void setSynchronizedMotion(enabled)}
+            onIncludeTelloChange={setIncludeTelloInSynchronizedMotion}
+            onAssignInputs={() => void connectSynchronizedInputs()}
+            onMove={(direction) => void sendSynchronizedMotion(direction)}
+            t={t}
+          />
+
           {discovery === null ? (
             <div className="fabric-empty-state fabric-discovery-loading">
               <span aria-hidden="true">…</span>
@@ -2286,140 +2786,49 @@ export function FabricConsole() {
             </div>
           ) : (
             <>
-              <nav
-                className="fabric-readiness-overview"
-                aria-label={t("discovery.readinessOverview")}
-              >
-                {discoveryTierOrder.map((kind) => {
-                  const tier = discoveryTierPresentation[kind];
-                  return (
-                    <button
-                      className={`fabric-readiness-jump is-${kind}`}
-                      type="button"
-                      key={kind}
-                      onClick={() => {
-                        const target = document.getElementById(
-                          `device-tier-${kind}`,
-                        );
-                        if (target instanceof HTMLDetailsElement) {
-                          target.open = true;
-                        }
-                        target?.scrollIntoView({
-                          behavior: "smooth",
-                          block: "start",
-                        });
-                      }}
-                    >
-                      <span aria-hidden="true">{tier.marker}</span>
-                      <div>
-                        <strong>{tier.title}</strong>
-                        <small>{tier.description}</small>
-                      </div>
-                      <b>{tier.count}</b>
-                    </button>
-                  );
-                })}
-              </nav>
-
               <div className="fabric-discovery-tiers">
-                {(["connected", "available"] as const).map((kind) => {
-                  const tier = discoveryTierPresentation[kind];
-                  return (
-                    <section
-                      className={`fabric-discovery-tier is-${kind}`}
-                      id={`device-tier-${kind}`}
-                      aria-labelledby={`device-tier-${kind}-title`}
-                      key={kind}
-                    >
-                      <header className="fabric-discovery-tier-heading">
-                        <span aria-hidden="true">{tier.marker}</span>
-                        <div>
-                          <h3 id={`device-tier-${kind}-title`}>{tier.title}</h3>
-                          <p>{tier.description}</p>
-                        </div>
-                        <strong
-                          aria-label={t("discovery.tier.count", {
-                            count: tier.count,
-                          })}
-                        >
-                          {tier.count}
-                        </strong>
-                      </header>
-                      {renderDiscoveryCards(discoveryGroups[kind], tier.empty)}
-                    </section>
-                  );
-                })}
-
-                <details
-                  className="fabric-discovery-tier is-unavailable"
-                  id="device-tier-unavailable"
-                >
-                  <summary className="fabric-discovery-tier-heading">
-                    <span aria-hidden="true">
-                      {discoveryTierPresentation.unavailable.marker}
-                    </span>
-                    <div>
-                      <h3 id="device-tier-unavailable-title">
-                        {discoveryTierPresentation.unavailable.title}
-                      </h3>
-                      <p>{discoveryTierPresentation.unavailable.description}</p>
-                    </div>
-                    <strong
-                      aria-label={t("discovery.tier.count", {
-                        count: discoveryTierPresentation.unavailable.count,
-                      })}
-                    >
-                      {discoveryTierPresentation.unavailable.count}
-                    </strong>
-                    <i aria-hidden="true">⌄</i>
-                  </summary>
-                  {renderDiscoveryCards(
-                    discoveryGroups.unavailable,
-                    discoveryTierPresentation.unavailable.empty,
-                  )}
-                </details>
+                {(["connected", "available", "unavailable"] as const).map(
+                  (kind) => {
+                    const tier = discoveryTierPresentation[kind];
+                    const openByDefault = fabricDiscoveryTierOpenByDefault(
+                      kind,
+                      discoveryGroups.connected.length,
+                    );
+                    return (
+                      <details
+                        className={`fabric-discovery-tier is-${kind}`}
+                        id={`device-tier-${kind}`}
+                        aria-labelledby={`device-tier-${kind}-title`}
+                        open={openByDefault}
+                        key={`${kind}:${String(openByDefault)}`}
+                      >
+                        <summary className="fabric-discovery-tier-heading">
+                          <span aria-hidden="true">{tier.marker}</span>
+                          <div>
+                            <h3 id={`device-tier-${kind}-title`}>
+                              {tier.title}
+                            </h3>
+                          </div>
+                          <strong
+                            aria-label={t("discovery.tier.count", {
+                              count: tier.count,
+                            })}
+                          >
+                            {tier.count}
+                          </strong>
+                          <i aria-hidden="true">⌄</i>
+                        </summary>
+                        {renderDiscoveryCards(
+                          discoveryGroups[kind],
+                          tier.empty,
+                        )}
+                      </details>
+                    );
+                  },
+                )}
               </div>
             </>
           )}
-        </section>
-
-        <section
-          className="fabric-overview"
-          aria-label={t("overview.lessonStatus")}
-        >
-          <FabricMetric
-            label={t("overview.devices")}
-            value={
-              availableNodes.length === 0
-                ? t("status.none")
-                : String(availableNodes.length)
-            }
-          />
-          <FabricMetric
-            label={t("overview.lesson")}
-            value={
-              selectedSession === undefined
-                ? sessions.length > 0
-                  ? t("status.selectLesson")
-                  : t("status.notSetUp")
-                : fabricCourseName(coursePacks, selectedSession, t)
-            }
-          />
-          <FabricMetric
-            label={t("overview.lessonStatus")}
-            value={fabricSessionState(selectedSession, t)}
-          />
-          <FabricMetric
-            label={t("overview.physical")}
-            value={
-              selectedSession?.mode === "physical"
-                ? selectedSession.armed
-                  ? t("status.enabled")
-                  : t("status.locked")
-                : t("status.locked")
-            }
-            warning={selectedSession?.armed === true}
-          />
         </section>
 
         <section className="fabric-grid fabric-setup-grid">
@@ -2431,7 +2840,6 @@ export function FabricConsole() {
               eyebrow={t("lesson.step2")}
               title={t("lesson.chooseTitle")}
             />
-            <p className="fabric-panel-intro">{t("lesson.choosePrompt")}</p>
             <div className="fabric-course-choices">
               {coursePacks.map((coursePack) => {
                 const key = courseKey(
@@ -2467,9 +2875,38 @@ export function FabricConsole() {
               })}
             </div>
             {selectedCourse !== undefined && (
-              <p className="fabric-course-description">
-                {fabricCourseText(selectedCourse, t).description}
-              </p>
+              <details className="fabric-lesson-overview">
+                <summary>
+                  <span aria-hidden="true">ⓘ</span>
+                  {t("lesson.overview")}
+                </summary>
+                <p>{fabricCourseText(selectedCourse, t).description}</p>
+              </details>
+            )}
+            {selectedCourse?.coursePackId === "glasses-device-control" && (
+              <section className="fabric-glasses-lesson-connect">
+                <div>
+                  <strong>{t("lesson.glassesControl.title")}</strong>
+                  <small>{t("lesson.glassesControl.body")}</small>
+                </div>
+                <button
+                  type="button"
+                  disabled={
+                    !canConnectDevices ||
+                    !canAssignRoles ||
+                    busy !== null ||
+                    selectedSession === undefined ||
+                    selectedSession.mode !== "physical"
+                  }
+                  onClick={() => void connectGlassesControlInputs()}
+                >
+                  {t("lesson.glassesControl.connect")}
+                </button>
+                {(selectedSession === undefined ||
+                  selectedSession.mode !== "physical") && (
+                  <small>{t("lesson.glassesControl.prepare")}</small>
+                )}
+              </section>
             )}
             <details className="fabric-settings">
               <summary>{t("lesson.settings")}</summary>
@@ -2545,7 +2982,6 @@ export function FabricConsole() {
               eyebrow={t("lesson.step3")}
               title={t("lesson.assignTitle")}
             />
-            <p className="fabric-panel-intro">{t("lesson.assignIntro")}</p>
             {selectedSession !== undefined && selectedCourse !== undefined ? (
               <>
                 <div className="fabric-role-groups">
@@ -2656,7 +3092,6 @@ export function FabricConsole() {
               <div className="fabric-empty-state">
                 <span aria-hidden="true">2</span>
                 <strong>{t("lesson.chooseFirst")}</strong>
-                <p>{t("lesson.matchesAppear")}</p>
               </div>
             )}
           </article>
@@ -2675,22 +3110,26 @@ export function FabricConsole() {
                 eyebrow={t("safety.step4")}
                 title={t("safety.title")}
               />
-              <strong>
-                {selectedSession === undefined
-                  ? t("safety.setupFirst")
-                  : selectedSession.mode === "simulation"
-                    ? t("safety.simulation")
-                    : selectedSession.armed
-                      ? t("safety.enabled")
-                      : t("safety.locked")}
-              </strong>
-              <p>
-                {selectedSession?.mode === "physical"
-                  ? requiresPositionSafetyConfirmation
-                    ? t("safety.physicalHelp")
-                    : t("safety.nonSpatialHelp")
-                  : t("safety.simulationHelp")}
-              </p>
+              <div className="fabric-compact-title fabric-safety-status">
+                <strong>
+                  {selectedSession === undefined
+                    ? t("safety.setupFirst")
+                    : selectedSession.mode === "simulation"
+                      ? t("safety.simulation")
+                      : selectedSession.armed
+                        ? t("safety.enabled")
+                        : t("safety.locked")}
+                </strong>
+                <FabricInfoDisclosure label={t("common.moreInfo")}>
+                  <p>
+                    {selectedSession?.mode === "physical"
+                      ? requiresPositionSafetyConfirmation
+                        ? t("safety.physicalHelp")
+                        : t("safety.nonSpatialHelp")
+                      : t("safety.simulationHelp")}
+                  </p>
+                </FabricInfoDisclosure>
+              </div>
             </div>
           </div>
 
@@ -2701,35 +3140,15 @@ export function FabricConsole() {
                 <input
                   type="checkbox"
                   checked={safetyConfirmed}
-                  onChange={(event) => setSafetyConfirmed(event.target.checked)}
+                  onChange={(event) =>
+                    updateSafetyConfirmation(event.target.checked)
+                  }
                 />
                 <span>{t("safety.confirm")}</span>
               </label>
             )}
 
           <div className="fabric-session-actions">
-            {selectedSession?.mode === "physical" &&
-              !selectedSession.armed &&
-              requiresArmingForStart && (
-                <button
-                  className="fabric-enable-physical"
-                  type="button"
-                  disabled={
-                    !canManageSessions ||
-                    busy !== null ||
-                    !requiredRolesReady ||
-                    (requiresPositionSafetyConfirmation && !safetyConfirmed) ||
-                    !["ready", "paused", "active"].includes(
-                      selectedSession.state,
-                    )
-                  }
-                  onClick={() => void enablePhysicalControls()}
-                >
-                  {selectedSession.state === "active"
-                    ? t("safety.pauseEnable")
-                    : t("safety.enable")}
-                </button>
-              )}
             {selectedSession?.armed && (
               <button
                 type="button"
@@ -2747,11 +3166,11 @@ export function FabricConsole() {
                 busy !== null ||
                 !requiredRolesReady ||
                 !["ready", "paused"].includes(selectedSession?.state ?? "") ||
-                (selectedSession?.mode === "physical" &&
-                  selectedSession.armed !== true &&
-                  requiresArmingForStart)
+                (requiresPositionSafetyConfirmation &&
+                  selectedSession?.armed !== true &&
+                  !safetyConfirmed)
               }
-              onClick={() => void changeSessionState("start")}
+              onClick={() => void startSelectedSession()}
             >
               {selectedSession?.state === "paused"
                 ? t("safety.resume")
@@ -2785,11 +3204,6 @@ export function FabricConsole() {
 
         <section className="fabric-panel fabric-test-panel" id="live-controls">
           <PanelHeading eyebrow={t("test.step5")} title={t("test.title")} />
-          <p className="fabric-panel-intro">
-            {selectedSession?.state === "active"
-              ? t("test.runningHelp")
-              : t("test.waitingHelp")}
-          </p>
           <div className="fabric-test-actions">
             {(selectedCourse?.flows.length ?? 0) > 0 && (
               <button
@@ -2872,180 +3286,169 @@ export function FabricConsole() {
           </div>
         </section>
 
-        {canReadMedia && (
-          <section className="fabric-panel fabric-media-panel">
-            <PanelHeading
-              eyebrow={t("media.eyebrow")}
-              title={t("media.title")}
-            />
-            <p className="fabric-help">{t("media.intro")}</p>
-            {canPairMedia && (
-              <div className="fabric-camera-pairing">
-                <div>
-                  <strong>{t("media.connectMeta")}</strong>
-                  <span>{t("media.connectMetaHelp")}</span>
-                </div>
-                {mediaPairing === null ? (
-                  <button
-                    type="button"
-                    disabled={busy !== null}
-                    onClick={() => void startMetaCameraPairing()}
-                  >
-                    {t("media.createPairing")}
-                  </button>
-                ) : (
-                  <div className="fabric-camera-pairing-details">
-                    <ol>
-                      <li>{t("media.pairStep1")}</li>
-                      <li>{t("media.pairStep2")}</li>
-                      <li>{t("media.pairStep3")}</li>
-                    </ol>
-                    <label>
-                      {t("media.address")}
-                      <span>
-                        <input readOnly value={mediaPairing.fabricOrigin} />
+        <details className="fabric-collapsible-section fabric-lesson-materials">
+          <summary>
+            <div>
+              <strong>{t("lesson.materials")}</strong>
+              <span>{t("lesson.materialsSummary")}</span>
+            </div>
+            <i aria-hidden="true">⌄</i>
+          </summary>
+          <div className="fabric-collapsible-section-content">
+            {canReadMedia && (
+              <section className="fabric-panel fabric-media-panel">
+                <PanelHeading
+                  eyebrow={t("media.eyebrow")}
+                  title={t("media.title")}
+                />
+                <p className="fabric-help">{t("media.intro")}</p>
+                {canPairMedia && (
+                  <div className="fabric-camera-pairing">
+                    <div>
+                      <strong>{t("media.connectMeta")}</strong>
+                      <span>{t("media.connectMetaHelp")}</span>
+                    </div>
+                    {mediaPairing === null ? (
+                      <button
+                        type="button"
+                        disabled={busy !== null}
+                        onClick={() => void startMetaCameraPairing()}
+                      >
+                        {t("media.createPairing")}
+                      </button>
+                    ) : (
+                      <div className="fabric-camera-pairing-details">
+                        <ol>
+                          <li>{t("media.pairStep1")}</li>
+                          <li>{t("media.pairStep2")}</li>
+                          <li>{t("media.pairStep3")}</li>
+                        </ol>
+                        <label>
+                          {t("media.address")}
+                          <span>
+                            <input readOnly value={mediaPairing.fabricOrigin} />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void copyMediaPairingValue(
+                                  mediaPairing.fabricOrigin,
+                                  t("media.address"),
+                                )
+                              }
+                            >
+                              {t("media.copy")}
+                            </button>
+                          </span>
+                        </label>
+                        <label>
+                          {t("media.code")}
+                          <span>
+                            <input readOnly value={mediaPairing.pairingCode} />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                void copyMediaPairingValue(
+                                  mediaPairing.pairingCode,
+                                  t("media.code"),
+                                )
+                              }
+                            >
+                              {t("media.copy")}
+                            </button>
+                          </span>
+                        </label>
+                        <small>
+                          {t("media.expiry", {
+                            time: fabricFormatTime(
+                              mediaPairing.expiresAt,
+                              locale,
+                            ),
+                            site: mediaPairing.siteId,
+                            room: mediaPairing.roomId,
+                          })}
+                        </small>
                         <button
                           type="button"
-                          onClick={() =>
-                            void copyMediaPairingValue(
-                              mediaPairing.fabricOrigin,
-                              t("media.address"),
-                            )
-                          }
+                          disabled={busy !== null}
+                          onClick={() => void startMetaCameraPairing()}
                         >
-                          {t("media.copy")}
+                          {t("media.replaceCode")}
                         </button>
-                      </span>
-                    </label>
-                    <label>
-                      {t("media.code")}
-                      <span>
-                        <input readOnly value={mediaPairing.pairingCode} />
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void copyMediaPairingValue(
-                              mediaPairing.pairingCode,
-                              t("media.code"),
-                            )
-                          }
-                        >
-                          {t("media.copy")}
-                        </button>
-                      </span>
-                    </label>
-                    <small>
-                      {t("media.expiry", {
-                        time: fabricFormatTime(mediaPairing.expiresAt, locale),
-                        site: mediaPairing.siteId,
-                        room: mediaPairing.roomId,
-                      })}
-                    </small>
-                    <button
-                      type="button"
-                      disabled={busy !== null}
-                      onClick={() => void startMetaCameraPairing()}
-                    >
-                      {t("media.replaceCode")}
-                    </button>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
-            {mediaSources.length === 0 ? (
-              <div className="fabric-empty fabric-media-empty">
-                <strong>{t("media.none")}</strong>
-                <span>{t("media.noneHelp")}</span>
-              </div>
-            ) : (
-              <div className="fabric-media-grid">
-                {mediaSources.map((source) => (
-                  <MediaFeedCard
-                    key={source.sourceId}
-                    source={source}
-                    client={client}
-                    locale={locale}
-                    t={t}
-                    busy={busy !== null}
-                    canAnalyze={canAnalyzeVision}
-                    canTurnPlugOn={canTurnSmartPlugOn}
-                    canTurnPlugOff={canTurnSmartPlugOff}
-                    smartPlugName={selectedSmartPlug?.displayName}
-                    onAnalyze={() => void analyzeMediaSource(source)}
-                    onPower={(on) =>
-                      void setSmartPlugPower("classroom_plug", on)
-                    }
-                  />
-                ))}
-              </div>
-            )}
-            <p className="fabric-privacy-note">{t("media.privacy")}</p>
-          </section>
-        )}
-
-        {leapNodes.length > 0 && (
-          <FabricLeapPanel
-            client={client}
-            sessionId={selectedSession?.sessionId}
-            nodes={leapNodes}
-            locale={locale}
-            t={t}
-          />
-        )}
-
-        <section className="fabric-panel fabric-sensor-panel">
-          <PanelHeading
-            eyebrow={t("sensor.eyebrow")}
-            title={t("sensor.title")}
-          />
-          <p className="fabric-help">{t("sensor.intro")}</p>
-          {sensorReadings.length === 0 ? (
-            <div className="fabric-empty">{t("sensor.none")}</div>
-          ) : (
-            <div className="fabric-sensor-grid">
-              {sensorReadings.map((reading) => (
-                <article className="fabric-sensor-card" key={reading.key}>
-                  <header>
-                    <strong>
-                      {fabricCapabilityName(reading.topic, locale)}
-                    </strong>
-                    <span>{fabricFormatTime(reading.observedAt, locale)}</span>
-                  </header>
-                  <div className="fabric-sensor-values">
-                    {reading.values.map((value) => (
-                      <div key={value.label}>
-                        <span>{value.label}</span>
-                        <strong>{value.value}</strong>
-                      </div>
+                {mediaSources.length === 0 ? (
+                  <div className="fabric-empty fabric-media-empty">
+                    <strong>{t("media.none")}</strong>
+                    <span>{t("media.noneHelp")}</span>
+                  </div>
+                ) : (
+                  <div className="fabric-media-grid">
+                    {mediaSources.map((source) => (
+                      <MediaFeedCard
+                        key={source.sourceId}
+                        source={source}
+                        client={client}
+                        locale={locale}
+                        t={t}
+                        busy={busy !== null}
+                        canAnalyze={canAnalyzeVision}
+                        canTurnPlugOn={canTurnSmartPlugOn}
+                        canTurnPlugOff={canTurnSmartPlugOff}
+                        smartPlugName={selectedSmartPlug?.displayName}
+                        onAnalyze={() => void analyzeMediaSource(source)}
+                        onPower={(on) =>
+                          void setSmartPlugPower("classroom_plug", on)
+                        }
+                      />
                     ))}
                   </div>
-                  <small>{nodeDisplayName(nodes, reading.sourceNodeId)}</small>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
+                )}
+                <p className="fabric-privacy-note">{t("media.privacy")}</p>
+              </section>
+            )}
 
-        {fleetSequenceController !== undefined &&
-          selectedSession !== undefined && (
-            <FabricFleetSequencePanel
-              controllerName={fleetSequenceController.displayName}
-              simulated={fleetSequenceController.simulated}
-              {...(fleetSequenceStatus === undefined
-                ? {}
-                : { status: fleetSequenceStatus })}
-              inputNodes={fleetSequenceInputNodes}
-              sessionState={selectedSession.state}
-              sessionArmed={selectedSession.armed === true}
-              busy={busy !== null}
-              canSubmit={canSubmitCommands}
-              onArm={(settings) => void armFleetSequence(settings)}
-              onStart={() => void startFleetSequence()}
-              onStop={() => void stopFleetSequence()}
-              locale={locale}
-              t={t}
-            />
-          )}
+            <section className="fabric-panel fabric-sensor-panel">
+              <PanelHeading
+                eyebrow={t("sensor.eyebrow")}
+                title={t("sensor.title")}
+              />
+              <FabricInfoDisclosure label={t("common.moreInfo")}>
+                <p>{t("sensor.intro")}</p>
+              </FabricInfoDisclosure>
+              {sensorReadings.length === 0 ? (
+                <div className="fabric-empty">{t("sensor.none")}</div>
+              ) : (
+                <div className="fabric-sensor-grid">
+                  {sensorReadings.map((reading) => (
+                    <article className="fabric-sensor-card" key={reading.key}>
+                      <header>
+                        <strong>
+                          {fabricCapabilityName(reading.topic, locale)}
+                        </strong>
+                        <span>
+                          {fabricFormatTime(reading.observedAt, locale)}
+                        </span>
+                      </header>
+                      <div className="fabric-sensor-values">
+                        {reading.values.map((value) => (
+                          <div key={value.label}>
+                            <span>{value.label}</span>
+                            <strong>{value.value}</strong>
+                          </div>
+                        ))}
+                      </div>
+                      <small>
+                        {nodeDisplayName(nodes, reading.sourceNodeId)}
+                      </small>
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
+        </details>
 
         {brainDemoController !== undefined && selectedSession !== undefined && (
           <FabricBrainDemoPanel
@@ -3058,6 +3461,9 @@ export function FabricConsole() {
             sessionArmed={selectedSession.armed === true}
             busy={busy !== null}
             canSubmit={canSubmitCommands}
+            canManageSession={canManageSessions}
+            safetyConfirmed={safetyConfirmed}
+            onSafetyConfirmedChange={updateSafetyConfirmation}
             onArm={(settings) => void armBrainDemo(settings)}
             onStop={() => void stopBrainDemo()}
             locale={locale}
@@ -3065,33 +3471,40 @@ export function FabricConsole() {
           />
         )}
 
-        <section className="fabric-panel fabric-node-panel">
-          <PanelHeading eyebrow={t("nodes.eyebrow")} title={t("nodes.title")} />
-          <p className="fabric-help">{t("nodes.intro")}</p>
-          <div className="fabric-io-groups">
-            <FabricNodeGroup
-              kind="input"
-              title={t("io.input.label")}
-              description={t("io.input.discovery")}
-              nodes={nodeGroups.input}
-              t={t}
-            />
-            <FabricNodeGroup
-              kind="bidirectional"
-              title={t("io.bidirectional.label")}
-              description={t("io.bidirectional.discovery")}
-              nodes={nodeGroups.bidirectional}
-              t={t}
-            />
-            <FabricNodeGroup
-              kind="output"
-              title={t("io.output.label")}
-              description={t("io.output.discovery")}
-              nodes={nodeGroups.output}
-              t={t}
-            />
+        <details className="fabric-collapsible-section fabric-node-directory">
+          <summary>
+            <div>
+              <strong>{t("nodes.title")}</strong>
+              <span>{t("nodes.directorySummary")}</span>
+            </div>
+            <i aria-hidden="true">⌄</i>
+          </summary>
+          <div className="fabric-collapsible-section-content">
+            <div className="fabric-io-groups">
+              <FabricNodeGroup
+                kind="input"
+                title={t("io.input.label")}
+                description={t("io.input.discovery")}
+                nodes={nodeGroups.input}
+                t={t}
+              />
+              <FabricNodeGroup
+                kind="bidirectional"
+                title={t("io.bidirectional.label")}
+                description={t("io.bidirectional.discovery")}
+                nodes={nodeGroups.bidirectional}
+                t={t}
+              />
+              <FabricNodeGroup
+                kind="output"
+                title={t("io.output.label")}
+                description={t("io.output.discovery")}
+                nodes={nodeGroups.output}
+                t={t}
+              />
+            </div>
           </div>
-        </section>
+        </details>
 
         <FabricInstallationPanel
           info={installation}
@@ -3205,14 +3618,6 @@ export function FabricConsole() {
           )}
         </details>
       </main>
-      <FabricDeviceControlModal
-        open={deviceControlsOpen && activeDeviceControlKind !== undefined}
-        activeKind={activeDeviceControlKind}
-        sections={deviceControlSections}
-        onActiveKindChange={setRequestedDeviceControlKind}
-        onClose={() => setDeviceControlsOpen(false)}
-        t={t}
-      />
     </div>
   );
 }
@@ -3305,23 +3710,6 @@ function PanelHeading({ eyebrow, title }: { eyebrow: string; title: string }) {
   );
 }
 
-function FabricMetric({
-  label,
-  value,
-  warning = false,
-}: {
-  label: string;
-  value: string;
-  warning?: boolean;
-}) {
-  return (
-    <div className={warning ? "is-warning" : undefined}>
-      <small>{label}</small>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
 function FabricLanguageSwitch({
   locale,
   onChange,
@@ -3352,83 +3740,142 @@ function FabricLanguageSwitch({
   );
 }
 
-function FabricDiscoveryCard({
+export function FabricDiscoveryCard({
   integration,
+  connectedNodes,
+  readings,
+  inlineControls,
+  locale,
   t,
   busy,
+  actionFeedback,
   canConnect,
   groundedConfirmed,
-  onGroundedChange,
+  onScan,
   onConnect,
   onCopySetup,
   onMatterCommission,
   onMatterWifiConfigure,
-  onOpenSmartPlugControls,
-  onOpenSpheroControls,
   onLegoConnect,
   onWonderConnect,
   onSpheroConnect,
-  canControlSmartPlugs,
-  canControlSphero,
+  onSpheroOllieConnect = () => undefined,
 }: {
   integration: FabricIntegrationDiscovery;
+  connectedNodes: IntegrationNode[];
+  readings: FabricSensorReading[];
+  inlineControls: ReactNode;
+  locale: Locale;
   t: FabricTranslate;
   busy: BusyAction;
+  actionFeedback?: FabricDiscoveryActionFeedback;
   canConnect: boolean;
   groundedConfirmed: boolean;
-  onGroundedChange: (confirmed: boolean) => void;
+  onScan: () => void;
   onConnect: () => void;
   onCopySetup: () => void;
   onMatterCommission: (setupCode: string) => Promise<boolean>;
   onMatterWifiConfigure: (ssid: string, password: string) => Promise<boolean>;
-  onOpenSmartPlugControls: () => void;
-  onOpenSpheroControls: () => void;
   onLegoConnect: (configuration: LegoConnectionConfiguration) => void;
   onWonderConnect: (robots: WonderRobotSelection[]) => void;
   onSpheroConnect: (robots: SpheroBoltSelection[]) => void;
-  canControlSmartPlugs: boolean;
-  canControlSphero: boolean;
+  onSpheroOllieConnect?: (robots: SpheroOllieSelection[]) => void;
 }) {
   const status = discoveryStatus(integration.status, t);
   const connected = integration.status === "connected";
+  const canRunConnection = canRunFabricDiscoveryConnection(integration);
+  const isGlassesIntegration =
+    integration.integrationId === "even-realities-g2" ||
+    integration.integrationId === "meta-rayban";
+  const showGenericCandidatePaths =
+    integration.candidates.length > 0 &&
+    integration.integrationId !== "matter-smart-plugs" &&
+    integration.integrationId !== "wonder-workshop-dash-dot" &&
+    integration.integrationId !== "sphero-bolt" &&
+    integration.integrationId !== "sphero-ollie";
+  const candidatePaths = showGenericCandidatePaths ? (
+    <FabricCandidateList candidates={integration.candidates} t={t} />
+  ) : null;
+  const discoveryActions = (
+    <FabricDiscoveryActions
+      actionLabel={integration.actionLabel}
+      busy={busy !== null}
+      canConnect={canConnect}
+      connected={connected}
+      {...(actionFeedback === undefined ? {} : { feedback: actionFeedback })}
+      showConnectWhenConnected={connected && canRunConnection}
+      groundedConfirmed={groundedConfirmed}
+      hasConnectAction={integration.actionId !== undefined}
+      hasSetupCommand={integration.setupCommand !== undefined}
+      requiresGroundedConfirmation={integration.requiresGroundedConfirmation}
+      onConnect={onConnect}
+      onCopySetup={onCopySetup}
+      onScan={onScan}
+      t={t}
+    />
+  );
   return (
     <article
       id={`integration-${integration.integrationId}`}
-      className={`fabric-discovery-card is-${integration.status.replaceAll("_", "-")}`}
+      className={`fabric-discovery-card is-${integration.status.replaceAll("_", "-")}${connectedNodes.length > 0 ? " has-live-io" : ""}`}
     >
-      <header>
-        <span className="fabric-discovery-icon" aria-hidden="true">
+      <figure
+        className={`fabric-device-visual is-${integration.category.replaceAll("_", "-")}`}
+        aria-hidden="true"
+      >
+        {integration.imagePath !== undefined && (
+          <img
+            src={integration.imagePath}
+            alt=""
+            width="960"
+            height="640"
+            loading="lazy"
+            decoding="async"
+            onError={(event) => {
+              event.currentTarget.hidden = true;
+            }}
+          />
+        )}
+        <span className="fabric-discovery-icon">
           {DISCOVERY_ICONS[integration.icon ?? ""] ?? "IO"}
         </span>
+      </figure>
+      <header>
         <div>
           <h3>{integration.displayName}</h3>
           <small>{integration.connectionMethod}</small>
           <span className={`fabric-io-label is-${integration.ioType}`}>
             {fabricIoLabel(integration.ioType, t)}
           </span>
+          <FabricInfoDisclosure
+            className="fabric-card-info"
+            label={t("common.moreInfo")}
+          >
+            <p>{integration.summary}</p>
+          </FabricInfoDisclosure>
         </div>
         <strong className={`fabric-discovery-status is-${status.tone}`}>
           {status.label}
         </strong>
       </header>
 
-      <p className="fabric-discovery-summary">{integration.summary}</p>
+      {isGlassesIntegration && (
+        <FabricG2Guide t={t}>{discoveryActions}</FabricG2Guide>
+      )}
 
-      {connected && integration.connectedNodeIds.length > 0 && (
-        <div className="fabric-connected-devices">
-          <strong>
-            {t("discovery.connectedDevices", {
-              count: integration.connectedNodeIds.length,
-            })}
-          </strong>
-          <ul>
-            {integration.connectedNodeIds.map((nodeId) => (
-              <li key={nodeId}>
-                <span className="status-dot status-ok" aria-hidden="true" />
-                <code>{nodeId}</code>
-              </li>
-            ))}
-          </ul>
+      {connectedNodes.length > 0 && (
+        <div className="fabric-inline-device-shell">
+          {inlineControls !== undefined && (
+            <div className="fabric-inline-device-controls">
+              {inlineControls}
+            </div>
+          )}
+          <FabricDeviceIoPanel
+            nodes={connectedNodes}
+            readings={readings}
+            locale={locale}
+            t={t}
+          />
         </div>
       )}
 
@@ -3476,99 +3923,29 @@ function FabricDiscoveryCard({
         />
       )}
 
-      {integration.candidates.length > 0 &&
-        integration.integrationId !== "matter-smart-plugs" &&
-        integration.integrationId !== "wonder-workshop-dash-dot" &&
-        integration.integrationId !== "sphero-bolt" && (
-          <ul className="fabric-candidate-list">
-            {integration.candidates.map((candidate, index) => (
-              <li key={`${candidate.candidateId}:${index}`}>
-                <span
-                  className={`status-dot ${candidate.status === "found" ? "status-ok" : "status-muted"}`}
-                />
-                <div>
-                  <div className="fabric-candidate-title">
-                    <strong>{candidate.displayName}</strong>
-                    {discoveryLinkLabel(candidate, t) !== undefined && (
-                      <span
-                        className={`fabric-link-state is-${candidate.linkState?.replaceAll("_", "-")}`}
-                      >
-                        {discoveryLinkLabel(candidate, t)}
-                      </span>
-                    )}
-                  </div>
-                  <small>
-                    {candidate.transport}
-                    {candidate.signalPercent === undefined
-                      ? ""
-                      : ` · ${t("discovery.signal", { percent: candidate.signalPercent })}`}
-                  </small>
-                  <p>{candidate.detail}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
+      {integration.integrationId === "sphero-ollie" && !connected && (
+        <FabricSpheroSetup
+          candidates={integration.candidates}
+          variant="ollie"
+          busy={busy?.key === "busy.connectingOllie"}
+          canConnect={canConnect}
+          onConnect={onSpheroOllieConnect}
+          t={t}
+        />
+      )}
 
-      {integration.requiresGroundedConfirmation &&
-        integration.actionId !== undefined &&
-        !connected && (
-          <label className="fabric-grounded-confirmation">
-            <input
-              type="checkbox"
-              checked={groundedConfirmed}
-              onChange={(event) => onGroundedChange(event.target.checked)}
-            />
-            <span>{t("discovery.aircraftGrounded")}</span>
-          </label>
-        )}
+      {!connected && candidatePaths !== null && (
+        <details className="fabric-candidate-disclosure">
+          <summary>
+            {t("discovery.detectedPaths", {
+              count: integration.candidates.length,
+            })}
+          </summary>
+          {candidatePaths}
+        </details>
+      )}
 
-      <div className="fabric-discovery-actions">
-        {integration.integrationId === "matter-smart-plugs" && connected && (
-          <button
-            className="fabric-open-plug-controls"
-            type="button"
-            disabled={!canControlSmartPlugs || busy !== null}
-            onClick={onOpenSmartPlugControls}
-          >
-            {t("plug.openControls")}
-          </button>
-        )}
-        {integration.integrationId === "sphero-bolt" && connected && (
-          <button
-            className="fabric-open-sphero-controls"
-            type="button"
-            disabled={!canControlSphero || busy !== null}
-            onClick={onOpenSpheroControls}
-          >
-            {t("sphero.openControls")}
-          </button>
-        )}
-        {integration.actionId !== undefined && !connected && (
-          <button
-            className="fabric-connect-device"
-            type="button"
-            disabled={
-              !canConnect ||
-              busy !== null ||
-              (integration.requiresGroundedConfirmation && !groundedConfirmed)
-            }
-            onClick={onConnect}
-          >
-            {integration.actionLabel ?? t("discovery.connect")}
-          </button>
-        )}
-        {integration.setupCommand !== undefined && !connected && (
-          <button
-            className="fabric-copy-setup"
-            type="button"
-            disabled={busy !== null}
-            onClick={onCopySetup}
-          >
-            {t("discovery.copySetup")}
-          </button>
-        )}
-      </div>
+      {!isGlassesIntegration && discoveryActions}
 
       <details className="fabric-device-help">
         <summary>
@@ -3586,9 +3963,63 @@ function FabricDiscoveryCard({
         {integration.setupCommand !== undefined && !connected && (
           <code>{integration.setupCommand}</code>
         )}
+        {connected && candidatePaths !== null && (
+          <section className="fabric-device-connection-paths">
+            <strong>
+              {t("discovery.detectedPaths", {
+                count: integration.candidates.length,
+              })}
+            </strong>
+            {candidatePaths}
+          </section>
+        )}
         <p>{integration.safetyNote}</p>
       </details>
     </article>
+  );
+}
+
+function FabricCandidateList({
+  candidates,
+  t,
+}: {
+  candidates: FabricDiscoveryCandidate[];
+  t: FabricTranslate;
+}) {
+  return (
+    <ul className="fabric-candidate-list">
+      {candidates.map((candidate, index) => (
+        <li key={`${candidate.candidateId}:${index}`}>
+          <span
+            className={`status-dot ${candidate.status === "found" ? "status-ok" : "status-muted"}`}
+          />
+          <div>
+            <div className="fabric-candidate-title">
+              <strong>{candidate.displayName}</strong>
+              {discoveryLinkLabel(candidate, t) !== undefined && (
+                <span
+                  className={`fabric-link-state is-${candidate.linkState?.replaceAll("_", "-")}`}
+                >
+                  {discoveryLinkLabel(candidate, t)}
+                </span>
+              )}
+            </div>
+            <small>
+              {candidate.transport}
+              {candidate.signalPercent === undefined
+                ? ""
+                : ` · ${t("discovery.signal", { percent: candidate.signalPercent })}`}
+            </small>
+            <FabricInfoDisclosure
+              className="fabric-candidate-info"
+              label={t("common.moreInfo")}
+            >
+              <p>{candidate.detail}</p>
+            </FabricInfoDisclosure>
+          </div>
+        </li>
+      ))}
+    </ul>
   );
 }
 
@@ -3624,6 +4055,7 @@ function MediaFeedCard({
   const etag = useRef<string | undefined>(undefined);
   const frameUrlRef = useRef<string | null>(null);
   const frameTimes = useRef<number[]>([]);
+  const frameAvailable = fabricMediaFrameAvailable(source);
 
   useEffect(
     () => () => {
@@ -3636,6 +4068,19 @@ function MediaFeedCard({
   );
 
   useEffect(() => {
+    if (!frameAvailable) {
+      etag.current = undefined;
+      frameTimes.current = [];
+      setPreviewRate(0);
+      setVisibleSequence(0);
+      setFrameMessage(t("media.waitFrame"));
+      if (frameUrlRef.current !== null) {
+        URL.revokeObjectURL(frameUrlRef.current);
+        frameUrlRef.current = null;
+        setFrameUrl(null);
+      }
+      return;
+    }
     let active = true;
     let timer: number | undefined;
     const load = async () => {
@@ -3683,7 +4128,7 @@ function MediaFeedCard({
       active = false;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [client, source.captureMode, source.sourceId, t]);
+  }, [client, frameAvailable, source.captureMode, source.sourceId, t]);
 
   const analysis = source.latestAnalysis;
   const overlayVisible =
@@ -3998,6 +4443,7 @@ const DISCOVERY_ICONS: Record<string, string> = {
   brain: "MW",
   plug: "PL",
   lego: "LE",
+  ring: "R1",
   sphero: "SB",
   wonder: "DD",
 };
@@ -4085,6 +4531,7 @@ const nodeDisplayName = (nodes: IntegrationNode[], nodeId: string) =>
 const isRobotSensorRole = (role: string) => /^robot_sensor_[1-8]$/.test(role);
 const isFleetSequenceInputRole = (role: string) =>
   /^fleet_sequence_input_[1-4]$/.test(role);
+const isGroundOutputRole = (role: string) => /^ground_output_[1-8]$/.test(role);
 
 const visibleRoleRequirements = (
   requirements: CoursePack["roles"],
@@ -4098,9 +4545,11 @@ const visibleRoleRequirements = (
       ? "safety_drone"
       : isFleetSequenceInputRole(requirement.role)
         ? "fleet_sequence_input"
-        : isRobotSensorRole(requirement.role)
-          ? "robot_sensor"
-          : null;
+        : isGroundOutputRole(requirement.role)
+          ? "ground_output"
+          : isRobotSensorRole(requirement.role)
+            ? "robot_sensor"
+            : null;
     if (family === null || boundRoles.has(requirement.role)) return true;
     if (!showOneEmptySlot) return false;
     if (shownEmptyFamilies.has(family)) return false;
@@ -4124,8 +4573,26 @@ const commandResultNotice = (
   return t("command.sent", { label });
 };
 
-const describeFabricError = (caught: unknown, t: FabricTranslate) => {
+export const describeFabricError = (caught: unknown, t: FabricTranslate) => {
   if (caught instanceof FabricApiError) {
+    if (
+      caught.code === "BRAIN2DEVICES_CONNECTION_REJECTED" &&
+      caught.message.includes(
+        "Automatic fleet setup found no powered TELLO-* or RMTT-* access point",
+      )
+    ) {
+      return t("error.telloNotVisible");
+    }
+    if (
+      caught.code === "BRAIN2DEVICES_CONNECTION_REJECTED" &&
+      caught.message
+        .toLocaleLowerCase()
+        .includes(
+          "local wi-fi routes cannot change while an affected aircraft session may be active",
+        )
+    ) {
+      return t("error.telloSessionActive");
+    }
     const messages: Record<string, string> = {
       AUTHENTICATION_REQUIRED: t("error.auth"),
       PHYSICAL_EXECUTION_DISABLED: t("error.physicalDisabled"),

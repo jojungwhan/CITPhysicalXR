@@ -57,28 +57,30 @@ class FakeSocket implements BridgeSocket {
         sentAt: new Date().toISOString(),
       });
     } else if (frame.frameType === "adapter.event") {
-      this.#server({
-        frameType: "adapter.command",
-        frameId: randomUUID(),
-        protocolVersion: 1,
-        command: {
-          commandId: randomUUID(),
-          requestMessageId: randomUUID(),
-          schemaVersion: "1.0",
-          sessionId: "lesson-session-a",
-          targetNodeId: this.#agentNodeId,
-          action: "agent.prompt.submit",
-          parameters: { prompt: frame.event.payload.text },
-          priority: "student_interaction",
-          idempotencyKey: randomUUID(),
-          requestedAt: new Date().toISOString(),
-          expiresAt: new Date(Date.now() + 30_000).toISOString(),
-          safetyProfile: "agent-session",
-          correlationId: frame.event.correlationId ?? frame.event.messageId,
-          causationId: frame.event.messageId,
-        },
-        sentAt: new Date().toISOString(),
-      });
+      if (frame.event.topic === "interaction.intent.agent_prompt") {
+        this.#server({
+          frameType: "adapter.command",
+          frameId: randomUUID(),
+          protocolVersion: 1,
+          command: {
+            commandId: randomUUID(),
+            requestMessageId: randomUUID(),
+            schemaVersion: "1.0",
+            sessionId: "lesson-session-a",
+            targetNodeId: this.#agentNodeId,
+            action: "agent.prompt.submit",
+            parameters: { prompt: frame.event.payload.text },
+            priority: "student_interaction",
+            idempotencyKey: randomUUID(),
+            requestedAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 30_000).toISOString(),
+            safetyProfile: "agent-session",
+            correlationId: frame.event.correlationId ?? frame.event.messageId,
+            causationId: frame.event.messageId,
+          },
+          sentAt: new Date().toISOString(),
+        });
+      }
       this.#ack(frame.frameId);
     } else if (frame.frameType === "adapter.command_lifecycle") {
       this.#ack(frame.frameId);
@@ -132,6 +134,8 @@ describe("Agent Mesh bridge transport", () => {
     const config: BridgeConfig = {
       fabricAdapterUrl: "ws://127.0.0.1:8765/api/v1/adapters/connect",
       fabricCredential: "cit-adapter-" + "a".repeat(40),
+      fabricApiUrl: "http://127.0.0.1:8765",
+      fabricReadCredential: "cit-reader-" + "c".repeat(40),
       fabricSessionId: "lesson-session-a",
       agentMeshBaseUrl: "http://127.0.0.1:7342",
       agentMeshDeviceToken: "device_" + "b".repeat(43),
@@ -144,7 +148,9 @@ describe("Agent Mesh bridge transport", () => {
     };
     let delivered = false;
     let unrelatedCompletionDelivered = false;
+    let ringDelivered = false;
     let acknowledged = 0;
+    let ringAcknowledged = 0;
     const source: AgentMeshBridgeSource = {
       async discovery() {
         return {
@@ -155,6 +161,16 @@ describe("Agent Mesh bridge transport", () => {
               displayName: "G2",
               kind: "even_g2",
               status: "active",
+              lastUsedAt: new Date().toISOString(),
+            },
+          ],
+          companionInputs: [
+            {
+              parentDeviceId: "g2-a",
+              displayName: "G2 · Even R1",
+              kind: "even_r1",
+              status: "active",
+              lastUsedAt: new Date().toISOString(),
             },
           ],
           sessions: [
@@ -172,6 +188,42 @@ describe("Agent Mesh bridge transport", () => {
             },
           ],
         };
+      },
+      async interactions(afterSequence) {
+        if (ringDelivered || afterSequence > 0) {
+          return { interactions: [], nextCursor: afterSequence };
+        }
+        ringDelivered = true;
+        return {
+          interactions: [
+            {
+              interactionId: randomUUID(),
+              sequence: 1,
+              deviceId: "g2-a",
+              deviceKind: "even_g2",
+              deviceDisplayName: "G2",
+              source: "even_r1",
+              gesture: "double_tap",
+              createdAt: new Date().toISOString(),
+            },
+            {
+              interactionId: randomUUID(),
+              sequence: 2,
+              deviceId: "g2-a",
+              deviceKind: "even_g2",
+              deviceDisplayName: "G2",
+              source: "device_control",
+              action: "left",
+              target: "ground_outputs",
+              confirmed: true,
+              createdAt: new Date().toISOString(),
+            },
+          ],
+          nextCursor: 2,
+        };
+      },
+      async acknowledgeInteraction() {
+        ringAcknowledged += 1;
       },
       async intents(afterSequence) {
         if (delivered || afterSequence > 0)
@@ -240,6 +292,7 @@ describe("Agent Mesh bridge transport", () => {
       await waitUntil(
         () =>
           acknowledged === 1 &&
+          ringAcknowledged === 2 &&
           socket.sent.filter(
             (frame) =>
               frame.frameType === "adapter.command_lifecycle" &&
@@ -252,7 +305,19 @@ describe("Agent Mesh bridge transport", () => {
       expect(outbox.pendingLifecycles()).toEqual([]);
       expect(
         socket.sent.filter((frame) => frame.frameType === "adapter.event"),
-      ).toHaveLength(1);
+      ).toHaveLength(4);
+      expect(
+        socket.sent.flatMap((frame) =>
+          frame.frameType === "adapter.event" ? [frame.event.topic] : [],
+        ),
+      ).toEqual(
+        expect.arrayContaining([
+          "interaction.gesture.smart_ring",
+          "interaction.intent.flight_sequence_start",
+          "interaction.intent.device_control",
+          "interaction.intent.agent_prompt",
+        ]),
+      );
       expect(outbox.stateNumber("agent-mesh-completion-cursor")).toBe(1);
     } finally {
       controller.abort();

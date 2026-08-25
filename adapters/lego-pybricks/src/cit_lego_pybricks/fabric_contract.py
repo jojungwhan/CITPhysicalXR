@@ -11,6 +11,8 @@ from .adapter import ADAPTER_VERSION, PybricksHubAdapter
 
 PLUGIN_ID = "cit.lego-pybricks"
 GROUND_VELOCITY_CAPABILITY = capability_name("ground_velocity")
+GROUND_NUDGE_CAPABILITY = capability_name("ground_nudge")
+GROUND_DEMONSTRATION_CAPABILITY = capability_name("ground_demonstration_start")
 GROUND_STOP_CAPABILITY = capability_name("ground_stop")
 SENSOR_STATE_CAPABILITY = capability_name("robot_sensor_state")
 BATTERY_STATE_CAPABILITY = capability_name("robot_battery_state")
@@ -42,6 +44,8 @@ def build_manifest() -> PluginManifest:
             ],
             "consumedCapabilities": [
                 capability_descriptor("ground_velocity", "consume"),
+                capability_descriptor("ground_nudge", "consume"),
+                capability_descriptor("ground_demonstration_start", "consume"),
                 capability_descriptor("ground_stop", "consume"),
             ],
             "requiredPermissions": ["bluetooth"],
@@ -74,6 +78,8 @@ def build_node(
     consumed = (
         [
             capability_descriptor("ground_velocity", "consume"),
+            capability_descriptor("ground_nudge", "consume"),
+            capability_descriptor("ground_demonstration_start", "consume"),
             capability_descriptor("ground_stop", "consume"),
         ]
         if mobile

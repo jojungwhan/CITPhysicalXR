@@ -87,6 +87,12 @@ def test_integration_catalog_has_no_duplicate_ids_and_matches_split_plugins() ->
     catalog = load_integration_catalog()
     ids = [item.integrationId for item in catalog.integrations]
     assert len(ids) == len(set(ids))
+    image_paths = [item.imagePath for item in catalog.integrations]
+    assert len(image_paths) == len(set(image_paths))
+    for image_path in image_paths:
+        assert image_path.startswith("./device-images/")
+        assert image_path.endswith(".webp")
+        assert (ROOT / "apps" / "studio-web" / "public" / image_path.removeprefix("./")).is_file()
     assert "cit.leap-motion" in catalog.require("leap-motion").selectors.pluginIds
     assert "cit.robomaster-s1" in catalog.require("robomaster-s1").selectors.pluginIds
     sphero = catalog.require("sphero-bolt")
@@ -94,6 +100,11 @@ def test_integration_catalog_has_no_duplicate_ids_and_matches_split_plugins() ->
     assert sphero.icon == "sphero"
     assert sphero.selectors.pluginIds == ["cit.sphero-bolt"]
     assert sphero.selectors.models == ["sphero-bolt"]
+    ollie = catalog.require("sphero-ollie")
+    assert ollie.ioType == "bidirectional"
+    assert ollie.icon == "sphero"
+    assert ollie.selectors.pluginIds == ["cit.sphero-ollie"]
+    assert ollie.selectors.models == ["sphero-ollie"]
     wonder = catalog.require("wonder-workshop-dash-dot")
     assert wonder.ioType == "bidirectional"
     assert wonder.icon == "wonder"
@@ -105,9 +116,17 @@ def test_integration_catalog_has_no_duplicate_ids_and_matches_split_plugins() ->
     ]
     assert catalog.require("mindwave-mobile2").selectors.pluginIds == ["cit.mindwave-mobile2"]
     assert catalog.require("mindwave-tello-demo").selectors.pluginIds == ["cit.brain2devices-demo"]
-    assert catalog.require("even-realities-g2").selectors.models == ["even-realities-g2"]
+    g2 = catalog.require("even-realities-g2")
+    assert g2.selectors.models == ["even-realities-g2"]
+    assert any("Tailscale" in step for step in g2.setupSteps)
+    assert all("Coding agents card" not in step for step in g2.setupSteps)
+    ring = catalog.require("even-realities-r1")
+    assert ring.ioType == "input"
+    assert ring.selectors.pluginIds == ["cit.agent-mesh-bridge"]
+    assert ring.selectors.models == ["even-realities-r1"]
+    assert ring.selectors.capabilityAny == ["interaction.gesture.smart_ring"]
     assert catalog.require("meta-rayban").selectors.models == ["meta-rayban"]
-    assert catalog.require("even-realities-g2").selectors.pluginIds == ["cit.agent-mesh-bridge"]
+    assert g2.selectors.pluginIds == ["cit.agent-mesh-bridge"]
     assert catalog.require("meta-rayban").selectors.pluginIds == ["cit.agent-mesh-bridge"]
 
 

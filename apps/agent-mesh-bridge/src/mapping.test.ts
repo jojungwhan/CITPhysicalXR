@@ -9,17 +9,23 @@ import type { BridgeConfig } from "./config.js";
 import {
   AGENT_OUTPUT_CAPABILITY,
   AGENT_PROMPT_CAPABILITY,
+  DEVICE_CONTROL_INTENT_CAPABILITY,
   DISPLAY_CAPABILITY,
   FLIGHT_SEQUENCE_INTENT_CAPABILITY,
   INTENT_CAPABILITY,
+  RING_GESTURE_CAPABILITY,
   completionEventFrame,
+  deviceControlEventFrame,
   flightSequenceIntentFrame,
   intentEventFrame,
   mapDiscovery,
+  ringFlightSequenceIntentFrame,
+  ringGestureEventFrame,
 } from "./mapping.js";
 import { BridgeOutbox } from "./outbox.js";
 import type {
   AgentMeshDiscovery,
+  AgentMeshInteraction,
   AgentMeshSession,
   AgentMeshWearable,
 } from "./types.js";
@@ -33,6 +39,8 @@ afterEach(() => {
 const config = (databasePath: string): BridgeConfig => ({
   fabricAdapterUrl: "ws://127.0.0.1:8765/api/v1/adapters/connect",
   fabricCredential: "cit-adapter-" + "a".repeat(40),
+  fabricApiUrl: "http://127.0.0.1:8765",
+  fabricReadCredential: "cit-reader-" + "c".repeat(40),
   fabricSessionId: "lesson-session-a",
   agentMeshBaseUrl: "http://127.0.0.1:7342",
   agentMeshDeviceToken: "device_" + "b".repeat(43),
@@ -90,6 +98,7 @@ describe("Agent Mesh canonical mapping", () => {
       publishedCapabilities: [
         { name: INTENT_CAPABILITY },
         { name: FLIGHT_SEQUENCE_INTENT_CAPABILITY },
+        { name: DEVICE_CONTROL_INTENT_CAPABILITY },
       ],
       consumedCapabilities: [{ name: DISPLAY_CAPABILITY }],
       metadata: {
@@ -141,6 +150,96 @@ describe("Agent Mesh canonical mapping", () => {
       mediaCompanionSupported: true,
     });
     expect(mapping.manifest.pluginId).toBe("cit.agent-mesh-bridge");
+  });
+
+  it("registers Even R1 as a separate input-only node and derives only double-tap as a cue", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "cit-agent-map-"));
+    roots.push(root);
+    const databasePath = path.join(root, "bridge.sqlite3");
+    const mapping = mapDiscovery(
+      {
+        ...discovery,
+        companionInputs: [
+          {
+            parentDeviceId: classG2.deviceId,
+            displayName: "Class G2 · Even R1",
+            kind: "even_r1",
+            status: "active",
+            lastUsedAt: discovery.generatedAt,
+          },
+        ],
+      },
+      config(databasePath),
+    );
+    const ringNode = mapping.companionNodeByParentDeviceId.get(
+      classG2.deviceId,
+    );
+    expect(ringNode).toMatchObject({
+      nodeId: "agentmesh-input-even-r1-class-g2",
+      connectionState: "connected",
+      physical: true,
+      publishedCapabilities: [
+        { name: RING_GESTURE_CAPABILITY },
+        { name: FLIGHT_SEQUENCE_INTENT_CAPABILITY },
+      ],
+      consumedCapabilities: [],
+      metadata: {
+        model: "even-realities-r1",
+        inputOnly: true,
+        agentMeshParentDeviceId: classG2.deviceId,
+      },
+    });
+    if (ringNode === undefined) throw new Error("R1 node is missing");
+    const outbox = new BridgeOutbox(databasePath);
+    try {
+      const interaction: AgentMeshInteraction = {
+        interactionId: "6463013e-fe23-4ff7-babc-34239d88f1db",
+        sequence: 1,
+        deviceId: classG2.deviceId,
+        deviceKind: "even_g2",
+        deviceDisplayName: classG2.displayName,
+        source: "even_r1",
+        gesture: "double_tap",
+        createdAt: discovery.generatedAt,
+      };
+      expect(
+        validateDefinition(
+          "AdapterEventFrame",
+          ringGestureEventFrame(
+            interaction,
+            ringNode,
+            config(databasePath),
+            outbox,
+          ),
+        ).valid,
+      ).toBe(true);
+      expect(
+        ringFlightSequenceIntentFrame(
+          interaction,
+          ringNode,
+          config(databasePath),
+          outbox,
+        )?.event,
+      ).toMatchObject({
+        topic: FLIGHT_SEQUENCE_INTENT_CAPABILITY,
+        sourceNodeId: ringNode.nodeId,
+        payload: {
+          intent: "start",
+          inputModality: "smart_ring",
+          gesture: "double_tap",
+        },
+      });
+      expect(
+        ringFlightSequenceIntentFrame(
+          { ...interaction, gesture: "tap" },
+          ringNode,
+          config(databasePath),
+          outbox,
+        ),
+      ).toBeUndefined();
+    } finally {
+      outbox.close();
+    }
   });
 
   it("advertises the safe continuation path for an observed local CLI", () => {
@@ -209,6 +308,7 @@ describe("Agent Mesh canonical mapping", () => {
       publishedCapabilities: [
         { name: INTENT_CAPABILITY },
         { name: FLIGHT_SEQUENCE_INTENT_CAPABILITY },
+        { name: DEVICE_CONTROL_INTENT_CAPABILITY },
       ],
       consumedCapabilities: [{ name: DISPLAY_CAPABILITY }],
     });
@@ -238,9 +338,61 @@ describe("Agent Mesh canonical mapping", () => {
       publishedCapabilities: [
         { name: INTENT_CAPABILITY },
         { name: FLIGHT_SEQUENCE_INTENT_CAPABILITY },
+        { name: DEVICE_CONTROL_INTENT_CAPABILITY },
       ],
       consumedCapabilities: [{ name: DISPLAY_CAPABILITY }],
     });
+  });
+
+  it("projects confirmed G2 or Meta device control without a transcript", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "cit-agent-map-"));
+    roots.push(root);
+    const databasePath = path.join(root, "bridge.sqlite3");
+    const bridgeConfig = config(databasePath);
+    const mapping = mapDiscovery(discovery, bridgeConfig);
+    const wearable = mapping.wearableNodeByDeviceId.get("class-g2");
+    if (wearable === undefined) throw new Error("Fixture mapping failed");
+    const outbox = new BridgeOutbox(databasePath);
+    try {
+      const frame = deviceControlEventFrame(
+        {
+          interactionId: "fe3d7f0e-cbea-4a45-888b-1af3a69f497c",
+          sequence: 1,
+          deviceId: classG2.deviceId,
+          deviceKind: "even_g2",
+          deviceDisplayName: classG2.displayName,
+          source: "device_control",
+          action: "left",
+          target: "ground_outputs",
+          batchId: "6299cc17-1a72-457f-823a-c511f33eff0b",
+          confirmed: true,
+          createdAt: discovery.generatedAt,
+        },
+        wearable,
+        bridgeConfig,
+        outbox,
+      );
+
+      expect(validateDefinition("AdapterEventFrame", frame).valid).toBe(true);
+      expect(frame.event).toMatchObject({
+        topic: DEVICE_CONTROL_INTENT_CAPABILITY,
+        sourceNodeId: wearable.nodeId,
+        correlationId: "6299cc17-1a72-457f-823a-c511f33eff0b",
+        dataClassification: "operational",
+        payload: {
+          action: "left",
+          target: "ground_outputs",
+          batchId: "6299cc17-1a72-457f-823a-c511f33eff0b",
+          confirmed: true,
+          inputModality: "voice",
+          deviceKind: "even_g2",
+        },
+      });
+      expect(frame.event.payload).not.toHaveProperty("text");
+      expect(frame.event.payload).not.toHaveProperty("transcript");
+    } finally {
+      outbox.close();
+    }
   });
 
   it("bounds a large discovery snapshot to the most recently active agent sessions", () => {

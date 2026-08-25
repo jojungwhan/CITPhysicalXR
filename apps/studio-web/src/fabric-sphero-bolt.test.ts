@@ -4,6 +4,7 @@ import type { FabricDiscoveryCandidate } from "./fabric-client.js";
 import {
   preferredSpheroControlSession,
   selectableSpheroCandidates,
+  selectableSpheroOllieCandidates,
   spheroControlAvailability,
   spheroNudgeVelocity,
 } from "./fabric-sphero-bolt.js";
@@ -42,6 +43,25 @@ describe("Sphero BOLT UI policy", () => {
     ).toEqual(["sphero-aabbccddeeff"]);
   });
 
+  it("keeps Ollie discovery independent and accepts only exact 2B-XXXX candidates", () => {
+    const values = [
+      candidate("sphero-ollie-aabbccddeeff", "2B-A1F9", "sphero-ollie"),
+      candidate("sphero-aabbccddeeff", "2B-A1F9", "sphero-ollie"),
+      candidate("sphero-ollie-001122334455", "SB-B2E8", "sphero-ollie"),
+      candidate("sphero-ollie-112233445566", "Ollie", "sphero-ollie"),
+      candidate(
+        "sphero-ollie-ffffffffffff",
+        "2B-C3D7",
+        "sphero-ollie",
+        "setup_required",
+      ),
+    ];
+
+    expect(
+      selectableSpheroOllieCandidates(values).map((item) => item.candidateId),
+    ).toEqual(["sphero-ollie-aabbccddeeff"]);
+  });
+
   it("keeps aim and movement locked until active and armed", () => {
     const physicalNode = { simulated: false } as Parameters<
       typeof spheroControlAvailability
@@ -72,6 +92,11 @@ describe("Sphero BOLT UI policy", () => {
     expect(spheroNudgeVelocity(0, -1)).toEqual({
       forwardMetersPerSecond: 0,
       rightMetersPerSecond: -0.2,
+      clockwiseRadiansPerSecond: 0,
+    });
+    expect(spheroNudgeVelocity(1, 0, "ollie")).toEqual({
+      forwardMetersPerSecond: 0.08,
+      rightMetersPerSecond: 0,
       clockwiseRadiansPerSecond: 0,
     });
   });

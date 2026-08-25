@@ -88,7 +88,7 @@ class FleetSequenceCommandHandler:
         ):
             if parameters.get(confirmation) is not True:
                 raise ValueError(f"{confirmation} must be explicitly confirmed")
-        _identifier_list(parameters.get("droneIds"), "droneIds", minimum=2, maximum=8)
+        _identifier_list(parameters.get("droneIds"), "droneIds", minimum=1, maximum=8)
         _identifier_list(
             parameters.get("allowedSourceNodeIds"),
             "allowedSourceNodeIds",

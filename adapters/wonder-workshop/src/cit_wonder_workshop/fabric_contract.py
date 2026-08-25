@@ -14,6 +14,8 @@ from .policy import DASH_DEADMAN_MILLISECONDS, dash_velocity_constraints
 PLUGIN_ID = "cit.wonder-workshop"
 PROTOCOL_SOURCE_REVISION = external_source("bleak-dash").revision
 GROUND_VELOCITY_CAPABILITY = capability_name("ground_velocity")
+GROUND_NUDGE_CAPABILITY = capability_name("ground_nudge")
+GROUND_DEMONSTRATION_CAPABILITY = capability_name("ground_demonstration_start")
 GROUND_STOP_CAPABILITY = capability_name("ground_stop")
 SENSOR_STATE_CAPABILITY = capability_name("robot_sensor_state")
 LIGHT_SET_CAPABILITY = capability_name("robot_light_set")
@@ -43,6 +45,8 @@ def build_manifest() -> PluginManifest:
             "publishedCapabilities": [capability_descriptor("robot_sensor_state", "publish")],
             "consumedCapabilities": [
                 capability_descriptor("ground_velocity", "consume"),
+                capability_descriptor("ground_nudge", "consume"),
+                capability_descriptor("ground_demonstration_start", "consume"),
                 capability_descriptor("ground_stop", "consume"),
                 capability_descriptor("robot_light_set", "consume"),
                 capability_descriptor("robot_sound_cue", "consume"),
@@ -82,6 +86,8 @@ def build_node(
                 capability_descriptor(
                     "ground_velocity", "consume", constraints=dash_velocity_constraints()
                 ),
+                capability_descriptor("ground_nudge", "consume"),
+                capability_descriptor("ground_demonstration_start", "consume"),
                 capability_descriptor("ground_stop", "consume"),
                 capability_descriptor("robot_head_pose", "consume"),
             ]

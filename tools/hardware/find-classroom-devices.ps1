@@ -343,7 +343,8 @@ $agentMeshWearables = @(
 )
 $g2Wearables = @($agentMeshWearables | Where-Object kind -eq "even_g2")
 $metaWearables = @($agentMeshWearables | Where-Object kind -eq "ray_ban")
-$g2BluetoothDevices = @(Get-PresentDevices '(?i)Even Realities|Even G[12]')
+$g2BluetoothDevices = @(Get-PresentDevices '(?i)Even Realities G[12]|Even G[12]')
+$r1BluetoothDevices = @(Get-PresentDevices '(?i)Even R1|Ring1|EVEN R1_')
 $metaBluetoothDevices = @(Get-PresentDevices '(?i)Ray[ -]?Ban|Meta.*Glasses')
 $androidPnpDevices = @(
   Get-PresentDevices '(?i)Android|ADB Interface|MTP USB|Portable Device' |
@@ -434,10 +435,92 @@ $integrations.Add((New-Integration `
   -SetupSteps @(
     "Start the provisioned Even companion bridge on the phone or classroom host.",
     "Wear the G2 and confirm that its interaction appears in Agent Mesh.",
-    "Use the Coding agents card's Connect button; CIT then identifies the G2 by its device profile."
+    "Use this card's Connect button; CIT then identifies the G2 by its device profile.",
+    "Assign G2 and a Codex or Claude session in the Glasses and coding agents lesson to exchange prompts and completion text.",
+    "Keep Telegram on the paired phone and enable it in Even app > Settings > Notification to mirror phone notifications."
   ) `
   -SetupCommand 'pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot "$env:LOCALAPPDATA\CITPhysicalXR\interaction-fabric"' `
+  -ActionId "cit.even-g2.connect" `
+  -ActionLabel "Connect G2" `
   -SafetyNote "Only semantic interactions and bounded display text enter the Fabric; raw microphone data is not discovered."))
+
+# R1 remains a separate input-only node even though its supported transport is
+# the Even phone app and paired G2. Windows Bluetooth evidence is useful when
+# present, but an authorized phone with the Even app means only that pairing can
+# be completed; a live ring gesture through Agent Mesh is the readiness proof.
+$r1Candidates = @()
+for ($index = 0; $index -lt $androidBridges.Count; $index++) {
+  $bridge = $androidBridges[$index]
+  $r1PhoneReady = $bridge.authorized -and $bridge.hasEvenApp
+  $r1Candidates += New-Candidate `
+    -Id "r1-android-$($index + 1)" `
+    -Name ([string]$bridge.displayName) `
+    -Transport ([string]$bridge.transport) `
+    -Status $(if ($r1PhoneReady) { "ready" } else { "setup_required" }) `
+    -ConnectionPath ([string]$bridge.connectionPath) `
+    -LinkState ([string]$bridge.linkState) `
+    -Detail $(if (-not $bridge.authorized) {
+      "The phone is attached, but Android debugging is $($bridge.adbState). Unlock it and approve this tutor computer."
+    } elseif ($bridge.hasEvenApp) {
+      "The Even app is installed$(if ($bridge.evenAppRunning) { ' and running' } else { '' }). Pair R1 to this phone and its G2, then touch the ring once so CIT can confirm the input."
+    } else {
+      "The phone is authorized, but the Even app was not found. Install or open the approved G2 companion path first."
+    })
+}
+for ($index = 0; $index -lt $r1BluetoothDevices.Count; $index++) {
+  $r1Candidates += New-Candidate `
+    -Id "r1-bluetooth-$($index + 1)" `
+    -Name $(if ($r1BluetoothDevices[$index].FriendlyName) { [string]$r1BluetoothDevices[$index].FriendlyName } else { "Even R1 smart ring" }) `
+    -Transport "Bluetooth LE" `
+    -Status "found" `
+    -ConnectionPath "bluetooth" `
+    -LinkState "connected" `
+    -Detail "Windows reports a matching R1 Bluetooth device. The Even app and a live ring gesture still confirm the supported G2 companion path."
+}
+if ($r1Candidates.Count -eq 0 -and $g2Wearables.Count -gt 0) {
+  $r1Candidates += New-Candidate `
+    -Id "r1-even-companion-path" `
+    -Name "Provisioned Even companion path" `
+    -Transport "R1 → G2 → Even app → Agent Mesh" `
+    -Status "ready" `
+    -ConnectionPath "android" `
+    -LinkState "provisioned" `
+    -Detail "The G2 companion is configured. Pair R1 in the Even app and touch it once so CIT can register the separate ring input."
+}
+$r1PhoneReadyCount = @($androidBridges | Where-Object { $_.authorized -and $_.hasEvenApp }).Count
+$r1Status = if ($r1BluetoothDevices.Count -gt 0) {
+  "found"
+} elseif ($r1PhoneReadyCount -gt 0 -or $g2Wearables.Count -gt 0) {
+  "ready"
+} else {
+  "setup_required"
+}
+$r1Summary = if ($r1BluetoothDevices.Count -gt 0) {
+  "$($r1BluetoothDevices.Count) matching R1 Bluetooth device(s) are present in Windows; touch the ring once to confirm the app bridge."
+} elseif ($r1PhoneReadyCount -gt 0) {
+  "The Even phone path is ready. Pair R1 to G2 in the Even app, then touch the ring once."
+} elseif ($g2Wearables.Count -gt 0) {
+  "The Even companion bridge is ready; no live R1 gesture has been observed yet."
+} else {
+  "No R1 companion path was found. R1 must first be paired to G2 through the Even app."
+}
+$integrations.Add((New-Integration `
+  -Id "even-realities-r1" `
+  -Name "Even Realities R1 smart ring" `
+  -Category "interaction" `
+  -Status $r1Status `
+  -Summary $r1Summary `
+  -ConnectionMethod "Bluetooth LE through the Even app and paired G2" `
+  -Candidates $r1Candidates `
+  -SetupSteps @(
+    "Connect G2 in the Even app, add R1, and confirm that the ring controls G2.",
+    "Start the shared Even / Agent Mesh bridge from this card.",
+    "Touch R1 once, scan again, and assign the separate R1 input node to a lesson input role."
+  ) `
+  -SetupCommand 'pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot "$env:LOCALAPPDATA\CITPhysicalXR\interaction-fabric"' `
+  -ActionId $(if ($r1Status -ne "setup_required") { "cit.even-r1.connect" } else { "" }) `
+  -ActionLabel $(if ($r1Status -ne "setup_required") { "Connect R1 input" } else { "" }) `
+  -SafetyNote "Ring gestures are semantic input only. Every physical output still requires its lesson, arm state, bounds, and instructor controls."))
 
 $metaCandidates = @()
 for ($index = 0; $index -lt $androidBridges.Count; $index++) {
@@ -712,27 +795,35 @@ $integrations.Add((New-Integration `
   -ActionLabel $(if ($robotBroadcastCount -gt 0 -and $leapStatus -eq "found") { "Connect robot and Leap" } else { "" }) `
   -SafetyNote "A network match is not treated as proof of a robot. Only the adapter handshake can confirm it, and movement stays disarmed."))
 
-# BOLT is scanned through its independent Bleak adapter. Only exact SB-XXXX
-# advertisements are selectable and their addresses never cross this launcher
-# boundary. Windows PnP is setup evidence only when the scanner is unavailable.
-$spheroCandidates = @()
-$spheroScanAvailable = $false
-$spheroDevices = @()
+# Collect Sphero-family advertisements once, then let each independent adapter
+# apply its own exact-name and opaque-ID policy. A missing plugin affects only
+# its own result. No Bluetooth address crosses this launcher boundary.
+$spheroFamily = $null
+$spheroFamilyScanner = Join-Path $PSScriptRoot "scan-sphero-family.py"
 $spheroPython = Join-Path $repositoryRoot ".venv\Scripts\python.exe"
-if (Test-Path -LiteralPath $spheroPython) {
-  & $spheroPython -c "import bleak, cit_sphero_bolt.discovery" 2>$null
+if ((Test-Path -LiteralPath $spheroPython) -and (Test-Path -LiteralPath $spheroFamilyScanner)) {
+  & $spheroPython -c "import bleak" 2>$null
   if ($LASTEXITCODE -eq 0) {
     try {
-      $spheroRaw = & $spheroPython -m cit_sphero_bolt.discovery --duration 4 --json 2>$null
+      $spheroFamilyRaw = & $spheroPython $spheroFamilyScanner --duration 4 2>$null
       if ($LASTEXITCODE -eq 0) {
-        $spheroDevices = @($spheroRaw | ConvertFrom-Json)
-        $spheroScanAvailable = $true
+        $spheroFamily = $spheroFamilyRaw | ConvertFrom-Json
       }
     } catch {
-      $script:warnings.Add("Sphero BOLT read-only BLE scan failed; no robot was connected or commanded.")
+      $script:warnings.Add("Sphero-family read-only BLE scan failed; no robot was connected or commanded.")
     }
   }
 }
+
+# Only exact SB-XXXX advertisements are selectable for the independent BOLT
+# adapter. Windows PnP is setup evidence only when its filter is unavailable.
+$spheroCandidates = @()
+$spheroScanAvailable = $null -ne $spheroFamily -and "bolt" -in @($spheroFamily.available)
+$spheroDevices = @(
+  if ($spheroScanAvailable -and $null -ne $spheroFamily.PSObject.Properties["bolt"]) {
+    $spheroFamily.bolt
+  }
+)
 foreach ($robot in $spheroDevices) {
   $spheroCandidates += New-Candidate `
     -Id ([string]$robot.candidateId) `
@@ -783,6 +874,67 @@ $integrations.Add((New-Integration `
     "After arming, point the blue tail light toward the tutor and set that direction as forward."
   ) `
   -SafetyNote "Discovery is read-only and never selects the nearest robot. Movement is limited to 0.20 m/s with a 750 ms local deadman stop."))
+
+# Ollie uses the same local BLE radio library but remains an independent
+# adapter, process, profile, and Fabric plugin. Only exact 2B-XXXX advertisements
+# are selectable; the browser receives an opaque candidate ID, never an address.
+$ollieCandidates = @()
+$ollieScanAvailable = $null -ne $spheroFamily -and "ollie" -in @($spheroFamily.available)
+$ollieDevices = @(
+  if ($ollieScanAvailable -and $null -ne $spheroFamily.PSObject.Properties["ollie"]) {
+    $spheroFamily.ollie
+  }
+)
+foreach ($robot in $ollieDevices) {
+  $ollieCandidates += New-Candidate `
+    -Id ([string]$robot.candidateId) `
+    -Name ([string]$robot.displayName) `
+    -Transport "Bluetooth Low Energy" `
+    -Status "found" `
+    -SignalPercent $robot.signalPercent `
+    -Model "sphero-ollie" `
+    -ConnectionPath "bluetooth" `
+    -LinkState "visible" `
+    -Detail "Exact 2B-XXXX Ollie advertisement found. Selection performs a fresh exact-ID handshake and sends no movement command."
+}
+$olliePnp = @(
+  if (-not $ollieScanAvailable) {
+    Get-PresentDevices '(?i)(?:Sphero\s+Ollie|\bOllie\b|\b2B-[0-9A-F]{4}\b)'
+  }
+)
+for ($index = 0; $index -lt $olliePnp.Count; $index++) {
+  $ollieCandidates += New-Candidate `
+    -Id "sphero-ollie-paired-$($index + 1)" `
+    -Name $(if ($olliePnp[$index].FriendlyName) { [string]$olliePnp[$index].FriendlyName } else { "Sphero Ollie $($index + 1)" }) `
+    -Transport "Windows Bluetooth presence" `
+    -Status "setup_required" `
+    -ConnectionPath "bluetooth" `
+    -LinkState "paired" `
+    -Detail "Windows sees a possible Ollie, but the CIT Bleak scanner is required before exact selection is safe. Remove any Windows pairing and scan again."
+}
+$ollieStatus = if ($ollieDevices.Count -gt 0) { "found" } elseif ($ollieScanAvailable) { "ready" } else { "setup_required" }
+$ollieSummary = if ($ollieDevices.Count -gt 0) {
+  "$($ollieDevices.Count) exact 2B-XXXX Ollie advertisement(s) found; no connection or command was sent."
+} elseif ($ollieScanAvailable) {
+  "Sphero Ollie Bluetooth scanning is ready, but no awake 2B-XXXX robot is visible."
+} else {
+  "Install the CIT Sphero Ollie Bluetooth component, then charge, switch on, and scan again."
+}
+$integrations.Add((New-Integration `
+  -Id "sphero-ollie" `
+  -Name "Sphero Ollie" `
+  -Category "robot" `
+  -Status $ollieStatus `
+  -Summary $ollieSummary `
+  -ConnectionMethod "Local Bluetooth Low Energy (BLE)" `
+  -Candidates $ollieCandidates `
+  -SetupSteps @(
+    "Charge and switch on Ollie, then note the exact 2B-XXXX name. Do not pair it in Windows Settings.",
+    "Close Sphero Edu or another program currently connected to this robot.",
+    "Scan again, select each exact 2B-XXXX robot, and connect it while controls remain unarmed.",
+    "After arming, put Ollie on a clear floor, point its blue tail light toward the tutor, and set that direction as forward."
+  ) `
+  -SafetyNote "Discovery is read-only and never selects the nearest robot. Movement uses a conservative speed-value ceiling with a 750 ms local deadman stop."))
 
 # Dash and Dot are scanned with the independent Bleak adapter. The scanner is
 # read-only and returns opaque candidate IDs, never Bluetooth addresses. PnP is
@@ -959,7 +1111,7 @@ $telloAction = ""
 $telloActionLabel = ""
 if ($brainListening -and $visibleTello.Count -gt 0) {
   $telloAction = "brain2devices.tello.connect-all"
-  $telloActionLabel = "Connect grounded drones"
+  $telloActionLabel = "Connect all available grounded drones"
 } elseif ($brainListening -and $connectedDrones -eq 0 -and $primaryTelloRouteReady) {
   $telloAction = "brain2devices.tello.connect-primary"
   $telloActionLabel = "Connect current Tello route"

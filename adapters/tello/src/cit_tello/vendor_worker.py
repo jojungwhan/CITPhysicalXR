@@ -43,6 +43,7 @@ def main() -> None:
     arguments = _parser().parse_args()
     sys.path.insert(0, str((arguments.repository / "src").resolve()))
     from brain2devices.hardware.tello import DjitelloPyDrone  # type: ignore[import-not-found]
+    from brain2devices.models import Movement  # type: ignore[import-not-found]
 
     drone = DjitelloPyDrone(ip_address=arguments.ip_address)
     for raw in sys.stdin:
@@ -58,6 +59,37 @@ def main() -> None:
                 _response(request_id, ok=True, **_telemetry_payload(drone))
             elif operation == "telemetry":
                 _response(request_id, ok=True, **_telemetry_payload(drone))
+            elif operation == "takeoff":
+                drone.takeoff()
+                _response(request_id, ok=True, takeoffRequested=True)
+            elif operation == "move":
+                direction = Movement(request.get("direction"))
+                distance = request.get("distanceCentimeters")
+                if isinstance(distance, bool) or not isinstance(distance, int):
+                    raise ValueError("distanceCentimeters must be an integer")
+                drone.move(direction, distance)
+                _response(
+                    request_id,
+                    ok=True,
+                    moveRequested=True,
+                    direction=direction.value,
+                    distanceCentimeters=distance,
+                )
+            elif operation == "rotate":
+                clockwise = request.get("clockwise")
+                degrees = request.get("degrees")
+                if not isinstance(clockwise, bool):
+                    raise ValueError("clockwise must be a boolean")
+                if isinstance(degrees, bool) or not isinstance(degrees, int):
+                    raise ValueError("degrees must be an integer")
+                drone.rotate(clockwise=clockwise, degrees=degrees)
+                _response(
+                    request_id,
+                    ok=True,
+                    rotateRequested=True,
+                    clockwise=clockwise,
+                    degrees=degrees,
+                )
             elif operation == "land":
                 drone.land()
                 _response(request_id, ok=True, landed=True, reason=request.get("reason"))

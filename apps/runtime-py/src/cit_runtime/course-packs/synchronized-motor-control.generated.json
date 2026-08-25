@@ -1,0 +1,1527 @@
+{
+  "schemaVersion": "1.0",
+  "coursePackId": "synchronized-motor-control",
+  "version": "1.0.0",
+  "displayName": "Synchronized motor control",
+  "description": "Explicitly enables best-effort parallel bounded movement for assigned Sphero BOLT and Ollie robots. G2 and Meta structured voice, Even R1 gestures, and a discrete MindWave blink can use the same output group. An optional Tello fleet remains a separately armed takeoff/landing target; raw biosignals and vendor motor packets never enter this recipe.",
+  "roles": [
+    {
+      "role": "fleet_sequence_input_1",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_input_2",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_input_3",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_input_4",
+      "ioType": "input",
+      "oneOfCapabilities": ["interaction.intent.flight_sequence_start"],
+      "optional": true
+    },
+    {
+      "role": "biosignal_input",
+      "ioType": "input",
+      "oneOfCapabilities": ["mindwave.blink"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_1",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.nudge"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_2",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.nudge"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_3",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.nudge"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_4",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.nudge"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_5",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.nudge"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_6",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.nudge"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_7",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.nudge"],
+      "optional": true
+    },
+    {
+      "role": "ground_output_8",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.ground.nudge"],
+      "optional": true
+    },
+    {
+      "role": "fleet_sequence_controller",
+      "ioType": "output",
+      "oneOfCapabilities": ["mobility.flight.fleet_sequence.start"],
+      "optional": true
+    }
+  ],
+  "flows": [
+    {
+      "flowId": "synchronized-voice-ground-1",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.device_control",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "target": "ground_outputs",
+          "confirmed": true
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {},
+        "parameterBindings": [
+          {
+            "payloadField": "action",
+            "parameter": "direction"
+          }
+        ]
+      },
+      "target": {
+        "role": "ground_output_1"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_1"],
+      "parallelGroup": "synchronized-voice-ground",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-voice-ground-2",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.device_control",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "target": "ground_outputs",
+          "confirmed": true
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {},
+        "parameterBindings": [
+          {
+            "payloadField": "action",
+            "parameter": "direction"
+          }
+        ]
+      },
+      "target": {
+        "role": "ground_output_2"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_2"],
+      "parallelGroup": "synchronized-voice-ground",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-voice-ground-3",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.device_control",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "target": "ground_outputs",
+          "confirmed": true
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {},
+        "parameterBindings": [
+          {
+            "payloadField": "action",
+            "parameter": "direction"
+          }
+        ]
+      },
+      "target": {
+        "role": "ground_output_3"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_3"],
+      "parallelGroup": "synchronized-voice-ground",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-voice-ground-4",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.device_control",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "target": "ground_outputs",
+          "confirmed": true
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {},
+        "parameterBindings": [
+          {
+            "payloadField": "action",
+            "parameter": "direction"
+          }
+        ]
+      },
+      "target": {
+        "role": "ground_output_4"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_4"],
+      "parallelGroup": "synchronized-voice-ground",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-voice-ground-5",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.device_control",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "target": "ground_outputs",
+          "confirmed": true
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {},
+        "parameterBindings": [
+          {
+            "payloadField": "action",
+            "parameter": "direction"
+          }
+        ]
+      },
+      "target": {
+        "role": "ground_output_5"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_5"],
+      "parallelGroup": "synchronized-voice-ground",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-voice-ground-6",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.device_control",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "target": "ground_outputs",
+          "confirmed": true
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {},
+        "parameterBindings": [
+          {
+            "payloadField": "action",
+            "parameter": "direction"
+          }
+        ]
+      },
+      "target": {
+        "role": "ground_output_6"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_6"],
+      "parallelGroup": "synchronized-voice-ground",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-voice-ground-7",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.device_control",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "target": "ground_outputs",
+          "confirmed": true
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {},
+        "parameterBindings": [
+          {
+            "payloadField": "action",
+            "parameter": "direction"
+          }
+        ]
+      },
+      "target": {
+        "role": "ground_output_7"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_7"],
+      "parallelGroup": "synchronized-voice-ground",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-voice-ground-8",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.device_control",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "target": "ground_outputs",
+          "confirmed": true
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {},
+        "parameterBindings": [
+          {
+            "payloadField": "action",
+            "parameter": "direction"
+          }
+        ]
+      },
+      "target": {
+        "role": "ground_output_8"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_8"],
+      "parallelGroup": "synchronized-voice-ground",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-forward-1",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "forward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_1"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_1"],
+      "parallelGroup": "synchronized-ring-forward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-forward-2",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "forward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_2"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_2"],
+      "parallelGroup": "synchronized-ring-forward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-forward-3",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "forward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_3"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_3"],
+      "parallelGroup": "synchronized-ring-forward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-forward-4",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "forward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_4"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_4"],
+      "parallelGroup": "synchronized-ring-forward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-forward-5",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "forward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_5"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_5"],
+      "parallelGroup": "synchronized-ring-forward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-forward-6",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "forward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_6"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_6"],
+      "parallelGroup": "synchronized-ring-forward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-forward-7",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "forward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_7"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_7"],
+      "parallelGroup": "synchronized-ring-forward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-forward-8",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_up"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "forward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_8"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_8"],
+      "parallelGroup": "synchronized-ring-forward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-backward-1",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "backward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_1"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_1"],
+      "parallelGroup": "synchronized-ring-backward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-backward-2",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "backward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_2"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_2"],
+      "parallelGroup": "synchronized-ring-backward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-backward-3",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "backward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_3"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_3"],
+      "parallelGroup": "synchronized-ring-backward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-backward-4",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "backward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_4"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_4"],
+      "parallelGroup": "synchronized-ring-backward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-backward-5",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "backward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_5"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_5"],
+      "parallelGroup": "synchronized-ring-backward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-backward-6",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "backward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_6"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_6"],
+      "parallelGroup": "synchronized-ring-backward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-backward-7",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "backward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_7"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_7"],
+      "parallelGroup": "synchronized-ring-backward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-backward-8",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "gesture": "scroll_down"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "backward"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_8"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_8"],
+      "parallelGroup": "synchronized-ring-backward",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-stop-1",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "stop"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_1"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_1"],
+      "parallelGroup": "synchronized-ring-stop",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-stop-2",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "stop"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_2"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_2"],
+      "parallelGroup": "synchronized-ring-stop",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-stop-3",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "stop"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_3"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_3"],
+      "parallelGroup": "synchronized-ring-stop",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-stop-4",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "stop"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_4"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_4"],
+      "parallelGroup": "synchronized-ring-stop",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-stop-5",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "stop"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_5"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_5"],
+      "parallelGroup": "synchronized-ring-stop",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-stop-6",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "stop"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_6"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_6"],
+      "parallelGroup": "synchronized-ring-stop",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-stop-7",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "stop"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_7"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_7"],
+      "parallelGroup": "synchronized-ring-stop",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-ring-stop-8",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.gesture.smart_ring",
+        "minimumConfidence": 1,
+        "debounceMs": 100,
+        "payloadEquals": {
+          "gesture": "tap"
+        }
+      },
+      "command": {
+        "action": "mobility.ground.nudge",
+        "fixedParameters": {
+          "direction": "stop"
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_8"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_8"],
+      "parallelGroup": "synchronized-ring-stop",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-mindwave-blink-1",
+      "version": 1,
+      "trigger": {
+        "event": "mindwave.blink",
+        "minimumConfidence": 1,
+        "debounceMs": 3000
+      },
+      "command": {
+        "action": "mobility.ground.demonstration.start",
+        "fixedParameters": {
+          "distanceMeters": 0.1
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_1"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_1"],
+      "parallelGroup": "synchronized-mindwave-demo",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-mindwave-blink-2",
+      "version": 1,
+      "trigger": {
+        "event": "mindwave.blink",
+        "minimumConfidence": 1,
+        "debounceMs": 3000
+      },
+      "command": {
+        "action": "mobility.ground.demonstration.start",
+        "fixedParameters": {
+          "distanceMeters": 0.1
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_2"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_2"],
+      "parallelGroup": "synchronized-mindwave-demo",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-mindwave-blink-3",
+      "version": 1,
+      "trigger": {
+        "event": "mindwave.blink",
+        "minimumConfidence": 1,
+        "debounceMs": 3000
+      },
+      "command": {
+        "action": "mobility.ground.demonstration.start",
+        "fixedParameters": {
+          "distanceMeters": 0.1
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_3"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_3"],
+      "parallelGroup": "synchronized-mindwave-demo",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-mindwave-blink-4",
+      "version": 1,
+      "trigger": {
+        "event": "mindwave.blink",
+        "minimumConfidence": 1,
+        "debounceMs": 3000
+      },
+      "command": {
+        "action": "mobility.ground.demonstration.start",
+        "fixedParameters": {
+          "distanceMeters": 0.1
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_4"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_4"],
+      "parallelGroup": "synchronized-mindwave-demo",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-mindwave-blink-5",
+      "version": 1,
+      "trigger": {
+        "event": "mindwave.blink",
+        "minimumConfidence": 1,
+        "debounceMs": 3000
+      },
+      "command": {
+        "action": "mobility.ground.demonstration.start",
+        "fixedParameters": {
+          "distanceMeters": 0.1
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_5"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_5"],
+      "parallelGroup": "synchronized-mindwave-demo",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-mindwave-blink-6",
+      "version": 1,
+      "trigger": {
+        "event": "mindwave.blink",
+        "minimumConfidence": 1,
+        "debounceMs": 3000
+      },
+      "command": {
+        "action": "mobility.ground.demonstration.start",
+        "fixedParameters": {
+          "distanceMeters": 0.1
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_6"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_6"],
+      "parallelGroup": "synchronized-mindwave-demo",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-mindwave-blink-7",
+      "version": 1,
+      "trigger": {
+        "event": "mindwave.blink",
+        "minimumConfidence": 1,
+        "debounceMs": 3000
+      },
+      "command": {
+        "action": "mobility.ground.demonstration.start",
+        "fixedParameters": {
+          "distanceMeters": 0.1
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_7"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_7"],
+      "parallelGroup": "synchronized-mindwave-demo",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-mindwave-blink-8",
+      "version": 1,
+      "trigger": {
+        "event": "mindwave.blink",
+        "minimumConfidence": 1,
+        "debounceMs": 3000
+      },
+      "command": {
+        "action": "mobility.ground.demonstration.start",
+        "fixedParameters": {
+          "distanceMeters": 0.1
+        },
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "ground_output_8"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["ground_output_8"],
+      "parallelGroup": "synchronized-mindwave-demo",
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-wearable-tello-start",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.flight_sequence_start",
+        "minimumConfidence": 0.8,
+        "debounceMs": 1000,
+        "payloadEquals": {
+          "intent": "start"
+        }
+      },
+      "command": {
+        "action": "mobility.flight.fleet_sequence.start",
+        "fixedParameters": {},
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "fleet_sequence_controller"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["fleet_sequence_controller"],
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-voice-tello-takeoff",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.device_control",
+        "minimumConfidence": 1,
+        "debounceMs": 1000,
+        "payloadEquals": {
+          "target": "tello_fleet",
+          "action": "takeoff",
+          "confirmed": true
+        }
+      },
+      "command": {
+        "action": "mobility.flight.fleet_sequence.start",
+        "fixedParameters": {},
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "fleet_sequence_controller"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["fleet_sequence_controller"],
+      "enabled": true
+    },
+    {
+      "flowId": "synchronized-voice-tello-land",
+      "version": 1,
+      "trigger": {
+        "event": "interaction.intent.device_control",
+        "minimumConfidence": 1,
+        "debounceMs": 250,
+        "payloadEquals": {
+          "target": "tello_fleet",
+          "action": "land",
+          "confirmed": true
+        }
+      },
+      "command": {
+        "action": "mobility.flight.fleet_sequence.stop",
+        "fixedParameters": {},
+        "parameterBindings": []
+      },
+      "target": {
+        "role": "fleet_sequence_controller"
+      },
+      "guards": [
+        "session_is_active",
+        "role_is_assigned",
+        "target_is_connected",
+        "target_is_armed",
+        "instructor_override_is_clear"
+      ],
+      "safetyProfile": "classroom-drone-monitoring",
+      "outputRoles": ["fleet_sequence_controller"],
+      "enabled": true
+    }
+  ],
+  "safetyProfile": "classroom-drone-monitoring",
+  "simulatorRequired": true,
+  "assessmentEvents": [
+    "interaction.intent.device_control",
+    "interaction.gesture.smart_ring",
+    "mindwave.blink",
+    "telemetry.motion.commanded",
+    "telemetry.flight.fleet_sequence.status"
+  ],
+  "fallbackBehavior": "Report each unavailable output independently. Ground robots stop through their adapter watchdogs. MindWave produces one bounded demonstration per debounced blink and never arms the session. Tello remains dormant until its independent instructor checklist and one-shot fleet arm are complete."
+}

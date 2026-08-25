@@ -91,24 +91,39 @@ unique addresses on a common access point.
 3. Power on each aircraft and wait for its `TELLO-*` or `RMTT-*` SSID.
 4. Choose **Find devices**. Every physical radio and visible aircraft network
    is listed independently.
-5. Tick the grounded-aircraft confirmation and choose **Connect grounded
-   drones**. Windows may request administrator approval to create unique
-   on-link routes.
+5. Tick the one grounded-aircraft confirmation and choose **Connect all
+   available grounded drones**. The same confirmation also applies to remembered
+   reconnect and the Tello-card action; it is not repeated in each panel.
+   Windows may request administrator approval to create unique on-link routes.
 6. Wait for the card to report a connected Fabric node for each aircraft.
+
+After the first aircraft connects, **Available now** collapses so the live
+controls stay in one screen. Expand it whenever another device needs setup.
+The Tello card keeps **Connect all available grounded drones** visible after the
+first connection, allowing another scanned radio/aircraft route to join the
+same fleet.
 
 The connection action may associate radios, configure isolated routes, import
 the fleet, and start SDK handshakes. It then projects each connected aircraft
 through its own `cit.tello` node in an unarmed monitoring session. Connection
 sends no takeoff, landing, movement, or emergency packet. The node publishes
-telemetry and exposes only tutor land and confirmed emergency stop; takeoff and
-movement are absent. Do not treat discovery/handshake evidence as flight
-approval.
+telemetry and exposes tutor-confirmed takeoff, movement, rotation, land, and
+emergency stop. Non-safe commands become available only after the tutor
+completes the one visible flight attestation, which maps to the three bounded
+contract confirmations; the first flight command explicitly arms and starts
+the device session. Manual
+movement is discrete and bounded to 20–50 cm, and rotation to 1–90°. Do not
+treat discovery/handshake evidence as flight approval.
 
-When at least two independently routed Tellos are connected, CIT also starts a
-separate bounded fleet-sequence controller. Re-run **Find devices** and connect
+When one or more independently routed Tellos are connected, CIT also starts a
+separate bounded fleet-sequence controller. Its tutor buttons take off and land
+the selected aircraft one at a time, confirming each state before advancing.
+Re-run **Find devices** and connect
 Leap or G2/Meta afterward to attach those input-only nodes to the same monitoring
-session. The ordinary Tello nodes still expose no takeoff capability; the
-controller requires the on-page one-shot arm and safety checklist.
+session. Per-aircraft manual controls remain independent from the fleet
+controller. The physical attestation remains explicit; **Take off one by one**
+prepares and consumes one ordered arm, while **Prepare ring / sensor trigger**
+leaves that one-shot arm waiting for an approved input.
 
 ## MindWave Mobile 2
 

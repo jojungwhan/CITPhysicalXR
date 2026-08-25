@@ -1,0 +1,31 @@
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cit-sphero-ollie"
+version = "0.0.0"
+description = "Independent Sphero Ollie adapter for CIT Physical XR"
+requires-python = ">=3.11,<3.14"
+license = "Apache-2.0"
+dependencies = [
+  "cit-integration-sdk",
+  "cit-protocol",
+]
+
+[project.optional-dependencies]
+hardware = [
+  "bleak==3.0.2",
+  "spherov2==0.12.1",
+]
+
+[project.scripts]
+cit-sphero-ollie = "cit_sphero_ollie.fabric_main:main"
+cit-sphero-ollie-discover = "cit_sphero_ollie.discovery:main"
+
+[tool.uv.sources]
+cit-integration-sdk = { workspace = true }
+cit-protocol = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cit_sphero_ollie"]

@@ -22,6 +22,7 @@ export function FabricWonderWorkshopPanel({
   sessionArmed,
   busy,
   canSubmit,
+  canManageSession,
   onCommand,
   t,
 }: {
@@ -30,6 +31,7 @@ export function FabricWonderWorkshopPanel({
   sessionArmed: boolean;
   busy: boolean;
   canSubmit: boolean;
+  canManageSession: boolean;
   onCommand: (
     role: string,
     action: string,
@@ -39,6 +41,8 @@ export function FabricWonderWorkshopPanel({
   t: FabricTranslate;
 }) {
   if (robots.length === 0) return null;
+  const canPrepareSession =
+    canManageSession && ["ready", "paused", "active"].includes(sessionState);
   return (
     <section className="fabric-panel fabric-wonder-panel">
       <div className="fabric-panel-heading">
@@ -56,8 +60,10 @@ export function FabricWonderWorkshopPanel({
             sessionState,
             sessionArmed,
           );
-          const physicalEnabled = canSubmit && !busy && available.physical;
-          const lightEnabled = canSubmit && !busy && available.light;
+          const physicalEnabled =
+            canSubmit && !busy && (available.physical || canPrepareSession);
+          const lightEnabled =
+            canSubmit && !busy && (available.light || canPrepareSession);
           return (
             <article className="fabric-wonder-card" key={node.nodeId}>
               <header>
@@ -241,9 +247,6 @@ export function FabricWonderWorkshopPanel({
                     </div>
                   </div>
                 </>
-              )}
-              {!available.physical && !node.simulated && (
-                <p className="fabric-wonder-lock">{t("wonder.locked")}</p>
               )}
             </article>
           );

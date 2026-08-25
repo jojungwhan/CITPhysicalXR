@@ -164,8 +164,8 @@ contract-supported source kind is not physical-completion evidence.
   install; record firmware, Bluetooth/Wi-Fi behavior, restart/network-loss,
   verified state, and safe-off evidence.
 - Add multimodal state windows after calibration semantics stabilize.
-- Add any generic Tello takeoff or movement only under a new drone safety ADR;
-  ADRs 0020 and 0021 authorize only their exact bounded one-shot workflows.
+- Validate the bounded per-aircraft Tello controls from ADR 0030 in a guarded
+  physical flight area, including lost-link, duplicate delivery, and landing.
 - Run Windows/Linux, multi-host, crash, network-loss, restart, privacy, security, performance, and hardware-in-loop gates.
 
 ## Change discipline

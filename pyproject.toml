@@ -13,6 +13,7 @@ dependencies = [
   "cit-mindwave-mobile2",
   "cit-robomaster-leap",
   "cit-sphero-bolt",
+  "cit-sphero-ollie",
   "cit-tello",
   "cit-wonder-workshop",
   "cit-runtime",
@@ -53,6 +54,7 @@ members = [
   "adapters/mindwave-mobile2",
   "adapters/robomaster-leap",
   "adapters/sphero-bolt",
+  "adapters/sphero-ollie",
   "adapters/tello",
   "adapters/wonder-workshop",
   "apps/runtime-py",
@@ -73,6 +75,7 @@ cit-matter-smart-plug = { workspace = true }
 cit-mindwave-mobile2 = { workspace = true }
 cit-robomaster-leap = { workspace = true }
 cit-sphero-bolt = { workspace = true }
+cit-sphero-ollie = { workspace = true }
 cit-tello = { workspace = true }
 cit-wonder-workshop = { workspace = true }
 cit-runtime = { workspace = true }
@@ -115,7 +118,7 @@ ignore_missing_imports = true
 module = ["bleak", "bleak.*"]
 ignore_missing_imports = true
 
-# spherov2 is isolated behind the optional BOLT hardware boundary and does not
+# spherov2 is isolated behind the optional BOLT and Ollie hardware boundaries and does not
 # publish typing metadata. The default environment intentionally omits it.
 [[tool.mypy.overrides]]
 module = ["spherov2", "spherov2.*"]

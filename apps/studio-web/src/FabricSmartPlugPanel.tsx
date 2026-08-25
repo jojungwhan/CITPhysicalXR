@@ -15,7 +15,6 @@ export interface FabricSmartPlugAssignment {
 }
 
 export function FabricSmartPlugPanel({
-  connectedPlugCount,
   plugs,
   sessionState,
   sessionMode,
@@ -23,15 +22,11 @@ export function FabricSmartPlugPanel({
   busy,
   canSubmit,
   canManageSession,
-  canOpenControls,
   requiredRolesReady,
-  onOpenControls,
-  onEnableControls,
   onPower,
   locale,
   t,
 }: {
-  connectedPlugCount: number;
   plugs: FabricSmartPlugAssignment[];
   sessionState: string;
   sessionMode: "simulation" | "physical" | undefined;
@@ -39,19 +34,22 @@ export function FabricSmartPlugPanel({
   busy: boolean;
   canSubmit: boolean;
   canManageSession: boolean;
-  canOpenControls: boolean;
   requiredRolesReady: boolean;
-  onOpenControls: () => void;
-  onEnableControls: () => void;
   onPower: (role: string, on: boolean) => void;
   locale: Locale;
   t: FabricTranslate;
 }) {
-  const canTurnOff = canSubmit && !busy && plugs.length > 0;
-  const canTurnOn =
-    canTurnOff &&
-    sessionState === "active" &&
-    (sessionMode !== "physical" || sessionArmed);
+  if (plugs.length === 0) return null;
+  const canUseOrPrepareSession = sessionState !== "" || canManageSession;
+  const canTurnOff =
+    canSubmit &&
+    !busy &&
+    plugs.length > 0 &&
+    requiredRolesReady &&
+    canUseOrPrepareSession;
+  const controlsAlreadyReady =
+    sessionState === "active" && (sessionMode !== "physical" || sessionArmed);
+  const canTurnOn = canTurnOff && (controlsAlreadyReady || canManageSession);
 
   return (
     <section
@@ -62,105 +60,68 @@ export function FabricSmartPlugPanel({
         <p className="eyebrow">{t("plug.eyebrow")}</p>
         <h2>{t("plug.title")}</h2>
       </div>
-      {plugs.length === 0 ? (
-        <div className="fabric-plug-control-entry">
-          <div>
-            <strong>
-              {t("plug.connectedReady", { count: connectedPlugCount })}
-            </strong>
-            <span>{t("plug.openControlsHelp")}</span>
-          </div>
-          <button
-            type="button"
-            disabled={busy || !canSubmit || !canOpenControls}
-            onClick={onOpenControls}
+      <div className="fabric-smart-plug-list">
+        {plugs.map(({ role, node, state }) => (
+          <div
+            className="fabric-smart-plug-layout"
+            key={`${role}:${node.nodeId}`}
           >
-            {t("plug.openControls")}
-          </button>
-        </div>
-      ) : (
-        <>
-          {!canTurnOn && (
-            <div className="fabric-plug-safety-gate">
-              <div>
-                <strong>{t("plug.powerOnLocked")}</strong>
-                <span>{t("plug.powerOnLockedHelp")}</span>
-              </div>
-              <button
-                type="button"
-                disabled={busy || !canManageSession || !requiredRolesReady}
-                onClick={onEnableControls}
+            <div className="fabric-smart-plug-state">
+              <span
+                className={`fabric-plug-indicator ${state?.on ? "is-on" : "is-off"}`}
+                aria-hidden="true"
               >
-                {t("plug.enablePowerOn")}
+                {state === undefined
+                  ? t("plug.unknownState")
+                  : state.on
+                    ? t("plug.onState")
+                    : t("plug.offState")}
+              </span>
+              <div>
+                <strong>{fabricRoleText(role, t).name}</strong>
+                <small>
+                  {node.displayName} · {node.nodeId}
+                </small>
+                <small>
+                  {metadataText(node, "vendorBrand") ?? "Matter"} ·{" "}
+                  {metadataText(node, "model") ?? "smart plug"}
+                </small>
+                <small>
+                  {state === undefined
+                    ? t("plug.stateUnknown")
+                    : t("plug.observed", {
+                        time: fabricFormatTime(state.observedAt, locale),
+                        source:
+                          state.source === undefined
+                            ? ""
+                            : ` · ${state.source}`,
+                      })}
+                </small>
+              </div>
+            </div>
+            <div className="fabric-smart-plug-actions">
+              <button
+                className="fabric-power-on"
+                type="button"
+                disabled={!canTurnOn}
+                onClick={() => onPower(role, true)}
+              >
+                {t("plug.turnOn")}
+                <small>{t("plug.turnOnHelp")}</small>
+              </button>
+              <button
+                className="fabric-power-off"
+                type="button"
+                disabled={!canTurnOff}
+                onClick={() => onPower(role, false)}
+              >
+                {t("plug.turnOff")}
+                <small>{t("plug.turnOffHelp")}</small>
               </button>
             </div>
-          )}
-          <div className="fabric-smart-plug-list">
-            {plugs.map(({ role, node, state }) => (
-              <div
-                className="fabric-smart-plug-layout"
-                key={`${role}:${node.nodeId}`}
-              >
-                <div className="fabric-smart-plug-state">
-                  <span
-                    className={`fabric-plug-indicator ${state?.on ? "is-on" : "is-off"}`}
-                    aria-hidden="true"
-                  >
-                    {state === undefined
-                      ? t("plug.unknownState")
-                      : state.on
-                        ? t("plug.onState")
-                        : t("plug.offState")}
-                  </span>
-                  <div>
-                    <strong>{fabricRoleText(role, t).name}</strong>
-                    <small>
-                      {node.displayName} · {node.nodeId}
-                    </small>
-                    <small>
-                      {metadataText(node, "vendorBrand") ?? "Matter"} ·{" "}
-                      {metadataText(node, "model") ?? "smart plug"}
-                    </small>
-                    <small>
-                      {state === undefined
-                        ? t("plug.stateUnknown")
-                        : t("plug.observed", {
-                            time: fabricFormatTime(state.observedAt, locale),
-                            source:
-                              state.source === undefined
-                                ? ""
-                                : ` · ${state.source}`,
-                          })}
-                    </small>
-                  </div>
-                </div>
-                <div className="fabric-smart-plug-actions">
-                  <button
-                    className="fabric-power-on"
-                    type="button"
-                    disabled={!canTurnOn}
-                    onClick={() => onPower(role, true)}
-                  >
-                    {t("plug.turnOn")}
-                    <small>
-                      {canTurnOn ? t("plug.turnOnHelp") : t("plug.afterSafety")}
-                    </small>
-                  </button>
-                  <button
-                    className="fabric-power-off"
-                    type="button"
-                    disabled={!canTurnOff}
-                    onClick={() => onPower(role, false)}
-                  >
-                    {t("plug.turnOff")}
-                    <small>{t("plug.turnOffHelp")}</small>
-                  </button>
-                </div>
-              </div>
-            ))}
           </div>
-        </>
-      )}
+        ))}
+      </div>
       <p className="fabric-help">{t("plug.help")}</p>
     </section>
   );

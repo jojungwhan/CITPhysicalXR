@@ -1,11 +1,15 @@
 import type {
   AgentMeshCompletion,
   AgentMeshCompletionFeed,
+  AgentMeshCompanionInput,
   AgentMeshDiscovery,
+  AgentMeshInteraction,
+  AgentMeshInteractionFeed,
   AgentMeshIntent,
   AgentMeshIntentFeed,
   AgentMeshSession,
   AgentMeshWearable,
+  CitFabricControlInventory,
 } from "./types.js";
 
 const MAX_RESPONSE_BYTES = 1_048_576;
@@ -45,8 +49,74 @@ export class AgentMeshApiClient {
     return {
       generatedAt: dateTime(value.generatedAt, "generatedAt"),
       wearables: array(value.wearables, "wearables").map(parseWearable),
+      companionInputs:
+        value.companionInputs === undefined
+          ? []
+          : array(value.companionInputs, "companionInputs").map(
+              parseCompanionInput,
+            ),
       sessions: array(value.sessions, "sessions").map(parseSession),
     };
+  }
+
+  async publishControlInventory(
+    inventory: CitFabricControlInventory,
+  ): Promise<void> {
+    const value = record(
+      await this.#request(
+        "PUT",
+        "/api/v1/wearables/cit-fabric/controls",
+        inventory,
+      ),
+      "control inventory",
+    );
+    if (
+      value.sessionId !== inventory.sessionId ||
+      value.expiresAt !== inventory.expiresAt
+    ) {
+      throw new TypeError("Agent Mesh returned a mismatched control inventory");
+    }
+  }
+
+  async interactions(afterSequence: number): Promise<AgentMeshInteractionFeed> {
+    const query = new URLSearchParams({
+      after: String(afterSequence),
+      limit: "100",
+    });
+    let response: unknown;
+    try {
+      response = await this.#request(
+        "GET",
+        `/api/v1/wearables/cit-fabric/interactions?${query.toString()}`,
+      );
+    } catch (error) {
+      if (error instanceof AgentMeshApiError && error.status === 404) {
+        return { interactions: [], nextCursor: afterSequence };
+      }
+      throw error;
+    }
+    const value = record(response, "interaction feed");
+    return {
+      interactions: array(value.interactions, "interactions").map(
+        parseInteraction,
+      ),
+      nextCursor: nonnegativeInteger(value.nextCursor, "nextCursor"),
+    };
+  }
+
+  async acknowledgeInteraction(interactionId: string): Promise<void> {
+    const value = record(
+      await this.#request(
+        "POST",
+        `/api/v1/wearables/cit-fabric/interactions/${encodeURIComponent(interactionId)}/ack`,
+      ),
+      "interaction acknowledgement",
+    );
+    if (value.interactionId !== interactionId || value.acknowledged !== true) {
+      throw new TypeError(
+        "Agent Mesh returned an invalid interaction acknowledgement",
+      );
+    }
   }
 
   async intents(afterSequence: number): Promise<AgentMeshIntentFeed> {
@@ -103,9 +173,9 @@ export class AgentMeshApiClient {
   }
 
   async #request(
-    method: "GET" | "POST",
+    method: "GET" | "POST" | "PUT",
     path: string,
-    body?: Record<string, unknown>,
+    body?: unknown,
   ): Promise<unknown> {
     const response = await this.#fetch(`${this.#baseUrl}${path}`, {
       method,
@@ -162,6 +232,91 @@ const parseWearable = (value: unknown): AgentMeshWearable => {
       "status",
     ),
     ...(lastUsedAt === undefined ? {} : { lastUsedAt }),
+  };
+};
+
+const parseCompanionInput = (value: unknown): AgentMeshCompanionInput => {
+  const item = record(value, "companion input");
+  return {
+    parentDeviceId: string(item.parentDeviceId, "parentDeviceId"),
+    displayName: string(item.displayName, "displayName"),
+    kind: oneOf(item.kind, ["even_r1"] as const, "kind"),
+    status: oneOf(
+      item.status,
+      ["active", "expired", "revoked"] as const,
+      "status",
+    ),
+    lastUsedAt: dateTime(item.lastUsedAt, "lastUsedAt"),
+  };
+};
+
+const parseInteraction = (value: unknown): AgentMeshInteraction => {
+  const item = record(value, "interaction");
+  const common = {
+    interactionId: uuid(item.interactionId, "interactionId"),
+    sequence: positiveInteger(item.sequence, "sequence"),
+    deviceId: string(item.deviceId, "deviceId"),
+    deviceDisplayName: string(item.deviceDisplayName, "deviceDisplayName"),
+    createdAt: dateTime(item.createdAt, "createdAt"),
+  };
+  const source = oneOf(
+    item.source,
+    ["even_r1", "device_control"] as const,
+    "source",
+  );
+  if (source === "even_r1") {
+    return {
+      ...common,
+      deviceKind: oneOf(item.deviceKind, ["even_g2"] as const, "deviceKind"),
+      source,
+      gesture: oneOf(
+        item.gesture,
+        ["tap", "double_tap", "scroll_up", "scroll_down"] as const,
+        "gesture",
+      ),
+    };
+  }
+  return {
+    ...common,
+    deviceKind: oneOf(
+      item.deviceKind,
+      ["even_g2", "ray_ban"] as const,
+      "deviceKind",
+    ),
+    source,
+    action: oneOf(
+      item.action,
+      [
+        "forward",
+        "backward",
+        "left",
+        "right",
+        "stop",
+        "light",
+        "demo",
+        "takeoff",
+        "land",
+        "activate",
+      ] as const,
+      "action",
+    ),
+    target: oneOf(
+      item.target,
+      [
+        "ground_outputs",
+        "tello_fleet",
+        "assigned_output",
+        "all_outputs",
+      ] as const,
+      "target",
+    ),
+    ...(item.targetRole === undefined
+      ? {}
+      : { targetRole: string(item.targetRole, "targetRole") }),
+    ...(item.batchId === undefined
+      ? {}
+      : { batchId: uuid(item.batchId, "batchId") }),
+    confirmed: literal(item.confirmed, true, "confirmed"),
   };
 };
 

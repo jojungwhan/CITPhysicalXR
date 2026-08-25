@@ -39,16 +39,19 @@ from .fabric_auth import (
 )
 from .fabric_course import device_monitoring_course_pack
 from .fabric_discovery import (
+    SESSION_TARGET_ACTION_COURSE_PACKS,
     FabricDiscoveryActionResult,
     FabricDiscoveryError,
     FabricDiscoveryReport,
     FabricDiscoveryService,
+    FabricDiscoverySessionTarget,
     FabricRememberedConnection,
     FabricRememberedConnectionResult,
     FabricRememberedConnections,
     LegoConnectionConfiguration,
     MatterWifiConfiguration,
     SpheroBoltConnectionConfiguration,
+    SpheroOllieConnectionConfiguration,
     WonderWorkshopConnectionConfiguration,
     remembered_connection_policies_for_nodes,
     remembered_connection_policy,
@@ -121,6 +124,10 @@ class DiscoveryActionRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     confirmGrounded: bool = False
+    sessionId: Annotated[
+        str | None,
+        Field(min_length=1, max_length=128, pattern=_IDENTIFIER_PATTERN),
+    ] = None
 
 
 class MatterCommissioningRequest(BaseModel):
@@ -619,11 +626,44 @@ def install_fabric_api(
             Depends(require("fabric.discovery.connect")),
         ],
     ) -> FabricDiscoveryActionResult:
+        session_target: FabricDiscoverySessionTarget | None = None
+        if request.sessionId is not None:
+            allowed_course_packs = SESSION_TARGET_ACTION_COURSE_PACKS.get(action_id)
+            if allowed_course_packs is None:
+                raise FabricPolicyError(
+                    "DISCOVERY_SESSION_TARGET_DENIED",
+                    "This connection action cannot be attached to a lesson session",
+                )
+            session = get_fabric().get_session(request.sessionId)
+            get_auth().require(
+                principal,
+                "fabric.roles.assign",
+                site_id=session.siteId,
+                room_id=session.roomId,
+                session_id=session.sessionId,
+            )
+            if session.coursePackId not in allowed_course_packs:
+                raise FabricPolicyError(
+                    "DEVICE_CONTROL_SESSION_INVALID",
+                    "Select a compatible device-control lesson",
+                )
+            if session.mode is not FabricSessionMode.physical:
+                raise FabricPolicyError(
+                    "PHYSICAL_SESSION_REQUIRED",
+                    "Connect physical glasses to a physical lesson",
+                )
+            session_target = FabricDiscoverySessionTarget(
+                sessionId=session.sessionId,
+                coursePackId=session.coursePackId,
+                siteId=session.siteId,
+                roomId=session.roomId,
+            )
         try:
             result = await get_discovery().perform(
                 action_id,
                 confirm_grounded=request.confirmGrounded,
                 nodes=lambda: visible_nodes(principal),
+                session_target=session_target,
             )
         except FabricDiscoveryError as error:
             _audit(
@@ -645,7 +685,10 @@ def install_fabric_api(
             resource_id=action_id,
             at=current_time(),
             outcome="succeeded",
-            details={"groundedConfirmed": request.confirmGrounded},
+            details={
+                "groundedConfirmed": request.confirmGrounded,
+                **({"sessionId": request.sessionId} if request.sessionId is not None else {}),
+            },
         )
         remember_connection_action(action_id, principal)
         return result
@@ -695,6 +738,53 @@ def install_fabric_api(
             },
         )
         remember_connection_action("cit.sphero-bolt.reconnect", principal)
+        return result
+
+    @app.post(
+        "/api/v1/fabric/sphero-ollie/connect",
+        response_model=FabricDiscoveryActionResult,
+        response_model_exclude_none=True,
+    )
+    async def connect_sphero_ollie_robots(
+        request: SpheroOllieConnectionConfiguration,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.discovery.connect")),
+        ],
+    ) -> FabricDiscoveryActionResult:
+        try:
+            result = await get_discovery().connect_sphero_ollies(
+                request,
+                nodes=lambda: visible_nodes(principal),
+            )
+        except FabricDiscoveryError as error:
+            _audit(
+                get_repository(),
+                principal,
+                action="fabric.sphero_ollie.connect",
+                resource_type="integration_action",
+                resource_id="cit.sphero-ollie",
+                at=current_time(),
+                outcome="denied",
+                details={"code": error.code},
+            )
+            raise
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.sphero_ollie.connect",
+            resource_type="integration_action",
+            resource_id="cit.sphero-ollie",
+            at=current_time(),
+            outcome="succeeded",
+            details={
+                "candidateCount": len(request.robots),
+                "candidateIds": [robot.candidateId for robot in request.robots],
+                "movementCommandIssued": False,
+                "aimCommandIssued": False,
+            },
+        )
+        remember_connection_action("cit.sphero-ollie.reconnect", principal)
         return result
 
     @app.post(

@@ -60,6 +60,8 @@ describe("Agent Mesh compatibility command handling", () => {
     const config: BridgeConfig = {
       fabricAdapterUrl: "ws://127.0.0.1:8765/api/v1/adapters/connect",
       fabricCredential: "cit-adapter-" + "a".repeat(40),
+      fabricApiUrl: "http://127.0.0.1:8765",
+      fabricReadCredential: "cit-reader-" + "c".repeat(40),
       fabricSessionId: "lesson-session-a",
       agentMeshBaseUrl: "http://127.0.0.1:7342",
       agentMeshDeviceToken: "device_" + "b".repeat(43),
@@ -155,6 +157,8 @@ describe("Agent Mesh compatibility command handling", () => {
     const config: BridgeConfig = {
       fabricAdapterUrl: "ws://127.0.0.1:8765/api/v1/adapters/connect",
       fabricCredential: "cit-adapter-" + "a".repeat(40),
+      fabricApiUrl: "http://127.0.0.1:8765",
+      fabricReadCredential: "cit-reader-" + "c".repeat(40),
       fabricSessionId: "lesson-session-a",
       agentMeshBaseUrl: "http://127.0.0.1:7342",
       agentMeshDeviceToken: "device_" + "b".repeat(43),

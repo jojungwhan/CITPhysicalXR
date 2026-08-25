@@ -7,7 +7,7 @@ import json
 import os
 import subprocess
 from collections import deque
-from collections.abc import Mapping
+from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
@@ -25,10 +25,23 @@ class TelloBackendError(RuntimeError):
     pass
 
 
+def _brain2devices_error_detail(value: object) -> str | None:
+    if not isinstance(value, Mapping) or not value:
+        return None
+    detail = value.get("detail") or value.get("title")
+    return None if detail is None else str(detail)[:500]
+
+
 class TelloBackend(Protocol):
     async def start(self) -> Mapping[str, object]: ...
 
     async def telemetry(self) -> Mapping[str, object]: ...
+
+    async def takeoff(self) -> Mapping[str, object]: ...
+
+    async def move(self, *, direction: str, distance_centimeters: int) -> Mapping[str, object]: ...
+
+    async def rotate(self, *, clockwise: bool, degrees: int) -> Mapping[str, object]: ...
 
     async def land(self, *, reason: str) -> Mapping[str, object]: ...
 
@@ -66,6 +79,31 @@ class SimulatedTelloBackend:
         self.command_log.append(f"land:{reason}")
         return {"landed": True, "reason": reason}
 
+    async def takeoff(self) -> Mapping[str, object]:
+        if not self.connected:
+            raise TelloBackendError("Simulated Tello is not connected")
+        if self.flight_state != "landed":
+            raise TelloBackendError("Simulated Tello is already flying")
+        self.flight_state = "flying"
+        self.command_log.append("takeoff")
+        return {"takeoffRequested": True}
+
+    async def move(self, *, direction: str, distance_centimeters: int) -> Mapping[str, object]:
+        if not self.connected or self.flight_state != "flying":
+            raise TelloBackendError("Simulated Tello is not flying")
+        self.command_log.append(f"move:{direction}:{distance_centimeters}")
+        return {
+            "moveRequested": True,
+            "direction": direction,
+            "distanceCentimeters": distance_centimeters,
+        }
+
+    async def rotate(self, *, clockwise: bool, degrees: int) -> Mapping[str, object]:
+        if not self.connected or self.flight_state != "flying":
+            raise TelloBackendError("Simulated Tello is not flying")
+        self.command_log.append(f"rotate:{str(clockwise).lower()}:{degrees}")
+        return {"rotateRequested": True, "clockwise": clockwise, "degrees": degrees}
+
     async def emergency_stop(self, *, reason: str) -> Mapping[str, object]:
         if not self.connected:
             raise TelloBackendError("Simulated Tello is not connected")
@@ -98,24 +136,105 @@ class Brain2DevicesApiTelloBackend:
         *,
         origin: str = "http://127.0.0.1:8765",
         drone_id: str = "primary",
+        sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        confirmation_attempts: int = 50,
+        confirmation_interval_seconds: float = 0.2,
     ) -> None:
         if origin != "http://127.0.0.1:8765":
             raise ValueError("Brain2Devices API mode is restricted to loopback")
         if not drone_id or len(drone_id) > 128:
             raise ValueError("Brain2Devices drone ID is invalid")
+        if confirmation_attempts < 1:
+            raise ValueError("confirmation_attempts must be positive")
+        if confirmation_interval_seconds <= 0:
+            raise ValueError("confirmation interval must be positive")
         self._origin = origin
         self._drone_id = drone_id
+        self._sleep = sleep
+        self._confirmation_attempts = confirmation_attempts
+        self._confirmation_interval_seconds = confirmation_interval_seconds
         self._token: str | None = None
 
     async def start(self) -> Mapping[str, object]:
         self._token = await asyncio.to_thread(self._read_token)
         telemetry = await self.telemetry()
         if telemetry.get("connection") != "connected":
-            raise TelloBackendError(f"Brain2Devices drone {self._drone_id!r} is not connected")
+            detail = _brain2devices_error_detail(telemetry.get("connectionError"))
+            raise TelloBackendError(
+                detail or f"Brain2Devices drone {self._drone_id!r} is not connected"
+            )
         return telemetry
 
     async def telemetry(self) -> Mapping[str, object]:
         state = await asyncio.to_thread(self._request, "/api/state", None)
+        drone = self._drone_from_state(state)
+        telemetry = drone.get("telemetry")
+        if not isinstance(telemetry, dict):
+            telemetry = {}
+        connection_error = drone.get("error")
+        command_error = drone.get("command_error")
+        return {
+            "batteryPercent": telemetry.get("battery_percent"),
+            "heightCentimeters": telemetry.get("height_cm"),
+            "temperatureCelsius": telemetry.get("temperature_c"),
+            "flightState": drone.get("flight", "unknown"),
+            "connection": drone.get("connection", "unknown"),
+            "connectionError": (
+                dict(connection_error) if isinstance(connection_error, Mapping) else None
+            ),
+            "commandError": dict(command_error) if isinstance(command_error, Mapping) else None,
+            "busyCommand": drone.get("busy_command"),
+            "brain2devicesDroneId": self._drone_id,
+            "source": "brain2devices-api",
+        }
+
+    async def land(self, *, reason: str) -> Mapping[str, object]:
+        if await self._is_confirmed_landed():
+            return {
+                "landConfirmed": True,
+                "alreadyLanded": True,
+                "reason": reason,
+            }
+        await asyncio.to_thread(
+            self._request,
+            "/api/fleet/command",
+            {"action": "land", "drone_ids": [self._drone_id], "confirmed": True},
+        )
+        await self._wait_for_flight_state(expected="landed", action="landing")
+        return {"landConfirmed": True, "reason": reason}
+
+    async def takeoff(self) -> Mapping[str, object]:
+        await asyncio.to_thread(
+            self._request,
+            "/api/fleet/command",
+            {"action": "takeoff", "drone_ids": [self._drone_id], "confirmed": True},
+        )
+        await self._wait_for_flight_state(expected="flying", action="takeoff")
+        return {"takeoffConfirmed": True}
+
+    async def _wait_for_flight_state(self, *, expected: str, action: str) -> None:
+        for _attempt in range(self._confirmation_attempts):
+            state = await asyncio.to_thread(self._request, "/api/state", None)
+            drone = self._drone_from_state(state)
+            if drone.get("connection") != "connected":
+                detail = _brain2devices_error_detail(drone.get("error"))
+                raise TelloBackendError(
+                    detail or f"Brain2Devices drone {self._drone_id!r} disconnected during {action}"
+                )
+            command_error = drone.get("command_error")
+            if isinstance(command_error, dict) and command_error:
+                detail = _brain2devices_error_detail(command_error)
+                raise TelloBackendError(
+                    f"Brain2Devices drone {self._drone_id!r} rejected {action}: {str(detail)[:300]}"
+                )
+            if drone.get("flight") == expected:
+                return
+            await self._sleep(self._confirmation_interval_seconds)
+        raise TelloBackendError(
+            f"Brain2Devices drone {self._drone_id!r} did not confirm {expected} during {action}"
+        )
+
+    def _drone_from_state(self, state: Mapping[str, object]) -> Mapping[str, object]:
         fleet = state.get("fleet")
         if not isinstance(fleet, dict) or not isinstance(fleet.get("drones"), list):
             raise TelloBackendError("Brain2Devices fleet state is unavailable")
@@ -129,28 +248,69 @@ class Brain2DevicesApiTelloBackend:
         )
         if not isinstance(drone, dict):
             raise TelloBackendError(f"Brain2Devices no longer reports drone {self._drone_id!r}")
-        telemetry = drone.get("telemetry")
-        if not isinstance(telemetry, dict):
-            telemetry = {}
-        return {
-            "batteryPercent": telemetry.get("battery_percent"),
-            "heightCentimeters": telemetry.get("height_cm"),
-            "temperatureCelsius": telemetry.get("temperature_c"),
-            "flightState": drone.get("flight", "unknown"),
-            "connection": drone.get("connection", "unknown"),
-            "brain2devicesDroneId": self._drone_id,
-            "source": "brain2devices-api",
-        }
+        return drone
 
-    async def land(self, *, reason: str) -> Mapping[str, object]:
+    async def move(self, *, direction: str, distance_centimeters: int) -> Mapping[str, object]:
         await asyncio.to_thread(
             self._request,
             "/api/fleet/command",
-            {"action": "land", "drone_ids": [self._drone_id], "confirmed": True},
+            {
+                "action": "move",
+                "drone_ids": [self._drone_id],
+                "confirmed": True,
+                "direction": direction,
+                "distance_cm": distance_centimeters,
+            },
         )
-        return {"landRequested": True, "reason": reason}
+        await self._wait_for_command_completion(action="movement")
+        return {
+            "moveConfirmed": True,
+            "direction": direction,
+            "distanceCentimeters": distance_centimeters,
+        }
+
+    async def rotate(self, *, clockwise: bool, degrees: int) -> Mapping[str, object]:
+        await asyncio.to_thread(
+            self._request,
+            "/api/fleet/command",
+            {
+                "action": "rotate",
+                "drone_ids": [self._drone_id],
+                "confirmed": True,
+                "clockwise": clockwise,
+                "degrees": degrees,
+            },
+        )
+        await self._wait_for_command_completion(action="rotation")
+        return {"rotateConfirmed": True, "clockwise": clockwise, "degrees": degrees}
+
+    async def _wait_for_command_completion(self, *, action: str) -> None:
+        for _attempt in range(self._confirmation_attempts):
+            state = await asyncio.to_thread(self._request, "/api/state", None)
+            drone = self._drone_from_state(state)
+            if drone.get("connection") != "connected":
+                detail = _brain2devices_error_detail(drone.get("error"))
+                raise TelloBackendError(
+                    detail or f"Brain2Devices drone {self._drone_id!r} disconnected during {action}"
+                )
+            command_error = drone.get("command_error")
+            if isinstance(command_error, dict) and command_error:
+                detail = _brain2devices_error_detail(command_error)
+                raise TelloBackendError(
+                    f"Brain2Devices drone {self._drone_id!r} rejected {action}: {str(detail)[:300]}"
+                )
+            if drone.get("busy_command") is None:
+                return
+            await self._sleep(self._confirmation_interval_seconds)
+        raise TelloBackendError(f"Brain2Devices drone {self._drone_id!r} did not complete {action}")
 
     async def emergency_stop(self, *, reason: str) -> Mapping[str, object]:
+        if await self._is_confirmed_landed():
+            return {
+                "emergencyStopRequested": False,
+                "alreadyLanded": True,
+                "reason": reason,
+            }
         await asyncio.to_thread(
             self._request,
             "/api/fleet/command",
@@ -161,6 +321,13 @@ class Brain2DevicesApiTelloBackend:
             },
         )
         return {"emergencyStopRequested": True, "reason": reason}
+
+    async def _is_confirmed_landed(self) -> bool:
+        try:
+            telemetry = await self.telemetry()
+        except TelloBackendError:
+            return False
+        return telemetry.get("flightState") == "landed"
 
     async def close(self) -> None:
         # The compatibility service is owned and stopped independently.
@@ -203,8 +370,15 @@ class Brain2DevicesApiTelloBackend:
                 raw = response.read(262_144)
             value: object = json.loads(raw.decode("utf-8"))
         except HTTPError as error:
+            detail = ""
+            try:
+                parsed: object = json.loads(error.read(65_536).decode("utf-8"))
+                if isinstance(parsed, dict):
+                    detail = str(parsed.get("error", ""))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+                pass
             raise TelloBackendError(
-                f"Brain2Devices rejected the safe-state operation with HTTP {error.code}"
+                (detail or f"Brain2Devices returned HTTP {error.code}")[:500]
             ) from error
         except (OSError, URLError, UnicodeDecodeError, json.JSONDecodeError) as error:
             raise TelloBackendError("Brain2Devices returned an invalid response") from error
@@ -271,6 +445,23 @@ class Brain2DevicesTelloProcess:
 
     async def telemetry(self) -> Mapping[str, object]:
         return await self._request("telemetry", deadline_seconds=5)
+
+    async def takeoff(self) -> Mapping[str, object]:
+        return await self._request("takeoff", deadline_seconds=25)
+
+    async def move(self, *, direction: str, distance_centimeters: int) -> Mapping[str, object]:
+        return await self._request(
+            "move",
+            {"direction": direction, "distanceCentimeters": distance_centimeters},
+            deadline_seconds=15,
+        )
+
+    async def rotate(self, *, clockwise: bool, degrees: int) -> Mapping[str, object]:
+        return await self._request(
+            "rotate",
+            {"clockwise": clockwise, "degrees": degrees},
+            deadline_seconds=15,
+        )
 
     async def land(self, *, reason: str) -> Mapping[str, object]:
         return await self._request("land", {"reason": reason}, deadline_seconds=12)

@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from html.parser import HTMLParser
 from pathlib import Path
+from tempfile import TemporaryFile
 from types import MappingProxyType
 from typing import Literal, Protocol
 from urllib.error import HTTPError, URLError
@@ -34,6 +35,15 @@ from .fabric_integration_catalog import IntegrationDescriptor, load_integration_
 DISCOVERY_REPORT_MAX_BYTES = 262_144
 DISCOVERY_SCAN_TIMEOUT_SECONDS = 35.0
 DISCOVERY_ACTION_TIMEOUT_SECONDS = 120.0
+DISCOVERY_OUTPUT_SIZE_POLL_SECONDS = 0.05
+SESSION_TARGET_ACTION_COURSE_PACKS: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        "cit.glasses-device-control.connect": frozenset(
+            {"glasses-device-control", "synchronized-motor-control"}
+        ),
+        "cit.synchronized-mindwave.connect": frozenset({"synchronized-motor-control"}),
+    }
+)
 
 
 class _ProcessOutputTooLarge(RuntimeError):
@@ -49,6 +59,33 @@ class _FleetMonitoringAttachment(BaseModel):
     fleetNodeId: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
     siteId: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
     roomId: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+class FabricDiscoverySessionTarget(BaseModel):
+    """Validated lesson scope passed to a fixed local connection launcher."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    sessionId: str = Field(
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
+    coursePackId: str = Field(
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
+    siteId: str = Field(
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
+    roomId: str = Field(
+        min_length=1,
+        max_length=128,
+        pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
 
 
 async def _read_bounded_stream(
@@ -101,6 +138,64 @@ async def _communicate_bounded(
             await process.wait()
         await asyncio.gather(stdout_task, stderr_task, return_exceptions=True)
         raise
+
+
+async def _run_with_bounded_file_output(
+    *command: str,
+    timeout_seconds: float,
+    input_bytes: bytes | None = None,
+    creationflags: int = 0,
+) -> tuple[int, bytes, bytes]:
+    """Run a launcher without pipes that detached Windows children can retain."""
+
+    with TemporaryFile(mode="w+b") as stdout_file, TemporaryFile(mode="w+b") as stderr_file:
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdin=asyncio.subprocess.PIPE if input_bytes is not None else None,
+            stdout=stdout_file,
+            stderr=stderr_file,
+            creationflags=creationflags,
+        )
+        wait_task = asyncio.create_task(process.wait())
+        try:
+            if input_bytes is not None:
+                if process.stdin is None:
+                    raise RuntimeError("Launcher input pipe is unavailable")
+                process.stdin.write(input_bytes)
+                with suppress(BrokenPipeError, ConnectionResetError):
+                    await process.stdin.drain()
+                process.stdin.close()
+            async with asyncio.timeout(timeout_seconds):
+                while not wait_task.done():
+                    await asyncio.wait(
+                        {wait_task},
+                        timeout=DISCOVERY_OUTPUT_SIZE_POLL_SECONDS,
+                    )
+                    if (
+                        os.fstat(stdout_file.fileno()).st_size
+                        + os.fstat(stderr_file.fileno()).st_size
+                        > DISCOVERY_REPORT_MAX_BYTES
+                    ):
+                        raise _ProcessOutputTooLarge
+                returncode = await wait_task
+            stdout_file.flush()
+            stderr_file.flush()
+            if (
+                os.fstat(stdout_file.fileno()).st_size + os.fstat(stderr_file.fileno()).st_size
+                > DISCOVERY_REPORT_MAX_BYTES
+            ):
+                raise _ProcessOutputTooLarge
+            stdout_file.seek(0)
+            stderr_file.seek(0)
+            return returncode, stdout_file.read(), stderr_file.read()
+        except BaseException:
+            wait_task.cancel()
+            if process.returncode is None:
+                with suppress(ProcessLookupError):
+                    process.kill()
+                await process.wait()
+            await asyncio.gather(wait_task, return_exceptions=True)
+            raise
 
 
 DiscoveryStatus = Literal[
@@ -178,12 +273,18 @@ class FabricIntegrationDiscovery(BaseModel):
             "lego",
             "plug",
             "robot",
+            "ring",
             "sphero",
             "terminal",
             "wonder",
         ]
         | None
     ) = None
+    imagePath: str | None = Field(
+        default=None,
+        pattern=r"^\./device-images/[a-z0-9][a-z0-9._-]*\.webp$",
+        max_length=160,
+    )
     status: DiscoveryStatus
     summary: str = Field(min_length=1, max_length=500)
     connectionMethod: str = Field(min_length=1, max_length=160)
@@ -276,7 +377,15 @@ _REMEMBERED_CONNECTION_POLICIES: Mapping[str, RememberedConnectionPolicy] = Mapp
         for policy in (
             RememberedConnectionPolicy(
                 "cit.glasses-agent.connect",
-                ("even-realities-g2", "meta-rayban", "coding-agents"),
+                ("meta-rayban", "coding-agents"),
+            ),
+            RememberedConnectionPolicy(
+                "cit.even-g2.connect",
+                ("even-realities-g2",),
+            ),
+            RememberedConnectionPolicy(
+                "cit.even-r1.connect",
+                ("even-realities-r1",),
             ),
             RememberedConnectionPolicy(
                 "cit.robomaster-leap.connect",
@@ -297,6 +406,10 @@ _REMEMBERED_CONNECTION_POLICIES: Mapping[str, RememberedConnectionPolicy] = Mapp
             RememberedConnectionPolicy(
                 "cit.sphero-bolt.reconnect",
                 ("sphero-bolt",),
+            ),
+            RememberedConnectionPolicy(
+                "cit.sphero-ollie.reconnect",
+                ("sphero-ollie",),
             ),
             RememberedConnectionPolicy(
                 "brain2devices.mindwave.connect",
@@ -430,16 +543,98 @@ class SpheroBoltConnectionConfiguration(BaseModel):
         return self
 
 
+class SpheroOllieSelection(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    candidateId: str = Field(pattern=r"^sphero-ollie-[a-f0-9]{12}$")
+
+
+class SpheroOllieConnectionConfiguration(BaseModel):
+    """Exact opaque Ollie candidates selected by a tutor in the local UI."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    robots: list[SpheroOllieSelection] = Field(min_length=1, max_length=4)
+
+    @model_validator(mode="after")
+    def validate_candidate_ids(self) -> SpheroOllieConnectionConfiguration:
+        candidate_ids = [robot.candidateId for robot in self.robots]
+        if len(candidate_ids) != len(set(candidate_ids)):
+            raise ValueError("Sphero Ollie candidates must be unique")
+        return self
+
+
 class FabricDiscoveryError(RuntimeError):
     def __init__(self, code: str, message: str) -> None:
         super().__init__(message)
         self.code = code
 
 
+def _is_orphaned_brain2devices_radio_route(error: FabricDiscoveryError) -> bool:
+    """Match only Brain2Devices' deterministic stale managed-route refusal."""
+
+    message = str(error).casefold()
+    return (
+        error.code == "BRAIN2DEVICES_CONNECTION_REJECTED"
+        and "brain2devices-managed static ipv4 assignment" in message
+        and "restore dhcp first" in message
+    )
+
+
+def _is_brain2devices_imported_radio_route_refusal(
+    error: FabricDiscoveryError,
+) -> bool:
+    """Match reassignment refusal when the safe route is already imported."""
+
+    message = str(error).casefold()
+    return (
+        error.code == "BRAIN2DEVICES_CONNECTION_REJECTED"
+        and "is already imported for" in message
+        and "remove that disconnected mapping before assigning a different tello" in message
+    )
+
+
+def _is_brain2devices_radio_capacity_refusal(error: FabricDiscoveryError) -> bool:
+    """Match the safe partial-connect case where aircraft outnumber radios."""
+
+    message = str(error).casefold()
+    return (
+        error.code == "BRAIN2DEVICES_CONNECTION_REJECTED"
+        and "could safely assign only" in message
+        and "physical wi-fi adapter" in message
+        and "each standard tello needs its own adapter" in message
+        and "no wi-fi association" in message
+        and "flight command was changed" in message
+    )
+
+
+def _is_brain2devices_existing_landed_session_refusal(
+    error: FabricDiscoveryError,
+) -> bool:
+    """Match a redundant route change blocked by already connected landed Tellos."""
+
+    message = str(error).casefold()
+    affected_sessions = message.count("currently uses")
+    return (
+        error.code == "BRAIN2DEVICES_CONNECTION_REJECTED"
+        and "local wi-fi routes cannot change while an affected aircraft session may be active"
+        in message
+        and affected_sessions > 0
+        and message.count("(connected, landed)") == affected_sessions
+        and "land and disconnect any connected or busy affected sessions first" in message
+    )
+
+
 class DiscoveryRunner(Protocol):
     async def scan(self) -> FabricDiscoveryReport: ...
 
-    async def perform(self, action_id: str, *, confirm_grounded: bool) -> str: ...
+    async def perform(
+        self,
+        action_id: str,
+        *,
+        confirm_grounded: bool,
+        session_target: FabricDiscoverySessionTarget | None = None,
+    ) -> str: ...
 
     async def configure_matter_wifi(self, configuration: MatterWifiConfiguration) -> str: ...
 
@@ -453,6 +648,10 @@ class DiscoveryRunner(Protocol):
 
     async def connect_sphero_bolts(
         self, configuration: SpheroBoltConnectionConfiguration
+    ) -> str: ...
+
+    async def connect_sphero_ollies(
+        self, configuration: SpheroOllieConnectionConfiguration
     ) -> str: ...
 
 
@@ -498,13 +697,26 @@ class FabricDiscoveryService:
         *,
         confirm_grounded: bool,
         nodes: NodeProvider,
+        session_target: FabricDiscoverySessionTarget | None = None,
     ) -> FabricDiscoveryActionResult:
         async with self._connection_lock:
-            message = await self._runner.perform(
-                action_id,
-                confirm_grounded=confirm_grounded,
-            )
-        report = await self.scan(nodes())
+            if session_target is None:
+                # Keep compatibility with small embedded discovery runners that
+                # implement the original two-argument protocol.
+                message = await self._runner.perform(
+                    action_id,
+                    confirm_grounded=confirm_grounded,
+                )
+            else:
+                message = await self._runner.perform(
+                    action_id,
+                    confirm_grounded=confirm_grounded,
+                    session_target=session_target,
+                )
+        # Adapter launchers wait for Fabric registration before returning. Use
+        # that live-node overlay instead of repeating the broad host scan; the
+        # explicit Find devices action remains the single scan entry point.
+        report = self.current(nodes())
         return FabricDiscoveryActionResult(
             actionId=action_id,
             accepted=True,
@@ -680,6 +892,22 @@ class FabricDiscoveryService:
             report=report,
         )
 
+    async def connect_sphero_ollies(
+        self,
+        configuration: SpheroOllieConnectionConfiguration,
+        *,
+        nodes: NodeProvider,
+    ) -> FabricDiscoveryActionResult:
+        async with self._connection_lock:
+            message = await self._runner.connect_sphero_ollies(configuration)
+        report = await self.scan(nodes())
+        return FabricDiscoveryActionResult(
+            actionId="cit.sphero-ollie.configure-connect",
+            accepted=True,
+            message=message,
+            report=report,
+        )
+
 
 class UnavailableDiscoveryRunner:
     """Safe default for tests and embedded runtimes without a host probe."""
@@ -690,8 +918,14 @@ class UnavailableDiscoveryRunner:
     async def scan(self) -> FabricDiscoveryReport:
         return initial_discovery_report(at=self._clock())
 
-    async def perform(self, action_id: str, *, confirm_grounded: bool) -> str:
-        del action_id, confirm_grounded
+    async def perform(
+        self,
+        action_id: str,
+        *,
+        confirm_grounded: bool,
+        session_target: FabricDiscoverySessionTarget | None = None,
+    ) -> str:
+        del action_id, confirm_grounded, session_target
         raise FabricDiscoveryError(
             "DISCOVERY_ACTION_UNAVAILABLE",
             "Local device connection actions are unavailable in this runtime",
@@ -732,6 +966,13 @@ class UnavailableDiscoveryRunner:
         raise FabricDiscoveryError(
             "SPHERO_CONNECTION_UNAVAILABLE",
             "Local Sphero BOLT connection is unavailable in this runtime",
+        )
+
+    async def connect_sphero_ollies(self, configuration: SpheroOllieConnectionConfiguration) -> str:
+        del configuration
+        raise FabricDiscoveryError(
+            "SPHERO_OLLIE_CONNECTION_UNAVAILABLE",
+            "Local Sphero Ollie connection is unavailable in this runtime",
         )
 
 
@@ -791,6 +1032,67 @@ class PowerShellDiscoveryRunner:
                     ),
                     "Glasses and coding-agent adapters connected through the existing "
                     "Agent Mesh bridge.",
+                ),
+                "cit.even-g2.connect": _LauncherAction(
+                    "glasses-agent-hardware-test.ps1",
+                    (
+                        "-Mode",
+                        "Start",
+                        *common,
+                        "-StateRoot",
+                        str(self._state_root.parent / "glasses-agent"),
+                        "-SkipBuild",
+                        "-NoOpenConsole",
+                    ),
+                    "The G2 bridge is ready. Keep Tailscale on and open the CIT "
+                    "prototype in the paired Even app to confirm the live glasses.",
+                ),
+                "cit.even-r1.connect": _LauncherAction(
+                    "glasses-agent-hardware-test.ps1",
+                    (
+                        "-Mode",
+                        "Start",
+                        *common,
+                        "-StateRoot",
+                        str(self._state_root.parent / "glasses-agent"),
+                        "-SkipBuild",
+                        "-NoOpenConsole",
+                    ),
+                    "The R1 input bridge connected through the existing Even and "
+                    "Agent Mesh path. Touch the ring once to publish its node.",
+                ),
+                "cit.glasses-device-control.connect": _LauncherAction(
+                    "glasses-agent-hardware-test.ps1",
+                    (
+                        "-Mode",
+                        "Start",
+                        *common,
+                        "-StateRoot",
+                        str(self._state_root.parent / "glasses-agent"),
+                        "-SkipBuild",
+                        "-NoOpenConsole",
+                    ),
+                    "The available G2 and Meta inputs were attached to this device-control lesson.",
+                ),
+                "cit.synchronized-mindwave.connect": _LauncherAction(
+                    "brain2devices-fabric-adapters.ps1",
+                    (
+                        "-Mode",
+                        "Start",
+                        "-Device",
+                        "MindWave",
+                        "-MindWaveNodeId",
+                        "mindwave-synchronized-01",
+                        "-Brain2DevicesRoot",
+                        str(self._brain2devices_root),
+                        "-StateRoot",
+                        str(self._state_root.parent / "synchronized-mindwave-input"),
+                        *common,
+                        "-CompatibilityApi",
+                        "-SkipBuild",
+                        "-NoOpenConsole",
+                    ),
+                    "The connected MindWave was attached to this synchronized-control lesson.",
                 ),
                 "cit.robomaster-leap.connect": _LauncherAction(
                     "robomaster-leap-hardware-test.ps1",
@@ -867,6 +1169,20 @@ class PowerShellDiscoveryRunner:
                     "Remembered Sphero BOLT profiles reconnected for unarmed sensor "
                     "monitoring. No aim or movement command was issued.",
                 ),
+                "cit.sphero-ollie.reconnect": _LauncherAction(
+                    "sphero-ollie.ps1",
+                    (
+                        "-Mode",
+                        "Start",
+                        *common,
+                        "-StateRoot",
+                        str(self._state_root.parent / "sphero-ollie"),
+                        "-SkipBuild",
+                        "-NoOpenConsole",
+                    ),
+                    "Remembered Sphero Ollie profiles reconnected for unarmed sensor "
+                    "monitoring. No aim or movement command was issued.",
+                ),
             }
         )
 
@@ -930,12 +1246,83 @@ class PowerShellDiscoveryRunner:
                 "The Windows host probe returned an invalid report",
             ) from error
 
-    async def perform(self, action_id: str, *, confirm_grounded: bool) -> str:
+    async def perform(
+        self,
+        action_id: str,
+        *,
+        confirm_grounded: bool,
+        session_target: FabricDiscoverySessionTarget | None = None,
+    ) -> str:
         launcher_action = self._launcher_actions.get(action_id)
         if launcher_action is not None:
+            allowed_course_packs = SESSION_TARGET_ACTION_COURSE_PACKS.get(action_id)
+            if allowed_course_packs is not None:
+                if session_target is None:
+                    raise FabricDiscoveryError(
+                        "DEVICE_CONTROL_SESSION_REQUIRED",
+                        "Set up and select a compatible device-control lesson first",
+                    )
+                if session_target.coursePackId not in allowed_course_packs:
+                    raise FabricDiscoveryError(
+                        "DEVICE_CONTROL_SESSION_INVALID",
+                        "The selected lesson is not compatible with this input",
+                    )
+            if action_id == "cit.glasses-device-control.connect":
+                target = session_target
+                if target is None:
+                    raise FabricDiscoveryError(
+                        "DEVICE_CONTROL_SESSION_REQUIRED",
+                        "Set up and select a compatible device-control lesson first",
+                    )
+                input_mode = (
+                    "-DeviceControlInputOnly"
+                    if target.coursePackId == "glasses-device-control"
+                    else "-FleetInputOnly"
+                )
+                await self._run_launcher(
+                    launcher_action.script_name,
+                    *launcher_action.arguments,
+                    input_mode,
+                    *(
+                        ("-DoNotStartSession",)
+                        if target.coursePackId == "synchronized-motor-control"
+                        else ()
+                    ),
+                    "-FabricSessionId",
+                    target.sessionId,
+                    "-SiteId",
+                    target.siteId,
+                    "-RoomId",
+                    target.roomId,
+                )
+                return launcher_action.success_message
+            if action_id == "cit.synchronized-mindwave.connect":
+                target = session_target
+                if target is None:
+                    raise FabricDiscoveryError(
+                        "DEVICE_CONTROL_SESSION_REQUIRED",
+                        "Set up and select a compatible device-control lesson first",
+                    )
+                if not await self._brain.is_connected("mindwave"):
+                    await self._brain.post("/api/headset/connect")
+                await self._brain.wait_for("mindwave")
+                await self._run_launcher(
+                    launcher_action.script_name,
+                    *launcher_action.arguments,
+                    "-DoNotStartSession",
+                    "-FabricSessionId",
+                    target.sessionId,
+                    "-SiteId",
+                    target.siteId,
+                    "-RoomId",
+                    target.roomId,
+                )
+                return launcher_action.success_message
             attachment = self._fleet_monitoring_attachment()
             if attachment is not None and action_id in {
                 "cit.glasses-agent.connect",
+                "cit.even-g2.connect",
+                "cit.even-r1.connect",
                 "cit.robomaster-leap.connect",
             }:
                 arguments = (
@@ -953,9 +1340,12 @@ class PowerShellDiscoveryRunner:
                     attachment.roomId,
                 )
                 await self._run_launcher(launcher_action.script_name, *arguments)
-                input_name = (
-                    "G2/Meta" if action_id == "cit.glasses-agent.connect" else "Leap Motion"
-                )
+                input_name = {
+                    "cit.glasses-agent.connect": "G2/Meta",
+                    "cit.even-g2.connect": "G2",
+                    "cit.even-r1.connect": "R1",
+                    "cit.robomaster-leap.connect": "Leap Motion",
+                }[action_id]
                 return (
                     f"{input_name} joined the active fleet-control page as an input only. "
                     "It cannot bypass the tutor's one-shot arm and safety confirmations."
@@ -971,12 +1361,72 @@ class PowerShellDiscoveryRunner:
                     "GROUNDED_CONFIRMATION_REQUIRED",
                     "Confirm that every Tello is grounded with propellers removed or guarded",
                 )
-            await self._brain.post("/api/fleet/local-radios/auto-connect")
+            fallback_reason: (
+                Literal[
+                    "existing_landed_session",
+                    "orphaned_route",
+                    "imported_route",
+                    "radio_capacity",
+                ]
+                | None
+            ) = None
+            try:
+                await self._brain.post("/api/fleet/local-radios/auto-connect")
+            except FabricDiscoveryError as error:
+                if _is_brain2devices_existing_landed_session_refusal(error):
+                    fallback_reason = "existing_landed_session"
+                elif _is_orphaned_brain2devices_radio_route(error):
+                    fallback_reason = "orphaned_route"
+                elif _is_brain2devices_imported_radio_route_refusal(error):
+                    fallback_reason = "imported_route"
+                elif _is_brain2devices_radio_capacity_refusal(error):
+                    fallback_reason = "radio_capacity"
+                else:
+                    raise
+                if fallback_reason == "existing_landed_session":
+                    # The requested route is already owned by a connected,
+                    # landed aircraft. Preserve that valid session instead of
+                    # turning a redundant radio reconciliation into a Fabric
+                    # connection failure.
+                    pass
+                elif fallback_reason == "imported_route":
+                    # The cached route is explicitly disconnected, so select one
+                    # currently visible aircraft for this radio. Grounded
+                    # confirmation permits the loss-of-link handoff, and the
+                    # Brain2Devices endpoint performs no takeoff.
+                    await self._brain.reconnect_first_visible_tello()
+                else:
+                    # Brain2Devices' preparation path deliberately reconciles the
+                    # currently present Windows radio and performs an SDK handshake
+                    # without issuing takeoff. It safely repairs an orphaned route
+                    # or prepares the first aircraft when radios are scarce.
+                    await self._brain.post("/api/fleet/local-radios/fully-automatic/prepare")
             await self._brain.wait_for("tello")
             await self._reconcile_brain_adapters()
             return (
                 "Connected Tello sessions now have independent Fabric nodes. "
-                "Only telemetry, land, and emergency stop are enabled."
+                + (
+                    "The existing Tello session was already connected and landed; "
+                    "its Wi-Fi route was left unchanged. "
+                    if fallback_reason == "existing_landed_session"
+                    else (
+                        "The stale Windows radio route was reconciled. "
+                        if fallback_reason == "orphaned_route"
+                        else (
+                            "Brain2Devices prepared the first available Tello from its existing "
+                            "safe route. "
+                            if fallback_reason == "imported_route"
+                            else (
+                                "Brain2Devices prepared the first available Tello; the remaining "
+                                "visible aircraft need another Wi-Fi adapter or a sequential "
+                                "handoff. "
+                                if fallback_reason == "radio_capacity"
+                                else ""
+                            )
+                        )
+                    )
+                )
+                + "No takeoff command was sent."
             )
         if action_id == "brain2devices.tello.connect-primary":
             if not confirm_grounded:
@@ -1187,6 +1637,38 @@ class PowerShellDiscoveryRunner:
             "CIT issued no aim or movement command."
         )
 
+    async def connect_sphero_ollies(self, configuration: SpheroOllieConnectionConfiguration) -> str:
+        await self._run_input_launcher(
+            "sphero-ollie.ps1",
+            "-Mode",
+            "ConfigureStart",
+            "-SharedFabricRoot",
+            str(self._state_root),
+            "-StateRoot",
+            str(self._state_root.parent / "sphero-ollie"),
+            "-FabricPort",
+            str(self._fabric_port),
+            "-SkipBuild",
+            "-NoOpenConsole",
+            input_text=configuration.model_dump_json(),
+            redactions=(),
+            timeout_seconds=120,
+            error_prefix="SPHERO_OLLIE_CONNECTION",
+            operation_name="Sphero Ollie connection",
+            timeout_message=(
+                "Sphero Ollie connection timed out; keep the selected 2B-XXXX robots "
+                "awake, nearby, and disconnected from other apps"
+            ),
+            failure_message=(
+                "Sphero Ollie connection failed; check Bluetooth, robot power, and exact selection"
+            ),
+        )
+        count = len(configuration.robots)
+        return (
+            f"{count} selected Sphero Ollie robot(s) connected for unarmed sensor monitoring. "
+            "CIT issued no aim or movement command."
+        )
+
     async def _run_launcher(self, script_name: str, *arguments: str) -> None:
         powershell = self._powershell_path or shutil.which("pwsh")
         launcher = (self._script_path.parent / script_name).resolve()
@@ -1200,21 +1682,16 @@ class PowerShellDiscoveryRunner:
                 "DISCOVERY_ACTION_UNAVAILABLE",
                 "The fixed local adapter launcher is unavailable on this host",
             )
-        process = await asyncio.create_subprocess_exec(
-            powershell,
-            "-NoProfile",
-            "-NonInteractive",
-            "-File",
-            str(launcher),
-            *arguments,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
-        )
         try:
-            stdout, stderr = await _communicate_bounded(
-                process,
+            returncode, stdout, stderr = await _run_with_bounded_file_output(
+                powershell,
+                "-NoProfile",
+                "-NonInteractive",
+                "-File",
+                str(launcher),
+                *arguments,
                 timeout_seconds=DISCOVERY_ACTION_TIMEOUT_SECONDS,
+                creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
             )
         except _ProcessOutputTooLarge as error:
             raise FabricDiscoveryError(
@@ -1231,7 +1708,7 @@ class PowerShellDiscoveryRunner:
                 "DISCOVERY_ACTION_OUTPUT_TOO_LARGE",
                 "The local adapter launcher exceeded its diagnostic output limit",
             )
-        if process.returncode != 0:
+        if returncode != 0:
             diagnostic = stderr.decode("utf-8", errors="replace").strip()
             if not diagnostic:
                 diagnostic = stdout.decode("utf-8", errors="replace").strip()
@@ -1264,23 +1741,17 @@ class PowerShellDiscoveryRunner:
                 f"{error_prefix}_UNAVAILABLE",
                 f"The fixed local {operation_name} launcher is unavailable on this host",
             )
-        process = await asyncio.create_subprocess_exec(
-            powershell,
-            "-NoProfile",
-            "-NonInteractive",
-            "-File",
-            str(launcher),
-            *arguments,
-            stdin=asyncio.subprocess.PIPE,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
-        )
         try:
-            stdout, stderr = await _communicate_bounded(
-                process,
+            returncode, stdout, stderr = await _run_with_bounded_file_output(
+                powershell,
+                "-NoProfile",
+                "-NonInteractive",
+                "-File",
+                str(launcher),
+                *arguments,
                 timeout_seconds=timeout_seconds,
                 input_bytes=input_text.encode("utf-8"),
+                creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
             )
         except _ProcessOutputTooLarge as error:
             raise FabricDiscoveryError(
@@ -1297,7 +1768,7 @@ class PowerShellDiscoveryRunner:
                 "DISCOVERY_ACTION_OUTPUT_TOO_LARGE",
                 f"The {operation_name} launcher exceeded its diagnostic output limit",
             )
-        if process.returncode != 0:
+        if returncode != 0:
             diagnostic = stderr.decode("utf-8", errors="replace").strip()
             if not diagnostic:
                 diagnostic = stdout.decode("utf-8", errors="replace").strip()
@@ -1331,6 +1802,7 @@ class _Brain2DevicesClient:
     async def post(self, path: str) -> None:
         allowed = {
             "/api/fleet/local-radios/auto-connect",
+            "/api/fleet/local-radios/fully-automatic/prepare",
             "/api/drone/connect",
             "/api/headset/connect",
         }
@@ -1341,37 +1813,31 @@ class _Brain2DevicesClient:
             )
         await asyncio.to_thread(self._post_sync, path)
 
+    async def reconnect_first_visible_tello(self) -> None:
+        """Move a disconnected imported radio to one visible Tello without takeoff."""
+
+        await asyncio.to_thread(self._reconnect_first_visible_tello_sync)
+
     async def wait_for(self, device: Literal["tello", "mindwave"]) -> None:
         deadline = asyncio.get_running_loop().time() + 70
         while asyncio.get_running_loop().time() < deadline:
             state = await asyncio.to_thread(self._get_state_sync)
-            if device == "mindwave":
-                headset = state.get("headset")
-                if isinstance(headset, dict) and headset.get("connection") == "connected":
-                    return
-            else:
-                fleet = state.get("fleet")
-                drones = fleet.get("drones") if isinstance(fleet, dict) else None
-                if isinstance(drones, list) and any(
-                    isinstance(drone, dict) and drone.get("connection") == "connected"
-                    for drone in drones
-                ):
-                    return
+            if self._is_connected_state(state, device):
+                return
             await asyncio.sleep(0.25)
         raise FabricDiscoveryError(
             "BRAIN2DEVICES_CONNECTION_TIMED_OUT",
             f"Brain2Devices did not finish the {device} connection; check its activity log",
         )
 
+    async def is_connected(self, device: Literal["tello", "mindwave"]) -> bool:
+        state = await asyncio.to_thread(self._get_state_sync)
+        return self._is_connected_state(state, device)
+
     async def adapter_device_group(self) -> Literal["All", "Tello", "MindWave"]:
         state = await asyncio.to_thread(self._get_state_sync)
-        headset = state.get("headset")
-        mindwave_connected = isinstance(headset, dict) and headset.get("connection") == "connected"
-        fleet = state.get("fleet")
-        drones = fleet.get("drones") if isinstance(fleet, dict) else None
-        tello_connected = isinstance(drones, list) and any(
-            isinstance(drone, dict) and drone.get("connection") == "connected" for drone in drones
-        )
+        mindwave_connected = self._is_connected_state(state, "mindwave")
+        tello_connected = self._is_connected_state(state, "tello")
         if tello_connected and mindwave_connected:
             return "All"
         if tello_connected:
@@ -1403,7 +1869,90 @@ class _Brain2DevicesClient:
             )
         return value
 
+    @staticmethod
+    def _is_connected_state(
+        state: Mapping[str, object],
+        device: Literal["tello", "mindwave"],
+    ) -> bool:
+        if device == "mindwave":
+            headset = state.get("headset")
+            return isinstance(headset, dict) and headset.get("connection") == "connected"
+        fleet = state.get("fleet")
+        drones = fleet.get("drones") if isinstance(fleet, dict) else None
+        return isinstance(drones, list) and any(
+            isinstance(drone, dict) and drone.get("connection") == "connected" for drone in drones
+        )
+
+    def _reconnect_first_visible_tello_sync(self) -> None:
+        scan = self._post_json_sync("/api/fleet/local-radios/scan", {})
+        adapters = scan.get("adapters")
+        if not isinstance(adapters, list):
+            raise FabricDiscoveryError(
+                "BRAIN2DEVICES_RESPONSE_INVALID",
+                "Brain2Devices radio scan did not return an adapter list",
+            )
+        candidates: list[tuple[int, str, str]] = []
+        for adapter in adapters:
+            if not isinstance(adapter, dict):
+                continue
+            interface = adapter.get("interface_name")
+            network = adapter.get("recommended_tello_network")
+            if not isinstance(interface, str) or not isinstance(network, str):
+                continue
+            interface = interface.strip()
+            network = network.strip()
+            if (
+                not interface
+                or len(interface) > 128
+                or any(ord(character) < 32 for character in interface)
+                or not network.upper().startswith(("TELLO-", "RMTT-"))
+                or len(network) > 128
+                or any(ord(character) < 32 for character in network)
+            ):
+                continue
+            interface_index = adapter.get("interface_index")
+            rank = interface_index if isinstance(interface_index, int) else 2**31 - 1
+            candidates.append((rank, interface, network))
+        if not candidates:
+            raise FabricDiscoveryError(
+                "BRAIN2DEVICES_CONNECTION_REJECTED",
+                "No safe visible Tello radio assignment is available; scan again",
+            )
+        _rank, interface, network = min(
+            candidates,
+            key=lambda candidate: (candidate[0], candidate[1].casefold()),
+        )
+        self._post_json_sync(
+            "/api/fleet/local-radios/sequential-switch",
+            {
+                "interface_name": interface,
+                "ssid": network,
+                "label": network,
+                "accept_loss_of_link": True,
+            },
+        )
+
     def _post_sync(self, path: str) -> None:
+        self._post_json_sync(path, {})
+
+    def _post_json_sync(
+        self,
+        path: str,
+        payload: dict[str, object],
+    ) -> dict[str, object]:
+        allowed = {
+            "/api/fleet/local-radios/auto-connect",
+            "/api/fleet/local-radios/fully-automatic/prepare",
+            "/api/fleet/local-radios/scan",
+            "/api/fleet/local-radios/sequential-switch",
+            "/api/drone/connect",
+            "/api/headset/connect",
+        }
+        if path not in allowed:
+            raise FabricDiscoveryError(
+                "DISCOVERY_ACTION_NOT_ALLOWED",
+                "That Brain2Devices operation is not allowlisted",
+            )
         try:
             with urlopen(
                 Request(f"{self._origin}/", headers={"Accept": "text/html"}),
@@ -1419,7 +1968,7 @@ class _Brain2DevicesClient:
                 )
             request = Request(
                 f"{self._origin}{path}",
-                data=b"{}",
+                data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
                 method="POST",
                 headers={
                     "Accept": "application/json",
@@ -1436,6 +1985,7 @@ class _Brain2DevicesClient:
                     "BRAIN2DEVICES_CONNECTION_REJECTED",
                     str(message or "Brain2Devices rejected the connection request")[:500],
                 )
+            return body
         except FabricDiscoveryError:
             raise
         except HTTPError as error:
@@ -1492,6 +2042,7 @@ def _not_scanned(
             "category": descriptor.category,
             "ioType": descriptor.ioType,
             "icon": descriptor.icon,
+            "imagePath": descriptor.imagePath,
             "status": "not_scanned",
             "summary": "Choose Find devices to check this computer and its local connections.",
             "connectionMethod": descriptor.connectionMethod,
@@ -1559,6 +2110,7 @@ def _canonicalize_discovery_report(report: FabricDiscoveryReport) -> FabricDisco
                     "category": descriptor.category,
                     "ioType": descriptor.ioType,
                     "icon": descriptor.icon,
+                    "imagePath": descriptor.imagePath,
                     "connectionMethod": descriptor.connectionMethod,
                     "setupSteps": descriptor.setupSteps,
                     "safetyNote": descriptor.safetyNote,

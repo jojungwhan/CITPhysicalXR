@@ -41,6 +41,10 @@ adapter require hardware-specific validation.
   BLE packets or an unbounded sensor stream.
 - Include a software simulator. Keep real firmware/Bluetooth behavior marked
   as pending until a physical HIL checklist passes.
+- Reserve exact workspace dependency pruning for CI and the business
+  installer's initial preparation step. Operational Fabric and adapter
+  launchers use inexact syncs so starting another integration cannot remove the
+  business-installed optional BOLT, LEGO, or Dash/Dot transport.
 
 ## Consequences
 

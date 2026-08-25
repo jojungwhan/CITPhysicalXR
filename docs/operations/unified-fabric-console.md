@@ -23,10 +23,11 @@ pnpm hardware:glasses:windows -- -Mode Stop
 Do not kill the Python PID directly; the component launcher also restores its
 temporary Agent Mesh changes. Then double-click **CIT Classroom Control** on
 the Windows Desktop or choose it from the Start menu. Choose **Start classroom
-devices**. The launcher opens the browser and signs this Windows user in
-automatically. No credential or command needs to be copied or pasted. Use the
-same button again to reopen the tutor screen without restarting Fabric or any
-adapter.
+devices**. The launcher opens one dedicated Classroom Control app window and
+signs this Windows user in automatically. No credential or command needs to be
+copied or pasted. Use the same button again to replace the previous CIT-owned
+window with a freshly signed-in one without restarting Fabric or any adapter.
+Normal browser windows and tabs are never closed.
 
 The launcher exchanges a one-use, short-lived URL-fragment ticket for a
 12-hour instructor session. It removes the ticket from the address bar before
@@ -44,13 +45,15 @@ steps:
 1. **Find devices** — power on today's equipment, plug in USB devices, then
    choose **Find devices**. Review Connected, Found, Ready, or Setup needed on
    each supported integration card. Cards are grouped as **Inputs**, **Inputs +
-   outputs**, and **Outputs**. Leap and MindWave are input-only; a connected
+   outputs**, and **Outputs**. Leap, Even R1, and MindWave are input-only; a connected
    node's published and consumed capabilities determine its final group. Choose
    **Connect all available** to run
    every verified connect-only adapter; aircraft require the grounded safety
-   confirmation first. Discovery never actuates hardware. Connection cannot arm
-   a lesson; approved smart-plug adapters may place their outlet in the declared
-   off safe state.
+   confirmation first. Every integration card also has **Scan this device
+   again**, so a tutor can retry a device that the first classroom scan missed
+   and then use that card's validated **Connect** or setup control. Discovery
+   never actuates hardware. Connection cannot arm a lesson; approved smart-plug
+   adapters may place their outlet in the declared off safe state.
 2. **Choose lesson** — select the large card that matches the activity and
    choose **Set up this lesson**. If exactly one compatible device is connected
    for a role, CIT assigns it automatically.
@@ -60,20 +63,47 @@ steps:
    outputs**, and **Outputs**; protocol names are hidden under **Technical
    details**.
    The **Simultaneous multi-device cue** lesson lets the tutor assign one or
-   more Leap/G2/Meta inputs and independently select RoboMaster or LEGO ground
-   outputs, G2/Meta message outputs, and the optional bounded Tello fleet. Its
+   more Leap/R1/G2/Meta inputs and independently select RoboMaster, Sphero,
+   LEGO, or Dash ground outputs, G2/Meta message outputs, and the optional
+   bounded Tello fleet. Its
    **Simultaneous output plan** shows exactly which assigned outputs will run.
-4. **Safety check** — simulation remains locked from real hardware. Physical
-   lessons require the tutor acknowledgement and **Enable physical controls**
-   before **Start lesson** becomes available.
+4. **Safety check** — simulation remains isolated from real hardware. For a
+   spatial physical lesson, complete the tutor acknowledgement and choose
+   **Start lesson**; CIT prepares the session in that same action. Inline
+   device controls prepare their local session on the first direct command.
 5. **Teach** — use only the controls relevant to the selected lesson. Pause,
    end, and the red **Stop all devices** control remain visible. Detailed
    events, command lifecycle, identifiers, and audit records are collapsed
    under **Technical diagnostics**.
 
-For the simultaneous cue, start and arm the physical lesson, then separately
+The Even Realities G2 card lists its supported input and display paths. G2 can
+send semantic voice or button requests to an assigned Codex or Claude session
+and show normalized completion text. Telegram is not installed on the glasses:
+install it on the paired phone and enable Telegram in **Even app > Settings >
+Notification**. The existing Agent Mesh deployment can also project its
+dedicated Telegram-bot feed. Classroom Control does not currently provide an
+arbitrary-text G2 composer; its physical G2 display route preserves agent
+completions and configured notifications.
+
+The **Glasses device control** lesson accepts the same structured voice contract
+from G2 and Meta. Assign one or both glasses inputs and up to eight ground
+outputs. CIT robots forward/backward/left/right/stop fans out to all assigned
+RoboMaster, Sphero, LEGO, and Dash nodes; each adapter translates the semantic
+direction locally. CIT drones take off/land targets the existing Tello fleet
+controller. Movement and takeoff require a second glasses press, while takeoff
+also remains blocked until the tutor completes and arms the independent flight
+checklist. Raw transcripts are not written to the device-control feed.
+
+For physical use, choose **Physical devices**, set up the lesson, then use its
+**Connect G2 / Meta** button. That button binds the bridge to the exact selected
+lesson and assigns available compatible glasses inputs. It does not select a
+Codex or Claude session and cannot be reused to launch an arbitrary local
+action.
+
+For the simultaneous cue, start the physical lesson, then separately
 complete **Arm this one sequence** in the fleet panel if drones are assigned.
-The approved Leap pinch or exact G2/Meta fleet phrase sends one semantic event.
+The approved Leap pinch, R1 double-tap, or exact G2/Meta fleet phrase sends one
+semantic event.
 Assigned ground and display actions are dispatched concurrently; the fleet
 starts only if its one-shot controller is still armed. “Concurrent” is not a
 hard-real-time guarantee, and each output can independently succeed, reject, or
@@ -120,7 +150,7 @@ pnpm hardware:brain:windows -- -Mode Start -SharedFabricRoot $fabricRoot
 # Software-only independent Tello and MindWave nodes
 pnpm hardware:brain:fabric:windows -- -Mode Start -Device All -Simulation -SharedFabricRoot $fabricRoot -FabricPort 8766
 
-# Shared transport for distinct Even G2, Meta Ray-Ban, Codex, and Claude profiles
+# Shared transport for distinct Even R1, G2, Meta Ray-Ban, Codex, and Claude profiles
 pnpm hardware:glasses:windows -- -Mode Start -SharedFabricRoot $fabricRoot -FabricPort 8766 -SelectMostRecentAgentSession
 
 # Leap and RoboMaster using semantic demo input and the real upstream dry-run robot
@@ -147,8 +177,9 @@ session to commandeer another room's node.
 
 The Tello card can associate discovered USB Wi-Fi radios, start grounded SDK
 handshakes through exact-pinned Brain2Devices, and register one independent
-Fabric node per connected aircraft. The teaching panel offers only land and a
-confirmed emergency motor stop—no ordinary takeoff or movement. Its latest
+Fabric node per connected aircraft. The teaching panel offers instructor-only
+takeoff, discrete 20–50 cm movement, 1–90° rotation, land, and a confirmed
+emergency motor stop behind exact preflight confirmations. Its latest
 Brain2Devices video frame appears in the common camera wall. The MindWave card
 starts an independent publish-only node. A third bounded-demo node is assigned
 automatically and shows one explicit instructor-gated arm plus stop control; it

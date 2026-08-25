@@ -17,7 +17,11 @@ interface FabricFleetSequencePanelProps {
   sessionArmed: boolean;
   busy: boolean;
   canSubmit: boolean;
+  canManageSession: boolean;
+  safetyConfirmed: boolean;
+  onSafetyConfirmedChange: (confirmed: boolean) => void;
   onArm: (settings: FleetSequenceSettings) => void;
+  onLaunch: (settings: FleetSequenceSettings) => void;
   onStart: () => void;
   onStop: () => void;
   locale: Locale;
@@ -33,7 +37,11 @@ export function FabricFleetSequencePanel({
   sessionArmed,
   busy,
   canSubmit,
+  canManageSession,
+  safetyConfirmed,
+  onSafetyConfirmedChange,
   onArm,
+  onLaunch,
   onStart,
   onStop,
   locale,
@@ -47,16 +55,14 @@ export function FabricFleetSequencePanel({
     .map((drone) => drone.id)
     .join("\u0000");
   const inputKey = inputNodes.map((node) => node.nodeId).join("\u0000");
-  const [droneOrder, setDroneOrder] = useState<string[]>([]);
-  const [allowedSources, setAllowedSources] = useState<string[]>([]);
+  const [droneOrder, setDroneOrder] = useState<string[]>(() =>
+    availableDrones.map((drone) => drone.id),
+  );
+  const [allowedSources, setAllowedSources] = useState<string[]>(() =>
+    inputNodes.map((node) => node.nodeId),
+  );
   const [launchIntervalSeconds, setLaunchIntervalSeconds] = useState(2);
   const [minimumBatteryPercent, setMinimumBatteryPercent] = useState(30);
-  const [instructorPresent, setInstructorPresent] = useState(false);
-  const [flightAreaClear, setFlightAreaClear] = useState(false);
-  const [emergencyPlanReady, setEmergencyPlanReady] = useState(false);
-  const [independentRoutesConfirmed, setIndependentRoutesConfirmed] =
-    useState(false);
-
   useEffect(() => {
     const available = new Set(availableDrones.map((drone) => drone.id));
     setDroneOrder((current) => [
@@ -82,7 +88,7 @@ export function FabricFleetSequencePanel({
     return drone === undefined ? [] : [drone];
   });
   const aircraftReady =
-    selectedDrones.length >= 2 &&
+    selectedDrones.length >= 1 &&
     selectedDrones.every(
       (drone) =>
         drone.connection === "connected" &&
@@ -90,41 +96,43 @@ export function FabricFleetSequencePanel({
         drone.batteryPercent !== undefined &&
         drone.batteryPercent >= minimumBatteryPercent,
     );
-  const safetyReady =
-    simulated ||
-    (instructorPresent &&
-      flightAreaClear &&
-      emergencyPlanReady &&
-      independentRoutesConfirmed);
+  const safetyReady = simulated || safetyConfirmed;
   const sessionReady = sessionState === "active" && (simulated || sessionArmed);
+  const sessionCanBePrepared = ["ready", "paused", "active"].includes(
+    sessionState,
+  );
   const canArm =
     canSubmit &&
     !busy &&
     aircraftReady &&
     safetyReady &&
-    sessionReady &&
+    (sessionReady || (canManageSession && sessionCanBePrepared)) &&
     status?.active !== true;
   const canStart = canSubmit && !busy && sessionReady && status?.armed === true;
-  const canStop = canSubmit && !busy;
+  const canStop = canSubmit && !busy && selectedDrones.length > 0;
+  const settings = (): FleetSequenceSettings => ({
+    droneIds: selectedDrones.map((drone) => drone.id),
+    allowedSourceNodeIds: allowedSources,
+    launchIntervalSeconds,
+    minimumBatteryPercent,
+    instructorPresent: simulated || safetyConfirmed,
+    flightAreaClear: simulated || safetyConfirmed,
+    emergencyPlanReady: simulated || safetyConfirmed,
+    independentRoutesConfirmed: simulated || safetyConfirmed,
+  });
 
   return (
     <section className="fabric-panel fabric-fleet-sequence-panel">
-      <div className="fabric-panel-heading">
-        <p className="eyebrow">{t("fleet.eyebrow")}</p>
-        <h2>{t("fleet.title")}</h2>
-      </div>
-      <div
-        className={`fabric-demo-mode ${simulated ? "is-simulation" : "is-physical"}`}
-      >
-        <strong>
+      <header className="fabric-fleet-heading">
+        <div>
+          <p className="eyebrow">{t("fleet.eyebrow")}</p>
+          <h2>{t("fleet.title")}</h2>
+          <small>{controllerName}</small>
+        </div>
+        <span className={simulated ? "is-simulation" : "is-physical"}>
           {simulated ? t("brain.simulation") : t("brain.physical")}
-        </strong>
-        <span>{controllerName}</span>
-      </div>
-      <p className="fabric-help">
-        {t("fleet.helpBefore")} <strong>{t("fleet.startNow")}</strong>,{" "}
-        {t("fleet.helpAfter")}
-      </p>
+        </span>
+      </header>
 
       <div className="fabric-demo-status" role="status">
         <div>
@@ -137,7 +145,7 @@ export function FabricFleetSequencePanel({
           <span>{t("fleet.airborne")}</span>
           <strong>
             {status?.launchedDroneIds.length ?? 0} /{" "}
-            {status?.selectedDroneIds.length ?? 0}
+            {status?.selectedDroneIds.length || selectedDrones.length}
           </strong>
         </div>
         <p>
@@ -150,8 +158,8 @@ export function FabricFleetSequencePanel({
         <progress max={1} value={status?.progress ?? 0} />
       </div>
 
-      <fieldset className="fabric-fleet-aircraft">
-        <legend>{t("fleet.order")}</legend>
+      <div className="fabric-fleet-aircraft">
+        <strong>{t("fleet.order")}</strong>
         {selectedDrones.length === 0 ? (
           <p className="fabric-empty">{t("fleet.connectController")}</p>
         ) : (
@@ -193,111 +201,98 @@ export function FabricFleetSequencePanel({
                   >
                     ↓
                   </button>
-                  <button
-                    type="button"
-                    disabled={
-                      selectedDrones.length <= 2 || status?.active === true
-                    }
-                    onClick={() =>
-                      setDroneOrder(droneOrder.filter((id) => id !== drone.id))
-                    }
-                  >
-                    {t("fleet.remove")}
-                  </button>
                 </span>
               </li>
             ))}
           </ol>
         )}
-        <div className="fabric-fleet-numbers">
-          <label>
-            {t("fleet.interval")}
-            <input
-              type="number"
-              min={1}
-              max={15}
-              step={1}
-              value={launchIntervalSeconds}
-              onChange={(event) =>
-                setLaunchIntervalSeconds(
-                  clamp(Math.round(Number(event.target.value)), 1, 15),
-                )
-              }
-            />
-          </label>
-          <label>
-            {t("fleet.minimumBattery")}
-            <input
-              type="number"
-              min={20}
-              max={100}
-              step={1}
-              value={minimumBatteryPercent}
-              onChange={(event) =>
-                setMinimumBatteryPercent(
-                  clamp(Math.round(Number(event.target.value)), 20, 100),
-                )
-              }
-            />
-          </label>
-        </div>
-      </fieldset>
+      </div>
 
-      <fieldset className="fabric-fleet-inputs">
-        <legend>{t("fleet.inputs")}</legend>
-        <label className="fabric-demo-safety-check is-fixed">
-          <input type="checkbox" checked readOnly />
-          <span>{t("fleet.tutorButton")}</span>
-        </label>
-        {inputNodes.length === 0 ? (
-          <p className="fabric-empty">{t("fleet.noInputs")}</p>
-        ) : (
-          inputNodes.map((node) => (
-            <label className="fabric-demo-safety-check" key={node.nodeId}>
+      <details className="fabric-fleet-options">
+        <summary>
+          <strong>{t("fleet.options")}</strong>
+          <span>
+            {t("fleet.optionsSummary", {
+              interval: launchIntervalSeconds,
+              battery: minimumBatteryPercent,
+              inputs: allowedSources.length + 1,
+            })}
+          </span>
+        </summary>
+        <div className="fabric-fleet-options-content">
+          <div className="fabric-fleet-numbers">
+            <label>
+              {t("fleet.interval")}
               <input
-                type="checkbox"
-                checked={allowedSources.includes(node.nodeId)}
-                disabled={status?.active === true}
+                type="number"
+                min={1}
+                max={15}
+                step={1}
+                value={launchIntervalSeconds}
                 onChange={(event) =>
-                  setAllowedSources((current) =>
-                    event.target.checked
-                      ? [...current, node.nodeId]
-                      : current.filter((id) => id !== node.nodeId),
+                  setLaunchIntervalSeconds(
+                    clamp(Math.round(Number(event.target.value)), 1, 15),
                   )
                 }
               />
-              <span>
-                {node.displayName} · {inputInstruction(node, t)}
-              </span>
             </label>
-          ))
-        )}
-      </fieldset>
+            <label>
+              {t("fleet.minimumBattery")}
+              <input
+                type="number"
+                min={20}
+                max={100}
+                step={1}
+                value={minimumBatteryPercent}
+                onChange={(event) =>
+                  setMinimumBatteryPercent(
+                    clamp(Math.round(Number(event.target.value)), 20, 100),
+                  )
+                }
+              />
+            </label>
+          </div>
+          <fieldset className="fabric-fleet-inputs">
+            <legend>{t("fleet.inputs")}</legend>
+            <label className="fabric-demo-safety-check is-fixed">
+              <input type="checkbox" checked readOnly />
+              <span>{t("fleet.tutorButton")}</span>
+            </label>
+            {inputNodes.length === 0 ? (
+              <p className="fabric-empty">{t("fleet.noInputs")}</p>
+            ) : (
+              inputNodes.map((node) => (
+                <label className="fabric-demo-safety-check" key={node.nodeId}>
+                  <input
+                    type="checkbox"
+                    checked={allowedSources.includes(node.nodeId)}
+                    disabled={status?.active === true}
+                    onChange={(event) =>
+                      setAllowedSources((current) =>
+                        event.target.checked
+                          ? [...current, node.nodeId]
+                          : current.filter((id) => id !== node.nodeId),
+                      )
+                    }
+                  />
+                  <span>
+                    {node.displayName} · {inputInstruction(node, t)}
+                  </span>
+                </label>
+              ))
+            )}
+          </fieldset>
+        </div>
+      </details>
 
       {!simulated && (
-        <fieldset className="fabric-demo-checklist">
-          <legend>{t("fleet.flightCheck")}</legend>
+        <div className="fabric-fleet-safety">
           <SafetyCheck
-            checked={instructorPresent}
-            onChange={setInstructorPresent}
-            text={t("fleet.present")}
+            checked={safetyConfirmed}
+            onChange={onSafetyConfirmedChange}
+            text={t("flight.confirmOnce")}
           />
-          <SafetyCheck
-            checked={flightAreaClear}
-            onChange={setFlightAreaClear}
-            text={t("fleet.areaClear")}
-          />
-          <SafetyCheck
-            checked={emergencyPlanReady}
-            onChange={setEmergencyPlanReady}
-            text={t("fleet.emergencyReady")}
-          />
-          <SafetyCheck
-            checked={independentRoutesConfirmed}
-            onChange={setIndependentRoutesConfirmed}
-            text={t("fleet.routes")}
-          />
-        </fieldset>
+        </div>
       )}
 
       {!aircraftReady && selectedDrones.length > 0 && (
@@ -315,31 +310,32 @@ export function FabricFleetSequencePanel({
               allowedSourceNodeIds: allowedSources,
               launchIntervalSeconds,
               minimumBatteryPercent,
-              instructorPresent: simulated || instructorPresent,
-              flightAreaClear: simulated || flightAreaClear,
-              emergencyPlanReady: simulated || emergencyPlanReady,
-              independentRoutesConfirmed:
-                simulated || independentRoutesConfirmed,
+              instructorPresent: simulated || safetyConfirmed,
+              flightAreaClear: simulated || safetyConfirmed,
+              emergencyPlanReady: simulated || safetyConfirmed,
+              independentRoutesConfirmed: simulated || safetyConfirmed,
             })
           }
         >
-          {t("fleet.arm")}
-          <small>
-            {sessionReady ? t("fleet.armHelp") : t("fleet.startArmFirst")}
-          </small>
-        </button>
-        <button type="button" disabled={!canStart} onClick={onStart}>
-          {t("fleet.startNow")}
-          <small>{t("fleet.startHelp")}</small>
+          {t("fleet.prepareTriggers")}
         </button>
         <button
           type="button"
-          className="fabric-drone-emergency"
+          className="fabric-fleet-launch"
+          disabled={status?.armed === true ? !canStart : !canArm}
+          onClick={
+            status?.armed === true ? onStart : () => onLaunch(settings())
+          }
+        >
+          {t("fleet.takeoffOneByOne")}
+        </button>
+        <button
+          type="button"
+          className="fabric-fleet-land"
           disabled={!canStop}
           onClick={onStop}
         >
-          {t("fleet.stop")}
-          <small>{t("fleet.stopHelp")}</small>
+          {t("fleet.landOneByOne")}
         </button>
       </div>
     </section>
@@ -369,6 +365,7 @@ function SafetyCheck({
 
 const inputInstruction = (node: IntegrationNode, t: FabricTranslate) => {
   if (node.pluginId === "cit.leap-motion") return t("fleet.leapInstruction");
+  if (node.pluginId === "cit.even-r1") return t("fleet.ringInstruction");
   return t("fleet.voiceInstruction");
 };
 

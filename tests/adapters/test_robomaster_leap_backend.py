@@ -13,6 +13,7 @@ from cit_robomaster_leap.bridge import RobotCommandHandler
 class RecordingRobot:
     def __init__(self) -> None:
         self.velocities: list[dict[str, object]] = []
+        self.lights: list[dict[str, object]] = []
         self.stops: list[str] = []
 
     async def start(self) -> None:
@@ -33,6 +34,23 @@ class RecordingRobot:
             "idempotencyKey": idempotency_key,
         }
         self.velocities.append(values)
+        return values
+
+    async def set_light(
+        self,
+        *,
+        red: int,
+        green: int,
+        blue: int,
+        idempotency_key: str,
+    ) -> dict[str, object]:
+        values: dict[str, object] = {
+            "red": red,
+            "green": green,
+            "blue": blue,
+            "idempotencyKey": idempotency_key,
+        }
+        self.lights.append(values)
         return values
 
     async def stop(self, *, reason: str) -> None:
@@ -123,3 +141,45 @@ async def test_stop_is_parameterless_and_never_requires_a_velocity_command() -> 
 
     assert robot.stops == ["fabric_command"]
     assert robot.velocities == []
+
+
+@pytest.mark.asyncio
+async def test_adapter_validates_and_deduplicates_native_led_commands() -> None:
+    robot = RecordingRobot()
+    handler = RobotCommandHandler(robot, robot_node_id="s1-a")
+    resolved = command(
+        action="robot.light.set",
+        parameters={"red": 0, "green": 180, "blue": 255},
+    )
+
+    first = await handler.execute(resolved)
+    second = await handler.execute(resolved)
+
+    assert first.duplicate is False
+    assert second.duplicate is True
+    assert robot.lights == [
+        {
+            "red": 0,
+            "green": 180,
+            "blue": 255,
+            "idempotencyKey": resolved.idempotencyKey,
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "parameters",
+    [
+        {"red": -1, "green": 0, "blue": 0},
+        {"red": 0, "green": 0, "blue": 256},
+        {"red": 0.5, "green": 0, "blue": 0},
+        {"red": True, "green": 0, "blue": 0},
+        {"red": 0, "green": 0},
+    ],
+)
+def test_adapter_rejects_invalid_led_channels(parameters: dict[str, object]) -> None:
+    robot = RecordingRobot()
+    handler = RobotCommandHandler(robot, robot_node_id="s1-a")
+
+    with pytest.raises(ValueError):
+        handler.validate(command(action="robot.light.set", parameters=parameters))

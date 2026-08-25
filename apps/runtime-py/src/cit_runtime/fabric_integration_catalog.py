@@ -46,10 +46,15 @@ class IntegrationDescriptor(BaseModel):
         "lego",
         "plug",
         "robot",
+        "ring",
         "sphero",
         "terminal",
         "wonder",
     ]
+    imagePath: str = Field(
+        pattern=r"^\./device-images/[a-z0-9][a-z0-9._-]*\.webp$",
+        max_length=160,
+    )
     connectionMethod: str = Field(min_length=1, max_length=160)
     setupSteps: list[str] = Field(min_length=1, max_length=8)
     safetyNote: str = Field(min_length=1, max_length=500)

@@ -16,6 +16,30 @@ const EN = {
   "language.ko": "한국어",
   "language.en": "English",
   "document.title": "CIT Classroom Control",
+  "common.moreInfo": "More information",
+
+  "g2.guide.title": "What the glasses connection can do",
+  "g2.guide.input":
+    "Send voice or button input to the assigned Codex or Claude session.",
+  "g2.guide.output":
+    "Receive coding-agent completions and configured notifications through the glasses display or audio.",
+  "g2.guide.deviceControl":
+    "Control every assigned RoboMaster, Sphero, LEGO, or Dash together, and request an armed Tello sequence.",
+  "g2.guide.commandsTitle": "Voice examples:",
+  "g2.guide.commands":
+    "“CIT robots forward”, “CIT robots left”, “CIT robots stop”, “CIT drones take off”, or “CIT drones land”.",
+  "g2.guide.controlSetup":
+    "Choose Glasses device control, assign this glasses input and each output, start and arm the lesson, then speak. Movement and takeoff require one more press to confirm.",
+  "g2.guide.telegram":
+    "Install Telegram on the paired phone, not on the glasses. For G2, enable Telegram in Even app → Settings → Notification; Meta uses the paired phone’s notification/audio path.",
+  "g2.guide.directMessage":
+    "This console does not yet include a composer for arbitrary G2 text; agent completions and configured notifications are supported.",
+  "lesson.glassesControl.title": "Connect the glasses to this lesson",
+  "lesson.glassesControl.body":
+    "Open the CIT bridge on the G2 or Meta phone, then attach the available glasses. Only devices assigned below can respond.",
+  "lesson.glassesControl.connect": "Connect G2 / Meta",
+  "lesson.glassesControl.prepare":
+    "Choose Physical devices, then set up this lesson first.",
 
   "login.eyebrow": "Classroom device control",
   "login.opening": "Opening your classroom…",
@@ -106,20 +130,6 @@ const EN = {
   "installation.checksumFailed":
     "The downloaded setup did not match its SHA-256 checksum. Nothing was saved; ask the technician to rebuild it.",
 
-  "deviceControls.open": "Device controls",
-  "deviceControls.eyebrow": "Direct hardware control",
-  "deviceControls.title": "Device controls",
-  "deviceControls.description":
-    "Choose a connected device category. Existing safety locks and lesson permissions apply to every action.",
-  "deviceControls.close": "Close device controls",
-  "deviceControls.categories": "Device control categories",
-  "deviceControls.escapeHint": "Press Esc or choose Done to close this window.",
-  "deviceControls.done": "Done",
-  "deviceControls.sphero": "Sphero BOLT controls",
-  "deviceControls.wonder": "Dash / Dot controls",
-  "deviceControls.drone": "Drone controls",
-  "deviceControls.smartPlug": "Smart-plug controls",
-
   "notice.ready": "Ready to set up your classroom.",
   "notice.secureOpen": "Classroom controls opened securely on this computer.",
   "notice.connected": "Classroom controls connected on this computer.",
@@ -133,34 +143,28 @@ const EN = {
     "Lesson created and {count} available device(s) were connected automatically.",
   "notice.lessonCreated":
     "Lesson created. Choose the devices you want to use next.",
+  "notice.glassesControlConnected":
+    "G2 / Meta input is connected to this lesson. Assign outputs, complete safety setup, and start the lesson.",
   "notice.roleReady": "{device} is ready for {role}.",
   "notice.lessonStatus": "Lesson status: {status}.",
-  "notice.physicalResumed":
-    "Physical controls enabled; the monitoring lesson resumed.",
-  "notice.physicalReady":
-    "Physical controls enabled. Start the lesson when ready.",
   "notice.emergencyStop":
     "Emergency stop {status}: {sessions} session(s), {nodes} adapter node(s).",
   "notice.deviceCheck":
     "Device check finished: {connected} connected, {found} found or ready. Review the cards below for anything that still needs setup.",
   "notice.integrationConnected":
     "Connection started for {name}. Physical outputs remain disarmed.",
+  "notice.integrationScanned":
+    "{name} scan refreshed: {status}. Use Connect or the setup controls in this card.",
   "notice.matterAdded": "The Matter plug was added locally and remains off.",
   "notice.matterWifiConfigured":
     "Classroom Wi-Fi was saved only in the local Matter controller. You can now add the plug.",
-  "notice.smartPlugControlsReady":
-    "Independent controls are ready for {count} connected plug(s).",
-  "notice.smartPlugPowerReady":
-    "Smart-plug power-on controls are enabled. Each plug remains independently controlled.",
   "notice.legoConnected": "The LEGO hub was connected for unarmed monitoring.",
   "notice.wonderConnected":
     "Connected {count} selected Dash/Dot robot(s) for unarmed monitoring.",
   "notice.spheroConnected":
     "Connected {count} selected Sphero BOLT robot(s) for unarmed monitoring.",
-  "notice.spheroControlsReady":
-    "Controls are ready for {count} connected Sphero BOLT robot(s).",
-  "notice.spheroMovementReady":
-    "Sphero movement controls are enabled. Set forward before the first short movement.",
+  "notice.ollieConnected":
+    "Connected {count} selected Sphero Ollie robot(s) for unarmed monitoring.",
   "notice.noneConnected": "No connection completed.",
   "notice.groupsConnected":
     "Connection completed for {count} device group(s): {names}.",
@@ -186,19 +190,23 @@ const EN = {
   "busy.creatingSession": "Creating lesson",
   "busy.assigningRole": "Assigning a device",
   "busy.changingSession": "Updating lesson",
-  "busy.enablingPhysical": "Enabling physical controls",
   "busy.emergencyStop": "Stopping all devices",
   "busy.findingDevices": "Finding devices",
+  "busy.scanningIntegration": "Scanning {name}",
   "busy.connectingDevice": "Connecting {name}",
+  "busy.connectingGlassesControl": "Connecting G2 / Meta to this lesson",
   "busy.addingMatter": "Adding Matter smart plug",
   "busy.configuringMatterWifi": "Saving Matter classroom Wi-Fi",
-  "busy.openingSmartPlugControls": "Opening smart-plug controls",
-  "busy.openingSpheroControls": "Opening Sphero BOLT controls",
   "busy.connectingLego": "Connecting LEGO hub",
   "busy.connectingWonder": "Connecting selected Dash and Dot robots",
   "busy.wonderCommand": "Sending a bounded Dash/Dot control",
   "busy.connectingSphero": "Connecting selected Sphero BOLT robots",
+  "busy.connectingOllie": "Connecting selected Sphero Ollie robots",
   "busy.spheroCommand": "Sending a bounded Sphero BOLT control",
+  "busy.syncPreparing": "Preparing synchronized motor control",
+  "busy.syncCommand": "Sending synchronized bounded movement",
+  "busy.syncWearables": "Connecting wearable control inputs",
+  "busy.syncDisabling": "Stopping synchronized motor control",
   "busy.connectingAll": "Connecting available devices",
   "busy.connectingRemembered": "Reconnecting remembered devices",
   "busy.copyingSetup": "Copying setup instructions",
@@ -209,6 +217,7 @@ const EN = {
   "busy.smartPlug": "Changing smart-plug power",
   "busy.telloLand": "Landing Tello",
   "busy.telloEmergency": "Emergency-stopping Tello",
+  "busy.telloCommand": "Sending Tello command",
   "busy.brainArm": "Arming one-shot MindWave demo",
   "busy.brainStop": "Stopping MindWave demo",
   "busy.fleetArm": "Arming one sequential fleet launch",
@@ -217,6 +226,10 @@ const EN = {
   "busy.vision": "Recognizing objects in {name}",
 
   "error.selectCourse": "Select an installed course pack.",
+  "error.glassesControlSession":
+    "Set up and select a Glasses device control lesson first.",
+  "error.glassesControlPhysical":
+    "Choose Physical devices before connecting G2 or Meta.",
   "error.selectSession": "Select a lesson first.",
   "error.selectPhysicalSession": "Select a physical lesson first.",
   "error.selectNode": "Select a compatible device for {role}.",
@@ -225,15 +238,20 @@ const EN = {
     "Assign this Dash or Dot to a Wonder robot role first.",
   "error.spheroUnassigned":
     "Assign this Sphero BOLT to a robot sensor role first.",
+  "error.noSynchronizedMotors":
+    "Connect at least one Sphero BOLT or Ollie first.",
+  "error.syncPartial": "{failed} of {count} synchronized commands failed.",
+  "error.noSynchronizedInputs":
+    "Connect G2, R1, Meta, or MindWave from its device card first.",
   "error.spheroSession": "Open a Sphero BOLT control session first.",
   "error.noSpheroRobots": "No connected Sphero BOLT robots are available.",
   "error.spheroSetupPermission":
     "This tutor account cannot prepare a Sphero BOLT control session.",
   "error.spheroCourse": "The device-monitoring course is not installed.",
-  "error.spheroSafetyConfirmation":
-    "Confirm the visible clear-floor safety check before enabling movement.",
-  "error.spheroSessionNotReady":
-    "The Sphero BOLT control session could not be started.",
+  "error.noTelloDrones": "No connected Tello drones are available.",
+  "error.telloSetupPermission":
+    "An instructor or administrator must prepare Tello controls.",
+  "error.telloCourse": "The device-monitoring course is not installed.",
   "error.grounded":
     "Confirm that every aircraft is grounded before connecting.",
   "error.noConnection":
@@ -251,17 +269,17 @@ const EN = {
     "This tutor account cannot prepare a smart-plug control session.",
   "error.smartPlugCourse": "The smart-plug control course is not installed.",
   "error.safetyConfirmation":
-    "Confirm the visible classroom safety check before enabling power-on.",
+    "Confirm the visible classroom safety check before starting.",
+  "error.directControlSessionNotReady":
+    "The device control session could not be prepared.",
   "error.smartPlugSessionNotReady":
     "The smart-plug control session could not be started.",
   "error.assignPlug": "Assign the classroom plug before controlling power.",
-  "error.startLoad": "Start the lesson before turning on a load.",
-  "error.armLoad": "Enable physical controls before turning on a load.",
   "error.monitoringSession": "Select the device-monitoring lesson first.",
   "error.droneUnassigned": "That Tello is no longer assigned to this lesson.",
   "error.brainController": "Assign the bounded MindWave demo controller first.",
   "error.startDemo": "Start the lesson before arming the demo.",
-  "error.armFlight": "Enable physical controls before arming flight.",
+  "error.armFlight": "Start the physical lesson before arming flight.",
   "error.fleetLesson": "Select the devices and safe demos lesson first.",
   "error.fleetController":
     "Assign the bounded fleet sequence controller first.",
@@ -275,6 +293,10 @@ const EN = {
     "That device is no longer connected. Check its power and adapter, then refresh.",
   "error.rolesMissing":
     "Connect every required device before starting the lesson.",
+  "error.telloNotVisible":
+    "Tello Wi-Fi is not visible now. Power on the drone, scan again when TELLO-* appears, then connect it.",
+  "error.telloSessionActive":
+    "The drone connection remains active. Its in-use aircraft session prevented only the Wi-Fi route change.",
   "error.requestFailed": "The Fabric request failed.",
 
   "guide.find.title": "Find the classroom devices",
@@ -289,9 +311,9 @@ const EN = {
   "guide.connect.title": "Connect {count} more device(s)",
   "guide.connect.description":
     "Choose a connected device for each empty slot. If nothing is listed, start that device’s CIT adapter and refresh.",
-  "guide.safety.title": "Review safety before enabling devices",
+  "guide.safety.title": "Review safety before starting",
   "guide.safety.description":
-    "Check the room, keep the emergency stop visible, then confirm that physical control can be enabled.",
+    "Check the room, keep the emergency stop visible, then start the lesson.",
   "guide.teach.title": "Lesson running",
   "guide.teach.description":
     "Devices are ready. Use the lesson controls below and end the session when class is finished.",
@@ -314,13 +336,13 @@ const EN = {
   "discovery.step": "Step 1",
   "discovery.title": "Find classroom devices",
   "discovery.intro":
-    "Power devices on, plug in USB equipment, and choose Find devices. CIT checks current USB and Bluetooth links, active Wi-Fi routes, local services, and authorized Android phones connected by USB or Wi-Fi debugging.",
+    "Turn on devices, connect USB equipment, then select Find devices. CIT checks USB, Bluetooth, Wi-Fi, local services, and authorized Android phones.",
   "discovery.checking": "Checking…",
   "discovery.find": "Find devices",
-  "discovery.noMovement": "No device will move, fly, or switch on",
-  "discovery.safeTitle": "Safe discovery only",
+  "discovery.noMovement": "Devices are not turned on automatically",
+  "discovery.safeTitle": "Safe scan",
   "discovery.safeBody":
-    "Finding devices never arms robots, starts propellers, moves a motor, turns on a plug, starts an agent, or stores raw audio, video, or biosignals.",
+    "Scanning only checks connections. It does not activate devices or save raw sensor data.",
   "discovery.connectionsReady": "{count} safe connection(s) ready",
   "discovery.connectAllHelp":
     "Connect every verified adapter in one step. Robots, drones, plugs, and lesson sessions remain disarmed.",
@@ -332,13 +354,9 @@ const EN = {
   "discovery.rememberedReady": "{count} remembered connection group(s)",
   "discovery.rememberedHelp":
     "Reconnect exact adapter profiles saved on this computer without the broad USB, Bluetooth, Wi-Fi, and Android scan. Physical outputs stay locked and remembered plugs enter the off safe state.",
-  "discovery.autoReconnectRemembered":
-    "Automatically reconnect remembered non-aircraft devices when this page opens",
   "discovery.connectRemembered": "Connect remembered devices",
   "discovery.reconnectingRemembered": "Reconnecting…",
   "discovery.rememberedNoScan": "Fast reconnect · outputs locked",
-  "discovery.rememberedAircraftAutoSkip":
-    "Aircraft are skipped during unattended reconnect. Confirm grounded status above and use the button to reconnect them manually.",
   "discovery.startHost": "Start the physical device host first",
   "discovery.checked": "Checked {time}",
   "discovery.notChecked": "Not checked yet",
@@ -366,9 +384,10 @@ const EN = {
   "discovery.tier.unavailable.empty":
     "No supported devices currently need setup.",
   "discovery.tier.count": "{count} item(s)",
-  "discovery.connectedDevices": "{count} connected device(s)",
+  "discovery.detectedPaths": "{count} detected connection path(s)",
   "discovery.signal": "{percent}% signal",
   "discovery.connect": "Connect",
+  "discovery.scanThisDevice": "Scan this device again",
   "discovery.copySetup": "Copy setup command",
   "discovery.connectionDetails": "Connection details",
   "discovery.whatToDo": "What do I need to do?",
@@ -420,6 +439,12 @@ const EN = {
   "io.output.role": "Devices that receive the lesson’s bounded actions",
   "io.output.label": "Output only",
 
+  "deviceIo.title": "Live input and output",
+  "deviceIo.help": "Available signals and controls are shown here.",
+  "deviceIo.inputs": "Inputs from device",
+  "deviceIo.outputs": "Outputs to device",
+  "deviceIo.live": "Latest sensor values",
+
   "status.connected": "Connected",
   "status.found": "Found",
   "status.ready": "Computer ready",
@@ -446,6 +471,9 @@ const EN = {
   "lesson.choosePrompt": "What do you want students to do today?",
   "lesson.selected": "Selected",
   "lesson.choose": "Choose",
+  "lesson.overview": "Lesson overview",
+  "lesson.materials": "Lesson materials",
+  "lesson.materialsSummary": "Cameras and sensor readings",
   "lesson.settings": "Room and device settings",
   "lesson.site": "Site",
   "lesson.room": "Room",
@@ -484,17 +512,17 @@ const EN = {
   "safety.setupFirst": "Set up a lesson to continue",
   "safety.simulation": "Simulation mode — physical devices stay locked",
   "safety.enabled": "Physical device control is enabled",
-  "safety.locked": "Physical devices are locked",
+  "safety.locked": "Ready — direct controls prepare devices on first use",
   "safety.physicalHelp":
     "Keep the Stop all devices button visible and make sure the activity area is clear.",
   "safety.nonSpatialHelp":
-    "Non-moving devices do not require a position or clear-floor check. Explicitly enable their controls before use.",
+    "Choose a device control directly. CIT prepares its local session automatically.",
   "safety.simulationHelp":
     "Practice safely before switching this lesson to real classroom hardware.",
   "safety.confirm":
     "I can see the devices, the activity area is clear, and I know where “Stop all devices” is.",
-  "safety.pauseEnable": "Pause briefly and enable physical controls",
-  "safety.enable": "Enable physical controls",
+  "flight.confirmOnce":
+    "I am present and have checked the flight area, emergency controls, and each drone route.",
   "safety.lock": "Lock physical devices",
   "safety.resume": "Resume lesson",
   "safety.start": "Start lesson",
@@ -608,29 +636,21 @@ const EN = {
   "plug.title": "Classroom plugs",
   "plug.noneAssigned": "No classroom plugs assigned",
   "plug.compatible": "{count} compatible device(s) connected",
-  "plug.connectedReady": "{count} connected plug(s) are ready",
-  "plug.openControls": "Open power controls",
-  "plug.openControlsHelp":
-    "Open the prepared local control session to operate each plug independently.",
-  "plug.powerOnLocked": "Power-on is safety locked",
-  "plug.powerOnLockedHelp":
-    "Power-off is available now. Enable power-on controls to use an approved classroom load.",
-  "plug.enablePowerOn": "Enable power-on controls",
   "plug.unknownState": "UNKNOWN",
   "plug.stateUnknown": "State has not been observed in this lesson",
   "plug.observed": "Observed {time}{source}",
   "plug.turnOn": "Turn on",
   "plug.turnOnHelp": "Turn on the approved classroom load",
-  "plug.afterSafety": "Enable power-on controls first",
   "plug.turnOff": "Turn off",
   "plug.turnOffHelp": "Always available as the safe state",
   "plug.onState": "ON",
   "plug.offState": "OFF",
   "plug.help":
-    "Use only the approved classroom load. The tutor can always turn it off, even when physical controls are locked.",
+    "Choose On or Off directly. CIT prepares the local control session automatically; use only an approved classroom load.",
 
   "nodes.eyebrow": "Device status",
   "nodes.title": "Everything connected to this classroom",
+  "nodes.directorySummary": "Input, output, and connection status",
   "nodes.intro":
     "Glasses, sensors, robots, smart plugs, coding assistants, and simulators all appear here when their CIT adapter is running.",
   "nodes.simulator": "Simulator",
@@ -727,7 +747,7 @@ const EN = {
   "lego.safety":
     "Starts unarmed sensor monitoring only. A sensor-only hub is supported. If motors are connected, keep wheels raised for the first test; a separate armed lesson is required for movement.",
 
-  "sphero.setup": "Choose the exact SB-XXXX robots to connect",
+  "sphero.setup": "Detected Sphero BOLT robots",
   "sphero.wake": "Charge BOLT and remove it from its cradle to wake it.",
   "sphero.closeApps":
     "Close Sphero Edu, Sphero Play, and any other app connected to BOLT.",
@@ -735,25 +755,16 @@ const EN = {
     "Do not pair BOLT in Windows Settings. CIT connects directly over BLE.",
   "sphero.noneVisible":
     "No exact SB-XXXX advertisement is visible. Wake BOLT, bring it nearby, close other apps, then choose Find devices again.",
-  "sphero.selectExact": "Visible Sphero BOLT robots",
   "sphero.boltCapabilities": "BOLT · roll, lights, sensors",
-  "sphero.connecting": "Connecting selected BOLT robots…",
-  "sphero.connectSelected": "Connect selected BOLT robots",
+  "sphero.capabilities": "BOLT · roll, lights, sensors",
+  "sphero.connecting": "Connecting…",
+  "sphero.connectRobot": "Connect",
   "sphero.connectSafety":
     "Connection starts unarmed sensor monitoring. It does not aim, light, or roll BOLT.",
   "sphero.eyebrow": "Robot controls",
   "sphero.title": "Sphero BOLT robot",
   "sphero.help":
-    "Open controls, complete the clear-floor safety check, then set forward before the first short movement.",
-  "sphero.connectedReady": "{count} connected BOLT robot(s) are ready",
-  "sphero.openControls": "Open robot controls",
-  "sphero.openControlsHelp":
-    "Open the prepared local session to aim, move, stop, and control each BOLT's lights.",
-  "sphero.movementLocked": "Movement is safety locked",
-  "sphero.movementLockedHelp":
-    "Put BOLT on a clear floor and keep Stop all devices visible. Movement remains bounded and stops locally after 750 ms.",
-  "sphero.enableMovement": "Enable movement controls",
-  "sphero.pauseEnableMovement": "Pause briefly and enable movement controls",
+    "Put BOLT on a clear floor, set forward, then use the direct bounded controls. Keep Stop all devices visible.",
   "sphero.aimTitle": "1. Set the forward direction",
   "sphero.aimHelp":
     "Place BOLT on the floor and turn the blue tail light toward you. The direction away from you becomes forward.",
@@ -771,8 +782,30 @@ const EN = {
   "sphero.color.orange": "Orange",
   "sphero.color.green": "Green",
   "sphero.color.off": "Lights off",
-  "sphero.locked":
-    "Locked: start the monitoring lesson, choose Enable physical controls, and confirm the clear floor area.",
+
+  "ollie.setup": "Detected Sphero Ollie robots",
+  "ollie.wake": "Charge Ollie and switch it on.",
+  "ollie.closeApps": "Close Sphero Edu and any other app connected to Ollie.",
+  "ollie.noPairing":
+    "Do not pair Ollie in Windows Settings. CIT connects directly over BLE.",
+  "ollie.noneVisible":
+    "No exact 2B-XXXX advertisement is visible. Switch Ollie on, bring it nearby, close other apps, then choose Find devices again.",
+  "ollie.capabilities": "Ollie · roll, main LED, sensors",
+  "ollie.connecting": "Connecting…",
+  "ollie.connectRobot": "Connect",
+  "ollie.connectSafety":
+    "Connection starts unarmed sensor monitoring and sends no movement. Vendor-safe startup may clear the current LEDs.",
+  "ollie.title": "Sphero Ollie robot",
+  "ollie.help":
+    "Put Ollie on a clear floor, set forward, then use the bounded controls. Keep Stop all devices visible.",
+  "ollie.aimTitle": "1. Set the forward direction",
+  "ollie.aimHelp":
+    "Point Ollie's blue tail light toward you. The direction away from you becomes forward.",
+  "ollie.aimButton": "Set this direction as forward",
+  "ollie.drive": "2. Test a short movement",
+  "ollie.nudge":
+    "Each arrow requests a conservative short movement. Ollie stops locally within 750 ms unless another approved command arrives.",
+  "ollie.lights": "3. Test the main LED",
 
   "wonder.setup": "Choose the exact robots to connect",
   "wonder.setupHelp":
@@ -789,7 +822,7 @@ const EN = {
   "wonder.eyebrow": "Robot controls",
   "wonder.title": "Wonder Workshop Dash and Dot",
   "wonder.help":
-    "Lights are available in a running lesson. Sound, Dash head motion, and short drive nudges require a running, armed physical lesson. Dot has no drive controls.",
+    "Choose a control directly; CIT prepares the local session automatically. Dash movement remains short and bounded. Dot has no drive controls.",
   "wonder.lights": "Lights",
   "wonder.sounds": "Fixed classroom sounds",
   "wonder.color.blue": "Blue",
@@ -809,20 +842,64 @@ const EN = {
   "wonder.center": "Center",
   "wonder.up": "Up",
   "wonder.down": "Down",
-  "wonder.locked":
-    "Locked: start the monitoring lesson, choose Enable physical controls, and confirm the clear-area safety check.",
 
-  "drone.eyebrow": "Safety controls",
-  "drone.title": "Tello safe-state controls",
+  "drone.eyebrow": "Drone control",
+  "drone.title": "Tello flight controls",
   "drone.help":
-    "This monitoring slice can land or emergency-stop an assigned aircraft. It cannot take off, move, rotate, or arm a drone.",
+    "Confirm safety once, then use bounded 20 cm movement and 30° rotation controls.",
   "drone.role": "Safety drone {number}",
+  "drone.checks": "One flight confirmation",
+  "drone.instructorPresent": "Instructor present",
+  "drone.flightAreaClear": "Flight area clear",
+  "drone.emergencyPlanReady": "Emergency response ready",
+  "drone.sessionReady": "The physical session is armed and active.",
+  "drone.sessionAutoPrepare":
+    "The first flight action safely arms and starts this device session.",
+  "drone.restartAdapter":
+    "Reconnect this Tello to load the current bounded-flight adapter.",
+  "drone.takeoff": "Take off",
+  "drone.takeoffConfirm": "Take off {name} now?",
+  "drone.forward": "Forward 20 cm",
+  "drone.back": "Back 20 cm",
+  "drone.left": "Left 20 cm",
+  "drone.right": "Right 20 cm",
+  "drone.up": "Up 20 cm",
+  "drone.down": "Down 20 cm",
+  "drone.rotateCounterclockwise": "Counterclockwise 30°",
+  "drone.rotateClockwise": "Clockwise 30°",
   "drone.land": "Land",
   "drone.landHelp": "Request a normal landing",
   "drone.emergency": "Emergency motor stop",
   "drone.emergencyHelp": "Use only when stopping motors is safer than flight",
+  "drone.manual": "Manual movement",
   "drone.confirm":
     "Emergency-stop {name}? An airborne drone can fall immediately.",
+
+  "sync.eyebrow": "Group control",
+  "sync.title": "Synchronized motor control",
+  "sync.enable": "Control connected BOLT and Ollie together",
+  "sync.groundTargets": "BOLT · Ollie: {count}",
+  "sync.includeTello": "Include Tello movement ({count})",
+  "sync.telloSafety":
+    "Confirm flight safety and take off from the Tello controls first.",
+  "sync.controls": "Synchronized movement controls",
+  "sync.forward": "Move all forward",
+  "sync.backward": "Move all backward",
+  "sync.left": "Move all left",
+  "sync.right": "Move all right",
+  "sync.stop": "Stop all ground robots",
+  "sync.inputs": "Semantic inputs",
+  "sync.input.g2": "G2 voice",
+  "sync.input.r1": "R1 ring",
+  "sync.input.meta": "Meta voice",
+  "sync.input.mindwave": "MindWave blink",
+  "sync.connectWearables": "Assign connected inputs",
+  "sync.inputHelp":
+    "G2/Meta voice and R1 gestures use the same bounded directions. One MindWave blink starts one 10 cm demonstration; it is not a measure of attention.",
+  "sync.ready":
+    "Synchronized motor control is ready for {count} ground robots.",
+  "sync.disabled": "Synchronized motor control is off.",
+  "sync.sent": "Sent {direction} to {count} devices.",
 
   "brain.eyebrow": "Guided MindWave demo",
   "brain.title": "One signal, one bounded Tello demonstration",
@@ -848,22 +925,22 @@ const EN = {
   "brain.seconds": "seconds",
   "brain.dwellHelp":
     "Use 2 seconds for the first hardware test. Zero accepts the first qualifying sample.",
-  "brain.flightCheck": "2. Instructor flight check — all three required",
+  "brain.flightCheck": "2. Confirm flight safety once",
   "brain.present": "I am present and supervising this flight.",
   "brain.areaClear":
     "The full flight area is clear; all visible Tellos are verified and grounded.",
   "brain.emergencyReady":
     "I can reach Land and Emergency stop and understand that a released rapid-handoff aircraft may no longer be reachable from the current Wi-Fi adapter.",
   "brain.runSimulation": "Run safe simulation",
-  "brain.arm": "Arm one-shot flight demo",
+  "brain.arm": "Connect, prepare, and arm once",
   "brain.waitCondition": "Waits for the selected MindWave condition",
   "brain.startFirst": "Start the lesson first",
-  "brain.startArmFirst": "Start and arm the physical lesson first",
+  "brain.startArmFirst": "Starts and arms the lesson automatically",
   "brain.stop": "Stop / disarm demo",
   "brain.stopHelp": "Safe-state command; available before or during a trigger",
 
   "fleet.eyebrow": "Multi-input drone sequence",
-  "fleet.title": "Launch several Tellos, one confirmed aircraft at a time",
+  "fleet.title": "Tello fleet controls",
   "fleet.helpBefore": "First arm one ordered plan. Then use",
   "fleet.startNow": "Start now",
   "fleet.helpAfter":
@@ -871,7 +948,7 @@ const EN = {
   "fleet.current": "Current state",
   "fleet.airborne": "Confirmed airborne",
   "fleet.waiting": "Waiting for the fleet controller’s first status update.",
-  "fleet.order": "1. Choose launch order (top launches first)",
+  "fleet.order": "Takeoff and landing order",
   "fleet.connectController":
     "Connect the Brain2Devices fleet controller to list approved aircraft.",
   "fleet.aircraftState": "{connection} · {flight} · battery {battery}%",
@@ -880,11 +957,11 @@ const EN = {
   "fleet.remove": "Remove",
   "fleet.interval": "Seconds between confirmed launches",
   "fleet.minimumBattery": "Minimum battery for every aircraft",
-  "fleet.inputs": "2. Choose what may consume this one-shot arm",
+  "fleet.inputs": "Allowed triggers",
   "fleet.tutorButton": "Tutor’s Start now button",
   "fleet.noInputs":
     "No Leap, G2, or Meta input is assigned. The tutor button still works.",
-  "fleet.flightCheck": "3. Instructor flight check — all four required",
+  "fleet.flightCheck": "Confirm flight safety once",
   "fleet.present": "I am present and supervising every aircraft.",
   "fleet.areaClear":
     "The full flight area is clear and every selected aircraft is visibly grounded.",
@@ -894,31 +971,50 @@ const EN = {
     "Each stock Tello has its own connected Wi-Fi route, or each station-mode aircraft has a unique reachable address.",
   "fleet.notReady":
     "Every selected aircraft must be connected, confirmed landed, and at or above the minimum battery.",
-  "fleet.arm": "Arm this sequence once",
+  "fleet.arm": "Connect, prepare, and arm once",
+  "fleet.prepareTriggers": "Prepare ring / sensor trigger",
+  "fleet.takeoffOneByOne": "Take off one by one",
+  "fleet.landOneByOne": "Land one by one",
+  "fleet.options": "Order and trigger options",
+  "fleet.optionsSummary":
+    "{interval}s spacing · {battery}% minimum · {inputs} triggers",
   "fleet.armHelp": "No aircraft launches yet · expires after 60 seconds",
-  "fleet.startArmFirst": "Start and arm the lesson first",
+  "fleet.startArmFirst": "Starts and arms the lesson automatically",
   "fleet.startHelp": "Uses the same bounded command as Leap and glasses",
   "fleet.stop": "Stop & land selected fleet",
   "fleet.stopHelp": "Also cancels launches that have not started",
   "fleet.leapInstruction": "open hand, then pinch",
+  "fleet.ringInstruction": "double-tap the R1 ring",
   "fleet.voiceInstruction": "say “Start drone sequence”",
 
   "course.deviceMonitoring.name": "Devices, sensors, cameras, and safe demos",
   "course.deviceMonitoring.summary": "Cameras, sensors + bounded drone demos",
   "course.deviceMonitoring.description":
-    "Shows cameras, Tello telemetry, MindWave vendor signals, and LEGO readings. Optional guided panels add an explicitly armed MindWave demo and a tutor-armed sequential fleet launched by button, Leap, G2, or Meta.",
+    "Shows cameras, Tello telemetry, MindWave vendor signals, and LEGO readings. Optional guided panels add an explicitly armed MindWave demo and a tutor-armed sequential fleet launched by button, Leap, R1, G2, or Meta.",
   "course.glasses.name": "Glasses and coding assistant",
   "course.glasses.summary": "Glasses + coding assistant",
   "course.glasses.description":
     "Students send a request from their glasses to a coding assistant and receive the response on a classroom display.",
+  "course.glassesControl.name": "Glasses device control",
+  "course.glassesControl.summary": "G2 or Meta + assigned robots and drones",
+  "course.glassesControl.description":
+    "Confirmed G2 or Meta voice commands move every assigned RoboMaster, Sphero, LEGO, or Dash at once. Tello takeoff still requires the separate tutor flight checklist and one-shot arm.",
   "course.gesture.name": "Gesture-controlled robot",
   "course.gesture.summary": "Gesture + classroom robot",
   "course.gesture.description":
     "Students steer a classroom robot with hand gestures while CIT keeps movement within the lesson’s safety limits.",
+  "course.ring.name": "R1 smart-ring device control",
+  "course.ring.summary": "R1 input + assigned robots and drones",
+  "course.ring.description":
+    "Scroll R1 for short bounded forward or backward cues on assigned RoboMaster, Sphero, LEGO, or Dash devices. Tap requests zero velocity. Double-tap can start only a separately armed Tello sequence.",
   "course.simultaneous.name": "Simultaneous multi-device cue",
   "course.simultaneous.summary": "One input + several simultaneous outputs",
   "course.simultaneous.description":
-    "One approved Leap or glasses cue simultaneously sends bounded actions to an assigned RoboMaster, LEGO hub, armed Tello fleet, Meta display, and G2 display. Every output remains independently safety checked.",
+    "One approved Leap, R1, or glasses cue simultaneously sends bounded actions to assigned RoboMaster, Sphero, LEGO, Dash, an armed Tello fleet, and glasses displays. Every output remains independently safety checked.",
+  "course.synchronized.name": "Synchronized motor control",
+  "course.synchronized.summary": "G2 · R1 · Meta · MindWave + BOLT · Ollie",
+  "course.synchronized.description":
+    "An explicit group-control switch lets G2/Meta voice, R1 gestures, and one debounced MindWave blink move assigned BOLT and Ollie robots together. Tello remains a separate opt-in route with its own flight checks.",
   "course.plug.name": "Classroom smart plug",
   "course.plug.summary": "Tutor-controlled classroom plugs",
   "course.plug.description":
@@ -946,11 +1042,17 @@ const EN = {
   "role.feedback.description": "Shows coding progress and lesson messages",
   "role.gesture.name": "Gesture controller",
   "role.gesture.description": "Sends hand movements to the lesson",
+  "role.smartRing.name": "R1 smart-ring input",
+  "role.smartRing.description":
+    "Publishes structured tap, double-tap, and scroll gestures through the paired G2 phone bridge",
   "role.console.name": "Tutor display",
   "role.console.description": "Shows lesson activity to the tutor",
   "role.glasses.name": "Student glasses",
   "role.glasses.description":
     "Sends student input and displays lesson feedback",
+  "role.glassesInput.name": "Glasses control input {number}",
+  "role.glassesInput.description":
+    "Publishes confirmed, structured G2 or Meta device commands without raw transcripts or vendor packets",
   "role.robot.name": "Classroom robot",
   "role.robot.description": "Receives bounded movement and stop instructions",
   "role.safetyDrone.name": "Safety drone {number}",
@@ -958,10 +1060,10 @@ const EN = {
     "Publishes Tello telemetry and accepts only Land or Emergency Stop",
   "role.fleetInput.name": "Fleet trigger {number}",
   "role.fleetInput.description":
-    "Requests the currently armed sequence through Leap, G2, or Meta",
+    "Requests the currently armed sequence through Leap, R1, G2, or Meta",
   "role.groundOutput.name": "Ground robot output {number}",
   "role.groundOutput.description":
-    "Receives the same bounded, watchdog-limited movement cue; assign RoboMaster or a mobile LEGO hub",
+    "Receives the same bounded, watchdog-limited movement cue; assign RoboMaster, Sphero, LEGO, or Dash",
   "role.messageOutput.name": "Glasses message output {number}",
   "role.messageOutput.description":
     "Receives the same fixed lesson message; assign G2 or Meta glasses",
@@ -1001,6 +1103,30 @@ const KO: Record<FabricMessageKey, string> = {
   ...EN,
   "language.label": "화면 언어",
   "document.title": "CIT 수업 제어",
+  "common.moreInfo": "자세히",
+
+  "g2.guide.title": "안경 연결로 할 수 있는 일",
+  "g2.guide.input":
+    "음성·버튼 입력을 배정된 Codex 또는 Claude 세션으로 보낼 수 있습니다.",
+  "g2.guide.output":
+    "코딩 에이전트 완료 결과와 설정된 알림을 안경 화면 또는 음성으로 받을 수 있습니다.",
+  "g2.guide.deviceControl":
+    "배정한 RoboMaster, Sphero, LEGO 또는 Dash를 동시에 제어하고 준비된 Tello 순차 비행을 요청할 수 있습니다.",
+  "g2.guide.commandsTitle": "음성 예시:",
+  "g2.guide.commands":
+    "‘CIT 로봇 앞으로’, ‘CIT 로봇 왼쪽’, ‘CIT 로봇 정지’, ‘CIT 드론 이륙’ 또는 ‘CIT 드론 착륙’.",
+  "g2.guide.controlSetup":
+    "‘안경으로 장치 제어’를 선택하고 안경 입력과 각 출력을 배정한 뒤 수업을 시작·준비하세요. 이동과 이륙은 한 번 더 눌러 확인해야 합니다.",
+  "g2.guide.telegram":
+    "Telegram은 안경이 아니라 페어링한 휴대전화에 설치합니다. G2는 Even 앱 → 설정 → 알림에서 Telegram을 켜고, Meta는 휴대전화 알림·음성 경로를 사용합니다.",
+  "g2.guide.directMessage":
+    "이 화면에는 아직 일반 문구를 직접 보내는 작성창이 없습니다. 에이전트 완료 결과와 설정된 알림은 지원합니다.",
+  "lesson.glassesControl.title": "이 수업에 안경 연결",
+  "lesson.glassesControl.body":
+    "G2 또는 Meta 휴대폰에서 CIT 브리지를 연 뒤 사용 가능한 안경을 연결하세요. 아래에 배정한 장치만 반응합니다.",
+  "lesson.glassesControl.connect": "G2 / Meta 연결",
+  "lesson.glassesControl.prepare":
+    "실물 장치를 선택하고 먼저 이 수업을 설정하세요.",
   "login.eyebrow": "교실 장치 제어",
   "login.opening": "교실을 여는 중…",
   "login.welcome": "CIT 수업 제어에 오신 것을 환영합니다",
@@ -1086,20 +1212,6 @@ const KO: Record<FabricMessageKey, string> = {
     "접속 토큰, Wi-Fi 비밀번호, Matter 운영 키와 컨트롤러 DB, 제조사 인증 정보, 녹화, 로그, 의존성 캐시 및 이전 교실 상태입니다.",
   "installation.checksumFailed":
     "받은 설치 파일의 SHA-256 검사값이 맞지 않습니다. 파일을 저장하지 않았으니 기술 담당자에게 다시 빌드해 달라고 요청하세요.",
-  "deviceControls.open": "장치 제어",
-  "deviceControls.eyebrow": "직접 장치 조작",
-  "deviceControls.title": "장치 제어 모음",
-  "deviceControls.description":
-    "연결된 장치 종류를 선택하세요. 모든 동작에는 기존 안전 잠금과 수업 권한이 그대로 적용됩니다.",
-  "deviceControls.close": "장치 제어 창 닫기",
-  "deviceControls.categories": "제어할 장치 종류",
-  "deviceControls.escapeHint":
-    "Esc 키 또는 ‘완료’를 눌러 이 창을 닫을 수 있습니다.",
-  "deviceControls.done": "완료",
-  "deviceControls.sphero": "Sphero BOLT 제어",
-  "deviceControls.wonder": "Dash / Dot 제어",
-  "deviceControls.drone": "드론 제어",
-  "deviceControls.smartPlug": "스마트 플러그 제어",
   "notice.ready": "교실을 준비할 수 있습니다.",
   "notice.secureOpen": "이 컴퓨터에서 수업 제어를 안전하게 열었습니다.",
   "notice.connected": "이 컴퓨터의 수업 제어에 연결했습니다.",
@@ -1113,36 +1225,30 @@ const KO: Record<FabricMessageKey, string> = {
     "수업을 만들고 사용 가능한 장치 {count}대를 자동으로 배정했습니다.",
   "notice.lessonCreated":
     "수업을 만들었습니다. 다음으로 사용할 장치를 선택하세요.",
+  "notice.glassesControlConnected":
+    "G2 / Meta 입력을 이 수업에 연결했습니다. 출력을 배정하고 안전 설정 후 수업을 시작하세요.",
   "notice.roleReady": "{device} 장치를 ‘{role}’ 역할로 사용할 준비가 됐습니다.",
   "notice.lessonStatus": "수업 상태: {status}.",
-  "notice.physicalResumed":
-    "실제 장치 제어를 허용하고 모니터링 수업을 다시 시작했습니다.",
-  "notice.physicalReady":
-    "실제 장치 제어를 허용했습니다. 준비되면 수업을 시작하세요.",
   "notice.emergencyStop":
     "비상 정지 {status}: 세션 {sessions}개, 어댑터 노드 {nodes}개를 정지했습니다.",
   "notice.deviceCheck":
     "장치 확인 완료: 연결됨 {connected}개, 발견 또는 준비됨 {found}개. 설정이 더 필요한 장치는 아래 카드를 확인하세요.",
   "notice.integrationConnected":
     "{name} 연결을 시작했습니다. 실제 출력 장치는 계속 잠겨 있습니다.",
+  "notice.integrationScanned":
+    "{name} 다시 검색 완료: {status}. 이 카드의 연결 또는 설정을 사용하세요.",
   "notice.matterAdded":
     "Matter 플러그를 로컬로 추가했습니다. 전원은 꺼진 안전 상태입니다.",
   "notice.matterWifiConfigured":
     "교실 Wi-Fi를 로컬 Matter 컨트롤러에만 저장했습니다. 이제 플러그를 추가할 수 있습니다.",
-  "notice.smartPlugControlsReady":
-    "연결된 플러그 {count}개의 개별 제어를 열었습니다.",
-  "notice.smartPlugPowerReady":
-    "스마트 플러그 켜기 제어를 활성화했습니다. 각 플러그는 계속 독립적으로 제어됩니다.",
   "notice.legoConnected":
     "LEGO 허브를 모터 잠금 상태의 모니터링용으로 연결했습니다.",
   "notice.wonderConnected":
     "선택한 Dash/Dot 로봇 {count}대를 제어 잠금 상태의 모니터링용으로 연결했습니다.",
   "notice.spheroConnected":
     "선택한 Sphero BOLT 로봇 {count}대를 제어 잠금 상태의 모니터링용으로 연결했습니다.",
-  "notice.spheroControlsReady":
-    "연결된 Sphero BOLT {count}대의 제어 화면을 열었습니다.",
-  "notice.spheroMovementReady":
-    "Sphero 이동 제어를 활성화했습니다. 첫 이동 전에 앞 방향을 지정하세요.",
+  "notice.ollieConnected":
+    "선택한 Sphero Ollie 로봇 {count}대를 제어 잠금 상태의 모니터링용으로 연결했습니다.",
   "notice.noneConnected": "완료된 연결이 없습니다.",
   "notice.groupsConnected": "장치 그룹 {count}개를 연결했습니다: {names}.",
   "notice.rememberedConnected":
@@ -1166,19 +1272,23 @@ const KO: Record<FabricMessageKey, string> = {
   "busy.creatingSession": "수업 만드는 중",
   "busy.assigningRole": "장치 배정 중",
   "busy.changingSession": "수업 상태 변경 중",
-  "busy.enablingPhysical": "실제 장치 제어 허용 중",
   "busy.emergencyStop": "모든 장치 정지 중",
   "busy.findingDevices": "장치 찾는 중",
+  "busy.scanningIntegration": "{name} 다시 검색 중",
   "busy.connectingDevice": "{name} 연결 중",
+  "busy.connectingGlassesControl": "G2 / Meta를 이 수업에 연결하는 중",
   "busy.addingMatter": "Matter 스마트 플러그 추가 중",
   "busy.configuringMatterWifi": "Matter 교실 Wi-Fi 저장 중",
-  "busy.openingSmartPlugControls": "스마트 플러그 제어 여는 중",
-  "busy.openingSpheroControls": "Sphero BOLT 제어 여는 중",
   "busy.connectingLego": "LEGO 허브 연결 중",
   "busy.connectingWonder": "선택한 Dash/Dot 로봇 연결 중",
   "busy.wonderCommand": "제한된 Dash/Dot 제어 전송 중",
   "busy.connectingSphero": "선택한 Sphero BOLT 로봇 연결 중",
+  "busy.connectingOllie": "선택한 Sphero Ollie 로봇 연결 중",
   "busy.spheroCommand": "제한된 Sphero BOLT 제어 전송 중",
+  "busy.syncPreparing": "동기 장치 제어 준비 중",
+  "busy.syncCommand": "동기 제한 이동 전송 중",
+  "busy.syncWearables": "웨어러블 제어 입력 연결 중",
+  "busy.syncDisabling": "동기 장치 제어 정지 중",
   "busy.connectingAll": "사용 가능한 장치 연결 중",
   "busy.connectingRemembered": "기억한 장치 다시 연결 중",
   "busy.copyingSetup": "설정 안내 복사 중",
@@ -1189,6 +1299,7 @@ const KO: Record<FabricMessageKey, string> = {
   "busy.smartPlug": "스마트 플러그 전원 변경 중",
   "busy.telloLand": "Tello 착륙 요청 중",
   "busy.telloEmergency": "Tello 비상 정지 중",
+  "busy.telloCommand": "Tello 명령 전송 중",
   "busy.brainArm": "MindWave 1회 데모 준비 중",
   "busy.brainStop": "MindWave 데모 정지 중",
   "busy.fleetArm": "순차 드론 비행 1회 준비 중",
@@ -1196,6 +1307,10 @@ const KO: Record<FabricMessageKey, string> = {
   "busy.fleetStop": "선택한 드론 정지 및 착륙 중",
   "busy.vision": "{name}에서 물체 인식 중",
   "error.selectCourse": "설치된 수업을 선택하세요.",
+  "error.glassesControlSession":
+    "먼저 ‘안경으로 장치 제어’ 수업을 설정하고 선택하세요.",
+  "error.glassesControlPhysical":
+    "G2 또는 Meta를 연결하기 전에 실물 장치를 선택하세요.",
   "error.selectSession": "먼저 수업을 선택하세요.",
   "error.selectPhysicalSession": "먼저 실제 장치를 사용하는 수업을 선택하세요.",
   "error.selectNode": "{role} 역할에 맞는 장치를 선택하세요.",
@@ -1204,14 +1319,20 @@ const KO: Record<FabricMessageKey, string> = {
     "먼저 이 Dash 또는 Dot을 Wonder 로봇 역할에 배정하세요.",
   "error.spheroUnassigned":
     "먼저 이 Sphero BOLT를 로봇 센서 역할에 배정하세요.",
+  "error.noSynchronizedMotors":
+    "먼저 Sphero BOLT 또는 Ollie를 한 대 이상 연결하세요.",
+  "error.syncPartial": "동기 명령 {count}개 중 {failed}개가 실패했습니다.",
+  "error.noSynchronizedInputs":
+    "먼저 장치 카드에서 G2, R1, Meta 또는 MindWave를 연결하세요.",
   "error.spheroSession": "먼저 Sphero BOLT 제어 화면을 여세요.",
   "error.noSpheroRobots": "연결된 Sphero BOLT가 없습니다.",
   "error.spheroSetupPermission":
     "이 강사 계정으로 Sphero BOLT 제어 세션을 준비할 수 없습니다.",
   "error.spheroCourse": "장치 모니터링 수업이 설치되어 있지 않습니다.",
-  "error.spheroSafetyConfirmation":
-    "이동을 활성화하기 전에 화면의 빈 바닥 안전 확인에 동의하세요.",
-  "error.spheroSessionNotReady": "Sphero BOLT 제어 세션을 시작하지 못했습니다.",
+  "error.noTelloDrones": "연결된 Tello 드론이 없습니다.",
+  "error.telloSetupPermission":
+    "강사 또는 관리자가 Tello 제어를 준비해야 합니다.",
+  "error.telloCourse": "장치 모니터링 수업이 설치되어 있지 않습니다.",
   "error.grounded": "연결하기 전에 모든 드론이 바닥에 있는지 확인하세요.",
   "error.noConnection":
     "지금 바로 연결할 수 있는 장치가 없습니다. ‘설정 필요’ 카드를 따른 뒤 장치를 다시 찾으세요.",
@@ -1228,18 +1349,17 @@ const KO: Record<FabricMessageKey, string> = {
     "이 강사 계정으로 스마트 플러그 제어 세션을 준비할 수 없습니다.",
   "error.smartPlugCourse": "스마트 플러그 제어 수업이 설치되어 있지 않습니다.",
   "error.safetyConfirmation":
-    "켜기를 활성화하기 전에 화면의 교실 안전 확인에 동의하세요.",
+    "시작하기 전에 화면의 교실 안전 확인에 동의하세요.",
+  "error.directControlSessionNotReady": "장치 제어 세션을 준비하지 못했습니다.",
   "error.smartPlugSessionNotReady":
     "스마트 플러그 제어 세션을 시작하지 못했습니다.",
   "error.assignPlug": "전원을 제어하기 전에 교실 플러그를 배정하세요.",
-  "error.startLoad": "부하 전원을 켜기 전에 수업을 시작하세요.",
-  "error.armLoad": "부하 전원을 켜기 전에 실제 장치 제어를 허용하세요.",
   "error.monitoringSession": "먼저 장치 모니터링 수업을 선택하세요.",
   "error.droneUnassigned":
     "이 Tello는 더 이상 현재 수업에 배정되어 있지 않습니다.",
   "error.brainController": "먼저 제한된 MindWave 데모 컨트롤러를 배정하세요.",
   "error.startDemo": "데모를 준비하기 전에 수업을 시작하세요.",
-  "error.armFlight": "비행을 준비하기 전에 실제 장치 제어를 허용하세요.",
+  "error.armFlight": "비행을 준비하기 전에 실제 장치 수업을 시작하세요.",
   "error.fleetLesson": "먼저 ‘장치와 안전 데모’ 수업을 선택하세요.",
   "error.fleetController": "먼저 제한된 순차 드론 컨트롤러를 배정하세요.",
   "error.startSequence": "순차 비행을 준비하기 전에 수업을 시작하세요.",
@@ -1251,6 +1371,10 @@ const KO: Record<FabricMessageKey, string> = {
   "error.nodeUnavailable":
     "장치 연결이 끊어졌습니다. 전원과 어댑터를 확인한 뒤 새로고침하세요.",
   "error.rolesMissing": "수업을 시작하기 전에 필수 장치를 모두 연결하세요.",
+  "error.telloNotVisible":
+    "Tello Wi-Fi가 현재 보이지 않습니다. 드론 전원을 켜고 TELLO-*가 표시되면 장치를 다시 검색한 뒤 연결하세요.",
+  "error.telloSessionActive":
+    "드론 연결은 유지됩니다. 사용 중인 기체 세션 때문에 Wi-Fi 경로만 변경하지 않았습니다.",
   "error.requestFailed": "Fabric 요청에 실패했습니다.",
   "guide.find.title": "교실 장치 찾기",
   "guide.find.description":
@@ -1264,9 +1388,9 @@ const KO: Record<FabricMessageKey, string> = {
   "guide.connect.title": "장치 {count}대 더 연결",
   "guide.connect.description":
     "빈 역할마다 연결된 장치를 선택하세요. 목록이 비어 있으면 해당 장치의 CIT 어댑터를 시작한 뒤 새로고침하세요.",
-  "guide.safety.title": "장치 허용 전 안전 확인",
+  "guide.safety.title": "시작 전 안전 확인",
   "guide.safety.description":
-    "교실을 확인하고 비상 정지 버튼을 보이게 둔 다음 실제 장치 제어 허용 여부를 확인하세요.",
+    "교실을 확인하고 비상 정지 버튼을 보이게 둔 다음 수업을 시작하세요.",
   "guide.teach.title": "수업 진행 중",
   "guide.teach.description":
     "장치가 준비되었습니다. 아래 수업 제어를 사용하고 수업이 끝나면 세션을 종료하세요.",
@@ -1288,13 +1412,13 @@ const KO: Record<FabricMessageKey, string> = {
   "discovery.step": "1단계",
   "discovery.title": "교실 장치 찾기",
   "discovery.intro":
-    "장치 전원을 켜고 USB 장치를 연결한 뒤 ‘장치 찾기’를 선택하세요. CIT는 현재 USB와 Bluetooth 연결, Wi-Fi 경로, 로컬 서비스, USB 또는 Wi-Fi 디버깅으로 승인된 Android 휴대전화를 확인합니다.",
+    "장치 전원을 켜고 USB 장치를 연결한 뒤 ‘장치 찾기’를 선택하세요. USB, Bluetooth, Wi-Fi, 로컬 서비스와 승인된 Android 휴대전화를 확인합니다.",
   "discovery.checking": "확인 중…",
   "discovery.find": "장치 찾기",
-  "discovery.noMovement": "어떤 장치도 움직이거나 날거나 켜지지 않습니다",
-  "discovery.safeTitle": "안전한 검색만 수행",
+  "discovery.noMovement": "장치는 자동으로 켜지지 않습니다",
+  "discovery.safeTitle": "안전한 검색",
   "discovery.safeBody":
-    "장치 찾기는 로봇을 활성화하거나, 프로펠러를 돌리거나, 모터를 움직이거나, 플러그를 켜거나, 에이전트를 시작하거나, 원본 음성·영상·생체 신호를 저장하지 않습니다.",
+    "연결만 확인합니다. 장치를 작동시키거나 원본 센서 데이터를 저장하지 않습니다.",
   "discovery.connectionsReady": "안전하게 연결할 수 있는 항목 {count}개",
   "discovery.connectAllHelp":
     "확인된 어댑터를 한 번에 연결합니다. 로봇, 드론, 플러그와 수업 세션은 계속 잠긴 상태입니다.",
@@ -1306,13 +1430,9 @@ const KO: Record<FabricMessageKey, string> = {
   "discovery.rememberedReady": "기억한 연결 그룹 {count}개",
   "discovery.rememberedHelp":
     "USB, Bluetooth, Wi-Fi 및 Android 전체 검색 없이 이 컴퓨터에 저장된 정확한 어댑터 프로필을 다시 연결합니다. 실제 출력은 잠긴 상태이고 기억한 플러그는 전원 꺼짐 안전 상태가 됩니다.",
-  "discovery.autoReconnectRemembered":
-    "이 페이지를 열 때 기억한 비항공 장치를 자동으로 다시 연결",
   "discovery.connectRemembered": "기억한 장치 연결",
   "discovery.reconnectingRemembered": "다시 연결 중…",
   "discovery.rememberedNoScan": "빠른 재연결 · 출력 잠금 유지",
-  "discovery.rememberedAircraftAutoSkip":
-    "자동 재연결에서는 드론을 건너뜁니다. 위에서 착지 상태를 확인한 뒤 버튼으로 직접 다시 연결하세요.",
   "discovery.startHost": "먼저 실제 장치 호스트를 시작하세요",
   "discovery.checked": "{time}에 확인",
   "discovery.notChecked": "아직 확인하지 않음",
@@ -1340,9 +1460,10 @@ const KO: Record<FabricMessageKey, string> = {
   "discovery.tier.unavailable.empty":
     "현재 별도 설정이 필요한 지원 장치가 없습니다.",
   "discovery.tier.count": "항목 {count}개",
-  "discovery.connectedDevices": "연결된 장치 {count}개",
+  "discovery.detectedPaths": "발견된 연결 경로 {count}개",
   "discovery.signal": "신호 {percent}%",
   "discovery.connect": "연결",
+  "discovery.scanThisDevice": "이 장치 다시 검색",
   "discovery.copySetup": "설정 명령 복사",
   "discovery.connectionDetails": "연결 정보",
   "discovery.whatToDo": "무엇을 해야 하나요?",
@@ -1390,6 +1511,12 @@ const KO: Record<FabricMessageKey, string> = {
   "io.output.discovery": "화면 표시나 액추에이터처럼 수업 지시만 받습니다.",
   "io.output.role": "수업의 제한된 동작을 실행하는 장치",
   "io.output.label": "출력 전용",
+
+  "deviceIo.title": "실시간 입력 및 출력",
+  "deviceIo.help": "사용 가능한 신호와 제어를 바로 표시합니다.",
+  "deviceIo.inputs": "장치 입력",
+  "deviceIo.outputs": "장치 출력",
+  "deviceIo.live": "최신 센서 값",
   "status.connected": "연결됨",
   "status.found": "발견됨",
   "status.ready": "컴퓨터 준비됨",
@@ -1414,6 +1541,9 @@ const KO: Record<FabricMessageKey, string> = {
   "lesson.choosePrompt": "오늘 학생들과 무엇을 할까요?",
   "lesson.selected": "선택됨",
   "lesson.choose": "선택",
+  "lesson.overview": "수업 안내",
+  "lesson.materials": "수업 자료",
+  "lesson.materialsSummary": "카메라 · 센서",
   "lesson.settings": "교실 및 장치 설정",
   "lesson.site": "사이트",
   "lesson.room": "교실",
@@ -1448,17 +1578,17 @@ const KO: Record<FabricMessageKey, string> = {
   "safety.setupFirst": "계속하려면 수업을 설정하세요",
   "safety.simulation": "시뮬레이션 모드 · 실제 장치는 계속 잠김",
   "safety.enabled": "실제 장치 제어가 허용되었습니다",
-  "safety.locked": "실제 장치가 잠겨 있습니다",
+  "safety.locked": "준비됨 · 처음 제어할 때 장치를 자동 준비",
   "safety.physicalHelp":
     "‘모든 장치 정지’ 버튼을 항상 보이게 두고 활동 구역이 비어 있는지 확인하세요.",
   "safety.nonSpatialHelp":
-    "움직이지 않는 장치는 위치나 바닥 공간 확인이 필요하지 않습니다. 사용 전에 제어를 명시적으로 허용하세요.",
+    "장치 제어를 바로 선택하세요. CIT가 로컬 세션을 자동으로 준비합니다.",
   "safety.simulationHelp":
     "실제 교실 장치로 전환하기 전에 안전하게 연습하세요.",
   "safety.confirm":
     "장치가 보이고 활동 구역이 비어 있으며 ‘모든 장치 정지’ 버튼의 위치를 알고 있습니다.",
-  "safety.pauseEnable": "잠시 일시 정지하고 실제 장치 제어 허용",
-  "safety.enable": "실제 장치 제어 허용",
+  "flight.confirmOnce":
+    "강사가 현장에 있고, 비행 구역·비상 대응·각 드론 연결 경로를 확인했습니다.",
   "safety.lock": "실제 장치 잠금",
   "safety.resume": "수업 다시 시작",
   "safety.start": "수업 시작",
@@ -1563,28 +1693,20 @@ const KO: Record<FabricMessageKey, string> = {
   "plug.title": "교실 플러그",
   "plug.noneAssigned": "배정된 교실 플러그 없음",
   "plug.compatible": "호환 장치 {count}개 연결됨",
-  "plug.connectedReady": "연결된 플러그 {count}개가 준비되었습니다",
-  "plug.openControls": "전원 제어 열기",
-  "plug.openControlsHelp":
-    "준비된 로컬 제어 세션을 열어 각 플러그를 독립적으로 제어합니다.",
-  "plug.powerOnLocked": "켜기는 안전 잠금 상태입니다",
-  "plug.powerOnLockedHelp":
-    "끄기는 지금 사용할 수 있습니다. 승인된 교실 부하를 사용하려면 켜기 제어를 활성화하세요.",
-  "plug.enablePowerOn": "켜기 제어 활성화",
   "plug.unknownState": "알 수 없음",
   "plug.stateUnknown": "이 수업에서 아직 상태를 확인하지 못했습니다",
   "plug.observed": "{time}에 확인{source}",
   "plug.turnOn": "켜기",
   "plug.turnOnHelp": "승인된 교실 부하 켜기",
-  "plug.afterSafety": "먼저 켜기 제어를 활성화하세요",
   "plug.turnOff": "끄기",
   "plug.turnOffHelp": "안전 상태이므로 언제나 사용 가능",
   "plug.onState": "켜짐",
   "plug.offState": "꺼짐",
   "plug.help":
-    "승인된 교실 부하만 사용하세요. 실제 장치 제어가 잠겨 있어도 강사는 언제든 끌 수 있습니다.",
+    "켜기 또는 끄기를 바로 선택하세요. CIT가 로컬 제어 세션을 자동으로 준비하며 승인된 교실 부하만 사용해야 합니다.",
   "nodes.eyebrow": "장치 상태",
   "nodes.title": "이 교실에 연결된 모든 장치",
+  "nodes.directorySummary": "입력 · 출력 · 연결 상태",
   "nodes.intro":
     "안경, 센서, 로봇, 스마트 플러그, 코딩 도우미와 시뮬레이터는 CIT 어댑터가 실행되면 여기에 표시됩니다.",
   "nodes.simulator": "시뮬레이터",
@@ -1676,7 +1798,7 @@ const KO: Record<FabricMessageKey, string> = {
   "lego.connect": "저장하고 허브 연결",
   "lego.safety":
     "처음에는 모터가 잠긴 센서 모니터링만 시작합니다. 센서 전용 허브도 지원합니다. 모터가 연결되어 있으면 첫 시험에서 바퀴를 들어 두세요. 움직이려면 별도로 실제 장치를 허용한 수업이 필요합니다.",
-  "sphero.setup": "연결할 정확한 SB-XXXX 로봇 선택",
+  "sphero.setup": "발견된 Sphero BOLT",
   "sphero.wake": "BOLT를 충전한 뒤 충전대에서 꺼내 깨우세요.",
   "sphero.closeApps":
     "Sphero Edu, Sphero Play 및 BOLT에 연결된 다른 앱을 모두 닫으세요.",
@@ -1684,25 +1806,16 @@ const KO: Record<FabricMessageKey, string> = {
     "Windows 설정에서 BOLT를 페어링하지 마세요. CIT가 BLE로 직접 연결합니다.",
   "sphero.noneVisible":
     "정확한 SB-XXXX 신호가 보이지 않습니다. BOLT를 깨우고 가까이 둔 뒤 다른 앱을 닫고 ‘장치 찾기’를 다시 선택하세요.",
-  "sphero.selectExact": "보이는 Sphero BOLT 로봇",
   "sphero.boltCapabilities": "BOLT · 이동, 조명, 센서",
-  "sphero.connecting": "선택한 BOLT 로봇 연결 중…",
-  "sphero.connectSelected": "선택한 BOLT 로봇 연결",
+  "sphero.capabilities": "BOLT · 이동, 조명, 센서",
+  "sphero.connecting": "연결 중…",
+  "sphero.connectRobot": "연결",
   "sphero.connectSafety":
     "연결하면 제어 잠금 상태의 센서 모니터링만 시작합니다. 방향 지정, 조명 또는 이동 명령은 보내지 않습니다.",
   "sphero.eyebrow": "로봇 제어",
   "sphero.title": "Sphero BOLT",
   "sphero.help":
-    "제어 화면을 열고 빈 바닥 안전 확인을 완료한 뒤 첫 이동 전에 앞 방향을 지정하세요.",
-  "sphero.connectedReady": "연결된 BOLT {count}대가 준비되었습니다",
-  "sphero.openControls": "로봇 제어 열기",
-  "sphero.openControlsHelp":
-    "준비된 로컬 세션을 열어 각 BOLT의 방향 지정, 이동, 정지 및 조명을 제어합니다.",
-  "sphero.movementLocked": "이동은 안전 잠금 상태입니다",
-  "sphero.movementLockedHelp":
-    "BOLT를 장애물이 없는 바닥에 놓고 ‘모든 장치 정지’를 보이게 두세요. 이동은 제한되며 750ms 뒤 로컬에서 자동 정지합니다.",
-  "sphero.enableMovement": "이동 제어 활성화",
-  "sphero.pauseEnableMovement": "잠시 일시 정지하고 이동 제어 활성화",
+    "BOLT를 빈 바닥에 놓고 앞 방향을 지정한 뒤 제한된 제어를 바로 사용하세요. ‘모든 장치 정지’를 보이게 두세요.",
   "sphero.aimTitle": "1. 앞 방향 지정",
   "sphero.aimHelp":
     "BOLT를 바닥에 놓고 파란 꼬리 조명이 강사를 향하게 돌리세요. 강사 반대쪽이 앞으로 설정됩니다.",
@@ -1720,8 +1833,29 @@ const KO: Record<FabricMessageKey, string> = {
   "sphero.color.orange": "주황",
   "sphero.color.green": "초록",
   "sphero.color.off": "조명 끄기",
-  "sphero.locked":
-    "잠김: 모니터링 수업을 시작하고 ‘실제 장치 제어 허용’을 선택한 뒤 바닥 주변이 비었는지 확인하세요.",
+  "ollie.setup": "발견된 Sphero Ollie",
+  "ollie.wake": "Ollie를 충전하고 전원을 켜세요.",
+  "ollie.closeApps": "Sphero Edu 및 Ollie에 연결된 다른 앱을 모두 닫으세요.",
+  "ollie.noPairing":
+    "Windows 설정에서 Ollie를 페어링하지 마세요. CIT가 BLE로 직접 연결합니다.",
+  "ollie.noneVisible":
+    "정확한 2B-XXXX 신호가 보이지 않습니다. Ollie 전원을 켜고 가까이 둔 뒤 다른 앱을 닫고 ‘장치 찾기’를 다시 선택하세요.",
+  "ollie.capabilities": "Ollie · 이동, 주 조명, 센서",
+  "ollie.connecting": "연결 중…",
+  "ollie.connectRobot": "연결",
+  "ollie.connectSafety":
+    "연결하면 제어 잠금 상태의 센서 모니터링을 시작하고 이동 명령은 보내지 않습니다. 안전 초기화 중 기존 조명이 꺼질 수 있습니다.",
+  "ollie.title": "Sphero Ollie",
+  "ollie.help":
+    "Ollie를 빈 바닥에 놓고 앞 방향을 지정한 뒤 제한된 제어를 사용하세요. ‘모든 장치 정지’를 보이게 두세요.",
+  "ollie.aimTitle": "1. 앞 방향 지정",
+  "ollie.aimHelp":
+    "Ollie의 파란 꼬리 조명을 강사 쪽으로 향하게 하세요. 강사 반대쪽이 앞으로 설정됩니다.",
+  "ollie.aimButton": "현재 방향을 앞으로 설정",
+  "ollie.drive": "2. 짧은 이동 시험",
+  "ollie.nudge":
+    "화살표마다 보수적으로 제한된 짧은 이동을 요청합니다. 승인된 다음 명령이 없으면 Ollie가 750ms 이내에 로컬에서 정지합니다.",
+  "ollie.lights": "3. 주 조명 시험",
   "wonder.setup": "연결할 정확한 로봇 선택",
   "wonder.setupHelp":
     "이번 검색에서 발견된 로봇만 선택할 수 있습니다. 이름과 신호 세기로 실제 로봇을 확인하세요. CIT는 가장 가까운 로봇을 자동 선택하지 않습니다.",
@@ -1737,7 +1871,7 @@ const KO: Record<FabricMessageKey, string> = {
   "wonder.eyebrow": "로봇 제어",
   "wonder.title": "Wonder Workshop Dash 및 Dot",
   "wonder.help":
-    "실행 중인 수업에서는 조명을 사용할 수 있습니다. 소리, Dash 머리 이동 및 짧은 주행은 실행 중이며 실제 장치 제어가 허용된 수업에서만 가능합니다. Dot에는 주행 제어가 없습니다.",
+    "제어를 바로 선택하면 CIT가 로컬 세션을 자동으로 준비합니다. Dash 이동은 짧고 제한되며 Dot에는 주행 제어가 없습니다.",
   "wonder.lights": "조명",
   "wonder.sounds": "고정 교실 소리",
   "wonder.color.blue": "파랑",
@@ -1757,20 +1891,60 @@ const KO: Record<FabricMessageKey, string> = {
   "wonder.center": "가운데",
   "wonder.up": "위",
   "wonder.down": "아래",
-  "wonder.locked":
-    "잠김: 모니터링 수업을 시작하고 ‘실제 장치 제어 허용’을 선택한 뒤 주변 공간 안전 확인을 완료하세요.",
-  "drone.eyebrow": "안전 제어",
-  "drone.title": "Tello 안전 상태 제어",
+  "drone.eyebrow": "드론 제어",
+  "drone.title": "Tello 비행 제어",
   "drone.help":
-    "이 모니터링 기능은 배정된 드론에 착륙 또는 비상 정지를 요청할 수 있습니다. 이륙, 이동, 회전 또는 활성화는 할 수 없습니다.",
+    "안전을 한 번 확인한 뒤 이륙하거나 20cm 이동·30° 회전할 수 있습니다.",
   "drone.role": "안전 드론 {number}",
+  "drone.checks": "비행 안전 한 번 확인",
+  "drone.instructorPresent": "강사 현장 확인",
+  "drone.flightAreaClear": "비행 구역 확인",
+  "drone.emergencyPlanReady": "비상 대응 확인",
+  "drone.sessionReady": "실제 장치 세션이 준비되었습니다.",
+  "drone.sessionAutoPrepare": "첫 비행 명령 때 이 장치 세션을 준비합니다.",
+  "drone.restartAdapter":
+    "현재 비행 제어를 불러오려면 Tello를 다시 연결하세요.",
+  "drone.takeoff": "이륙",
+  "drone.takeoffConfirm": "{name}을(를) 지금 이륙할까요?",
+  "drone.forward": "앞으로 20cm",
+  "drone.back": "뒤로 20cm",
+  "drone.left": "왼쪽 20cm",
+  "drone.right": "오른쪽 20cm",
+  "drone.up": "위로 20cm",
+  "drone.down": "아래로 20cm",
+  "drone.rotateCounterclockwise": "반시계 방향 30°",
+  "drone.rotateClockwise": "시계 방향 30°",
   "drone.land": "착륙",
   "drone.landHelp": "정상 착륙 요청",
   "drone.emergency": "모터 비상 정지",
   "drone.emergencyHelp":
     "비행을 계속하는 것보다 모터 정지가 더 안전할 때만 사용",
+  "drone.manual": "수동 이동",
   "drone.confirm":
     "{name}의 모터를 비상 정지할까요? 비행 중인 드론은 즉시 떨어질 수 있습니다.",
+  "sync.eyebrow": "장치 전체 제어",
+  "sync.title": "동기 이동",
+  "sync.enable": "연결된 BOLT와 Ollie 함께 제어",
+  "sync.groundTargets": "BOLT·Ollie {count}대",
+  "sync.includeTello": "Tello 포함 ({count}대)",
+  "sync.telloSafety": "비행 안전 확인 후 Tello 제어에서 먼저 이륙하세요.",
+  "sync.controls": "동기 이동 제어",
+  "sync.forward": "모두 앞으로",
+  "sync.backward": "모두 뒤로",
+  "sync.left": "모두 왼쪽",
+  "sync.right": "모두 오른쪽",
+  "sync.stop": "지상 로봇 모두 정지",
+  "sync.inputs": "의미 입력",
+  "sync.input.g2": "G2 음성",
+  "sync.input.r1": "R1 링",
+  "sync.input.meta": "Meta 음성",
+  "sync.input.mindwave": "MindWave 깜박임",
+  "sync.connectWearables": "연결된 입력 배정",
+  "sync.inputHelp":
+    "G2·Meta 음성과 R1 제스처는 같은 제한 이동을 사용합니다. MindWave 깜박임 한 번은 10cm 데모 한 번만 시작하며 집중도 측정으로 해석하지 않습니다.",
+  "sync.ready": "지상 로봇 {count}대의 동기 제어가 준비되었습니다.",
+  "sync.disabled": "동기 장치 제어를 껐습니다.",
+  "sync.sent": "{count}대에 {direction} 동작을 보냈습니다.",
   "brain.eyebrow": "MindWave 안내 데모",
   "brain.title": "신호 한 번으로 실행하는 제한된 Tello 데모",
   "brain.simulation": "시뮬레이션 · 어떤 드론도 움직이지 않음",
@@ -1795,22 +1969,22 @@ const KO: Record<FabricMessageKey, string> = {
   "brain.seconds": "초",
   "brain.dwellHelp":
     "첫 실제 장치 시험에서는 2초를 권장합니다. 0초는 조건을 만족하는 첫 샘플을 즉시 받습니다.",
-  "brain.flightCheck": "2. 강사 비행 확인 · 세 항목 모두 필요",
+  "brain.flightCheck": "2. 비행 안전 한 번 확인",
   "brain.present": "제가 현장에서 이 비행을 감독하고 있습니다.",
   "brain.areaClear":
     "전체 비행 구역이 비어 있고 보이는 모든 Tello를 확인했으며 바닥에 있습니다.",
   "brain.emergencyReady":
     "착륙과 비상 정지에 바로 접근할 수 있으며, 빠른 전달 뒤 해제된 드론은 현재 Wi-Fi 어댑터에서 더 이상 연결되지 않을 수 있음을 이해했습니다.",
   "brain.runSimulation": "안전한 시뮬레이션 실행",
-  "brain.arm": "1회 비행 데모 준비",
+  "brain.arm": "연결·준비 후 1회 활성화",
   "brain.waitCondition": "선택한 MindWave 조건을 기다립니다",
   "brain.startFirst": "먼저 수업을 시작하세요",
-  "brain.startArmFirst": "먼저 수업을 시작하고 실제 장치 제어를 허용하세요",
+  "brain.startArmFirst": "수업 시작과 실제 장치 준비를 함께 처리합니다",
   "brain.stop": "데모 정지 및 해제",
   "brain.stopHelp":
     "조건 대기 전이나 실행 중에도 사용할 수 있는 안전 상태 명령",
   "fleet.eyebrow": "다중 입력 드론 순차 비행",
-  "fleet.title": "확인된 Tello를 한 대씩 순서대로 이륙",
+  "fleet.title": "Tello 드론 전체 제어",
   "fleet.helpBefore":
     "먼저 순서를 정해 한 번만 실행할 계획을 준비하세요. 그다음",
   "fleet.startNow": "지금 시작",
@@ -1819,7 +1993,7 @@ const KO: Record<FabricMessageKey, string> = {
   "fleet.current": "현재 상태",
   "fleet.airborne": "이륙 확인됨",
   "fleet.waiting": "드론 컨트롤러의 첫 상태 업데이트를 기다리는 중입니다.",
-  "fleet.order": "1. 이륙 순서 선택(맨 위가 먼저)",
+  "fleet.order": "이륙·착륙 순서",
   "fleet.connectController":
     "승인된 드론 목록을 보려면 Brain2Devices 드론 컨트롤러를 연결하세요.",
   "fleet.aircraftState": "{connection} · {flight} · 배터리 {battery}%",
@@ -1828,11 +2002,11 @@ const KO: Record<FabricMessageKey, string> = {
   "fleet.remove": "제외",
   "fleet.interval": "이륙 확인 후 다음 이륙까지 초",
   "fleet.minimumBattery": "모든 드론의 최소 배터리",
-  "fleet.inputs": "2. 이 1회 실행을 시작할 수 있는 입력 선택",
+  "fleet.inputs": "허용할 입력",
   "fleet.tutorButton": "강사의 ‘지금 시작’ 버튼",
   "fleet.noInputs":
     "Leap, G2 또는 Meta 입력이 배정되지 않았습니다. 강사 버튼은 계속 사용할 수 있습니다.",
-  "fleet.flightCheck": "3. 강사 비행 확인 · 네 항목 모두 필요",
+  "fleet.flightCheck": "비행 안전 한 번 확인",
   "fleet.present": "제가 현장에서 모든 드론을 감독하고 있습니다.",
   "fleet.areaClear":
     "전체 비행 구역이 비어 있고 선택한 모든 드론이 바닥에 있는 것을 직접 확인했습니다.",
@@ -1842,30 +2016,49 @@ const KO: Record<FabricMessageKey, string> = {
     "기본 Tello마다 연결된 Wi-Fi 경로가 하나씩 있거나 스테이션 모드 드론마다 서로 다른 접근 가능한 주소가 있습니다.",
   "fleet.notReady":
     "선택한 모든 드론이 연결되고 착륙 상태가 확인되며 최소 배터리 이상이어야 합니다.",
-  "fleet.arm": "이 순차 비행 1회 준비",
+  "fleet.arm": "연결·준비 후 1회 활성화",
+  "fleet.prepareTriggers": "링·센서 입력 준비",
+  "fleet.takeoffOneByOne": "한 대씩 이륙",
+  "fleet.landOneByOne": "한 대씩 착륙",
+  "fleet.options": "순서·입력 설정",
+  "fleet.optionsSummary":
+    "{interval}초 간격 · 배터리 {battery}% 이상 · 입력 {inputs}개",
   "fleet.armHelp": "아직 이륙하지 않음 · 60초 후 만료",
-  "fleet.startArmFirst": "먼저 수업을 시작하고 실제 장치를 허용하세요",
+  "fleet.startArmFirst": "수업 시작과 실제 장치 준비를 함께 처리합니다",
   "fleet.startHelp": "Leap 및 안경과 같은 제한 명령을 사용합니다",
   "fleet.stop": "선택한 드론 정지 및 착륙",
   "fleet.stopHelp": "아직 시작하지 않은 이륙도 취소합니다",
   "fleet.leapInstruction": "손을 펼친 뒤 집기",
+  "fleet.ringInstruction": "R1 링 두 번 탭",
   "fleet.voiceInstruction": "‘드론 순차 비행 시작’이라고 말하기",
   "course.deviceMonitoring.name": "장치, 센서, 카메라 및 안전 데모",
   "course.deviceMonitoring.summary": "카메라, 센서 및 제한된 드론 데모",
   "course.deviceMonitoring.description":
-    "카메라, Tello 텔레메트리, MindWave 제조사 신호와 LEGO 센서 값을 보여 줍니다. 선택 기능으로 명시적으로 활성화하는 MindWave 데모와 버튼, Leap, G2 또는 Meta로 시작하는 강사 승인 순차 드론 비행을 제공합니다.",
+    "카메라, Tello 텔레메트리, MindWave 제조사 신호와 LEGO 센서 값을 보여 줍니다. 선택 기능으로 명시적으로 활성화하는 MindWave 데모와 버튼, Leap, R1, G2 또는 Meta로 시작하는 강사 승인 순차 드론 비행을 제공합니다.",
   "course.glasses.name": "안경과 코딩 도우미",
   "course.glasses.summary": "안경 + 코딩 도우미",
   "course.glasses.description":
     "학생이 안경에서 코딩 도우미에게 요청을 보내고 교실 화면에서 답변을 확인합니다.",
+  "course.glassesControl.name": "안경으로 장치 제어",
+  "course.glassesControl.summary": "G2 또는 Meta + 배정한 로봇과 드론",
+  "course.glassesControl.description":
+    "확인된 G2 또는 Meta 음성 명령으로 배정한 RoboMaster, Sphero, LEGO 또는 Dash를 동시에 움직입니다. Tello 이륙에는 별도의 강사 비행 확인과 1회 준비가 계속 필요합니다.",
   "course.gesture.name": "제스처로 로봇 제어",
   "course.gesture.summary": "제스처 + 교실 로봇",
   "course.gesture.description":
     "학생이 손 제스처로 교실 로봇을 조종하고 CIT가 움직임을 수업 안전 범위로 제한합니다.",
+  "course.ring.name": "R1 스마트 링 장치 제어",
+  "course.ring.summary": "R1 입력 + 배정한 로봇과 드론",
+  "course.ring.description":
+    "R1을 위아래로 스크롤하면 배정한 RoboMaster, Sphero, LEGO 또는 Dash에 짧고 제한된 전진·후진 신호를 보냅니다. 탭은 속도 0을 요청하고, 더블 탭은 별도로 준비된 Tello 순차 비행만 시작할 수 있습니다.",
   "course.simultaneous.name": "여러 장치 동시 실행",
   "course.simultaneous.summary": "입력 하나 + 여러 동시 출력",
   "course.simultaneous.description":
-    "승인된 Leap 또는 안경 입력 하나로 배정된 RoboMaster, LEGO 허브, 활성화된 Tello 그룹, Meta 화면과 G2 화면에 제한된 동작을 동시에 보냅니다. 모든 출력은 따로 안전 검사를 받습니다.",
+    "승인된 Leap, R1 또는 안경 입력 하나로 배정된 RoboMaster, Sphero, LEGO, Dash, 활성화된 Tello 그룹과 안경 화면에 제한된 동작을 동시에 보냅니다. 모든 출력은 따로 안전 검사를 받습니다.",
+  "course.synchronized.name": "동기 모터 장치 제어",
+  "course.synchronized.summary": "G2·R1·Meta·MindWave + BOLT·Ollie",
+  "course.synchronized.description":
+    "명시적인 전체 제어 체크박스로 G2·Meta 음성, R1 제스처와 한 번씩 처리되는 MindWave 깜박임을 배정한 BOLT·Ollie에 함께 보냅니다. Tello는 별도 비행 확인이 필요한 선택 경로입니다.",
   "course.plug.name": "교실 스마트 플러그",
   "course.plug.summary": "강사가 개별 제어하는 교실 플러그",
   "course.plug.description":
@@ -1891,10 +2084,16 @@ const KO: Record<FabricMessageKey, string> = {
   "role.feedback.description": "코딩 진행 상황과 수업 메시지를 표시합니다",
   "role.gesture.name": "제스처 입력 장치",
   "role.gesture.description": "손 움직임을 수업에 보냅니다",
+  "role.smartRing.name": "R1 스마트 링 입력",
+  "role.smartRing.description":
+    "G2와 연결된 휴대폰 경로를 통해 탭, 더블 탭 및 스크롤 동작을 구조화하여 보냅니다",
   "role.console.name": "강사 화면",
   "role.console.description": "강사에게 수업 활동을 보여 줍니다",
   "role.glasses.name": "학생 안경",
   "role.glasses.description": "학생 입력을 보내고 수업 피드백을 표시합니다",
+  "role.glassesInput.name": "안경 제어 입력 {number}",
+  "role.glassesInput.description":
+    "원본 음성 기록이나 제조사 패킷 없이 확인된 G2 또는 Meta 장치 명령만 구조화하여 보냅니다",
   "role.robot.name": "교실 로봇",
   "role.robot.description": "제한된 이동 및 정지 지시를 받습니다",
   "role.safetyDrone.name": "안전 드론 {number}",
@@ -1902,10 +2101,10 @@ const KO: Record<FabricMessageKey, string> = {
     "Tello 상태를 보내고 착륙 또는 비상 정지만 받습니다",
   "role.fleetInput.name": "드론 시작 입력 {number}",
   "role.fleetInput.description":
-    "Leap, G2 또는 Meta를 통해 현재 준비된 순차 비행을 요청합니다",
+    "Leap, R1, G2 또는 Meta를 통해 현재 준비된 순차 비행을 요청합니다",
   "role.groundOutput.name": "지상 로봇 출력 {number}",
   "role.groundOutput.description":
-    "동일한 제한 속도 및 감시 타이머가 적용된 이동 신호를 받습니다. RoboMaster 또는 이동형 LEGO 허브를 배정하세요",
+    "동일한 제한 속도 및 감시 타이머가 적용된 이동 신호를 받습니다. RoboMaster, Sphero, LEGO 또는 Dash를 배정하세요",
   "role.messageOutput.name": "안경 메시지 출력 {number}",
   "role.messageOutput.description":
     "동일한 고정 수업 메시지를 받습니다. G2 또는 Meta 안경을 배정하세요",
@@ -1985,13 +2184,28 @@ const KO_INTEGRATIONS: Record<string, IntegrationCopy> = {
     displayName: "Even Realities G2",
     connectionMethod: "Android, Bluetooth 또는 Agent Mesh",
     setupSteps: [
-      "설정 진단에는 승인된 USB 또는 Wi-Fi 디버깅 Android 휴대전화를 연결하거나 이미 설정된 Agent Mesh 휴대전화 경로를 사용하세요.",
-      "휴대전화 또는 교실 호스트에서 승인된 Even 보조 브리지를 시작하세요.",
-      "G2를 착용하고 음성 또는 버튼 입력이 Agent Mesh에 나타나는지 확인하세요.",
-      "코딩 에이전트 카드에서 연결을 선택해 공용 브리지를 붙이세요. 이후 이 카드는 G2 상태를 따로 보여 줍니다.",
+      "페어링된 Android 휴대전화에서 Tailscale을 연결하고 Even 앱을 여세요.",
+      "Even Hub에서 설정된 CIT 안경 프로토타입을 여세요.",
+      "이 카드에서 G2 연결을 선택하고 안경을 착용한 뒤 음성 또는 버튼 입력을 한 번 사용하세요.",
+      "다시 검색하면 실시간 보조 앱 신호를 받은 G2가 연결됨으로 표시됩니다.",
+      "‘안경과 코딩 에이전트’ 수업에서 G2와 Codex 또는 Claude 세션을 배정하면 음성·버튼 요청을 보내고 완료 문구를 받을 수 있습니다.",
+      "Telegram은 페어링한 휴대전화에 두고 Even 앱 → 설정 → 알림에서 Telegram을 켜면 휴대전화 알림을 G2에 표시할 수 있습니다.",
     ],
     safetyNote:
       "Fabric에는 의미 있는 상호작용과 제한된 화면 텍스트만 들어옵니다. 원본 마이크 음성은 검색하거나 기록하지 않습니다.",
+  },
+  "even-realities-r1": {
+    displayName: "Even R1 스마트 링",
+    connectionMethod: "Even 앱과 G2를 통한 Bluetooth",
+    setupSteps: [
+      "Even 앱에 G2를 먼저 연결한 뒤 같은 앱에서 R1 링을 추가하세요.",
+      "휴대전화의 Even Hub에서 설정된 CIT 안경 플러그인을 여세요.",
+      "이 카드에서 R1 입력 연결을 선택한 뒤 R1을 한 번 탭하거나 스크롤해 링 입력을 등록하세요.",
+      "R1 스마트 링 장치 제어를 선택하고 R1을 입력 역할에, 사용할 로봇 또는 드론 컨트롤러를 출력 역할에 배정하세요.",
+      "수업을 시작하세요. 스크롤은 짧은 지상 이동, 탭은 속도 0, 더블 탭은 별도로 준비된 Tello 순차 비행을 요청합니다.",
+    ],
+    safetyNote:
+      "링 제스처는 구조화된 입력으로만 전달됩니다. 두 번 탭해도 수업 시작, 중재 및 드론 안전 검사를 건너뛸 수 없습니다.",
   },
   "meta-rayban": {
     displayName: "Meta Ray-Ban",
@@ -2030,7 +2244,7 @@ const KO_INTEGRATIONS: Record<string, IntegrationCopy> = {
     setupSteps: [
       "첫 시험에서는 바퀴를 들어 둔 상태로 로봇 전원을 켜세요.",
       "STA, AP, RNDIS 또는 기본 S1 앱 연결 방식을 선택하세요.",
-      "잠긴 상태로 연결한 뒤 수업 제어에서 실제 장치를 허용하세요.",
+      "연결한 뒤 수업을 시작하거나 화면의 제한된 장치 제어를 바로 선택하세요.",
     ],
     safetyNote:
       "네트워크 이름만으로 로봇이라고 판단하지 않습니다. 어댑터 핸드셰이크가 실제 장치를 확인하며 이동은 계속 잠긴 상태입니다.",
@@ -2041,11 +2255,23 @@ const KO_INTEGRATIONS: Record<string, IntegrationCopy> = {
     setupSteps: [
       "BOLT를 충전하고 충전대에서 꺼내 깨운 뒤 정확한 SB-XXXX 이름을 확인하세요. Windows 설정에서 페어링하지 마세요.",
       "현재 이 로봇에 연결된 Sphero Edu, Sphero Play 또는 다른 프로그램을 닫으세요.",
-      "‘장치 찾기’를 선택하고 정확한 SB-XXXX 로봇을 고른 뒤 ‘선택한 BOLT 로봇 연결’을 선택하세요.",
-      "실제 제어를 허용한 뒤 파란 꼬리 조명이 강사를 향하게 하고 첫 이동 전에 현재 방향을 앞으로 설정하세요.",
+      "‘장치 찾기’를 선택한 뒤 연결할 정확한 SB-XXXX ID 버튼을 선택하세요.",
+      "파란 꼬리 조명이 강사를 향하게 한 뒤 화면에서 현재 방향을 앞으로 설정하세요. CIT가 제어 세션을 자동으로 준비합니다.",
     ],
     safetyNote:
-      "검색은 읽기 전용이며 가장 가까운 로봇을 자동 선택하지 않습니다. 이동은 0.20m/s로 제한되고 750ms 로컬 자동 정지가 적용됩니다. 방향 지정과 이동에는 실제 장치 제어 허용이 필요합니다.",
+      "검색은 읽기 전용이며 가장 가까운 로봇을 자동 선택하지 않습니다. 이동은 0.20m/s로 제한되고 750ms 로컬 자동 정지가 적용됩니다.",
+  },
+  "sphero-ollie": {
+    displayName: "Sphero Ollie",
+    connectionMethod: "로컬 Bluetooth 저전력(BLE)",
+    setupSteps: [
+      "Ollie를 충전하고 전원을 켠 뒤 정확한 2B-XXXX 이름을 확인하세요. Windows 설정에서 페어링하지 마세요.",
+      "현재 이 로봇에 연결된 Sphero Edu 또는 다른 프로그램을 닫으세요.",
+      "‘장치 찾기’를 선택한 뒤 연결할 정확한 2B-XXXX ID 버튼을 선택하세요.",
+      "빈 바닥에서 파란 꼬리 조명이 강사를 향하게 한 뒤 화면에서 현재 방향을 앞으로 설정하세요.",
+    ],
+    safetyNote:
+      "검색은 읽기 전용이며 가장 가까운 로봇을 자동 선택하지 않습니다. 이동에는 보수적인 속도 상한과 750ms 로컬 자동 정지가 적용됩니다.",
   },
   "wonder-workshop-dash-dot": {
     displayName: "Wonder Workshop Dash 및 Dot",
@@ -2054,7 +2280,7 @@ const KO_INTEGRATIONS: Record<string, IntegrationCopy> = {
       "Dash 또는 Dot을 충전하고 전원을 켠 뒤 이 Windows 컴퓨터 가까이에 두세요.",
       "현재 로봇에 연결된 Wonder, Blockly 또는 다른 앱을 닫으세요.",
       "‘장치 찾기’를 선택하고 정확한 이름의 Dash 또는 Dot을 고른 뒤 ‘선택한 로봇 연결’을 선택하세요.",
-      "센서 모니터링은 제어 잠금 상태로 시작합니다. Dash 이동, 머리 이동 및 소리는 강사가 실제 장치 제어를 허용할 때까지 잠겨 있습니다.",
+      "연결 후 화면에서 조명, 소리, 머리 또는 제한된 이동 제어를 바로 선택하세요. CIT가 제어 세션을 자동으로 준비합니다.",
     ],
     safetyNote:
       "검색은 읽기 전용이며 가장 가까운 로봇을 자동 선택하지 않습니다. Dash 이동에는 제한과 350ms 로컬 자동 정지가 적용되며 Dot에는 이동 기능이 표시되지 않습니다.",
@@ -2065,11 +2291,11 @@ const KO_INTEGRATIONS: Record<string, IntegrationCopy> = {
     setupSteps: [
       "첫 연결 시험에서는 프로펠러를 제거하고 바닥에 둔 드론의 전원을 켜세요.",
       "기본 Tello마다 물리 USB Wi-Fi 어댑터를 하나씩 사용하거나 스테이션 모드에서 서로 다른 주소를 사용하세요.",
-      "바닥에 둔 드론 연결을 선택한 뒤 통합 화면에서 드론 컨트롤러와 입력을 배정하세요.",
-      "비행은 네 가지 강사 확인을 거치는 별도의 1회 활성화가 필요합니다.",
+      "‘연결 가능한 모든 드론 연결’을 선택하세요. 연결된 드론과 호환 입력은 자동 선택됩니다.",
+      "비행 안전을 한 번 확인한 뒤 ‘한 대씩 이륙’ 또는 ‘링·센서 입력 준비’를 선택하세요.",
     ],
     safetyNote:
-      "검색과 연결은 이륙이나 이동 명령을 보내지 않습니다. 드론 노드는 상태, 착륙 및 비상 정지만 제공하며 별도 컨트롤러만 제한된 순차 비행을 제공합니다.",
+      "검색과 연결은 이륙이나 이동 명령을 보내지 않습니다. 수동 제어는 강사 확인과 이동 제한을 적용하고, 별도 컨트롤러는 드론 1~8대의 제한된 순차 비행만 제공합니다.",
   },
   "mindwave-mobile2": {
     displayName: "MindWave Mobile 2",
@@ -2088,14 +2314,13 @@ const KO_INTEGRATIONS: Record<string, IntegrationCopy> = {
     setupSteps: [
       "위 장치 카드에서 Brain2Devices 드론 슬롯 하나와 MindWave를 연결하세요.",
       "‘장치, 센서, 카메라 및 안전 데모’ 수업에서 제한된 데모 컨트롤러를 배정하세요.",
-      "먼저 시뮬레이션으로 연습하세요. 실제 활성화에는 화면의 강사 확인이 필요합니다.",
+      "Attention은 기본 선택됩니다. 안전을 한 번 확인한 뒤 ‘연결·준비 후 1회 활성화’를 선택하면 수업 시작과 실제 장치 준비를 함께 처리합니다.",
     ],
     safetyNote:
       "센서 및 드론 어댑터와 분리된 1회 실행 과정입니다. 일반 이륙이나 이동 명령이 없으며 자동 에이전트가 활성화할 수 없습니다.",
   },
   "matter-smart-plugs": {
-    displayName:
-      "Matter 스마트 플러그 — Tapo P110M 및 호환 제품(클라우드 불필요)",
+    displayName: "Matter 스마트 플러그",
     connectionMethod: "로컬 Matter over Wi-Fi / IPv6",
     setupSteps: [
       "Tapo P110M은 플러그 본체나 포장에 인쇄된 Matter 코드로 지원합니다. Tapo 앱이나 TP-Link 계정은 필요하지 않습니다.",
@@ -2120,11 +2345,13 @@ const KO_INTEGRATIONS: Record<string, IntegrationCopy> = {
 
 const KO_ACTION_LABELS: Record<string, string> = {
   "cit.glasses-agent.connect": "안경 및 코딩 에이전트 연결",
+  "cit.even-g2.connect": "G2 연결",
+  "cit.even-r1.connect": "R1 입력 연결",
   "cit.robomaster-leap.connect": "RoboMaster와 Leap 연결",
   "cit.matter-smart-plug.connect": "등록된 플러그 연결",
   "cit.lego-pybricks.connect": "설정된 LEGO 허브 연결",
   "brain2devices.mindwave.connect": "헤드셋 연결",
-  "brain2devices.tello.connect-all": "바닥에 둔 드론 연결",
+  "brain2devices.tello.connect-all": "연결 가능한 모든 드론 연결",
   "brain2devices.tello.connect-primary": "현재 Tello 경로 연결",
 };
 
@@ -2238,15 +2465,30 @@ const COURSE_KEYS: Record<
     "course.glasses.summary",
     "course.glasses.description",
   ],
+  "glasses-device-control": [
+    "course.glassesControl.name",
+    "course.glassesControl.summary",
+    "course.glassesControl.description",
+  ],
   "gesture-ground-robot": [
     "course.gesture.name",
     "course.gesture.summary",
     "course.gesture.description",
   ],
+  "smart-ring-device-control": [
+    "course.ring.name",
+    "course.ring.summary",
+    "course.ring.description",
+  ],
   "simultaneous-device-cue": [
     "course.simultaneous.name",
     "course.simultaneous.summary",
     "course.simultaneous.description",
+  ],
+  "synchronized-motor-control": [
+    "course.synchronized.name",
+    "course.synchronized.summary",
+    "course.synchronized.description",
   ],
   "smart-plug-control": [
     "course.plug.name",
@@ -2285,6 +2527,7 @@ const ROLE_KEYS: Record<string, readonly [FabricMessageKey, FabricMessageKey]> =
     coding_agent: ["role.agent.name", "role.agent.description"],
     feedback_display: ["role.feedback.name", "role.feedback.description"],
     gesture_input: ["role.gesture.name", "role.gesture.description"],
+    smart_ring_input: ["role.smartRing.name", "role.smartRing.description"],
     instructor_console: ["role.console.name", "role.console.description"],
     primary_glasses: ["role.glasses.name", "role.glasses.description"],
     student_robot: ["role.robot.name", "role.robot.description"],
@@ -2312,6 +2555,11 @@ export const fabricRoleText = (
         };
   };
   return (
+    dynamic(
+      /^glasses_input_(\d+)$/,
+      "role.glassesInput.name",
+      "role.glassesInput.description",
+    ) ??
     dynamic(
       /^safety_drone_(\d+)$/,
       "role.safetyDrone.name",

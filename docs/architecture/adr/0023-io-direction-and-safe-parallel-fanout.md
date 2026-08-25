@@ -34,10 +34,11 @@ safety decision, lifecycle result, and adapter-level bounds. Missing optional
 role bindings are skipped. A rejection or unavailable output is reported for
 that output and does not erase the other outputs' results.
 
-The reference `simultaneous-device-cue` course assigns up to four Leap/G2/Meta
-inputs, two ground-mobility outputs, two text outputs, and the optional bounded
-Tello fleet controller. Ground roles are capability-based, so RoboMaster and a
-mobile LEGO hub can be selected without changing the flow. Flight uses only
+The reference `simultaneous-device-cue` course assigns up to four
+Leap/R1/G2/Meta inputs, eight ground-mobility outputs, two text outputs, and the
+optional bounded Tello fleet controller. Ground roles are capability-based, so
+RoboMaster, Sphero, Dash, and a mobile LEGO hub can be selected without changing
+the flow. Flight uses only
 `mobility.flight.fleet_sequence.start` after its separate instructor arm and
 aircraft checklist. The Fabric still exposes no general Tello takeoff command.
 
