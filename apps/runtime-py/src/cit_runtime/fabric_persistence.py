@@ -375,6 +375,8 @@ class FabricPersistenceMixin:
             metadata["batteryPercent"] = report.batteryPercent
         if report.message is not None:
             metadata["healthMessage"] = report.message
+        else:
+            metadata.pop("healthMessage", None)
         metadata["healthMetrics"] = report.metrics.model_dump(mode="json")
         updated = current.model_copy(
             update={

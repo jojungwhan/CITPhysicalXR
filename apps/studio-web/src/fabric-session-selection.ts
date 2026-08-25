@@ -11,6 +11,53 @@ interface RoleSelectionRequirement {
   candidateNodeIds: readonly string[];
 }
 
+const AUTO_FILL_ROLE =
+  /^(?:safety_drone|fleet_sequence_input|ground_output|robot_sensor|glasses_input|message_output)_[1-8]$/;
+
+/**
+ * Choose deterministic defaults without guessing between multiple devices for
+ * a singular role. Numbered device banks intentionally consume each compatible
+ * node once so a tutor can prepare every connected output together.
+ */
+export const automaticRoleAssignments = (
+  roleBindings: readonly RoleBinding[],
+  requirements: readonly RoleSelectionRequirement[],
+): Record<string, string> => {
+  const assignments: Record<string, string> = Object.fromEntries(
+    roleBindings.map((binding) => [binding.role, binding.nodeId]),
+  );
+  const usedNodeIdsByFamily = new Map<string, Set<string>>();
+  for (const binding of roleBindings) {
+    const family = roleFamily(binding.role);
+    const used = usedNodeIdsByFamily.get(family) ?? new Set<string>();
+    used.add(binding.nodeId);
+    usedNodeIdsByFamily.set(family, used);
+  }
+
+  for (const requirement of requirements) {
+    if (assignments[requirement.role] !== undefined) continue;
+    const family = roleFamily(requirement.role);
+    const usedNodeIds = usedNodeIdsByFamily.get(family) ?? new Set<string>();
+    const candidates = requirement.candidateNodeIds.filter(
+      (nodeId) => !usedNodeIds.has(nodeId),
+    );
+    if (
+      candidates.length === 0 ||
+      (candidates.length > 1 && !AUTO_FILL_ROLE.test(requirement.role))
+    ) {
+      continue;
+    }
+    const nodeId = candidates[0];
+    if (nodeId === undefined) continue;
+    assignments[requirement.role] = nodeId;
+    usedNodeIds.add(nodeId);
+    usedNodeIdsByFamily.set(family, usedNodeIds);
+  }
+  return assignments;
+};
+
+const roleFamily = (role: string): string => role.replace(/_[1-8]$/, "");
+
 /** Preserve the tutor's explicit lesson-builder state across background polls. */
 export const refreshedSessionSelection = (
   currentSessionId: string,
@@ -52,11 +99,18 @@ export const reconciledRoleSelections = (
     ) {
       continue;
     }
-    if (!requirement.optional && requirement.candidateNodeIds.length === 1) {
-      selections[requirement.role] = requirement.candidateNodeIds[0] ?? "";
-    } else {
-      delete selections[requirement.role];
-    }
+    delete selections[requirement.role];
+  }
+  const selectedBindings = Object.entries(selections).map(([role, nodeId]) => ({
+    role,
+    nodeId,
+  }));
+  const defaults = automaticRoleAssignments(
+    [...roleBindings, ...selectedBindings],
+    requirements,
+  );
+  for (const [role, nodeId] of Object.entries(defaults)) {
+    selections[role] ??= nodeId;
   }
   return selections;
 };

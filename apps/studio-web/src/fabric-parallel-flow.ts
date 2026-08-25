@@ -26,11 +26,18 @@ export function parallelFlowGroups(
       trigger: flow.trigger.event,
       outputs: [],
     };
-    current.outputs.push({
-      flowId: flow.flowId,
-      role: flow.target.role,
-      action: flow.command.action,
-    });
+    const alreadyShown = current.outputs.some(
+      (output) =>
+        output.role === flow.target.role &&
+        output.action === flow.command.action,
+    );
+    if (!alreadyShown) {
+      current.outputs.push({
+        flowId: flow.flowId,
+        role: flow.target.role,
+        action: flow.command.action,
+      });
+    }
     groups.set(flow.parallelGroup, current);
   });
 

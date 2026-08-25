@@ -149,6 +149,15 @@ class RobotBackend(Protocol):
         idempotency_key: str,
     ) -> Mapping[str, object]: ...
 
+    async def set_light(
+        self,
+        *,
+        red: int,
+        green: int,
+        blue: int,
+        idempotency_key: str,
+    ) -> Mapping[str, object]: ...
+
     async def stop(self, *, reason: str) -> None: ...
 
     async def close(self) -> None: ...
@@ -286,6 +295,25 @@ class VendorRobotProcess:
                 "forwardMetersPerSecond": forward,
                 "rightMetersPerSecond": right,
                 "clockwiseRadiansPerSecond": clockwise,
+                "idempotencyKey": idempotency_key,
+            },
+            deadline_seconds=2.0,
+        )
+
+    async def set_light(
+        self,
+        *,
+        red: int,
+        green: int,
+        blue: int,
+        idempotency_key: str,
+    ) -> Mapping[str, object]:
+        return await self._request(
+            "set_light",
+            payload={
+                "red": red,
+                "green": green,
+                "blue": blue,
                 "idempotencyKey": idempotency_key,
             },
             deadline_seconds=2.0,

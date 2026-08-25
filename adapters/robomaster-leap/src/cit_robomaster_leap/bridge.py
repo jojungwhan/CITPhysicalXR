@@ -119,7 +119,7 @@ class FabricRobotLeapBridge:
                 for task in done:
                     task.result()
         finally:
-            await self._robot.stop(reason="fabric_bridge_shutdown")
+            await self._handler.safe_stop(reason="fabric_bridge_shutdown")
             if self._leap is not None:
                 await self._leap.close()
             await self._robot.close()

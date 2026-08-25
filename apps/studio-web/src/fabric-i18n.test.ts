@@ -51,6 +51,7 @@ describe("Fabric classroom i18n", () => {
       category: "robot",
       ioType: "bidirectional",
       icon: "sphero",
+      imagePath: "./device-images/sphero-bolt.webp",
       status: "found",
       summary: "Windows found a device.",
       connectionMethod: "Bluetooth Low Energy",
@@ -77,8 +78,35 @@ describe("Fabric classroom i18n", () => {
     expect(localized.setupSteps.join(" ")).toContain("충전");
     expect(localized.candidates[0]?.detail).toContain("근처");
     expect(localized.integrationId).toBe(integration.integrationId);
+    expect(localized.imagePath).toBe(integration.imagePath);
     expect(localized.actionId).toBe(integration.actionId);
     expect(localized.candidates[0]?.candidateId).toBe("SB-1234");
+  });
+
+  it("gives the independent G2 recovery action concise Korean guidance", () => {
+    const integration: FabricIntegrationDiscovery = {
+      integrationId: "even-realities-g2",
+      displayName: "Even Realities G2",
+      category: "interaction",
+      ioType: "bidirectional",
+      icon: "glasses",
+      imagePath: "./device-images/even-realities-g2.webp",
+      status: "ready",
+      summary: "A provisioned G2 has not checked in recently.",
+      connectionMethod: "Android, Bluetooth, or Agent Mesh",
+      connectedNodeIds: [],
+      candidates: [],
+      setupSteps: [],
+      actionId: "cit.even-g2.connect",
+      actionLabel: "Connect G2",
+      requiresGroundedConfirmation: false,
+      safetyNote: "Semantic interactions only.",
+    };
+
+    const localized = localizeFabricIntegration("ko", integration);
+    expect(localized.actionLabel).toBe("G2 연결");
+    expect(localized.setupSteps.join(" ")).toContain("Tailscale");
+    expect(localized.setupSteps.join(" ")).not.toContain("코딩 에이전트 카드");
   });
 
   it("localizes static and numbered course roles", () => {

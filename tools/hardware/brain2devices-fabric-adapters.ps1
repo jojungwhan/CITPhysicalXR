@@ -19,7 +19,9 @@ param(
   [string]$MindWaveNodeId = "mindwave-mobile2-01",
   [string]$BrainDemoNodeId = "brain2devices-demo-01",
   [string]$FleetNodeId = "brain2devices-fleet-01",
+  [string]$FabricSessionId = "",
   [string]$TelloIpAddress = "",
+  [switch]$DoNotStartSession,
   [switch]$Simulation,
   [switch]$CompatibilityApi,
   [switch]$SkipBuild,
@@ -65,6 +67,15 @@ foreach ($entry in @{
     BrainDemoNodeId = $BrainDemoNodeId; FleetNodeId = $FleetNodeId
   }.GetEnumerator()) {
   if ($entry.Value -notmatch $identifierPattern) { throw "$($entry.Key) must be a CIT identifier" }
+}
+if ($FabricSessionId -and $FabricSessionId -notmatch $identifierPattern) {
+  throw "FabricSessionId must be a CIT identifier"
+}
+if ($FabricSessionId -and $Device -ne "MindWave") {
+  throw "A targeted FabricSessionId currently supports only the independent MindWave projection"
+}
+if ($DoNotStartSession -and -not $FabricSessionId) {
+  throw "DoNotStartSession requires an exact FabricSessionId"
 }
 
 function Assert-Path([string]$Path, [string]$Description) {
@@ -178,7 +189,7 @@ function Show-Preflight {
   Write-Host "PASS Tello and MindWave use separate adapter and vendor processes"
   Write-Host "PASS the optional one-shot demo uses a third bounded compatibility node"
   Write-Host "PASS Brain2Devices source revision $expectedRevision"
-  Write-Host "PASS no takeoff or movement capability is advertised by the Tello adapter"
+  Write-Host "PASS Tello manual flight is instructor-only and bounded by Fabric plus adapter validation"
 }
 
 function New-AdapterIdentity(
@@ -240,7 +251,7 @@ function Stop-Adapters([hashtable]$State, [string]$Bootstrap) {
   # Give each adapter's activation watcher time to execute its safe shutdown.
   Start-Sleep -Milliseconds 1200
   # Disarm/cancel the combined one-shot gate before stopping either independent
-  # sensor or safe-state aircraft projection.
+  # sensor or bounded aircraft projection.
   Stop-ExactProcess $(if ($State.ContainsKey("brainDemoPid")) { $State.brainDemoPid } else { $null }) "cit_brain2devices_demo"
   Stop-ExactProcess $(if ($State.ContainsKey("fleetPid")) { $State.fleetPid } else { $null }) "cit_brain2devices_demo.fleet_main"
   if ($State.ContainsKey("telloAdapters")) {
@@ -273,15 +284,32 @@ if ($Mode -eq "Status") {
 New-Item -ItemType Directory -Path $StateRoot, $secretRoot, $logRoot -Force | Out-Null
 Show-Preflight
 if (-not $SkipBuild) {
-  & uv sync --all-packages --directory $repositoryRoot
+  & uv sync --all-packages --directory $repositoryRoot --inexact
   if ($LASTEXITCODE -ne 0) { throw "uv sync failed" }
 }
 if (Test-Path -LiteralPath $activationPath) { [IO.File]::Delete($activationPath) }
 $existingProcessState = $state.ContainsKey("telloAdapters") -or $state.ContainsKey("telloPid") -or $state.ContainsKey("mindwavePid") -or $state.ContainsKey("brainDemoPid") -or $state.ContainsKey("fleetPid")
 if ($existingProcessState) { Stop-Adapters $state $bootstrap }
 $sessionMode = if ($Simulation) { "simulation" } else { "physical" }
-$session = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/monitoring/session" -Credential $bootstrap -Body @{
-  siteId = $SiteId; roomId = $RoomId; mode = $sessionMode
+$session = if ($FabricSessionId) {
+  $targeted = Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/sessions/$FabricSessionId" -Credential $bootstrap
+  if ([string]$targeted.coursePackId -ne "synchronized-motor-control") {
+    throw "FabricSessionId must identify a synchronized-motor-control session"
+  }
+  if ([string]$targeted.siteId -ne $SiteId -or [string]$targeted.roomId -ne $RoomId) {
+    throw "FabricSessionId does not belong to the requested CIT site and room"
+  }
+  if ([string]$targeted.mode -ne $sessionMode) {
+    throw "FabricSessionId mode does not match this adapter mode"
+  }
+  if ([string]$targeted.state -notin @("ready", "paused", "active") -or $targeted.armed -ne $true) {
+    throw "Enable synchronized motor control before attaching MindWave"
+  }
+  $targeted
+} else {
+  Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/monitoring/session" -Credential $bootstrap -Body @{
+    siteId = $SiteId; roomId = $RoomId; mode = $sessionMode
+  }
 }
 $state.sessionId = [string]$session.sessionId
 $state.siteId = $SiteId
@@ -376,7 +404,7 @@ if ($Device -in @("All", "Demo")) {
   $expectedNodes.Add($BrainDemoNodeId)
   $bindings.Add(@{ role = "brain_flight_demo"; nodeId = $BrainDemoNodeId })
 }
-if ($Device -in @("All", "Tello", "Fleet") -and $telloTargets.Count -ge 2) {
+if ($Device -in @("All", "Tello", "Fleet") -and $telloTargets.Count -ge 1) {
   if (-not $Simulation -and -not $CompatibilityApi) {
     throw "The fleet sequence requires the characterized Brain2Devices loopback service"
   }
@@ -396,7 +424,7 @@ if ($Device -in @("All", "Tello", "Fleet") -and $telloTargets.Count -ge 2) {
   $expectedNodes.Add($FleetNodeId)
   $bindings.Add(@{ role = "fleet_sequence_controller"; nodeId = $FleetNodeId })
 } elseif ($Device -eq "Fleet") {
-  throw "Connect at least two Tellos before starting the fleet sequence controller"
+  throw "Connect at least one Tello before starting the fleet sequence controller"
 }
 Save-State $state
 
@@ -408,7 +436,7 @@ try {
   foreach ($binding in $bindings) {
     $null = Invoke-JsonApi -Method PUT -Uri "$fabricOrigin/api/v1/fabric/sessions/$($state.sessionId)/roles/$($binding.role)" -Credential $bootstrap -Body @{ nodeId = $binding.nodeId }
   }
-  if ([string]$session.state -ne "active") {
+  if ([string]$session.state -ne "active" -and -not $DoNotStartSession) {
     $null = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/sessions/$($state.sessionId)/start" -Credential $bootstrap
   }
   [IO.File]::WriteAllText($activationPath, "active`n", [Text.Encoding]::ASCII)
@@ -418,10 +446,10 @@ try {
 }
 
 Write-Host "READY independent adapter nodes: $($expectedNodes -join ', ')"
-Write-Host "Tello exposes telemetry, land, and emergency stop; takeoff/movement remain disabled."
+Write-Host "Tello exposes telemetry plus instructor-confirmed bounded flight and safe-state controls."
 Write-Host "MindWave publishes vendor-derived metrics only; raw EEG remains excluded."
-if ($Device -in @("All", "Tello", "Fleet") -and $telloTargets.Count -ge 2) {
-  Write-Host "The separate fleet controller exposes one tutor-armed ordered sequence and one stop-and-land command."
+if ($Device -in @("All", "Tello", "Fleet") -and $telloTargets.Count -ge 1) {
+  Write-Host "The separate fleet controller exposes tutor-armed ordered takeoff and confirmed one-at-a-time landing."
 }
 if ($Device -in @("All", "Demo")) {
   Write-Host "The separate demo controller exposes one explicitly confirmed one-shot arm and one stop capability."

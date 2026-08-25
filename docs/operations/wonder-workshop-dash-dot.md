@@ -19,10 +19,9 @@ Status: software path implemented; physical Bluetooth validation pending.
 
 ## First output test
 
-Keep Dash's wheels raised for the first test. Start the monitoring lesson. A
-light color can now be tested. Before testing sound, head, or wheels on real
-hardware, clear the floor area and choose **Enable physical controls** in the
-safety section.
+Keep Dash's wheels raised for the first test and clear the floor area. Choose a
+light, sound, head, or movement control directly; the first command prepares
+the local control session automatically.
 
 - Dot intentionally has no drive or head buttons.
 - Dash arrows issue short nudges, not continuous free driving. The adapter

@@ -6,15 +6,32 @@ import type {
 } from "./fabric-client.js";
 
 export const SPHERO_PLUGIN_ID = "cit.sphero-bolt";
+export const SPHERO_OLLIE_PLUGIN_ID = "cit.sphero-ollie";
 export const SPHERO_LIGHT_CAPABILITY = "robot.light.set";
 export const SPHERO_VELOCITY_CAPABILITY = "mobility.ground.set_velocity";
+export const SPHERO_NUDGE_CAPABILITY = "mobility.ground.nudge";
 export const SPHERO_STOP_CAPABILITY = "mobility.ground.stop";
 export const SPHERO_AIM_CAPABILITY = "sphero.aim.reset";
 export const SPHERO_NUDGE_METERS_PER_SECOND = 0.2;
+export const SPHERO_OLLIE_NUDGE_METERS_PER_SECOND = 0.08;
 
-export const spheroNudgeVelocity = (forward: number, right: number) => ({
-  forwardMetersPerSecond: forward * SPHERO_NUDGE_METERS_PER_SECOND,
-  rightMetersPerSecond: right * SPHERO_NUDGE_METERS_PER_SECOND,
+export type SpheroVariant = "bolt" | "ollie";
+
+export const spheroNudgeVelocity = (
+  forward: number,
+  right: number,
+  variant: SpheroVariant = "bolt",
+) => ({
+  forwardMetersPerSecond:
+    forward *
+    (variant === "ollie"
+      ? SPHERO_OLLIE_NUDGE_METERS_PER_SECOND
+      : SPHERO_NUDGE_METERS_PER_SECOND),
+  rightMetersPerSecond:
+    right *
+    (variant === "ollie"
+      ? SPHERO_OLLIE_NUDGE_METERS_PER_SECOND
+      : SPHERO_NUDGE_METERS_PER_SECOND),
   clockwiseRadiansPerSecond: 0,
 });
 
@@ -48,8 +65,33 @@ export const spheroSelection = (
     ? { candidateId: candidate.candidateId }
     : undefined;
 
+export const isSpheroOllieCandidateId = (candidateId: string): boolean =>
+  /^sphero-ollie-[a-f0-9]{12}$/.test(candidateId);
+
+export const selectableSpheroOllieCandidates = (
+  candidates: FabricDiscoveryCandidate[],
+) =>
+  candidates.filter(
+    (candidate) =>
+      candidate.status === "found" &&
+      candidate.model === "sphero-ollie" &&
+      /^2B-[0-9A-Z]{4}$/i.test(candidate.displayName) &&
+      isSpheroOllieCandidateId(candidate.candidateId),
+  );
+
+export const spheroOllieSelection = (
+  candidate: FabricDiscoveryCandidate,
+): SpheroBoltSelection | undefined =>
+  candidate.model === "sphero-ollie" &&
+  isSpheroOllieCandidateId(candidate.candidateId)
+    ? { candidateId: candidate.candidateId }
+    : undefined;
+
 export const isSpheroNode = (node: IntegrationNode): boolean =>
-  node.pluginId === SPHERO_PLUGIN_ID && node.metadata.model === "sphero-bolt";
+  (node.pluginId === SPHERO_PLUGIN_ID &&
+    node.metadata.model === "sphero-bolt") ||
+  (node.pluginId === SPHERO_OLLIE_PLUGIN_ID &&
+    node.metadata.model === "sphero-ollie");
 
 const CONTROL_SESSION_STATE_PRIORITY: Readonly<Record<string, number>> = {
   active: 3,

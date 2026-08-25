@@ -39,26 +39,29 @@ into CIT.
    `127.0.0.1:13854`, then choose **Connect headset**.
 4. For Tello, remove or guard propellers, keep every aircraft grounded, attach
    one enabled USB Wi-Fi radio per stock access-point-mode aircraft, tick the
-   grounded confirmation, then choose **Connect grounded drones**.
+   grounded confirmation, then choose **Connect all available grounded drones**.
 5. Wait for each card to say **Connected**. The Classroom readings section now
    shows actual semantic telemetry rather than discovery guesses, and each
    streaming Tello appears in **Live cameras**.
-6. For a sequential fleet, connect at least two Tellos. Confirm that each has a
-   stable independent route; stock access-point-mode aircraft normally require
-   one enabled USB Wi-Fi adapter each. In **Multi-input drone sequence**, arrange
-   the launch order and select the permitted trigger nodes.
-7. To add Leap, G2, or Meta, choose **Find devices** after the drone fleet is
+6. For an input-triggered flight, connect one to eight Tellos. Confirm that each
+   has a stable independent route; stock access-point-mode aircraft normally
+   require one enabled USB Wi-Fi adapter each. In **Multi-input drone sequence**,
+   arrange the launch order. All connected aircraft and permitted trigger nodes
+   are selected by default; trigger nodes can be disabled in the compact options.
+7. To add Leap, R1, G2, or Meta, choose **Find devices** after the drone fleet is
    connected, then choose the matching **Connect** action. CIT attaches those
    input-only nodes to this same lesson. It does not start RoboMaster or select a
    coding agent for the fleet path.
-8. Practice the fleet panel in Simulation. Choose **Arm this sequence once**,
-   then **Start now**. The state must progress to **Completed** and the confirmed
+8. Practice the fleet panel in Simulation. Confirm flight safety once, then choose
+   **Connect, prepare, and arm once**. This starts and arms the lesson session;
+   no separate session-start step is needed. Then choose **Start now**. The state
+   must progress to **Completed** and the confirmed
    count must reach the selected total in order. The arm is consumed once and
    expires after 60 seconds if no approved trigger arrives.
 9. For MindWave flight practice, open the bounded demo panel. Run Simulation
-   first. For real hardware, start and arm the physical lesson, choose the
-   signal/threshold, complete all three instructor checks, then choose **Arm
-   one-shot flight demo**.
+   first. For real hardware, choose the signal/threshold, confirm flight safety
+   once, then choose **Connect, prepare, and arm once**. The button starts and
+   arms the lesson automatically before waiting for MindWave.
 
 The connection actions reconcile the adapter set after every device finishes.
 If only one device is connected, only that independent adapter is started. As
@@ -72,17 +75,22 @@ therefore appear together in the same Classroom readings view. Physical
 monitoring may start without arming only because all bound requirements are
 informational and the one fleet flow is dormant behind the complete
 `target_is_armed` safety guard set. The normal command gate independently
-rejects physical flight while unarmed. The Tello panel exposes
-only **Land** and a separately confirmed **Emergency motor stop**; that adapter
-does not advertise takeoff or movement. MindWave consumes no commands. The
-independent demo controller exposes only `mobility.flight.brain_demo.arm` and
+rejects physical flight while unarmed. The Tello panel exposes instructor-only
+takeoff, discrete 20–50 cm movement, 1–90° rotation, **Land**, and a separately
+confirmed **Emergency motor stop**. Takeoff and movement require one visible
+tutor confirmation, expanded into the exact three bounded contract fields; the
+adapter repeats the same bounds. MindWave consumes
+no commands. The independent demo controller exposes only
+`mobility.flight.brain_demo.arm` and
 `mobility.flight.brain_demo.stop`; arming requires instructor priority, an
-active and armed physical session, three explicit confirmations, and all
+active and armed physical session, the three explicit contract confirmations
+derived from that one tutor attestation, and all
 upstream signal-quality, freshness, and landed checks.
 
 The fleet controller exposes only `mobility.flight.fleet_sequence.arm`,
 `.start`, and `.stop`. Physical arm requires instructor priority, an active and
-armed session, two to eight selected aircraft, four confirmations, a 20–100%
+armed session, one to eight selected aircraft, four exact contract confirmations
+derived from the one visible tutor attestation, a 20–100%
 battery floor, and a 1–15 second interval. The controller confirms each aircraft
 reports `flying` before proceeding. A rejection, disconnect, timeout, stop, or
 shutdown cancels later launches and requests landing for every confirmed or
@@ -94,6 +102,8 @@ Approved remote triggers are deliberately narrow:
 - Leap: make an open-hand gesture, then enter the tracked pinch/`DRIVING`
   state. Only the rising transition emits one intent; holding the pinch does not
   emit repeats.
+- R1: double-tap the ring. A held or repeated gesture cannot re-use a consumed
+  one-shot arm.
 - G2 or Meta English: say exactly **Start drone sequence**, **Launch drone
   sequence**, or **Take off drones**.
 - G2 or Meta Korean: say exactly **드론 순차 이륙** or **드론 이륙 시작**.
@@ -154,7 +164,8 @@ landing; do not use rapid single-radio Wi-Fi handoff as the fleet control path.
 Power off every aircraft that is not intentionally part of the test.
 
 1. With propellers removed, use **Find devices**, confirm every aircraft is
-   grounded, and choose **Connect grounded drones** and **Connect headset**.
+   grounded, and choose **Connect all available grounded drones** and
+   **Connect headset**.
    Verify Tello telemetry, changing eSense readings, signal quality, and blink
    strength on the unified page. Do not arm the lesson.
 2. Verify a Tello camera tile appears. The first physical start may show one
@@ -170,8 +181,8 @@ Power off every aircraft that is not intentionally part of the test.
    devices, verify fresh battery and landed state, and keep **Land** and **Stop
    all devices** visible.
 5. Select a 2-second dwell and a deliberately reachable but supervised
-   threshold. Choose **Enable physical controls**, complete all three checks in
-   the demo panel, and choose **Arm one-shot flight demo**. Arming alone must not
+   threshold. Confirm safety once in the demo panel and choose **Connect,
+   prepare, and arm once**. Arming alone must not
    take off. A value equal to the threshold must not qualify; only a value
    strictly above it qualifies.
 6. Confirm the trigger disarms before the demo begins, MindWave disconnects
@@ -185,11 +196,11 @@ Power off every aircraft that is not intentionally part of the test.
 
 For the first multi-aircraft test, use exactly two aircraft and the maximum
 15-second interval. Verify both are listed as connected and landed with fresh
-battery data, enable physical controls, complete all four fleet confirmations,
-and arm once. First use **Start now**; confirm aircraft 1 reports flying before
-aircraft 2 receives takeoff. Use **Stop & land selected fleet** and verify both
-land. Trigger within 60 seconds of arming. Repeat separately with Leap, G2, and
-Meta. Finally inject a second-aircraft
+battery data, use the one fleet safety confirmation, and choose **Connect,
+prepare, and arm once**. First use **Start now**; confirm aircraft 1 reports
+flying before aircraft 2 receives takeoff. Use **Stop & land selected fleet** and verify both
+land. Trigger within 60 seconds of arming. Repeat separately with Leap, R1, G2,
+and Meta. Finally inject a second-aircraft
 rejection, input retry, adapter stop, and one route loss; no later takeoff may be
 sent and every possibly airborne aircraft must receive a landing request.
 

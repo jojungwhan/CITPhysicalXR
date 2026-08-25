@@ -4,7 +4,10 @@
     "device-monitoring",
     "gesture-ground-robot",
     "glasses-agent-control",
+    "glasses-device-control",
     "simultaneous-device-cue",
-    "smart-plug-control"
+    "smart-plug-control",
+    "smart-ring-device-control",
+    "synchronized-motor-control"
   ]
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 
 import type {
   FabricDiscoveryCandidate,
@@ -7,98 +7,84 @@ import type {
 import type { FabricTranslate } from "./fabric-i18n.js";
 import {
   selectableSpheroCandidates,
+  selectableSpheroOllieCandidates,
+  spheroOllieSelection,
   spheroSelection,
+  type SpheroVariant,
 } from "./fabric-sphero-bolt.js";
 
 export function FabricSpheroSetup({
   candidates,
+  variant = "bolt",
   busy,
   canConnect,
   onConnect,
   t,
 }: {
   candidates: FabricDiscoveryCandidate[];
+  variant?: SpheroVariant;
   busy: boolean;
   canConnect: boolean;
   onConnect: (robots: SpheroBoltSelection[]) => void;
   t: FabricTranslate;
 }) {
   const selectable = useMemo(
-    () => selectableSpheroCandidates(candidates),
-    [candidates],
+    () =>
+      variant === "ollie"
+        ? selectableSpheroOllieCandidates(candidates)
+        : selectableSpheroCandidates(candidates),
+    [candidates, variant],
   );
-  const [selected, setSelected] = useState<string[]>([]);
-
-  useEffect(() => {
-    const visible = new Set(
-      selectable.map((candidate) => candidate.candidateId),
-    );
-    setSelected((current) => current.filter((value) => visible.has(value)));
-  }, [selectable]);
+  const prefix = variant === "ollie" ? "ollie" : "sphero";
 
   return (
     <div className="fabric-sphero-setup">
-      <strong>{t("sphero.setup")}</strong>
-      <ol>
-        <li>{t("sphero.wake")}</li>
-        <li>{t("sphero.closeApps")}</li>
-        <li>{t("sphero.noPairing")}</li>
-      </ol>
+      <strong>{t(`${prefix}.setup` as "sphero.setup")}</strong>
       {selectable.length === 0 ? (
-        <small>{t("sphero.noneVisible")}</small>
+        <small>{t(`${prefix}.noneVisible` as "sphero.noneVisible")}</small>
       ) : (
-        <fieldset>
-          <legend>{t("sphero.selectExact")}</legend>
+        <div className="fabric-sphero-candidate-list">
           {selectable.map((candidate) => (
-            <label key={candidate.candidateId}>
-              <input
-                type="checkbox"
-                checked={selected.includes(candidate.candidateId)}
-                onChange={(event) =>
-                  setSelected((current) =>
-                    event.target.checked
-                      ? [...current, candidate.candidateId].slice(0, 4)
-                      : current.filter(
-                          (value) => value !== candidate.candidateId,
-                        ),
-                  )
-                }
-              />
+            <button
+              className="fabric-connect-device fabric-sphero-candidate"
+              type="button"
+              key={candidate.candidateId}
+              disabled={!canConnect || busy}
+              onClick={() => {
+                const selection =
+                  variant === "ollie"
+                    ? spheroOllieSelection(candidate)
+                    : spheroSelection(candidate);
+                if (selection !== undefined) onConnect([selection]);
+              }}
+            >
               <span>
                 <strong>{candidate.displayName}</strong>
                 <small>
-                  {t("sphero.boltCapabilities")}
+                  {t(`${prefix}.capabilities` as "sphero.capabilities")}
                   {candidate.signalPercent === undefined
                     ? ""
                     : ` · ${t("discovery.signal", { percent: candidate.signalPercent })}`}
                 </small>
               </span>
-            </label>
+              <b>
+                {busy
+                  ? t(`${prefix}.connecting` as "sphero.connecting")
+                  : t(`${prefix}.connectRobot` as "sphero.connectRobot")}
+              </b>
+            </button>
           ))}
-        </fieldset>
+        </div>
       )}
-      <button
-        className="fabric-connect-device"
-        type="button"
-        disabled={!canConnect || busy || selected.length === 0}
-        onClick={() =>
-          onConnect(
-            selected.flatMap((candidateId) => {
-              const candidate = selectable.find(
-                (item) => item.candidateId === candidateId,
-              );
-              const selection =
-                candidate === undefined
-                  ? undefined
-                  : spheroSelection(candidate);
-              return selection === undefined ? [] : [selection];
-            }),
-          )
-        }
-      >
-        {busy ? t("sphero.connecting") : t("sphero.connectSelected")}
-      </button>
-      <small>{t("sphero.connectSafety")}</small>
+      <details className="fabric-setup-tips">
+        <summary>{t("common.moreInfo")}</summary>
+        <ol>
+          <li>{t(`${prefix}.wake` as "sphero.wake")}</li>
+          <li>{t(`${prefix}.closeApps` as "sphero.closeApps")}</li>
+          <li>{t(`${prefix}.noPairing` as "sphero.noPairing")}</li>
+        </ol>
+        <small>{t(`${prefix}.connectSafety` as "sphero.connectSafety")}</small>
+      </details>
     </div>
   );
 }

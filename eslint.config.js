@@ -7,9 +7,11 @@ export default tseslint.config(
   {
     ignores: [
       "**/.venv/**",
+      "**/.playwright-cli/**",
       "**/artifacts/**",
       "**/dist/**",
       "**/node_modules/**",
+      "**/output/**",
       "packages/protocol-ts/src/generated/**",
     ],
   },

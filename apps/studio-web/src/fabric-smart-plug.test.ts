@@ -7,6 +7,7 @@ import {
   isSwitchableLoadVisionLabel,
   latestSmartPlugState,
   preferredSmartPlugControlSession,
+  smartPlugStateFromHealth,
 } from "./fabric-smart-plug.js";
 
 describe("Fabric smart-plug presentation", () => {
@@ -32,6 +33,24 @@ describe("Fabric smart-plug presentation", () => {
       source: "command",
     });
     expect(latestSmartPlugState(events, "missing")).toBeUndefined();
+  });
+
+  it("uses the adapter health snapshot before the lesson emits a state event", () => {
+    expect(
+      smartPlugStateFromHealth({
+        lastSeenAt: "2026-08-24T06:05:00Z",
+        metadata: { healthMetrics: { on: false, safeStateOff: true } },
+      }),
+    ).toEqual({
+      on: false,
+      observedAt: "2026-08-24T06:05:00Z",
+    });
+    expect(
+      smartPlugStateFromHealth({
+        lastSeenAt: "2026-08-24T06:05:00Z",
+        metadata: { healthMetrics: { on: "false" } },
+      }),
+    ).toBeUndefined();
   });
 
   it("keeps independently assigned classroom plugs separate", () => {

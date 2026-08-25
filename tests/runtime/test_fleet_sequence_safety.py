@@ -168,7 +168,7 @@ def arm_request(
 @pytest.mark.parametrize(
     "parameter_updates",
     [
-        {"droneIds": ["primary"]},
+        {"droneIds": []},
         {"droneIds": ["primary", "primary"]},
         {"allowedSourceNodeIds": ["bad source"]},
         {"launchIntervalSeconds": 0},

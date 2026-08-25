@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   connectedFabricDeviceCount,
   fabricDiscoveryReadiness,
+  fabricDiscoveryTierOpenByDefault,
   groupFabricIntegrationsByReadiness,
 } from "./fabric-discovery-readiness.js";
 
@@ -49,6 +50,14 @@ describe("Fabric discovery readiness", () => {
         { status: "ready", connectedNodeIds: [] },
       ]),
     ).toBe(3);
+  });
+
+  it("opens the useful tier and collapses the rest by default", () => {
+    expect(fabricDiscoveryTierOpenByDefault("connected", 1)).toBe(true);
+    expect(fabricDiscoveryTierOpenByDefault("available", 1)).toBe(false);
+    expect(fabricDiscoveryTierOpenByDefault("unavailable", 1)).toBe(false);
+    expect(fabricDiscoveryTierOpenByDefault("connected", 0)).toBe(false);
+    expect(fabricDiscoveryTierOpenByDefault("available", 0)).toBe(true);
   });
 });
 

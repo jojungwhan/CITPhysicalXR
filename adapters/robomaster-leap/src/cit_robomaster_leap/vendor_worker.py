@@ -39,6 +39,12 @@ def _bounded(value: float, limit: float) -> float:
     return max(-limit, min(limit, value))
 
 
+def _color_channel(value: Any, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= 255:
+        raise ValueError(f"{name} must be an integer from 0 through 255")
+    return value
+
+
 def _install_repository(path: str) -> Path:
     repository = Path(path).resolve()
     package = repository / "robomaster_gesture" / "__init__.py"
@@ -263,6 +269,45 @@ def _robot(args: argparse.Namespace) -> int:
                         pump.halt()
                         robot.stop()
                     _write({"requestId": request_id, "ok": True, "stopped": True})
+                elif operation == "set_light":
+                    if args.robot_mode == "s1-app":
+                        raise RuntimeError("RoboMaster LED control requires the DJI SDK transport")
+                    key = str(request.get("idempotencyKey", ""))
+                    if not key:
+                        raise ValueError("idempotencyKey is required")
+                    if key in seen:
+                        _write({"requestId": request_id, "ok": True, "duplicate": True})
+                        continue
+                    red = _color_channel(request.get("red"), "red")
+                    green = _color_channel(request.get("green"), "green")
+                    blue = _color_channel(request.get("blue"), "blue")
+                    if args.robot_mode == "sdk":
+                        sdk_robot = getattr(robot, "_robot", None)
+                        led = getattr(sdk_robot, "led", None)
+                        if led is None:
+                            raise RuntimeError("RoboMaster SDK LED module is unavailable")
+                        with redirect_stdout(sys.stderr):
+                            result = led.set_led(
+                                comp="all",
+                                r=red,
+                                g=green,
+                                b=blue,
+                                effect="on",
+                            )
+                        if result is False:
+                            raise RuntimeError("RoboMaster rejected the LED command")
+                    seen.add(key)
+                    seen_order.append(key)
+                    while len(seen_order) > 4096:
+                        seen.discard(seen_order.popleft())
+                    _write(
+                        {
+                            "requestId": request_id,
+                            "ok": True,
+                            "duplicate": False,
+                            "color": {"red": red, "green": green, "blue": blue},
+                        }
+                    )
                 elif operation == "camera_start":
                     if args.robot_mode != "sdk":
                         raise RuntimeError("RoboMaster live camera requires the DJI SDK transport")

@@ -68,6 +68,28 @@ capabilities:
         rightMetersPerSecond: { minimum: -0.35, maximum: 0.35 }
         clockwiseRadiansPerSecond:
           { minimum: -0.6108652382, maximum: 0.6108652382 }
+  ground_nudge:
+    name: mobility.ground.nudge
+    version: "1.0"
+    maximumRateHz: 4
+    latencyClass: interactive
+    safetyClassification: bounded_physical
+    dataClassification: operational
+    constraints:
+      arguments:
+        direction:
+          type: string
+          enum: [forward, backward, left, right, stop]
+  ground_demonstration_start:
+    name: mobility.ground.demonstration.start
+    version: "1.0"
+    maximumRateHz: 0.5
+    latencyClass: interactive
+    safetyClassification: bounded_physical
+    dataClassification: operational
+    constraints:
+      arguments:
+        distanceMeters: { minimum: 0.05, maximum: 0.1 }
   ground_stop:
     name: mobility.ground.stop
     version: "1.0"
@@ -82,6 +104,48 @@ capabilities:
     latencyClass: ui_feedback
     safetyClassification: informational
     dataClassification: operational
+  flight_takeoff:
+    name: mobility.flight.takeoff
+    version: "1.0"
+    maximumRateHz: 0.2
+    latencyClass: interactive
+    safetyClassification: flight
+    dataClassification: operational
+    constraints:
+      arguments:
+        instructorPresent: { type: boolean }
+        flightAreaClear: { type: boolean }
+        emergencyPlanReady: { type: boolean }
+  flight_move:
+    name: mobility.flight.move
+    version: "1.0"
+    maximumRateHz: 1
+    latencyClass: interactive
+    safetyClassification: flight
+    dataClassification: operational
+    constraints:
+      arguments:
+        direction:
+          type: string
+          enum: [forward, back, left, right, up, down]
+        distanceCentimeters: { minimum: 20, maximum: 50 }
+        instructorPresent: { type: boolean }
+        flightAreaClear: { type: boolean }
+        emergencyPlanReady: { type: boolean }
+  flight_rotate:
+    name: mobility.flight.rotate
+    version: "1.0"
+    maximumRateHz: 1
+    latencyClass: interactive
+    safetyClassification: flight
+    dataClassification: operational
+    constraints:
+      arguments:
+        clockwise: { type: boolean }
+        degrees: { minimum: 1, maximum: 90 }
+        instructorPresent: { type: boolean }
+        flightAreaClear: { type: boolean }
+        emergencyPlanReady: { type: boolean }
   flight_land:
     name: mobility.flight.land
     version: "1.0"
@@ -140,6 +204,29 @@ capabilities:
     name: interaction.intent.flight_sequence_start
     version: "1.0"
     maximumRateHz: 0.2
+    latencyClass: interactive
+    safetyClassification: informational
+    dataClassification: operational
+  device_control_intent:
+    name: interaction.intent.device_control
+    version: "1.0"
+    maximumRateHz: 4
+    latencyClass: interactive
+    safetyClassification: informational
+    dataClassification: operational
+    constraints:
+      payload:
+        action:
+          type: string
+          enum: [forward, backward, left, right, stop, takeoff, land]
+        target:
+          type: string
+          enum: [ground_outputs, tello_fleet]
+        confirmed: { type: boolean, const: true }
+  smart_ring_gesture:
+    name: interaction.gesture.smart_ring
+    version: "1.0"
+    maximumRateHz: 10
     latencyClass: interactive
     safetyClassification: informational
     dataClassification: operational

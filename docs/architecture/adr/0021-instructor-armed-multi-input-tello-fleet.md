@@ -16,9 +16,12 @@ could not safely reach the drone lesson.
 Use a separate out-of-process plugin, `cit.brain2devices-fleet`, for the ordered
 workflow. It consumes only arm, start, and stop; publishes semantic status; and
 does not advertise raw takeoff, move, or rotate. Arm is instructor-only and
-records an ordered list of two to eight independently routed aircraft, approved
+records an ordered list of one to eight independently routed aircraft, approved
 input node IDs, a bounded interval and battery floor, plus four explicit safety
-confirmations. Start consumes that arm exactly once. The controller also expires
+contract fields. The console obtains those fields from one combined, unchecked
+tutor attestation and preselects connected aircraft and approved trigger inputs.
+Its prepare action also starts and arms the enclosing session. Start consumes
+that arm exactly once. The controller also expires
 an unused arm after 60 seconds independently of the enclosing lesson session.
 
 For each selected aircraft the controller revalidates landed state and battery,
@@ -48,9 +51,10 @@ physical non-safe-state commands until the session is armed.
 
 ## Consequences
 
-- The tutor page provides launch order, interval, battery floor, approved input
-  selection, four physical confirmations, one-shot arm, start, and stop/land.
-- Button, Leap, G2, and Meta converge on one command contract and correlation
+- The tutor page provides default aircraft/input selection, launch order,
+  interval, battery floor, one physical confirmation, one-click session
+  preparation and one-shot arm, start, and stop/land.
+- Button, Leap, R1, G2, and Meta converge on one command contract and correlation
   path while remaining independent adapter processes.
 - Simulators and replay can validate semantics without aircraft; replay remains
   dry-run.

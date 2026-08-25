@@ -64,6 +64,7 @@ $matterServerUrl = "ws://127.0.0.1:$MatterPort/ws"
 $controllerMarker = "matter-server/dist/esm/MatterServer.js"
 $adapterMarker = "cit_matter_smart_plug"
 $bleProxyMarker = "matter-ble-proxy"
+$controllerStartupAttempts = 3
 
 function Assert-Path([string]$Path, [string]$Description) {
   if (-not (Test-Path -LiteralPath $Path)) { throw "$Description was not found at $Path" }
@@ -255,6 +256,23 @@ function Test-MatterHealth {
   }
 }
 
+function Read-MatterControllerErrorLog([string]$Path) {
+  if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return "" }
+  try {
+    return [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
+  } catch {
+    return ""
+  }
+}
+
+function Test-RetryableMatterPortFailure([string]$ErrorLogPath) {
+  $errorLog = Read-MatterControllerErrorLog $ErrorLogPath
+  return (
+    $errorLog.Contains("listen EACCES: permission denied", [StringComparison]::OrdinalIgnoreCase) -and
+    $errorLog -match '0\.0\.0\.0:\d+'
+  )
+}
+
 function Stop-BleProxy([hashtable]$State) {
   if ($State.ContainsKey("bleProxyPid")) {
     $rootId = [int]$State.bleProxyPid
@@ -334,6 +352,15 @@ function Start-Controller([hashtable]$State) {
       $null -eq (Get-ListeningProcessId $MatterPort)
     } "The previous Matter controller did not release port $MatterPort" 30
   }
+  if (
+    $State.ContainsKey("controllerLauncherPid") -and
+    (Test-ExactProcess $State.controllerLauncherPid $controllerMarker)
+  ) {
+    Stop-ExactProcess $State.controllerLauncherPid $controllerMarker "stale Matter controller"
+    $State.Remove("controllerLauncherPid")
+    $State.Remove("controllerPid")
+    Save-State $State
+  }
   $node = Resolve-Executable "node"
   $controllerEntry = Join-Path $repositoryRoot "apps\matter-controller\node_modules\matter-server\dist\esm\MatterServer.js"
   Assert-Path $controllerEntry "Pinned local Matter controller"
@@ -354,20 +381,56 @@ function Start-Controller([hashtable]$State) {
   if ($desiredBleMode -eq "proxy") {
     $controllerEnvironment.BLE_PROXY = "true"
   }
-  $process = Start-Process `
-    -FilePath $node `
-    -ArgumentList @("node_modules/matter-server/dist/esm/MatterServer.js") `
-    -WorkingDirectory (Join-Path $repositoryRoot "apps\matter-controller") `
-    -WindowStyle Hidden `
-    -RedirectStandardOutput (Join-Path $logRoot "matter-controller.stdout.log") `
-    -RedirectStandardError (Join-Path $logRoot "matter-controller.stderr.log") `
-    -Environment $controllerEnvironment `
-    -PassThru
-  $State.controllerLauncherPid = $process.Id
-  $State.bluetoothRequested = -not [bool]$DisableBluetooth
-  $State.bleMode = $desiredBleMode
-  Save-State $State
-  Wait-Until { Test-MatterHealth } "The local Matter controller did not become ready; inspect $logRoot" 60
+  $controllerStdoutPath = Join-Path $logRoot "matter-controller.stdout.log"
+  $controllerStderrPath = Join-Path $logRoot "matter-controller.stderr.log"
+  $controllerReady = $false
+  for ($attempt = 1; $attempt -le $controllerStartupAttempts; $attempt++) {
+    [IO.File]::WriteAllText($controllerStdoutPath, "", [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($controllerStderrPath, "", [Text.UTF8Encoding]::new($false))
+    $process = Start-Process `
+      -FilePath $node `
+      -ArgumentList @("node_modules/matter-server/dist/esm/MatterServer.js") `
+      -WorkingDirectory (Join-Path $repositoryRoot "apps\matter-controller") `
+      -WindowStyle Hidden `
+      -RedirectStandardOutput $controllerStdoutPath `
+      -RedirectStandardError $controllerStderrPath `
+      -Environment $controllerEnvironment `
+      -PassThru
+    $State.controllerLauncherPid = $process.Id
+    $State.bluetoothRequested = -not [bool]$DisableBluetooth
+    $State.bleMode = $desiredBleMode
+    Save-State $State
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(60)
+    do {
+      if (Test-MatterHealth) {
+        $controllerReady = $true
+        break
+      }
+      if (Test-RetryableMatterPortFailure $controllerStderrPath) { break }
+      if ($process.HasExited) { break }
+      Start-Sleep -Milliseconds 250
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    if ($controllerReady) { break }
+
+    $retryablePortFailure = Test-RetryableMatterPortFailure $controllerStderrPath
+    Stop-ExactProcess $process.Id $controllerMarker "Matter controller"
+    $State.Remove("controllerLauncherPid")
+    $State.Remove("controllerPid")
+    Save-State $State
+    if ($retryablePortFailure -and $attempt -lt $controllerStartupAttempts) {
+      Write-Warning (
+        "Matter controller selected a Windows-reserved operational port; " +
+        "retrying startup ($attempt/$controllerStartupAttempts)."
+      )
+      continue
+    }
+    throw "The local Matter controller did not become ready; inspect $logRoot"
+  }
+  if (-not $controllerReady) {
+    throw "The local Matter controller did not become ready; inspect $logRoot"
+  }
   $State.controllerPid = Get-ListeningProcessId $MatterPort
   Save-State $State
   Start-BleProxy $State
@@ -590,9 +653,11 @@ function Show-Status([hashtable]$State) {
       Write-Warning $_.Exception.Message
     }
   }
-  $adapterRecords = if ($State.ContainsKey("adapters")) {
-    @(Expand-Sequence $State.adapters)
-  } else { @() }
+  $adapterRecords = @(
+    if ($State.ContainsKey("adapters")) {
+      Expand-Sequence $State.adapters
+    }
+  )
   $adapterCount = $adapterRecords.Count
   $runningAdapterCount = 0
   foreach ($record in $adapterRecords) {
@@ -629,6 +694,9 @@ if ($Mode -eq "Stop") {
   Stop-BleProxy $state
   if ($state.ContainsKey("controllerPid")) {
     Stop-ExactProcess $state.controllerPid $controllerMarker "Matter controller"
+  }
+  if ($state.ContainsKey("controllerLauncherPid")) {
+    Stop-ExactProcess $state.controllerLauncherPid $controllerMarker "Matter controller launcher"
   }
   foreach ($key in @("controllerPid", "controllerLauncherPid", "bleMode")) {
     $state.Remove($key)

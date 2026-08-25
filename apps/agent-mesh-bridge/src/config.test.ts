@@ -7,6 +7,7 @@ import { loadBridgeConfig } from "./config.js";
 const environment = (): NodeJS.ProcessEnv => ({
   CIT_FABRIC_ADAPTER_URL: "ws://127.0.0.1:8765/api/v1/adapters/connect",
   CIT_FABRIC_ADAPTER_TOKEN: "cit-adapter-" + "a".repeat(40),
+  CIT_FABRIC_READ_TOKEN: "cit-reader-" + "c".repeat(40),
   CIT_FABRIC_SESSION_ID: "lesson-session-a",
   CIT_AGENT_MESH_URL: "http://127.0.0.1:7342",
   CIT_AGENT_MESH_DEVICE_TOKEN: "device_" + "b".repeat(43),
@@ -22,6 +23,7 @@ describe("Agent Mesh bridge configuration", () => {
     expect(config.fabricAdapterUrl).toBe(
       "ws://127.0.0.1:8765/api/v1/adapters/connect",
     );
+    expect(config.fabricApiUrl).toBe("http://127.0.0.1:8765");
     expect(config.agentMeshBaseUrl).toBe("http://127.0.0.1:7342");
     expect(config.siteId).toBe("local-site");
     expect(config.pollIntervalMs).toBe(2_000);

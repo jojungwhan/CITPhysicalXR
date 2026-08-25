@@ -1,0 +1,1443 @@
+schemaVersion: "1.0"
+coursePackId: glasses-device-control
+version: 1.0.0
+displayName: Glasses device control
+description: >-
+  Routes explicitly confirmed, structured G2 or Meta voice commands to assigned
+  ground robots and the separately armed Tello fleet. The glasses never emit
+  vendor packets or free-form motor values.
+
+roles:
+  - role: glasses_input_1
+    ioType: input
+    oneOfCapabilities: [interaction.intent.device_control]
+    optional: false
+
+  - role: glasses_input_2
+    ioType: input
+    oneOfCapabilities: [interaction.intent.device_control]
+    optional: true
+
+  - role: ground_output_1
+    ioType: output
+    oneOfCapabilities: [mobility.ground.nudge]
+    optional: true
+
+  - role: ground_output_2
+    ioType: output
+    oneOfCapabilities: [mobility.ground.nudge]
+    optional: true
+
+  - role: ground_output_3
+    ioType: output
+    oneOfCapabilities: [mobility.ground.nudge]
+    optional: true
+
+  - role: ground_output_4
+    ioType: output
+    oneOfCapabilities: [mobility.ground.nudge]
+    optional: true
+
+  - role: ground_output_5
+    ioType: output
+    oneOfCapabilities: [mobility.ground.nudge]
+    optional: true
+
+  - role: ground_output_6
+    ioType: output
+    oneOfCapabilities: [mobility.ground.nudge]
+    optional: true
+
+  - role: ground_output_7
+    ioType: output
+    oneOfCapabilities: [mobility.ground.nudge]
+    optional: true
+
+  - role: ground_output_8
+    ioType: output
+    oneOfCapabilities: [mobility.ground.nudge]
+    optional: true
+
+  - role: fleet_sequence_controller
+    ioType: output
+    oneOfCapabilities: [mobility.flight.fleet_sequence.start]
+    optional: true
+
+flows:
+  - flowId: glasses-ground-output-1
+    version: 1
+    trigger: &ground-trigger
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: ground_outputs
+        confirmed: true
+    command: &ground-command
+      action: mobility.ground.nudge
+      fixedParameters: {}
+      parameterBindings:
+        - payloadField: action
+          parameter: direction
+    target: { role: ground_output_1 }
+    guards: &ground-guards
+      - session_is_active
+      - role_is_assigned
+      - target_is_connected
+      - target_is_armed
+      - instructor_override_is_clear
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_1]
+    parallelGroup: glasses-ground-control
+    enabled: true
+
+  - flowId: glasses-ground-output-2
+    version: 1
+    trigger: *ground-trigger
+    command: *ground-command
+    target: { role: ground_output_2 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_2]
+    parallelGroup: glasses-ground-control
+    enabled: true
+
+  - flowId: glasses-ground-output-3
+    version: 1
+    trigger: *ground-trigger
+    command: *ground-command
+    target: { role: ground_output_3 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_3]
+    parallelGroup: glasses-ground-control
+    enabled: true
+
+  - flowId: glasses-ground-output-4
+    version: 1
+    trigger: *ground-trigger
+    command: *ground-command
+    target: { role: ground_output_4 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_4]
+    parallelGroup: glasses-ground-control
+    enabled: true
+
+  - flowId: glasses-ground-output-5
+    version: 1
+    trigger: *ground-trigger
+    command: *ground-command
+    target: { role: ground_output_5 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_5]
+    parallelGroup: glasses-ground-control
+    enabled: true
+
+  - flowId: glasses-ground-output-6
+    version: 1
+    trigger: *ground-trigger
+    command: *ground-command
+    target: { role: ground_output_6 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_6]
+    parallelGroup: glasses-ground-control
+    enabled: true
+
+  - flowId: glasses-ground-output-7
+    version: 1
+    trigger: *ground-trigger
+    command: *ground-command
+    target: { role: ground_output_7 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_7]
+    parallelGroup: glasses-ground-control
+    enabled: true
+
+  - flowId: glasses-ground-output-8
+    version: 1
+    trigger: *ground-trigger
+    command: *ground-command
+    target: { role: ground_output_8 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_8]
+    parallelGroup: glasses-ground-control
+    enabled: true
+
+  - flowId: glasses-tello-takeoff
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 1000
+      payloadEquals:
+        target: tello_fleet
+        action: takeoff
+        confirmed: true
+    command:
+      action: mobility.flight.fleet_sequence.start
+      fixedParameters: {}
+      parameterBindings: []
+    target: { role: fleet_sequence_controller }
+    guards: &flight-guards
+      - session_is_active
+      - role_is_assigned
+      - target_is_connected
+      - target_is_armed
+      - instructor_override_is_clear
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [fleet_sequence_controller]
+    enabled: true
+
+  - flowId: glasses-tello-land
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: tello_fleet
+        action: land
+        confirmed: true
+    command:
+      action: mobility.flight.fleet_sequence.stop
+      fixedParameters: {}
+      parameterBindings: []
+    target: { role: fleet_sequence_controller }
+    guards: *flight-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [fleet_sequence_controller]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-1-forward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_1
+        action: forward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: forward }
+      parameterBindings: []
+    target: { role: ground_output_1 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_1]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-1-backward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_1
+        action: backward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: backward }
+      parameterBindings: []
+    target: { role: ground_output_1 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_1]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-1-left
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_1
+        action: left
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: left }
+      parameterBindings: []
+    target: { role: ground_output_1 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_1]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-1-right
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_1
+        action: right
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: right }
+      parameterBindings: []
+    target: { role: ground_output_1 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_1]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-1-stop
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_1
+        action: stop
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: stop }
+      parameterBindings: []
+    target: { role: ground_output_1 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_1]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-1-light
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_1
+        action: light
+        confirmed: true
+    command:
+      action: robot.light.set
+      fixedParameters: { red: 0, green: 180, blue: 255 }
+      parameterBindings: []
+    target: { role: ground_output_1 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_1]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-1-demo
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 2000
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_1
+        action: demo
+        confirmed: true
+    command:
+      action: mobility.ground.demonstration.start
+      fixedParameters: { distanceMeters: 0.1 }
+      parameterBindings: []
+    target: { role: ground_output_1 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_1]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-2-forward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_2
+        action: forward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: forward }
+      parameterBindings: []
+    target: { role: ground_output_2 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_2]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-2-backward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_2
+        action: backward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: backward }
+      parameterBindings: []
+    target: { role: ground_output_2 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_2]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-2-left
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_2
+        action: left
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: left }
+      parameterBindings: []
+    target: { role: ground_output_2 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_2]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-2-right
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_2
+        action: right
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: right }
+      parameterBindings: []
+    target: { role: ground_output_2 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_2]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-2-stop
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_2
+        action: stop
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: stop }
+      parameterBindings: []
+    target: { role: ground_output_2 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_2]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-2-light
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_2
+        action: light
+        confirmed: true
+    command:
+      action: robot.light.set
+      fixedParameters: { red: 0, green: 180, blue: 255 }
+      parameterBindings: []
+    target: { role: ground_output_2 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_2]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-2-demo
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 2000
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_2
+        action: demo
+        confirmed: true
+    command:
+      action: mobility.ground.demonstration.start
+      fixedParameters: { distanceMeters: 0.1 }
+      parameterBindings: []
+    target: { role: ground_output_2 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_2]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-3-forward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_3
+        action: forward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: forward }
+      parameterBindings: []
+    target: { role: ground_output_3 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_3]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-3-backward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_3
+        action: backward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: backward }
+      parameterBindings: []
+    target: { role: ground_output_3 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_3]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-3-left
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_3
+        action: left
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: left }
+      parameterBindings: []
+    target: { role: ground_output_3 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_3]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-3-right
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_3
+        action: right
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: right }
+      parameterBindings: []
+    target: { role: ground_output_3 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_3]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-3-stop
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_3
+        action: stop
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: stop }
+      parameterBindings: []
+    target: { role: ground_output_3 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_3]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-3-light
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_3
+        action: light
+        confirmed: true
+    command:
+      action: robot.light.set
+      fixedParameters: { red: 0, green: 180, blue: 255 }
+      parameterBindings: []
+    target: { role: ground_output_3 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_3]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-3-demo
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 2000
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_3
+        action: demo
+        confirmed: true
+    command:
+      action: mobility.ground.demonstration.start
+      fixedParameters: { distanceMeters: 0.1 }
+      parameterBindings: []
+    target: { role: ground_output_3 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_3]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-4-forward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_4
+        action: forward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: forward }
+      parameterBindings: []
+    target: { role: ground_output_4 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_4]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-4-backward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_4
+        action: backward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: backward }
+      parameterBindings: []
+    target: { role: ground_output_4 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_4]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-4-left
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_4
+        action: left
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: left }
+      parameterBindings: []
+    target: { role: ground_output_4 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_4]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-4-right
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_4
+        action: right
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: right }
+      parameterBindings: []
+    target: { role: ground_output_4 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_4]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-4-stop
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_4
+        action: stop
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: stop }
+      parameterBindings: []
+    target: { role: ground_output_4 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_4]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-4-light
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_4
+        action: light
+        confirmed: true
+    command:
+      action: robot.light.set
+      fixedParameters: { red: 0, green: 180, blue: 255 }
+      parameterBindings: []
+    target: { role: ground_output_4 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_4]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-4-demo
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 2000
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_4
+        action: demo
+        confirmed: true
+    command:
+      action: mobility.ground.demonstration.start
+      fixedParameters: { distanceMeters: 0.1 }
+      parameterBindings: []
+    target: { role: ground_output_4 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_4]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-5-forward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_5
+        action: forward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: forward }
+      parameterBindings: []
+    target: { role: ground_output_5 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_5]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-5-backward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_5
+        action: backward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: backward }
+      parameterBindings: []
+    target: { role: ground_output_5 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_5]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-5-left
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_5
+        action: left
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: left }
+      parameterBindings: []
+    target: { role: ground_output_5 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_5]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-5-right
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_5
+        action: right
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: right }
+      parameterBindings: []
+    target: { role: ground_output_5 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_5]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-5-stop
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_5
+        action: stop
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: stop }
+      parameterBindings: []
+    target: { role: ground_output_5 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_5]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-5-light
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_5
+        action: light
+        confirmed: true
+    command:
+      action: robot.light.set
+      fixedParameters: { red: 0, green: 180, blue: 255 }
+      parameterBindings: []
+    target: { role: ground_output_5 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_5]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-5-demo
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 2000
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_5
+        action: demo
+        confirmed: true
+    command:
+      action: mobility.ground.demonstration.start
+      fixedParameters: { distanceMeters: 0.1 }
+      parameterBindings: []
+    target: { role: ground_output_5 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_5]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-6-forward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_6
+        action: forward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: forward }
+      parameterBindings: []
+    target: { role: ground_output_6 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_6]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-6-backward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_6
+        action: backward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: backward }
+      parameterBindings: []
+    target: { role: ground_output_6 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_6]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-6-left
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_6
+        action: left
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: left }
+      parameterBindings: []
+    target: { role: ground_output_6 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_6]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-6-right
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_6
+        action: right
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: right }
+      parameterBindings: []
+    target: { role: ground_output_6 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_6]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-6-stop
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_6
+        action: stop
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: stop }
+      parameterBindings: []
+    target: { role: ground_output_6 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_6]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-6-light
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_6
+        action: light
+        confirmed: true
+    command:
+      action: robot.light.set
+      fixedParameters: { red: 0, green: 180, blue: 255 }
+      parameterBindings: []
+    target: { role: ground_output_6 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_6]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-6-demo
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 2000
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_6
+        action: demo
+        confirmed: true
+    command:
+      action: mobility.ground.demonstration.start
+      fixedParameters: { distanceMeters: 0.1 }
+      parameterBindings: []
+    target: { role: ground_output_6 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_6]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-7-forward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_7
+        action: forward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: forward }
+      parameterBindings: []
+    target: { role: ground_output_7 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_7]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-7-backward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_7
+        action: backward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: backward }
+      parameterBindings: []
+    target: { role: ground_output_7 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_7]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-7-left
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_7
+        action: left
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: left }
+      parameterBindings: []
+    target: { role: ground_output_7 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_7]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-7-right
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_7
+        action: right
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: right }
+      parameterBindings: []
+    target: { role: ground_output_7 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_7]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-7-stop
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_7
+        action: stop
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: stop }
+      parameterBindings: []
+    target: { role: ground_output_7 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_7]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-7-light
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_7
+        action: light
+        confirmed: true
+    command:
+      action: robot.light.set
+      fixedParameters: { red: 0, green: 180, blue: 255 }
+      parameterBindings: []
+    target: { role: ground_output_7 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_7]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-7-demo
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 2000
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_7
+        action: demo
+        confirmed: true
+    command:
+      action: mobility.ground.demonstration.start
+      fixedParameters: { distanceMeters: 0.1 }
+      parameterBindings: []
+    target: { role: ground_output_7 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_7]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-8-forward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_8
+        action: forward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: forward }
+      parameterBindings: []
+    target: { role: ground_output_8 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_8]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-8-backward
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_8
+        action: backward
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: backward }
+      parameterBindings: []
+    target: { role: ground_output_8 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_8]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-8-left
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_8
+        action: left
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: left }
+      parameterBindings: []
+    target: { role: ground_output_8 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_8]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-8-right
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_8
+        action: right
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: right }
+      parameterBindings: []
+    target: { role: ground_output_8 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_8]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-8-stop
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_8
+        action: stop
+        confirmed: true
+    command:
+      action: mobility.ground.nudge
+      fixedParameters: { direction: stop }
+      parameterBindings: []
+    target: { role: ground_output_8 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_8]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-8-light
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_8
+        action: light
+        confirmed: true
+    command:
+      action: robot.light.set
+      fixedParameters: { red: 0, green: 180, blue: 255 }
+      parameterBindings: []
+    target: { role: ground_output_8 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_8]
+    enabled: true
+
+  - flowId: glasses-exact-ground-output-8-demo
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 2000
+      payloadEquals:
+        target: assigned_output
+        targetRole: ground_output_8
+        action: demo
+        confirmed: true
+    command:
+      action: mobility.ground.demonstration.start
+      fixedParameters: { distanceMeters: 0.1 }
+      parameterBindings: []
+    target: { role: ground_output_8 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_8]
+    enabled: true
+
+  - flowId: glasses-exact-tello-takeoff
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 1000
+      payloadEquals:
+        target: assigned_output
+        targetRole: fleet_sequence_controller
+        action: takeoff
+        confirmed: true
+    command:
+      action: mobility.flight.fleet_sequence.start
+      fixedParameters: {}
+      parameterBindings: []
+    target: { role: fleet_sequence_controller }
+    guards: *flight-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [fleet_sequence_controller]
+    enabled: true
+
+  - flowId: glasses-exact-tello-land
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: fleet_sequence_controller
+        action: land
+        confirmed: true
+    command:
+      action: mobility.flight.fleet_sequence.stop
+      fixedParameters: {}
+      parameterBindings: []
+    target: { role: fleet_sequence_controller }
+    guards: *flight-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [fleet_sequence_controller]
+    enabled: true
+
+safetyProfile: classroom-drone-monitoring
+simulatorRequired: true
+assessmentEvents:
+  - interaction.intent.device_control
+  - telemetry.motion.commanded
+  - telemetry.flight.fleet_sequence.status
+fallbackBehavior: >-
+  Report each unavailable output independently. Ground adapters stop through
+  their local watchdog; takeoff remains dormant until a tutor separately arms
+  the fleet controller; a land request never requires an LLM interpretation.

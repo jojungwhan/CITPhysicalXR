@@ -30,12 +30,19 @@ does not arm a session, move a robot, fly a drone, switch an outlet, start an
 agent session, or connect an unverified candidate. The existing one-use console
 ticket performs browser sign-in.
 
+Classroom Control is hosted in a dedicated Edge or Chrome app window with a
+profile owned by the Fabric state root. Before opening a freshly signed-in
+window, the launcher closes only processes carrying that exact profile marker.
+This preserves a single tutor window without closing unrelated browser tabs.
+
 The installer writes only two current-user shortcuts and supports exact-path
 removal. The browser service gains no process-spawning endpoint.
 
 ## Consequences
 
 - Tutor startup is a visible button workflow with no terminal interaction.
+- Repeated starts or adapter connections do not accumulate tutor tabs; only the
+  prior CIT-owned app window is replaced.
 - The native button resolves the cold-start dependency without weakening the
   Fabric's independent authentication boundary.
 - Source-checkout installation still has a one-time maintainer command; a

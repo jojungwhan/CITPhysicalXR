@@ -1,13 +1,17 @@
+import type { IntegrationNode } from "@citxr/protocol";
 import { describe, expect, it } from "vitest";
 
 import type { StoredFabricEvent } from "./fabric-client.js";
 import {
+  assignedFleetSequenceInputNodes,
   FLEET_SEQUENCE_ARM_CAPABILITY,
+  FLEET_SEQUENCE_INTENT_CAPABILITY,
   FLEET_SEQUENCE_START_CAPABILITY,
   FLEET_SEQUENCE_STATUS_CAPABILITY,
   FLEET_SEQUENCE_STOP_CAPABILITY,
   isFleetSequenceControllerNode,
   latestFleetSequenceStatus,
+  preferredFleetSequenceControlSession,
 } from "./fabric-fleet-sequence.js";
 
 describe("bounded fleet-sequence UI boundary", () => {
@@ -58,6 +62,53 @@ describe("bounded fleet-sequence UI boundary", () => {
         },
       ],
     });
+  });
+
+  it("accepts an R1 bound through its capability rather than a role-name convention", () => {
+    const r1 = {
+      nodeId: "r1-a",
+      publishedCapabilities: [{ name: FLEET_SEQUENCE_INTENT_CAPABILITY }],
+    } as IntegrationNode;
+    const unrelated = {
+      nodeId: "sensor-a",
+      publishedCapabilities: [{ name: "robot.sensor.state" }],
+    } as IntegrationNode;
+
+    expect(
+      assignedFleetSequenceInputNodes(
+        [r1, unrelated],
+        [
+          { role: "smart_ring_input", nodeId: "r1-a" },
+          { role: "message_output_1", nodeId: "r1-a" },
+          { role: "robot_sensor_1", nodeId: "sensor-a" },
+        ],
+      ),
+    ).toEqual([r1]);
+  });
+
+  it("resolves the fleet session independently of the lesson selected in the UI", () => {
+    const sessions = [
+      {
+        sessionId: "unrelated-lesson",
+        state: "active",
+        armed: true,
+        updatedAt: "2026-08-25T02:01:00Z",
+        roleBindings: [{ role: "student_robot", nodeId: "robot-a" }],
+      },
+      {
+        sessionId: "fleet-monitoring",
+        state: "ready",
+        armed: false,
+        updatedAt: "2026-08-25T02:00:00Z",
+        roleBindings: [
+          { role: "fleet_sequence_controller", nodeId: "fleet-a" },
+        ],
+      },
+    ];
+
+    expect(preferredFleetSequenceControlSession(sessions, ["fleet-a"])).toEqual(
+      sessions[1],
+    );
   });
 });
 

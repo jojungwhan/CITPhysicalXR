@@ -3,7 +3,7 @@ coursePackId: simultaneous-device-cue
 version: 1.0.0
 displayName: Simultaneous multi-device cue
 description: >-
-  Routes one approved Leap, G2, or Meta cue to every assigned classroom
+  Routes one approved Leap, R1, G2, or Meta cue to every assigned classroom
   output at once. Ground robots receive one bounded watchdog-limited movement,
   G2 and Meta receive the same text, and an optional Tello fleet controller
   starts only when its independent tutor flight checklist is already armed.
@@ -37,6 +37,36 @@ roles:
     optional: false
 
   - role: ground_output_2
+    ioType: output
+    oneOfCapabilities: [mobility.ground.set_velocity]
+    optional: true
+
+  - role: ground_output_3
+    ioType: output
+    oneOfCapabilities: [mobility.ground.set_velocity]
+    optional: true
+
+  - role: ground_output_4
+    ioType: output
+    oneOfCapabilities: [mobility.ground.set_velocity]
+    optional: true
+
+  - role: ground_output_5
+    ioType: output
+    oneOfCapabilities: [mobility.ground.set_velocity]
+    optional: true
+
+  - role: ground_output_6
+    ioType: output
+    oneOfCapabilities: [mobility.ground.set_velocity]
+    optional: true
+
+  - role: ground_output_7
+    ioType: output
+    oneOfCapabilities: [mobility.ground.set_velocity]
+    optional: true
+
+  - role: ground_output_8
     ioType: output
     oneOfCapabilities: [mobility.ground.set_velocity]
     optional: true
@@ -96,6 +126,78 @@ flows:
     guards: *simultaneous-guards
     safetyProfile: classroom-drone-monitoring
     outputRoles: [ground_output_2]
+    parallelGroup: simultaneous-classroom-cue
+    enabled: true
+
+  - flowId: cue-to-ground-output-3
+    version: 1
+    trigger: *simultaneous-trigger
+    command: *bounded-ground-cue
+    target:
+      role: ground_output_3
+    guards: *simultaneous-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_3]
+    parallelGroup: simultaneous-classroom-cue
+    enabled: true
+
+  - flowId: cue-to-ground-output-4
+    version: 1
+    trigger: *simultaneous-trigger
+    command: *bounded-ground-cue
+    target:
+      role: ground_output_4
+    guards: *simultaneous-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_4]
+    parallelGroup: simultaneous-classroom-cue
+    enabled: true
+
+  - flowId: cue-to-ground-output-5
+    version: 1
+    trigger: *simultaneous-trigger
+    command: *bounded-ground-cue
+    target:
+      role: ground_output_5
+    guards: *simultaneous-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_5]
+    parallelGroup: simultaneous-classroom-cue
+    enabled: true
+
+  - flowId: cue-to-ground-output-6
+    version: 1
+    trigger: *simultaneous-trigger
+    command: *bounded-ground-cue
+    target:
+      role: ground_output_6
+    guards: *simultaneous-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_6]
+    parallelGroup: simultaneous-classroom-cue
+    enabled: true
+
+  - flowId: cue-to-ground-output-7
+    version: 1
+    trigger: *simultaneous-trigger
+    command: *bounded-ground-cue
+    target:
+      role: ground_output_7
+    guards: *simultaneous-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_7]
+    parallelGroup: simultaneous-classroom-cue
+    enabled: true
+
+  - flowId: cue-to-ground-output-8
+    version: 1
+    trigger: *simultaneous-trigger
+    command: *bounded-ground-cue
+    target:
+      role: ground_output_8
+    guards: *simultaneous-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_8]
     parallelGroup: simultaneous-classroom-cue
     enabled: true
 

@@ -123,6 +123,10 @@ def test_nodes_advertise_only_model_supported_controls() -> None:
     assert "mobility.ground.set_velocity" in {
         capability.name for capability in dash.consumedCapabilities
     }
+    assert "mobility.ground.nudge" in {capability.name for capability in dash.consumedCapabilities}
+    assert "mobility.ground.demonstration.start" in {
+        capability.name for capability in dash.consumedCapabilities
+    }
     dash_velocity = next(
         capability
         for capability in dash.consumedCapabilities
@@ -133,6 +137,25 @@ def test_nodes_advertise_only_model_supported_controls() -> None:
         "robot.light.set",
         "media.audio.cue.play",
     }
+
+
+@pytest.mark.asyncio
+async def test_dash_translates_structured_turn_and_stop_but_dot_does_not_advertise_it() -> None:
+    transport = FakeWonderTransport(WonderRobotModel.DASH)
+    await transport.connect()
+    handler = WonderCommandHandler(
+        node_id="wonder-dash-aabbccddeeff",
+        model=WonderRobotModel.DASH,
+        transport=transport,
+    )
+
+    await handler.execute(_command("mobility.ground.nudge", {"direction": "right"}))
+    await handler.execute(_command("mobility.ground.nudge", {"direction": "stop"}))
+
+    assert transport.commands == [
+        ("velocity", (0.0, 0.0, 0.4)),
+        ("stop", ()),
+    ]
 
 
 @pytest.mark.asyncio

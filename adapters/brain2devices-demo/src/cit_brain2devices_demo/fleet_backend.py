@@ -176,10 +176,10 @@ class Brain2DevicesApiFleetSequenceBackend:
         self._arm_ttl_seconds = arm_ttl_seconds
         self._armed_deadline: float | None = None
         if allowed_drone_ids is not None and (
-            not 2 <= len(allowed_drone_ids) <= 8
+            not 1 <= len(allowed_drone_ids) <= 8
             or len(set(allowed_drone_ids)) != len(allowed_drone_ids)
         ):
-            raise ValueError("allowed_drone_ids must contain two to eight unique IDs")
+            raise ValueError("allowed_drone_ids must contain one to eight unique IDs")
         self._allowed_drone_ids = (
             None if allowed_drone_ids is None else frozenset(allowed_drone_ids)
         )
@@ -213,12 +213,12 @@ class Brain2DevicesApiFleetSequenceBackend:
         connected = [item for item in available if item["connection"] == "connected"]
         self._state.update(
             {
-                "available": len(connected) >= 2,
-                "phase": "idle" if len(connected) >= 2 else "unavailable",
+                "available": len(connected) >= 1,
+                "phase": "idle" if len(connected) >= 1 else "unavailable",
                 "message": (
                     f"{len(connected)} connected aircraft are ready for selection"
-                    if len(connected) >= 2
-                    else "Connect at least two independently routed Tellos"
+                    if len(connected) >= 1
+                    else "Connect at least one independently routed Tello"
                 ),
                 "availableDrones": available,
             }
@@ -317,6 +317,17 @@ class Brain2DevicesApiFleetSequenceBackend:
             await asyncio.gather(task, return_exceptions=True)
         self._task = None
         self._armed_deadline = None
+        self._state.update(
+            {
+                "active": True,
+                "armed": False,
+                "phase": "landing",
+                "progress": 0.0,
+                "message": "Landing the selected aircraft one at a time",
+                "error": None,
+                "landRequestedDroneIds": [],
+            }
+        )
         land_error = await self._request_land(self._selected)
         self._state.update(
             {
@@ -325,9 +336,9 @@ class Brain2DevicesApiFleetSequenceBackend:
                 "phase": "stopped" if land_error is None else "failed",
                 "progress": 0.0,
                 "message": (
-                    f"Sequence stopped; landing requested for the selected fleet: {reason}"
+                    f"Sequence stopped; every selected aircraft confirmed landed in order: {reason}"
                     if land_error is None
-                    else "Sequence stopped, but the local landing request failed"
+                    else "Sequence stopped, but one or more ordered landings failed"
                 ),
                 "error": land_error,
                 "landRequestedDroneIds": list(self._selected),
@@ -434,13 +445,66 @@ class Brain2DevicesApiFleetSequenceBackend:
         )
 
     async def _request_land(self, drone_ids: Sequence[str]) -> str | None:
-        if not drone_ids:
+        ordered_ids = tuple(dict.fromkeys(drone_ids))
+        if not ordered_ids:
             return None
-        try:
-            await self._api.fleet_command("land", tuple(drone_ids))
-        except Exception as error:
-            return str(error)[:500]
-        return None
+        failures: list[str] = []
+        requested: list[str] = []
+        total = len(ordered_ids)
+        for index, drone_id in enumerate(ordered_ids):
+            requested.append(drone_id)
+            self._state.update(
+                {
+                    "phase": "landing",
+                    "message": f"Landing aircraft {index + 1} of {total}: {drone_id}",
+                    "currentDroneId": drone_id,
+                    "landRequestedDroneIds": list(requested),
+                    "progress": index / total,
+                }
+            )
+            try:
+                await self._api.fleet_command("land", (drone_id,))
+                await self._wait_until_landed(drone_id)
+                launched = self._state.get("launchedDroneIds")
+                if isinstance(launched, list):
+                    self._state["launchedDroneIds"] = [
+                        item for item in launched if item != drone_id
+                    ]
+                self._state.update(
+                    {
+                        "message": f"Confirmed aircraft {index + 1} of {total} landed",
+                        "progress": (index + 1) / total,
+                    }
+                )
+            except Exception as error:
+                failures.append(f"{drone_id}: {str(error)[:300]}")
+        self._state["currentDroneId"] = None
+        return "; ".join(failures)[:500] or None
+
+    async def _wait_until_landed(self, drone_id: str) -> None:
+        for _attempt in range(self._confirmation_attempts):
+            drones = _fleet_drones(await self._api.state())
+            drone = drones.get(drone_id)
+            if drone is None:
+                raise FleetSequenceBackendError(
+                    f"Drone {drone_id!r} disappeared after the landing request"
+                )
+            if drone.get("flight") == "landed":
+                return
+            if drone.get("connection") != "connected":
+                raise FleetSequenceBackendError(
+                    f"Drone {drone_id!r} disconnected before landing confirmation"
+                )
+            command_error = drone.get("command_error")
+            if isinstance(command_error, dict) and command_error:
+                detail = command_error.get("detail") or command_error.get("title")
+                raise FleetSequenceBackendError(
+                    f"Drone {drone_id!r} rejected landing: {str(detail)[:300]}"
+                )
+            await self._sleep(self._confirmation_interval_seconds)
+        raise FleetSequenceBackendError(
+            f"Drone {drone_id!r} did not report landed before the confirmation timeout"
+        )
 
     def _approved_drones(
         self,
@@ -466,8 +530,8 @@ class SimulatedFleetSequenceBackend:
         monotonic: Callable[[], float] = time.monotonic,
         arm_ttl_seconds: float = 60.0,
     ) -> None:
-        if not 2 <= len(drone_ids) <= 8 or len(set(drone_ids)) != len(drone_ids):
-            raise ValueError("Simulation requires two to eight unique drone IDs")
+        if not 1 <= len(drone_ids) <= 8 or len(set(drone_ids)) != len(drone_ids):
+            raise ValueError("Simulation requires one to eight unique drone IDs")
         if not 5 <= arm_ttl_seconds <= 120:
             raise ValueError("arm_ttl_seconds must be from 5 to 120")
         self._available_drone_ids = tuple(drone_ids)
@@ -674,7 +738,7 @@ def _string_tuple(
     value: object,
     *,
     name: str,
-    minimum: int = 2,
+    minimum: int = 1,
     maximum: int = 8,
 ) -> tuple[str, ...]:
     if not isinstance(value, list) or not minimum <= len(value) <= maximum:

@@ -172,9 +172,11 @@ export interface FabricIntegrationDiscovery {
     | "lego"
     | "plug"
     | "robot"
+    | "ring"
     | "sphero"
     | "terminal"
     | "wonder";
+  imagePath?: string;
   status: FabricDiscoveryStatus;
   summary: string;
   connectionMethod: string;
@@ -251,6 +253,10 @@ export interface WonderRobotSelection {
 }
 
 export interface SpheroBoltSelection {
+  candidateId: string;
+}
+
+export interface SpheroOllieSelection {
   candidateId: string;
 }
 
@@ -436,15 +442,22 @@ export class FabricClient {
   runDiscoveryAction(
     actionId: string,
     confirmGrounded = false,
+    sessionId?: string,
   ): Promise<FabricDiscoveryActionResult> {
     if (!/^[a-z0-9][a-z0-9._-]*$/.test(actionId)) {
       throw new Error("The device connection action is invalid.");
+    }
+    if (
+      sessionId !== undefined &&
+      !/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(sessionId)
+    ) {
+      throw new Error("The lesson session identifier is invalid.");
     }
     return this.#request(
       `/api/v1/fabric/discovery/actions/${encodeURIComponent(actionId)}`,
       {
         method: "POST",
-        body: JSON.stringify({ confirmGrounded }),
+        body: JSON.stringify({ confirmGrounded, sessionId }),
       },
     );
   }
@@ -552,6 +565,26 @@ export class FabricClient {
     });
   }
 
+  connectSpheroOllies(
+    robots: SpheroOllieSelection[],
+  ): Promise<FabricDiscoveryActionResult> {
+    const candidateIds = robots.map((robot) => robot.candidateId);
+    if (
+      robots.length < 1 ||
+      robots.length > 4 ||
+      new Set(candidateIds).size !== candidateIds.length ||
+      robots.some(
+        (robot) => !/^sphero-ollie-[a-f0-9]{12}$/.test(robot.candidateId),
+      )
+    ) {
+      throw new Error("Select between one and four exact Sphero Ollie robots.");
+    }
+    return this.#request("/api/v1/fabric/sphero-ollie/connect", {
+      method: "POST",
+      body: JSON.stringify({ robots }),
+    });
+  }
+
   listCoursePacks(): Promise<CoursePack[]> {
     return this.#request("/api/v1/fabric/course-packs");
   }
@@ -632,11 +665,15 @@ export class FabricClient {
     });
   }
 
-  listLifecycle(afterSequence = 0): Promise<StoredFabricLifecycle[]> {
+  listLifecycle(
+    afterSequence = 0,
+    commandId?: string,
+  ): Promise<StoredFabricLifecycle[]> {
     const parameters = new URLSearchParams({
       afterSequence: String(afterSequence),
       limit: "100",
     });
+    if (commandId !== undefined) parameters.set("commandId", commandId);
     return this.#request(
       `/api/v1/fabric/commands/lifecycle?${parameters.toString()}`,
     );

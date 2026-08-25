@@ -1,42 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  availableDeviceControlKinds,
-  requiresSpatialSafetyConfirmation,
-  resolvedDeviceControlKind,
-} from "./fabric-device-controls.js";
+import { requiresSpatialSafetyConfirmation } from "./fabric-device-controls.js";
 
-describe("Fabric device-control modal policy", () => {
-  it("lists every available control category exactly once in a stable order", () => {
-    expect(
-      availableDeviceControlKinds({
-        sphero: 2,
-        wonder: 1,
-        drone: 3,
-        smartPlug: 2,
-      }),
-    ).toEqual(["sphero", "wonder", "drone", "smart_plug"]);
-
-    expect(
-      availableDeviceControlKinds({
-        sphero: 0,
-        wonder: 0,
-        drone: 0,
-        smartPlug: 0,
-      }),
-    ).toEqual([]);
-  });
-
-  it("keeps an available requested section and otherwise selects the first", () => {
-    const available = ["sphero", "smart_plug"] as const;
-
-    expect(resolvedDeviceControlKind("smart_plug", available)).toBe(
-      "smart_plug",
-    );
-    expect(resolvedDeviceControlKind("drone", available)).toBe("sphero");
-    expect(resolvedDeviceControlKind(undefined, [])).toBeUndefined();
-  });
-
+describe("Fabric device-control safety policy", () => {
   it("requires a position check only for spatial actuation capabilities", () => {
     expect(
       requiresSpatialSafetyConfirmation([

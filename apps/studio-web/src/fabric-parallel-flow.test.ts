@@ -39,7 +39,7 @@ describe("parallel Fabric flow presentation", () => {
           command: { action: "display.text.render" },
         },
       ],
-    } as CoursePack;
+    } as unknown as CoursePack;
 
     expect(parallelFlowGroups(coursePack)).toEqual([
       {
@@ -57,6 +57,43 @@ describe("parallel Fabric flow presentation", () => {
             action: "display.text.render",
           },
         ],
+      },
+    ]);
+  });
+
+  it("shows one output when several gestures target the same role and action", () => {
+    const coursePack = {
+      flows: [
+        {
+          flowId: "ring-forward",
+          enabled: true,
+          parallelGroup: "ring-control",
+          trigger: {
+            event: "interaction.gesture.smart_ring",
+            payloadEquals: { gesture: "scroll_up" },
+          },
+          target: { role: "ground_output_1" },
+          command: { action: "mobility.ground.set_velocity" },
+        },
+        {
+          flowId: "ring-stop",
+          enabled: true,
+          parallelGroup: "ring-control",
+          trigger: {
+            event: "interaction.gesture.smart_ring",
+            payloadEquals: { gesture: "tap" },
+          },
+          target: { role: "ground_output_1" },
+          command: { action: "mobility.ground.set_velocity" },
+        },
+      ],
+    } as unknown as CoursePack;
+
+    expect(parallelFlowGroups(coursePack)[0]?.outputs).toEqual([
+      {
+        flowId: "ring-forward",
+        role: "ground_output_1",
+        action: "mobility.ground.set_velocity",
       },
     ]);
   });

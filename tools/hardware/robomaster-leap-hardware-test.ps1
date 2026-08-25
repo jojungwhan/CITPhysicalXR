@@ -332,7 +332,10 @@ function Show-Preflight {
 
 function Build-Systems {
   if ($SkipBuild) { return }
-  Invoke-External (Resolve-Executable "uv") @("sync", "--all-packages", "--frozen") $repositoryRoot
+  Invoke-External `
+    (Resolve-Executable "uv") `
+    @("sync", "--all-packages", "--frozen", "--inexact") `
+    $repositoryRoot
   Invoke-External (Resolve-Executable "pnpm.cmd") @("install", "--frozen-lockfile") $repositoryRoot
   Invoke-External (Resolve-Executable "pnpm.cmd") @("build") $repositoryRoot
 }

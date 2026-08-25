@@ -11,6 +11,8 @@ param(
   [string]$SiteId = "cit-local",
   [string]$RoomId = "classroom-a",
   [string]$HostId = "",
+  [ValidateSet("bolt", "ollie")]
+  [string]$RobotVariant = "bolt",
   [switch]$Simulation,
   [switch]$SkipBuild,
   [switch]$NoOpenConsole
@@ -20,7 +22,16 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 $repositoryRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot "..\.."))
-if (-not $StateRoot) { $StateRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\sphero-bolt" }
+$isOllie = $RobotVariant -eq "ollie"
+$productName = if ($isOllie) { "Sphero Ollie" } else { "Sphero BOLT" }
+$packageName = if ($isOllie) { "cit-sphero-ollie" } else { "cit-sphero-bolt" }
+$moduleName = if ($isOllie) { "cit_sphero_ollie" } else { "cit_sphero_bolt" }
+$pluginId = if ($isOllie) { "cit.sphero-ollie" } else { "cit.sphero-bolt" }
+$modelName = if ($isOllie) { "sphero-ollie" } else { "sphero-bolt" }
+$nodePrefix = if ($isOllie) { "sphero-ollie" } else { "sphero-bolt" }
+$candidatePattern = if ($isOllie) { '^sphero-ollie-[a-f0-9]{12}$' } else { '^sphero-[a-f0-9]{12}$' }
+$advertisementLabel = if ($isOllie) { "2B-XXXX" } else { "SB-XXXX" }
+if (-not $StateRoot) { $StateRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\$nodePrefix" }
 if (-not $SharedFabricRoot) { $SharedFabricRoot = Join-Path $env:LOCALAPPDATA "CITPhysicalXR\interaction-fabric" }
 if (-not $HostId) { $HostId = "$($env:COMPUTERNAME.ToLowerInvariant())-sphero" }
 $StateRoot = [IO.Path]::GetFullPath($StateRoot)
@@ -102,8 +113,8 @@ function Stop-ExactProcess([object]$ProcessId) {
   $numericId = [int]$ProcessId
   $commandLine = Get-ProcessCommandLine $numericId
   if ($null -eq $commandLine) { return }
-  if (-not $commandLine.Contains("cit_sphero_bolt.fabric_main", [StringComparison]::OrdinalIgnoreCase)) {
-    Write-Warning "Ignoring stale PID $numericId because it is not the Sphero BOLT adapter"
+  if (-not $commandLine.Contains("$moduleName.fabric_main", [StringComparison]::OrdinalIgnoreCase)) {
+    Write-Warning "Ignoring stale PID $numericId because it is not the $productName adapter"
     return
   }
   Stop-Process -Id $numericId
@@ -137,14 +148,14 @@ function Wait-Until([scriptblock]$Condition, [string]$FailureMessage, [int]$Time
 }
 
 function ConvertTo-StartProcessArgument([string]$Value) {
-  if ($Value.Contains('"')) { throw "Sphero BOLT process arguments cannot contain quotes" }
+  if ($Value.Contains('"')) { throw "$productName process arguments cannot contain quotes" }
   if (-not $Value -or $Value -match '\s') { return '"' + $Value + '"' }
   return $Value
 }
 
-function Get-VisibleBolts {
-  $raw = & $runtimePython -m cit_sphero_bolt.discovery --duration 6 --json
-  if ($LASTEXITCODE -ne 0) { throw "Sphero BOLT Bluetooth discovery failed" }
+function Get-VisibleRobots {
+  $raw = & $runtimePython -m "$moduleName.discovery" --duration 6 --json
+  if ($LASTEXITCODE -ne 0) { throw "$productName Bluetooth discovery failed" }
   return @($raw | ConvertFrom-Json)
 }
 
@@ -152,7 +163,7 @@ function Resolve-Profile {
   $requested = if ($Mode -eq "ConfigureStart") {
     $raw = [Console]::In.ReadToEnd()
     if (-not $raw -or [Text.Encoding]::UTF8.GetByteCount($raw) -gt 8192) {
-      throw "Sphero BOLT setup must be a bounded JSON document"
+      throw "$productName setup must be a bounded JSON document"
     }
     $raw | ConvertFrom-Json -AsHashtable
   } else {
@@ -161,32 +172,32 @@ function Resolve-Profile {
   $requestedRobots = @(Expand-Sequence $(if ($requested.ContainsKey("robots")) { $requested.robots } else { @() }))
   $candidateIds = @($requestedRobots | ForEach-Object candidateId)
   if ($candidateIds.Count -lt 1 -or $candidateIds.Count -gt 4) {
-    throw "Select between one and four exact Sphero BOLT robots"
+    throw "Select between one and four exact $productName robots"
   }
   if (@($candidateIds | Select-Object -Unique).Count -ne $candidateIds.Count) {
-    throw "Select each Sphero BOLT only once"
+    throw "Select each $productName only once"
   }
   foreach ($robot in $requestedRobots) {
-    if ([string]$robot.candidateId -notmatch '^sphero-[a-f0-9]{12}$') {
-      throw "A selected Sphero BOLT candidate ID is invalid"
+    if ([string]$robot.candidateId -notmatch $candidatePattern) {
+      throw "A selected $productName candidate ID is invalid"
     }
   }
   if ($Simulation) {
     return @{
       schemaVersion = "1.0"
       robots = @($requestedRobots | ForEach-Object {
-        @{ candidateId = [string]$_.candidateId; displayName = "Simulated Sphero BOLT" }
+        @{ candidateId = [string]$_.candidateId; displayName = "Simulated $productName" }
       })
     }
   }
-  $visible = @(Get-VisibleBolts)
+  $visible = @(Get-VisibleRobots)
   $robots = foreach ($candidateId in $candidateIds) {
     $matches = @($visible | Where-Object { $_.candidateId -eq [string]$candidateId })
     if ($matches.Count -ne 1) {
-      throw "Selected BOLT $candidateId is no longer uniquely visible; scan again"
+      throw "Selected $productName $candidateId is no longer uniquely visible; scan again"
     }
-    if ([string]$matches[0].model -ne "sphero-bolt") {
-      throw "Selected BOLT $candidateId changed model identity; scan again"
+    if ([string]$matches[0].model -ne $modelName) {
+      throw "Selected $productName $candidateId changed model identity; scan again"
     }
     @{
       candidateId = [string]$matches[0].candidateId
@@ -209,16 +220,16 @@ if ($Mode -eq "Status") {
 
 Assert-Path $runtimePython "CIT runtime Python"
 if (-not $Simulation) {
-  & $runtimePython -c "import bleak, spherov2" 2>$null
+  & $runtimePython -c "import bleak, spherov2, $moduleName.discovery" 2>$null
   if ($LASTEXITCODE -ne 0) {
-    throw "Sphero BOLT Bluetooth support is missing; rerun the CIT business installer"
+    throw "$productName Bluetooth support is missing; rerun the CIT business installer"
   }
 }
 if ($Mode -eq "Preflight") {
   $robots = @(
-    if (-not $Simulation) { Get-VisibleBolts }
+    if (-not $Simulation) { Get-VisibleRobots }
   )
-  Write-Host "PASS read-only Bluetooth scan completed; $($robots.Count) exact SB-XXXX BOLT robot(s) visible"
+  Write-Host "PASS read-only Bluetooth scan completed; $($robots.Count) exact $advertisementLabel $productName robot(s) visible"
   foreach ($robot in $robots) { Write-Host "  $($robot.displayName) $($robot.candidateId)" }
   Write-Host "PASS no pairing, connection, wake, aim, light, or roll command was sent"
   exit 0
@@ -227,11 +238,11 @@ if ($Mode -eq "Preflight") {
 Assert-Path $bootstrapSecretPath "Shared Fabric credential; open Classroom Control first"
 $health = Invoke-RestMethod -Uri "$fabricOrigin/api/v1/fabric/healthz" -TimeoutSec 5
 if (-not $Simulation -and $health.physicalActuation -ne "enabled") {
-  throw "Enable classroom devices in Classroom Control before connecting real Sphero BOLT robots"
+  throw "Enable classroom devices in Classroom Control before connecting real $productName robots"
 }
 if (-not $SkipBuild) {
-  & uv sync --package cit-sphero-bolt --extra hardware --directory $repositoryRoot --inexact
-  if ($LASTEXITCODE -ne 0) { throw "Sphero BOLT dependency installation failed" }
+  & uv sync --package $packageName --extra hardware --directory $repositoryRoot --inexact
+  if ($LASTEXITCODE -ne 0) { throw "$productName dependency installation failed" }
 }
 $profile = Resolve-Profile
 if ($Mode -eq "ConfigureStart") { Save-JsonFile $profilePath $profile }
@@ -253,7 +264,7 @@ try {
   foreach ($robot in @(Expand-Sequence $profile.robots)) {
     $candidateId = [string]$robot.candidateId
     $suffix = $candidateId.Substring($candidateId.Length - 12)
-    $nodeId = "sphero-bolt-$suffix"
+    $nodeId = "$nodePrefix-$suffix"
     $existingRole = @(
       Expand-Sequence $session.roleBindings |
         Where-Object { $_.nodeId -eq $nodeId -and $_.role -like "robot_sensor_*" } |
@@ -268,13 +279,13 @@ try {
     $occupiedRoles += $role
     $identity = Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/auth/identities" -Credential $bootstrap -Body @{
       identityId = "cit-sphero-$suffix-$(([string]$session.sessionId).Substring(0, 8))"
-      actorType = "adapter"; roles = @("plugin.cit.sphero-bolt")
+      actorType = "adapter"; roles = @("plugin.$pluginId")
       permissions = @("fabric.adapters.connect", "fabric.events.publish", "fabric.nodes.write")
       siteId = $SiteId; roomId = $RoomId; sessionId = [string]$session.sessionId; ttlSeconds = 86400
     }
     $activationFile = Join-Path $StateRoot "$nodeId-active.signal"
     $arguments = @(
-      "-m", "cit_sphero_bolt.fabric_main",
+      "-m", "$moduleName.fabric_main",
       "--adapter-url", $adapterUrl,
       "--fabric-origin", $fabricOrigin,
       "--session-id", [string]$session.sessionId,
@@ -338,7 +349,7 @@ try {
   throw
 }
 
-Write-Host "READY $($adapterStates.Count) selected Sphero BOLT robot(s) connected for unarmed sensor monitoring."
+Write-Host "READY $($adapterStates.Count) selected $productName robot(s) connected for unarmed sensor monitoring."
 Write-Host "Aim reset and movement remain locked until a tutor arms the physical session."
 if (-not $NoOpenConsole) {
   & (Join-Path $PSScriptRoot "interaction-fabric-console.ps1") -Mode Open -FabricPort $FabricPort -StateRoot $SharedFabricRoot

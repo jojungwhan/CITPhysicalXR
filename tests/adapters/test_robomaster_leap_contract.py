@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from cit_protocol import (
@@ -17,6 +18,8 @@ from cit_robomaster_leap import (
     LEAP_PLUGIN_ID,
     PLUGIN_ID,
     ROBOMASTER_PLUGIN_ID,
+    ROBOT_LIGHT_CAPABILITY,
+    ROBOT_NUDGE_CAPABILITY,
     ROBOT_VELOCITY_CAPABILITY,
     UPSTREAM_REVISION,
     build_leap_manifest,
@@ -30,6 +33,7 @@ from cit_robomaster_leap import (
 from cit_robomaster_leap.backend import GestureSignal
 from cit_robomaster_leap.bridge import BridgeConfiguration, FabricRobotLeapBridge
 from cit_robomaster_leap.independent_bridges import LeapFlightSequenceIntentProjector
+from cit_robomaster_leap.robot_commands import RobotCommandHandler
 from cit_runtime.fabric import FabricDispatchOutcome, InteractionFabric
 from cit_runtime.fabric_course import (
     gesture_ground_robot_course_pack as runtime_course_pack,
@@ -78,10 +82,26 @@ def test_manifest_exposes_independent_input_and_robot_nodes() -> None:
     assert leap.publishedCapabilities[0].name == GESTURE_CAPABILITY
     assert leap.consumedCapabilities == []
     assert {item.name for item in robot.consumedCapabilities} == {
+        ROBOT_NUDGE_CAPABILITY,
+        "mobility.ground.demonstration.start",
         ROBOT_VELOCITY_CAPABILITY,
         "mobility.ground.stop",
+        ROBOT_LIGHT_CAPABILITY,
     }
     assert robot.publishedCapabilities[0].name == "telemetry.motion.commanded"
+
+    app_robot = build_robot_node(
+        at=NOW,
+        host_id="edge-host-a",
+        site_id="local-site",
+        room_id="local-room",
+        node_id="s1-app-a",
+        simulated=False,
+        robot_mode="s1-app",
+    )
+    assert ROBOT_LIGHT_CAPABILITY not in {
+        capability.name for capability in app_robot.consumedCapabilities
+    }
     assert leap.nodeId != robot.nodeId
     leap_metadata = leap.metadata.model_dump(mode="json")
     robot_metadata = robot.metadata.model_dump(mode="json")
@@ -114,6 +134,75 @@ def test_independent_process_contracts_have_independent_plugin_identities() -> N
     assert build_robot_manifest().pluginId == robot.pluginId == ROBOMASTER_PLUGIN_ID
     assert leap.consumedCapabilities == []
     assert robot.publishedCapabilities[0].name == "telemetry.motion.commanded"
+
+
+@pytest.mark.asyncio
+async def test_robomaster_translates_structured_nudge_and_stop_inside_adapter() -> None:
+    class RecordingBackend:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, object]] = []
+
+        async def start(self) -> None:
+            return None
+
+        async def set_velocity(
+            self,
+            *,
+            forward: float,
+            right: float,
+            clockwise: float,
+            idempotency_key: str,
+        ) -> dict[str, object]:
+            self.calls.append(("velocity", (forward, right, clockwise)))
+            return {"accepted": True}
+
+        async def set_light(
+            self,
+            *,
+            red: int,
+            green: int,
+            blue: int,
+            idempotency_key: str,
+        ) -> dict[str, object]:
+            self.calls.append(("light", (red, green, blue)))
+            return {"accepted": True}
+
+        async def stop(self, *, reason: str) -> None:
+            self.calls.append(("stop", reason))
+
+        async def close(self) -> None:
+            return None
+
+    def command(direction: str) -> FabricResolvedCommand:
+        requested_at = datetime.now(UTC)
+        return FabricResolvedCommand.model_validate(
+            {
+                "commandId": str(uuid4()),
+                "requestMessageId": str(uuid4()),
+                "schemaVersion": "1.0",
+                "sessionId": "session-a",
+                "targetNodeId": "s1-a",
+                "action": ROBOT_NUDGE_CAPABILITY,
+                "parameters": {"direction": direction},
+                "priority": "lesson_automation",
+                "idempotencyKey": str(uuid4()),
+                "requestedAt": requested_at,
+                "expiresAt": requested_at + timedelta(seconds=1),
+                "safetyProfile": "classroom-ground-robot",
+                "correlationId": str(uuid4()),
+            }
+        )
+
+    backend = RecordingBackend()
+    handler = RobotCommandHandler(backend, robot_node_id="s1-a")
+
+    await handler.execute(command("left"))
+    await handler.execute(command("stop"))
+
+    assert backend.calls == [
+        ("velocity", (0.0, -0.12, 0.0)),
+        ("stop", "fabric_nudge_stop"),
+    ]
 
 
 def test_leap_emits_one_fleet_intent_on_each_deliberate_driving_transition() -> None:

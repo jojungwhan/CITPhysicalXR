@@ -6,6 +6,14 @@ export interface AgentMeshWearable {
   readonly lastUsedAt?: string;
 }
 
+export interface AgentMeshCompanionInput {
+  readonly parentDeviceId: string;
+  readonly displayName: string;
+  readonly kind: "even_r1";
+  readonly status: "active" | "expired" | "revoked";
+  readonly lastUsedAt: string;
+}
+
 export interface AgentMeshSession {
   readonly sessionId: string;
   readonly agent: "codex" | "claude";
@@ -25,7 +33,90 @@ export interface AgentMeshSession {
 export interface AgentMeshDiscovery {
   readonly generatedAt: string;
   readonly wearables: AgentMeshWearable[];
+  readonly companionInputs?: AgentMeshCompanionInput[];
   readonly sessions: AgentMeshSession[];
+}
+
+export type CitFabricControlAction =
+  | "forward"
+  | "backward"
+  | "left"
+  | "right"
+  | "stop"
+  | "light"
+  | "demo"
+  | "takeoff"
+  | "land";
+
+export interface CitFabricControlTarget {
+  readonly role: string;
+  readonly nodeId: string;
+  readonly displayName: string;
+  readonly kind: "ground_robot" | "drone_fleet";
+  readonly connectionState:
+    "connected" | "degraded" | "disconnected" | "unavailable";
+  readonly actions: CitFabricControlAction[];
+}
+
+export interface CitFabricControlInventory {
+  readonly generatedAt: string;
+  readonly expiresAt: string;
+  readonly sessionId: string;
+  readonly coursePackId:
+    "glasses-device-control" | "synchronized-motor-control";
+  readonly sessionState:
+    | "draft"
+    | "ready"
+    | "active"
+    | "paused"
+    | "stopped"
+    | "emergency_stopped"
+    | "failed";
+  readonly armed: boolean;
+  readonly targets: CitFabricControlTarget[];
+}
+
+interface AgentMeshInteractionBase {
+  readonly interactionId: string;
+  readonly sequence: number;
+  readonly deviceId: string;
+  readonly deviceDisplayName: string;
+  readonly createdAt: string;
+}
+
+export interface AgentMeshRingInteraction extends AgentMeshInteractionBase {
+  readonly deviceKind: "even_g2";
+  readonly source: "even_r1";
+  readonly gesture: "tap" | "double_tap" | "scroll_up" | "scroll_down";
+}
+
+export interface AgentMeshDeviceControlInteraction extends AgentMeshInteractionBase {
+  readonly deviceKind: "even_g2" | "ray_ban";
+  readonly source: "device_control";
+  readonly action:
+    | "forward"
+    | "backward"
+    | "left"
+    | "right"
+    | "stop"
+    | "light"
+    | "demo"
+    | "takeoff"
+    | "land"
+    | "activate";
+  readonly target:
+    "ground_outputs" | "tello_fleet" | "assigned_output" | "all_outputs";
+  readonly targetRole?: string;
+  readonly batchId?: string;
+  readonly confirmed: true;
+}
+
+export type AgentMeshInteraction =
+  AgentMeshRingInteraction | AgentMeshDeviceControlInteraction;
+
+export interface AgentMeshInteractionFeed {
+  readonly interactions: AgentMeshInteraction[];
+  readonly nextCursor: number;
 }
 
 export interface AgentMeshIntent {

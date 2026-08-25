@@ -12,6 +12,9 @@ PLUGIN_VERSION = "0.1.0"
 RUNTIME_VERSION = "python-3.11"
 BRAIN2DEVICES_REVISION = external_source("brain2devices").revision
 
+TAKEOFF_CAPABILITY = capability_name("flight_takeoff")
+MOVE_CAPABILITY = capability_name("flight_move")
+ROTATE_CAPABILITY = capability_name("flight_rotate")
 LAND_CAPABILITY = capability_name("flight_land")
 EMERGENCY_STOP_CAPABILITY = capability_name("flight_emergency_stop")
 TELEMETRY_CAPABILITY = capability_name("flight_telemetry")
@@ -40,8 +43,10 @@ def build_manifest() -> PluginManifest:
                 },
             },
             "publishedCapabilities": [capability_descriptor("flight_telemetry", "publish")],
-            # The first safe slice intentionally excludes takeoff and movement.
             "consumedCapabilities": [
+                capability_descriptor("flight_takeoff", "consume"),
+                capability_descriptor("flight_move", "consume"),
+                capability_descriptor("flight_rotate", "consume"),
                 capability_descriptor("flight_land", "consume"),
                 capability_descriptor("flight_emergency_stop", "consume"),
             ],
@@ -51,9 +56,8 @@ def build_manifest() -> PluginManifest:
             "simulatorAvailability": "included",
             "vendor": "CIT wrapper of local Brain2Devices",
             "description": (
-                "Runs independently from MindWave and exposes telemetry plus local safe-state "
-                "commands. Takeoff and movement stay unavailable until the Fabric flight "
-                "policy is implemented and hardware-validated."
+                "Runs independently from MindWave and exposes telemetry, bounded instructor "
+                "flight commands, and local safe-state commands."
             ),
         }
     )
@@ -87,6 +91,9 @@ def build_node(
             "healthState": "healthy",
             "publishedCapabilities": [capability_descriptor("flight_telemetry", "publish")],
             "consumedCapabilities": [
+                capability_descriptor("flight_takeoff", "consume"),
+                capability_descriptor("flight_move", "consume"),
+                capability_descriptor("flight_rotate", "consume"),
                 capability_descriptor("flight_land", "consume"),
                 capability_descriptor("flight_emergency_stop", "consume"),
             ],
@@ -102,8 +109,14 @@ def build_node(
                 "ipAddress": ip_address,
                 "brain2devicesRevision": BRAIN2DEVICES_REVISION,
                 "brain2devicesDroneId": brain2devices_drone_id,
-                "flightCommandsEnabled": [LAND_CAPABILITY, EMERGENCY_STOP_CAPABILITY],
-                "takeoffEnabled": False,
+                "flightCommandsEnabled": [
+                    TAKEOFF_CAPABILITY,
+                    MOVE_CAPABILITY,
+                    ROTATE_CAPABILITY,
+                    LAND_CAPABILITY,
+                    EMERGENCY_STOP_CAPABILITY,
+                ],
+                "takeoffEnabled": True,
             },
         }
     )

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -8,7 +8,9 @@ import pytest
 from cit_matter_smart_plug import build_manifest, build_node
 from cit_protocol import (
     CreateInteractionSessionRequest,
+    FabricCommandLifecycleEvent,
     FabricCommandRequest,
+    FabricEventEnvelope,
     FabricResolvedCommand,
     IntegrationNode,
 )
@@ -63,6 +65,7 @@ async def setup_physical_plug(
         display_name="Approved classroom plug",
         vendor_name="Matter",
         product_name="approved-load-plug",
+        electrical_telemetry=True,
     )
     fabric.register_plugin_and_nodes(build_manifest(), (node,))
     fabric.install_course_pack(smart_plug_course_pack(), actor_id="instructor-a")
@@ -109,6 +112,101 @@ async def test_off_is_a_safe_state_but_on_requires_active_armed_physical_session
         {"on": False},
         {"on": True},
     ]
+
+
+@pytest.mark.asyncio
+async def test_safe_off_result_is_accepted_before_the_physical_session_starts() -> None:
+    dispatched: list[FabricResolvedCommand] = []
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(repository, clock=lambda: NOW, allow_physical=True)
+        session_id, node = await setup_physical_plug(fabric, dispatched)
+
+        lifecycle = await fabric.submit_command(request(session_id, on=False))
+        [command] = dispatched
+        assert lifecycle[-1].stage.value == "DISPATCHED"
+        for stage in ("ACCEPTED", "RUNNING", "SUCCEEDED"):
+            fabric.accept_adapter_lifecycle(
+                FabricCommandLifecycleEvent.model_validate(
+                    {
+                        "messageId": str(uuid4()),
+                        "schemaVersion": "1.0",
+                        "messageType": "command.lifecycle",
+                        "commandId": command.commandId,
+                        "requestMessageId": command.requestMessageId,
+                        "sessionId": command.sessionId,
+                        "targetNodeId": command.targetNodeId,
+                        "stage": stage,
+                        "occurredAt": NOW,
+                        "correlationId": command.correlationId,
+                        "details": {"on": False},
+                    }
+                )
+            )
+
+        state_result = await fabric.ingest_event(
+            FabricEventEnvelope.model_validate(
+                {
+                    "messageId": str(uuid4()),
+                    "schemaVersion": "1.0",
+                    "messageType": "event",
+                    "topic": "power.switch.state",
+                    "sourceNodeId": node.nodeId,
+                    "sourceCapability": "power.switch.state",
+                    "siteId": node.siteId,
+                    "roomId": node.roomId,
+                    "sessionId": session_id,
+                    "timestamp": NOW,
+                    "monotonicTimestamp": 1,
+                    "sequence": 1,
+                    "correlationId": command.correlationId,
+                    "causationId": str(command.commandId),
+                    "ttlMs": int(timedelta(seconds=2).total_seconds() * 1_000),
+                    "dataClassification": "operational",
+                    "payload": {
+                        "on": False,
+                        "source": "command",
+                        "vendorBrand": "Matter",
+                        "cloudDependency": False,
+                    },
+                }
+            )
+        )
+        electrical_result = await fabric.ingest_event(
+            FabricEventEnvelope.model_validate(
+                {
+                    "messageId": str(uuid4()),
+                    "schemaVersion": "1.0",
+                    "messageType": "event",
+                    "topic": "telemetry.power.electrical",
+                    "sourceNodeId": node.nodeId,
+                    "sourceCapability": "telemetry.power.electrical",
+                    "siteId": node.siteId,
+                    "roomId": node.roomId,
+                    "sessionId": session_id,
+                    "timestamp": NOW,
+                    "monotonicTimestamp": 2,
+                    "sequence": 2,
+                    "correlationId": command.correlationId,
+                    "causationId": str(command.commandId),
+                    "ttlMs": int(timedelta(seconds=2).total_seconds() * 1_000),
+                    "dataClassification": "operational",
+                    "payload": {
+                        "activePowerWatts": 0.0,
+                        "source": "command",
+                        "standard": "Matter 1.3",
+                    },
+                }
+            )
+        )
+
+    assert state_result.stored_event is not None
+    assert state_result.stored_event.event.payload.model_dump(mode="json")["on"] is False
+    assert state_result.command_lifecycle == ()
+    assert electrical_result.stored_event is not None
+    assert electrical_result.stored_event.event.payload.model_dump(mode="json")[
+        "activePowerWatts"
+    ] == pytest.approx(0.0)
+    assert electrical_result.command_lifecycle == ()
 
 
 @pytest.mark.asyncio

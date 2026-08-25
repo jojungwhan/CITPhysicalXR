@@ -269,7 +269,7 @@ class FabricRoboMasterBridge:
                 for task in done:
                     task.result()
         finally:
-            await self._robot.stop(reason="fabric_bridge_shutdown")
+            await self._handler.safe_stop(reason="fabric_bridge_shutdown")
             await self._robot.close()
 
     async def _receive(self, client: FabricAdapterClient) -> None:

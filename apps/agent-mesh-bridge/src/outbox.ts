@@ -13,7 +13,7 @@ import {
 export interface BridgeEventReceipt {
   readonly messageId: string;
   readonly sourceKey: string;
-  readonly kind: "intent" | "completion";
+  readonly kind: "intent" | "interaction" | "completion";
   readonly agentMeshIntentId?: string;
   readonly agentMeshCommandId?: string;
   readonly agentMeshSessionId?: string;
@@ -579,7 +579,9 @@ const parseReceipt = (encoded: string): BridgeEventReceipt => {
   if (
     typeof receipt.messageId !== "string" ||
     typeof receipt.sourceKey !== "string" ||
-    (receipt.kind !== "intent" && receipt.kind !== "completion") ||
+    (receipt.kind !== "intent" &&
+      receipt.kind !== "interaction" &&
+      receipt.kind !== "completion") ||
     typeof receipt.alreadyDispatched !== "boolean" ||
     typeof receipt.legacyDisplayDelivered !== "boolean" ||
     (receipt.semanticSha256 !== undefined &&

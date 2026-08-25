@@ -102,6 +102,59 @@ describe("Fabric client credentials", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("can scope lifecycle polling to one exact command", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response("[]", {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+    client.setCredential("cit-instructor-" + "l".repeat(40));
+
+    await client.listLifecycle(0, "command-a");
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://runtime.example.test/api/v1/fabric/commands/lifecycle?afterSequence=0&limit=100&commandId=command-a",
+    );
+  });
+
+  it("attaches a fixed glasses action to one exact lesson session", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          actionId: "cit.glasses-device-control.connect",
+          accepted: true,
+          message: "Attached.",
+          report: {},
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+    client.setCredential("cit-instructor-" + "d".repeat(40));
+
+    await client.runDiscoveryAction(
+      "cit.glasses-device-control.connect",
+      false,
+      "glasses-session-01",
+    );
+
+    const [, init] = fetchMock.mock.calls[0] ?? [];
+    expect(JSON.parse(String(init?.body))).toEqual({
+      confirmGrounded: false,
+      sessionId: "glasses-session-01",
+    });
+    expect(() =>
+      client.runDiscoveryAction(
+        "cit.glasses-device-control.connect",
+        false,
+        "../../wrong",
+      ),
+    ).toThrow("session identifier is invalid");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("uses dedicated remembered-device routes without invoking a scan", async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
@@ -296,6 +349,35 @@ describe("Fabric client credentials", () => {
     expect(() =>
       client.connectSpheroBolts([{ candidateId: "nearest-robot" }]),
     ).toThrow("exact Sphero BOLT");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("sends exact Ollie selections only to the independent Ollie route", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          actionId: "cit.sphero-ollie.configure-connect",
+          accepted: true,
+          message: "Connected.",
+          report: {},
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const client = new FabricClient("http://127.0.0.1:8766", fetchMock);
+    client.setCredential("cit-instructor-" + "o".repeat(40));
+    const robots = [{ candidateId: "sphero-ollie-aabbccddeeff" }];
+
+    await client.connectSpheroOllies(robots);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(
+      "http://127.0.0.1:8766/api/v1/fabric/sphero-ollie/connect",
+    );
+    expect(JSON.parse(String(init?.body))).toEqual({ robots });
+    expect(() =>
+      client.connectSpheroOllies([{ candidateId: "sphero-aabbccddeeff" }]),
+    ).toThrow("exact Sphero Ollie");
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 

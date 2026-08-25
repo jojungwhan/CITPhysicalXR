@@ -29,9 +29,9 @@ semantic gesture pulse. `Verify` should report at least one gesture event, one
 bounded robot-command event, and one `SUCCEEDED` lifecycle.
 
 The Windows **CIT Classroom Control** button and the robot launcher open the
-same browser screen with automatic local sign-in. If the browser was closed,
-use the Windows Desktop or Start menu button again; it reopens the screen
-without restarting the adapter.
+same dedicated app screen with automatic local sign-in. Reopening replaces the
+previous CIT-owned window, so adapter connections do not accumulate browser
+tabs. Normal browser windows are untouched, and the adapter is not restarted.
 
 Choose **Gesture-controlled robot**. Confirm the gesture controller and
 classroom robot show **Ready**, complete the safety check, and start the lesson.
@@ -65,6 +65,10 @@ Use **Stop robot** for a harmless output test before allowing movement.
 For DJI SDK mode, power on the robot, enable SDK mode, connect this computer by
 AP, STA, or RNDIS as appropriate, and close the desktop RoboMaster app before
 STA broadcast discovery. Passing `-RobotIp` skips broadcast discovery.
+SDK mode advertises the S1's native LED capability, so the G2 assigned-output
+menu can set the bounded classroom color. The Windows-app transport does not
+advertise LED control because its documented keyboard boundary exposes only
+movement.
 
 For a stock S1 using its Windows app, open the live drive view first and select
 `-RobotTransport s1-app`. The upstream focus interlock releases W/A/S/D if the

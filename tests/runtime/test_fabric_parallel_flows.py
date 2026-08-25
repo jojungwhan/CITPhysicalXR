@@ -14,7 +14,7 @@ from cit_protocol import (
     PluginManifest,
 )
 from cit_runtime.fabric import FabricDispatchOutcome, InteractionFabric
-from cit_runtime.fabric_course import validate_course_pack
+from cit_runtime.fabric_course import load_builtin_course_pack, validate_course_pack
 from cit_runtime.fabric_repository import SQLiteFabricRepository
 
 NOW = datetime(2026, 8, 23, 8, 0, 0, tzinfo=UTC)
@@ -224,6 +224,32 @@ def test_course_validation_rejects_command_target_declared_as_input_only() -> No
 
     with pytest.raises(ValueError, match="cannot target input-only role"):
         validate_course_pack(invalid)
+
+
+def test_synchronized_motor_course_keeps_each_input_on_bounded_parallel_flows() -> None:
+    course = load_builtin_course_pack("synchronized-motor-control")
+    validate_course_pack(course)
+
+    ground_roles = {f"ground_output_{index}" for index in range(1, 9)}
+    voice = [flow for flow in course.flows if flow.parallelGroup == "synchronized-voice-ground"]
+    ring = [
+        flow
+        for flow in course.flows
+        if flow.parallelGroup
+        in {
+            "synchronized-ring-forward",
+            "synchronized-ring-backward",
+            "synchronized-ring-stop",
+        }
+    ]
+    mindwave = [flow for flow in course.flows if flow.parallelGroup == "synchronized-mindwave-demo"]
+
+    assert {flow.target.role for flow in voice} == ground_roles
+    assert len(ring) == 24
+    assert {flow.target.role for flow in mindwave} == ground_roles
+    assert all(flow.command.action == "mobility.ground.nudge" for flow in voice + ring)
+    assert all(flow.command.action == "mobility.ground.demonstration.start" for flow in mindwave)
+    assert all("target_is_armed" in {guard.value for guard in flow.guards} for flow in course.flows)
 
 
 @pytest.mark.asyncio

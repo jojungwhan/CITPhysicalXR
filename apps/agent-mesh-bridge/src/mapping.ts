@@ -13,7 +13,10 @@ import type { BridgeConfig } from "./config.js";
 import type { BridgeOutbox } from "./outbox.js";
 import type {
   AgentMeshCompletion,
+  AgentMeshCompanionInput,
   AgentMeshDiscovery,
+  AgentMeshDeviceControlInteraction,
+  AgentMeshRingInteraction,
   AgentMeshIntent,
   AgentMeshSession,
   AgentMeshWearable,
@@ -25,6 +28,9 @@ export const AGENT_MESH_PLUGIN_ID = "cit.agent-mesh-bridge";
 export const INTENT_CAPABILITY = "interaction.intent.agent_prompt";
 export const FLIGHT_SEQUENCE_INTENT_CAPABILITY =
   "interaction.intent.flight_sequence_start";
+export const RING_GESTURE_CAPABILITY = "interaction.gesture.smart_ring";
+export const DEVICE_CONTROL_INTENT_CAPABILITY =
+  "interaction.intent.device_control";
 export const AGENT_PROMPT_CAPABILITY = "agent.prompt.submit";
 export const AGENT_OUTPUT_CAPABILITY = "agent.output.completed";
 export const DISPLAY_CAPABILITY = "display.text.render";
@@ -64,8 +70,58 @@ const flightSequenceIntentCapability: CapabilityDescriptor = {
   dataClassification: "operational",
   constraints: {
     semanticOnly: true,
-    exactPhrasesOnly: true,
+    structuredIntentOnly: true,
+    acceptedModalities: ["voice", "smart_ring"],
     rawTranscriptExcluded: true,
+  },
+};
+
+const ringGestureCapability: CapabilityDescriptor = {
+  name: RING_GESTURE_CAPABILITY,
+  version: "1.0",
+  direction: "publish",
+  latencyClass: "interactive",
+  safetyClassification: "informational",
+  dataClassification: "operational",
+  constraints: {
+    semanticOnly: true,
+    source: "even_r1",
+    gestures: ["tap", "double_tap", "scroll_up", "scroll_down"],
+  },
+};
+
+const deviceControlIntentCapability: CapabilityDescriptor = {
+  name: DEVICE_CONTROL_INTENT_CAPABILITY,
+  version: "1.0",
+  direction: "publish",
+  latencyClass: "interactive",
+  safetyClassification: "informational",
+  dataClassification: "operational",
+  constraints: {
+    semanticOnly: true,
+    structuredIntentOnly: true,
+    rawTranscriptExcluded: true,
+    confirmedOnly: true,
+    actions: [
+      "forward",
+      "backward",
+      "left",
+      "right",
+      "stop",
+      "light",
+      "demo",
+      "takeoff",
+      "land",
+      "activate",
+    ],
+    targets: [
+      "ground_outputs",
+      "tello_fleet",
+      "assigned_output",
+      "all_outputs",
+    ],
+    exactLessonRoleSelection: true,
+    correlatedBatchId: true,
   },
 };
 
@@ -110,6 +166,7 @@ export interface AgentMeshFabricMapping {
   readonly manifest: PluginManifest;
   readonly nodes: [IntegrationNode, ...IntegrationNode[]];
   readonly wearableNodeByDeviceId: ReadonlyMap<string, IntegrationNode>;
+  readonly companionNodeByParentDeviceId: ReadonlyMap<string, IntegrationNode>;
   readonly agentNodeBySessionId: ReadonlyMap<string, IntegrationNode>;
   readonly agentSessionByNodeId: ReadonlyMap<string, AgentMeshSession>;
 }
@@ -119,6 +176,7 @@ export const mapDiscovery = (
   config: BridgeConfig,
 ): AgentMeshFabricMapping => {
   const wearableNodeByDeviceId = new Map<string, IntegrationNode>();
+  const companionNodeByParentDeviceId = new Map<string, IntegrationNode>();
   const agentNodeBySessionId = new Map<string, IntegrationNode>();
   const agentSessionByNodeId = new Map<string, AgentMeshSession>();
   for (const wearable of discovery.wearables) {
@@ -128,7 +186,24 @@ export const mapDiscovery = (
   if (wearableNodeByDeviceId.size > MAX_ADAPTER_NODES) {
     throw new TypeError("Agent Mesh discovery exceeds the wearable-node limit");
   }
-  const agentCapacity = MAX_ADAPTER_NODES - wearableNodeByDeviceId.size;
+  for (const companion of discovery.companionInputs ?? []) {
+    const parent = wearableNodeByDeviceId.get(companion.parentDeviceId);
+    if (parent === undefined || parent.metadata.model !== "even-realities-g2") {
+      continue;
+    }
+    const node = companionInputNode(companion, config, discovery.generatedAt);
+    companionNodeByParentDeviceId.set(companion.parentDeviceId, node);
+  }
+  if (
+    wearableNodeByDeviceId.size + companionNodeByParentDeviceId.size >
+    MAX_ADAPTER_NODES
+  ) {
+    throw new TypeError("Agent Mesh discovery exceeds the input-node limit");
+  }
+  const agentCapacity =
+    MAX_ADAPTER_NODES -
+    wearableNodeByDeviceId.size -
+    companionNodeByParentDeviceId.size;
   const selectedSessions = [...discovery.sessions]
     .sort(
       (left, right) =>
@@ -143,6 +218,7 @@ export const mapDiscovery = (
   }
   const nodes = [
     ...wearableNodeByDeviceId.values(),
+    ...companionNodeByParentDeviceId.values(),
     ...agentNodeBySessionId.values(),
   ];
   if (nodes.length === 0) {
@@ -164,6 +240,8 @@ export const mapDiscovery = (
     publishedCapabilities: [
       intentCapability,
       flightSequenceIntentCapability,
+      ringGestureCapability,
+      deviceControlIntentCapability,
       outputCapability,
     ],
     consumedCapabilities: [promptCapability, displayCapability],
@@ -181,9 +259,139 @@ export const mapDiscovery = (
     manifest,
     nodes: nodes as [IntegrationNode, ...IntegrationNode[]],
     wearableNodeByDeviceId,
+    companionNodeByParentDeviceId,
     agentNodeBySessionId,
     agentSessionByNodeId,
   };
+};
+
+export const ringGestureEventFrame = (
+  interaction: AgentMeshRingInteraction,
+  sourceNode: IntegrationNode,
+  config: BridgeConfig,
+  outbox: BridgeOutbox,
+): AdapterEventFrame => {
+  const frame: AdapterEventFrame = {
+    frameType: "adapter.event",
+    frameId: randomUUID(),
+    protocolVersion: 1,
+    event: {
+      messageId: interaction.interactionId,
+      schemaVersion: "1.0",
+      messageType: "event",
+      topic: RING_GESTURE_CAPABILITY,
+      sourceNodeId: sourceNode.nodeId,
+      sourceCapability: RING_GESTURE_CAPABILITY,
+      siteId: config.siteId,
+      roomId: config.roomId,
+      sessionId: config.fabricSessionId,
+      timestamp: interaction.createdAt,
+      monotonicTimestamp: Date.now(),
+      sequence: outbox.nextNodeSequence(sourceNode.nodeId),
+      correlationId: interaction.interactionId,
+      confidence: 1,
+      ttlMs: 5_000,
+      dataClassification: "operational",
+      payload: {
+        gesture: interaction.gesture,
+        inputModality: "smart_ring",
+        inputDevice: "even_r1",
+        pairedGlassesDeviceId: interaction.deviceId,
+      },
+    },
+    sentAt: new Date().toISOString(),
+  };
+  assertValid("AdapterEventFrame", frame);
+  return frame;
+};
+
+export const deviceControlEventFrame = (
+  interaction: AgentMeshDeviceControlInteraction,
+  sourceNode: IntegrationNode,
+  config: BridgeConfig,
+  outbox: BridgeOutbox,
+): AdapterEventFrame => {
+  const frame: AdapterEventFrame = {
+    frameType: "adapter.event",
+    frameId: randomUUID(),
+    protocolVersion: 1,
+    event: {
+      messageId: interaction.interactionId,
+      schemaVersion: "1.0",
+      messageType: "event",
+      topic: DEVICE_CONTROL_INTENT_CAPABILITY,
+      sourceNodeId: sourceNode.nodeId,
+      sourceCapability: DEVICE_CONTROL_INTENT_CAPABILITY,
+      siteId: config.siteId,
+      roomId: config.roomId,
+      sessionId: config.fabricSessionId,
+      timestamp: interaction.createdAt,
+      monotonicTimestamp: Date.now(),
+      sequence: outbox.nextNodeSequence(sourceNode.nodeId),
+      correlationId: interaction.batchId ?? interaction.interactionId,
+      confidence: 1,
+      ttlMs: 5_000,
+      dataClassification: "operational",
+      payload: {
+        action: interaction.action,
+        target: interaction.target,
+        ...(interaction.targetRole === undefined
+          ? {}
+          : { targetRole: interaction.targetRole }),
+        ...(interaction.batchId === undefined
+          ? {}
+          : { batchId: interaction.batchId }),
+        confirmed: interaction.confirmed,
+        inputModality: "voice",
+        deviceKind: interaction.deviceKind,
+      },
+    },
+    sentAt: new Date().toISOString(),
+  };
+  assertValid("AdapterEventFrame", frame);
+  return frame;
+};
+
+export const ringFlightSequenceIntentFrame = (
+  interaction: AgentMeshRingInteraction,
+  sourceNode: IntegrationNode,
+  config: BridgeConfig,
+  outbox: BridgeOutbox,
+): AdapterEventFrame | undefined => {
+  if (interaction.gesture !== "double_tap") return undefined;
+  const frame: AdapterEventFrame = {
+    frameType: "adapter.event",
+    frameId: randomUUID(),
+    protocolVersion: 1,
+    event: {
+      messageId: randomUUID(),
+      schemaVersion: "1.0",
+      messageType: "event",
+      topic: FLIGHT_SEQUENCE_INTENT_CAPABILITY,
+      sourceNodeId: sourceNode.nodeId,
+      sourceCapability: FLIGHT_SEQUENCE_INTENT_CAPABILITY,
+      siteId: config.siteId,
+      roomId: config.roomId,
+      sessionId: config.fabricSessionId,
+      timestamp: interaction.createdAt,
+      monotonicTimestamp: Date.now(),
+      sequence: outbox.nextNodeSequence(sourceNode.nodeId),
+      correlationId: interaction.interactionId,
+      causationId: interaction.interactionId,
+      confidence: 1,
+      ttlMs: 5_000,
+      dataClassification: "operational",
+      payload: {
+        intent: "start",
+        inputModality: "smart_ring",
+        deviceKind: "even_r1",
+        gesture: interaction.gesture,
+      },
+    },
+    sentAt: new Date().toISOString(),
+  };
+  assertValid("AdapterEventFrame", frame);
+  return frame;
 };
 
 export const intentEventFrame = (
@@ -394,7 +602,11 @@ const wearableNode = (
         : "unhealthy",
     physical: true,
     simulated: false,
-    publishedCapabilities: [intentCapability, flightSequenceIntentCapability],
+    publishedCapabilities: [
+      intentCapability,
+      flightSequenceIntentCapability,
+      deviceControlIntentCapability,
+    ],
     consumedCapabilities: [displayCapability],
     configurationSchema: {},
     safetyClassification: "informational",
@@ -407,6 +619,65 @@ const wearableNode = (
       deviceKind: wearable.kind,
       ...wearableProfile,
       compatibilityMode: true,
+    },
+  };
+};
+
+const companionInputNode = (
+  companion: AgentMeshCompanionInput,
+  config: BridgeConfig,
+  generatedAt: string,
+): IntegrationNode => {
+  const lastUseAgeMs =
+    Date.parse(generatedAt) - Date.parse(companion.lastUsedAt);
+  const recentlyConnected =
+    companion.status === "active" &&
+    lastUseAgeMs >= -MAX_FUTURE_LAST_USE_SKEW_MS &&
+    lastUseAgeMs <= WEARABLE_CONNECTION_WINDOW_MS;
+  return {
+    schemaVersion: "1.0",
+    nodeId: stableIdentifier(
+      "agentmesh-input-even-r1",
+      companion.parentDeviceId,
+    ),
+    pluginId: AGENT_MESH_PLUGIN_ID,
+    pluginVersion: VERSION,
+    runtimeVersion: RUNTIME_VERSION,
+    hostId: config.hostId,
+    siteId: config.siteId,
+    roomId: config.roomId,
+    displayName: boundedDisplayName(companion.displayName),
+    connectionState: recentlyConnected
+      ? "connected"
+      : companion.status === "active"
+        ? "disconnected"
+        : "unavailable",
+    healthState: recentlyConnected
+      ? "healthy"
+      : companion.status === "active"
+        ? "degraded"
+        : "unhealthy",
+    physical: true,
+    simulated: false,
+    publishedCapabilities: [
+      ringGestureCapability,
+      flightSequenceIntentCapability,
+    ],
+    consumedCapabilities: [],
+    configurationSchema: {},
+    safetyClassification: "informational",
+    dataClassifications: ["operational"],
+    simulatorAvailable: false,
+    requiredPermissions: ["bluetooth"],
+    lastSeenAt: companion.lastUsedAt,
+    metadata: {
+      agentMeshParentDeviceId: companion.parentDeviceId,
+      deviceKind: companion.kind,
+      model: "even-realities-r1",
+      productFamily: "Even Realities R1",
+      fabricProfile: "even-r1",
+      inputOnly: true,
+      companionTransport: "even-app-g2",
     },
   };
 };

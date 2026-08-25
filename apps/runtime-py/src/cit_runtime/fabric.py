@@ -45,6 +45,10 @@ _BRAIN_FLIGHT_DEMO_SAFETY_PROFILE = "classroom-drone-monitoring"
 _FLEET_SEQUENCE_ARM = "mobility.flight.fleet_sequence.arm"
 _FLEET_SEQUENCE_START = "mobility.flight.fleet_sequence.start"
 _FLEET_SEQUENCE_SAFETY_PROFILE = "classroom-drone-monitoring"
+_MANUAL_FLIGHT_TAKEOFF = "mobility.flight.takeoff"
+_MANUAL_FLIGHT_MOVE = "mobility.flight.move"
+_MANUAL_FLIGHT_ROTATE = "mobility.flight.rotate"
+_MANUAL_FLIGHT_SAFETY_PROFILE = "classroom-drone-monitoring"
 _COMMAND_TRANSITIONS: dict[
     FabricCommandLifecycleStage,
     frozenset[FabricCommandLifecycleStage],
@@ -595,10 +599,15 @@ class InteractionFabric:
         if timestamp + timedelta(milliseconds=event.ttlMs) <= now:
             raise FabricPolicyError("EVENT_EXPIRED", "Event TTL has expired")
         session = self._require_session(event.sessionId)
-        if session.state not in {
+        session_accepts_semantic_events = session.state in {
             FabricSessionState.active,
             FabricSessionState.paused,
-        }:
+        }
+        inactive_safe_state_result = (
+            not session_accepts_semantic_events
+            and self._is_verified_inactive_safe_state_result(event)
+        )
+        if not session_accepts_semantic_events and not inactive_safe_state_result:
             raise FabricConflictError(
                 "SESSION_NOT_ACTIVE",
                 "Semantic events require an active or paused session",
@@ -655,6 +664,15 @@ class InteractionFabric:
             return FabricIngestResult(
                 stored_event=None,
                 duplicate=True,
+                command_lifecycle=(),
+            )
+        if inactive_safe_state_result:
+            # A safe-state command remains available before start and after a
+            # stop. Record its verified result for UI/audit state, but never
+            # route inactive-session output telemetry into lesson flows.
+            return FabricIngestResult(
+                stored_event=stored,
+                duplicate=False,
                 command_lifecycle=(),
             )
         course_pack = self._require_course_pack(session)
@@ -885,6 +903,39 @@ class InteractionFabric:
             limit=limit,
         )
 
+    def _is_verified_inactive_safe_state_result(self, event: FabricEventEnvelope) -> bool:
+        if (
+            event.topic
+            not in {
+                "power.switch.state",
+                "telemetry.power.electrical",
+            }
+            or event.causationId is None
+        ):
+            return False
+        payload = event.payload.model_dump(mode="json")
+        if payload.get("source") != "command":
+            return False
+        if event.topic == "power.switch.state" and payload.get("on") is not False:
+            return False
+        command = self._repository.get_fabric_command(event.causationId)
+        if command is None or not _is_safe_state_command(command):
+            return False
+        if (
+            command.action != "power.switch.set"
+            or command.sessionId != event.sessionId
+            or command.targetNodeId != event.sourceNodeId
+            or str(command.correlationId) != str(event.correlationId)
+        ):
+            return False
+        lifecycle = self._repository.list_fabric_lifecycle(
+            command_id=str(command.commandId),
+            limit=10,
+        )
+        return bool(
+            lifecycle and lifecycle[-1].lifecycle.stage is FabricCommandLifecycleStage.SUCCEEDED
+        )
+
     def get_session(self, session_id: str) -> InteractionSession:
         return self._require_session(session_id)
 
@@ -938,6 +989,7 @@ class InteractionFabric:
                 if not (
                     _is_bounded_brain_flight_demo_arm(command)
                     or _is_bounded_fleet_sequence_command(command)
+                    or _is_bounded_manual_tello_command(command)
                 ):
                     return (
                         "SAFETY_PROFILE_NOT_IMPLEMENTED",
@@ -1482,7 +1534,7 @@ def _is_bounded_fleet_sequence_command(command: FabricResolvedCommand) -> bool:
                 "independentRoutesConfirmed",
             )
         )
-        and _is_bounded_identifier_list(parameters.get("droneIds"), minimum=2, maximum=8)
+        and _is_bounded_identifier_list(parameters.get("droneIds"), minimum=1, maximum=8)
         and _is_bounded_identifier_list(
             parameters.get("allowedSourceNodeIds"), minimum=0, maximum=8
         )
@@ -1493,6 +1545,41 @@ def _is_bounded_fleet_sequence_command(command: FabricResolvedCommand) -> bool:
         and isinstance(minimum_battery, int)
         and 20 <= minimum_battery <= 100
     )
+
+
+def _is_bounded_manual_tello_command(command: FabricResolvedCommand) -> bool:
+    if (
+        command.safetyProfile != _MANUAL_FLIGHT_SAFETY_PROFILE
+        or command.priority is not FabricCommandPriority.instructor_override
+    ):
+        return False
+    parameters = command.parameters.model_dump(mode="json")
+    confirmations = {
+        "instructorPresent",
+        "flightAreaClear",
+        "emergencyPlanReady",
+    }
+    if not all(parameters.get(name) is True for name in confirmations):
+        return False
+    if command.action == _MANUAL_FLIGHT_TAKEOFF:
+        return set(parameters) == confirmations
+    if command.action == _MANUAL_FLIGHT_MOVE:
+        distance = parameters.get("distanceCentimeters")
+        return (
+            set(parameters) == confirmations | {"direction", "distanceCentimeters"}
+            and parameters.get("direction") in {"forward", "back", "left", "right", "up", "down"}
+            and type(distance) is int
+            and 20 <= distance <= 50
+        )
+    if command.action == _MANUAL_FLIGHT_ROTATE:
+        degrees = parameters.get("degrees")
+        return (
+            set(parameters) == confirmations | {"clockwise", "degrees"}
+            and type(parameters.get("clockwise")) is bool
+            and type(degrees) is int
+            and 1 <= degrees <= 90
+        )
+    return False
 
 
 def _is_bounded_identifier_list(
@@ -1555,6 +1642,13 @@ def _validate_command_parameters(
             if bounds.get("type") == "boolean":
                 if type(value) is not bool:
                     return f"Parameter {name!r} must be boolean"
+                continue
+            if bounds.get("type") == "string":
+                if not isinstance(value, str):
+                    return f"Parameter {name!r} must be a string"
+                choices = bounds.get("enum")
+                if isinstance(choices, list) and value not in choices:
+                    return f"Parameter {name!r} is not an allowed value"
                 continue
             if isinstance(value, bool) or not isinstance(value, (int, float)):
                 return f"Parameter {name!r} must be numeric"

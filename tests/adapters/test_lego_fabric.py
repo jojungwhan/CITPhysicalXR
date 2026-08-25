@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from uuid import uuid4
 
@@ -42,7 +43,11 @@ def _sensor_adapter() -> tuple[PybricksHubAdapter, FakeHubTransport]:
     )
 
 
-def _command(parameters: dict[str, object]) -> FabricResolvedCommand:
+def _command(
+    parameters: dict[str, object],
+    *,
+    action: str = "mobility.ground.set_velocity",
+) -> FabricResolvedCommand:
     now = datetime.now(UTC)
     return FabricResolvedCommand.model_validate(
         {
@@ -51,7 +56,7 @@ def _command(parameters: dict[str, object]) -> FabricResolvedCommand:
             "schemaVersion": "1.0",
             "sessionId": "session-a",
             "targetNodeId": "lego-a",
-            "action": "mobility.ground.set_velocity",
+            "action": action,
             "parameters": parameters,
             "priority": "student_interaction",
             "idempotencyKey": str(uuid4()),
@@ -78,6 +83,8 @@ def test_lego_node_advertises_canonical_capabilities_from_actual_ports() -> None
     assert manifest.pluginId == "cit.lego-pybricks"
     assert {item.name for item in node.consumedCapabilities} == {
         "mobility.ground.set_velocity",
+        "mobility.ground.nudge",
+        "mobility.ground.demonstration.start",
         "mobility.ground.stop",
     }
     assert node.metadata.model_dump()["ports"] == {
@@ -99,6 +106,45 @@ def test_lego_translation_rejects_strafe_for_differential_drive() -> None:
                 }
             )
         )
+
+
+def test_lego_translates_structured_left_nudge_and_stop_locally() -> None:
+    handler = LegoCommandHandler(_adapter())
+
+    left = handler.translate(_command({"direction": "left"}, action="mobility.ground.nudge"))
+    stop = handler.translate(_command({"direction": "stop"}, action="mobility.ground.nudge"))
+
+    assert left.capability == "drive.velocity"
+    assert left.arguments.model_dump(mode="json") == {
+        "speed": 0,
+        "turnRate": -66,
+        "durationSeconds": 0.2,
+    }
+    assert stop.capability == "drive.stop"
+    assert stop.arguments.model_dump(mode="json") == {}
+
+
+@pytest.mark.asyncio
+async def test_lego_demo_uses_calibrated_short_drive_frames() -> None:
+    adapter = _adapter()
+    transport = adapter._transport
+    assert isinstance(transport, FakeHubTransport)
+    await adapter.connect(at=datetime.now(UTC))
+    handler = LegoCommandHandler(adapter)
+
+    await handler.execute(
+        _command(
+            {"distanceMeters": 0.1},
+            action="mobility.ground.demonstration.start",
+        )
+    )
+    for _ in range(10):
+        await asyncio.sleep(0)
+    await handler.safe_stop(reason="test_complete")
+
+    drive_frames = [frame for frame in transport.received if frame.operation is Operation.DRIVE]
+    assert drive_frames
+    assert drive_frames[0].arguments == ("12", "0", "150")
 
 
 @pytest.mark.asyncio

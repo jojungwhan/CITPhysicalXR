@@ -13,6 +13,8 @@ from .policy import SPHERO_DEADMAN_MILLISECONDS, SPHERO_MAX_SPEED_VALUE, velocit
 PLUGIN_ID = "cit.sphero-bolt"
 PROTOCOL_SOURCE_REVISION = external_source("spherov2").revision
 GROUND_VELOCITY_CAPABILITY = capability_name("ground_velocity")
+GROUND_NUDGE_CAPABILITY = capability_name("ground_nudge")
+GROUND_DEMONSTRATION_CAPABILITY = capability_name("ground_demonstration_start")
 GROUND_STOP_CAPABILITY = capability_name("ground_stop")
 SENSOR_STATE_CAPABILITY = capability_name("robot_sensor_state")
 LIGHT_SET_CAPABILITY = capability_name("robot_light_set")
@@ -42,6 +44,8 @@ def build_manifest() -> PluginManifest:
                 capability_descriptor(
                     "ground_velocity", "consume", constraints=velocity_constraints()
                 ),
+                capability_descriptor("ground_nudge", "consume"),
+                capability_descriptor("ground_demonstration_start", "consume"),
                 capability_descriptor("ground_stop", "consume"),
                 capability_descriptor("robot_light_set", "consume"),
                 capability_descriptor("sphero_aim_reset", "consume"),
@@ -89,6 +93,8 @@ def build_node(
                 capability_descriptor(
                     "ground_velocity", "consume", constraints=velocity_constraints()
                 ),
+                capability_descriptor("ground_nudge", "consume"),
+                capability_descriptor("ground_demonstration_start", "consume"),
                 capability_descriptor("ground_stop", "consume"),
                 capability_descriptor("robot_light_set", "consume"),
                 capability_descriptor("sphero_aim_reset", "consume"),

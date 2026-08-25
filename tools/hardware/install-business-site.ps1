@@ -222,6 +222,14 @@ function Prepare-SpheroBoltBluetooth {
   )
 }
 
+function Prepare-SpheroOllieBluetooth {
+  $uv = Resolve-Executable "uv"
+  Write-Host "Preparing the independent Sphero Ollie Bluetooth transport..."
+  Invoke-Checked $uv @(
+    "sync", "--package", "cit-sphero-ollie", "--extra", "hardware", "--frozen", "--inexact"
+  )
+}
+
 function Save-SiteProfile {
   foreach ($entry in @(@("SiteId", $SiteId), @("RoomId", $RoomId))) {
     if ([string]$entry[1] -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$') {
@@ -308,6 +316,7 @@ Prepare-Brain2Devices
 Prepare-LegoBluetooth
 Prepare-WonderWorkshopBluetooth
 Prepare-SpheroBoltBluetooth
+Prepare-SpheroOllieBluetooth
 Save-SiteProfile
 
 & $matterLauncher -Mode ControllerStart -SiteId $SiteId -RoomId $RoomId -SkipBuild

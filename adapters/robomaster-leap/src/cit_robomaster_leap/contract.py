@@ -20,7 +20,10 @@ GESTURE_CAPABILITY = capability_name("gesture_velocity")
 FLIGHT_SEQUENCE_INTENT_CAPABILITY = capability_name("flight_sequence_intent")
 TRACKING_CAPABILITY = capability_name("tracking_status")
 ROBOT_VELOCITY_CAPABILITY = capability_name("ground_velocity")
+ROBOT_NUDGE_CAPABILITY = capability_name("ground_nudge")
+ROBOT_DEMONSTRATION_CAPABILITY = capability_name("ground_demonstration_start")
 ROBOT_STOP_CAPABILITY = capability_name("ground_stop")
+ROBOT_LIGHT_CAPABILITY = capability_name("robot_light_set")
 ROBOT_TELEMETRY_CAPABILITY = capability_name("ground_commanded")
 
 
@@ -40,8 +43,20 @@ def _velocity_capability() -> dict[str, object]:
     return capability_descriptor("ground_velocity", "consume")
 
 
+def _nudge_capability() -> dict[str, object]:
+    return capability_descriptor("ground_nudge", "consume")
+
+
+def _demonstration_capability() -> dict[str, object]:
+    return capability_descriptor("ground_demonstration_start", "consume")
+
+
 def _stop_capability() -> dict[str, object]:
     return capability_descriptor("ground_stop", "consume")
+
+
+def _light_capability() -> dict[str, object]:
+    return capability_descriptor("robot_light_set", "consume")
 
 
 def _robot_telemetry_capability() -> dict[str, object]:
@@ -55,7 +70,13 @@ def build_manifest() -> PluginManifest:
         _tracking_capability(),
         _robot_telemetry_capability(),
     ]
-    consumed = [_velocity_capability(), _stop_capability()]
+    consumed = [
+        _velocity_capability(),
+        _nudge_capability(),
+        _demonstration_capability(),
+        _stop_capability(),
+        _light_capability(),
+    ]
     return PluginManifest.model_validate(
         {
             "schemaVersion": "1.0",
@@ -150,7 +171,13 @@ def build_robot_manifest() -> PluginManifest:
                 },
             },
             "publishedCapabilities": [_robot_telemetry_capability()],
-            "consumedCapabilities": [_velocity_capability(), _stop_capability()],
+            "consumedCapabilities": [
+                _velocity_capability(),
+                _nudge_capability(),
+                _demonstration_capability(),
+                _stop_capability(),
+                _light_capability(),
+            ],
             "requiredPermissions": ["network.local"],
             "safetyClassification": "bounded_physical",
             "dataClassifications": ["operational"],
@@ -178,7 +205,10 @@ def build_nodes(
     flight_sequence_intent = _flight_sequence_intent_capability()
     tracking = _tracking_capability()
     velocity = _velocity_capability()
+    nudge = _nudge_capability()
+    demonstration = _demonstration_capability()
     stop = _stop_capability()
+    light = _light_capability()
     robot_telemetry = _robot_telemetry_capability()
     common = {
         "schemaVersion": "1.0",
@@ -224,7 +254,13 @@ def build_nodes(
             "physical": not robot_simulated,
             "simulated": robot_simulated,
             "publishedCapabilities": [robot_telemetry],
-            "consumedCapabilities": [velocity, stop],
+            "consumedCapabilities": [
+                velocity,
+                nudge,
+                demonstration,
+                stop,
+                *([] if robot_mode == "s1-app" else [light]),
+            ],
             "safetyClassification": "bounded_physical",
             "metadata": {
                 "model": "robomaster-s1",

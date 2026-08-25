@@ -15,18 +15,24 @@ import { MirrorCommandHandler } from "./command-handler.js";
 import type { BridgeConfig } from "./config.js";
 import {
   completionEventFrame,
+  deviceControlEventFrame,
   flightSequenceIntentFrame,
   healthReports,
   intentEventFrame,
   mapDiscovery,
+  ringFlightSequenceIntentFrame,
+  ringGestureEventFrame,
   semanticSha256,
   type AgentMeshFabricMapping,
 } from "./mapping.js";
 import { BridgeOutbox } from "./outbox.js";
+import { FabricControlApiClient } from "./fabric-control-client.js";
 import type {
   AgentMeshCompletionFeed,
   AgentMeshDiscovery,
+  AgentMeshInteractionFeed,
   AgentMeshIntentFeed,
+  CitFabricControlInventory,
 } from "./types.js";
 
 const MAX_FRAME_BYTES = 131_072;
@@ -35,9 +41,16 @@ const DELIVERY_RETRY_MS = 5_000;
 
 export interface AgentMeshBridgeSource {
   discovery(): Promise<AgentMeshDiscovery>;
+  interactions(afterSequence: number): Promise<AgentMeshInteractionFeed>;
+  acknowledgeInteraction(interactionId: string): Promise<void>;
   intents(afterSequence: number): Promise<AgentMeshIntentFeed>;
   acknowledgeIntent(intentId: string): Promise<void>;
   completions(afterSequence: number): Promise<AgentMeshCompletionFeed>;
+  publishControlInventory?(inventory: CitFabricControlInventory): Promise<void>;
+}
+
+export interface FabricControlProjectionSource {
+  inventory(): Promise<CitFabricControlInventory>;
 }
 
 export interface BridgeSocket {
@@ -56,6 +69,7 @@ export interface RunBridgeOptions {
   readonly socketFactory?: BridgeSocketFactory;
   readonly source?: AgentMeshBridgeSource;
   readonly outbox?: BridgeOutbox;
+  readonly controlSource?: FabricControlProjectionSource;
 }
 
 export class CitAgentMeshBridge {
@@ -64,6 +78,8 @@ export class CitAgentMeshBridge {
   readonly #outbox: BridgeOutbox;
   readonly #socketFactory: BridgeSocketFactory;
   readonly #commandHandler: MirrorCommandHandler;
+  readonly #controlSource: FabricControlProjectionSource | undefined;
+  readonly #onDiagnostic: ((message: string) => void) | undefined;
   readonly #inFlight = new Map<string, number>();
 
   constructor(
@@ -71,12 +87,16 @@ export class CitAgentMeshBridge {
     source: AgentMeshBridgeSource,
     outbox: BridgeOutbox,
     socketFactory: BridgeSocketFactory = defaultSocketFactory,
+    controlSource?: FabricControlProjectionSource,
+    onDiagnostic?: (message: string) => void,
   ) {
     this.#config = config;
     this.#source = source;
     this.#outbox = outbox;
     this.#socketFactory = socketFactory;
     this.#commandHandler = new MirrorCommandHandler(outbox);
+    this.#controlSource = controlSource;
+    this.#onDiagnostic = onDiagnostic;
   }
 
   async runOnce(signal?: AbortSignal): Promise<"aborted" | "stopped"> {
@@ -133,6 +153,7 @@ export class CitAgentMeshBridge {
           welcome.heartbeatIntervalMs,
           controller.signal,
         ),
+        this.#controlInventoryLoop(controller.signal),
         waitForAbort(controller.signal),
       ] as const;
       let outcome: "aborted" | "stopped";
@@ -152,6 +173,28 @@ export class CitAgentMeshBridge {
       if (socket.readyState < 2)
         socket.close(1000, "CIT bridge connection ended");
     }
+  }
+
+  async #controlInventoryLoop(signal: AbortSignal): Promise<"aborted"> {
+    while (!signal.aborted) {
+      if (
+        this.#controlSource !== undefined &&
+        this.#source.publishControlInventory !== undefined
+      ) {
+        try {
+          const inventory = await this.#controlSource.inventory();
+          await this.#source.publishControlInventory(inventory);
+        } catch (error) {
+          if (!signal.aborted) {
+            this.#onDiagnostic?.(
+              `CIT Fabric control inventory unavailable: ${safeDiagnostic(error)}`,
+            );
+          }
+        }
+      }
+      await delay(this.#config.pollIntervalMs, signal);
+    }
+    return "aborted";
   }
 
   async #receiveLoop(
@@ -205,6 +248,103 @@ export class CitAgentMeshBridge {
   }
 
   async #pollSource(mapping: AgentMeshFabricMapping): Promise<void> {
+    const interactionCursor = this.#outbox.stateNumber(
+      "agent-mesh-interaction-cursor",
+    );
+    const interactionFeed = await this.#source.interactions(interactionCursor);
+    for (const interaction of interactionFeed.interactions) {
+      if (interaction.source === "device_control") {
+        const node = mapping.wearableNodeByDeviceId.get(interaction.deviceId);
+        if (node === undefined || node.connectionState !== "connected") {
+          throw new Error(
+            "Agent Mesh device control requires refreshed wearable discovery",
+          );
+        }
+        const frame = deviceControlEventFrame(
+          interaction,
+          node,
+          this.#config,
+          this.#outbox,
+        );
+        this.#outbox.enqueueEvent(
+          `device-control:${interaction.interactionId}`,
+          frame,
+          {
+            kind: "interaction",
+            alreadyDispatched: false,
+            legacyDisplayDelivered: false,
+            semanticSha256: semanticSha256(
+              `${interaction.target}:${interaction.targetRole ?? ""}:${interaction.action}:${interaction.batchId ?? ""}`,
+            ),
+          },
+        );
+        await this.#source.acknowledgeInteraction(interaction.interactionId);
+        this.#outbox.setStateNumber(
+          "agent-mesh-interaction-cursor",
+          interaction.sequence,
+        );
+        continue;
+      }
+      const node = mapping.companionNodeByParentDeviceId.get(
+        interaction.deviceId,
+      );
+      if (node === undefined || node.connectionState !== "connected") {
+        throw new Error(
+          "Agent Mesh R1 interaction requires refreshed companion discovery",
+        );
+      }
+      const gestureFrame = ringGestureEventFrame(
+        interaction,
+        node,
+        this.#config,
+        this.#outbox,
+      );
+      this.#outbox.enqueueEvent(
+        `ring-interaction:${interaction.interactionId}`,
+        gestureFrame,
+        {
+          kind: "interaction",
+          alreadyDispatched: false,
+          legacyDisplayDelivered: false,
+          semanticSha256: semanticSha256(
+            `${interaction.source}:${interaction.gesture}`,
+          ),
+        },
+      );
+      const flightIntent = ringFlightSequenceIntentFrame(
+        interaction,
+        node,
+        this.#config,
+        this.#outbox,
+      );
+      if (flightIntent !== undefined) {
+        this.#outbox.enqueueEvent(
+          `ring-fleet-intent:${interaction.interactionId}`,
+          flightIntent,
+          {
+            kind: "interaction",
+            alreadyDispatched: false,
+            legacyDisplayDelivered: false,
+            semanticSha256: semanticSha256("ring:flight_sequence_start"),
+          },
+        );
+      }
+      await this.#source.acknowledgeInteraction(interaction.interactionId);
+      this.#outbox.setStateNumber(
+        "agent-mesh-interaction-cursor",
+        interaction.sequence,
+      );
+    }
+    if (
+      interactionFeed.interactions.length === 0 &&
+      interactionFeed.nextCursor > interactionCursor
+    ) {
+      this.#outbox.setStateNumber(
+        "agent-mesh-interaction-cursor",
+        interactionFeed.nextCursor,
+      );
+    }
+
     const intentCursor = this.#outbox.stateNumber("agent-mesh-intent-cursor");
     const intentFeed = await this.#source.intents(intentCursor);
     for (const intent of intentFeed.intents) {
@@ -384,6 +524,8 @@ export const runBridgeForever = async (
     source,
     outbox,
     options.socketFactory ?? defaultSocketFactory,
+    options.controlSource ?? new FabricControlApiClient(config),
+    options.onDiagnostic,
   );
   try {
     while (!isAborted(options.signal)) {

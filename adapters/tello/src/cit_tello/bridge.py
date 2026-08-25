@@ -19,6 +19,9 @@ from .backend import TelloBackend, TelloBackendError
 from .contract import (
     EMERGENCY_STOP_CAPABILITY,
     LAND_CAPABILITY,
+    MOVE_CAPABILITY,
+    ROTATE_CAPABILITY,
+    TAKEOFF_CAPABILITY,
     TELEMETRY_CAPABILITY,
     build_manifest,
     build_node,
@@ -39,6 +42,68 @@ class BridgeConfiguration:
     media_publisher: TelloMediaPublisher | None = None
 
 
+def _reported_error_detail(value: object) -> str | None:
+    if not isinstance(value, Mapping) or not value:
+        return None
+    detail = value.get("detail") or value.get("title")
+    return None if detail is None else str(detail)[:500]
+
+
+def tello_health_report(
+    *,
+    node_id: str,
+    at: datetime,
+    telemetry: Mapping[str, object],
+    last_error: str | None,
+    telemetry_active: bool,
+    camera_frames_published: int,
+    camera_error: str | None,
+) -> HealthReport:
+    """Project the authoritative upstream link into one canonical Fabric heartbeat."""
+
+    upstream_connection = telemetry.get("connection")
+    upstream_disconnected = (
+        isinstance(upstream_connection, str) and upstream_connection != "connected"
+    )
+    connection_error = _reported_error_detail(telemetry.get("connectionError"))
+    message = (
+        connection_error
+        or last_error
+        or (
+            f"Brain2Devices reports Tello connection {upstream_connection}"
+            if upstream_disconnected
+            else None
+        )
+    )
+    if upstream_disconnected:
+        connection_state = "disconnected"
+        health_state = "unhealthy"
+    elif last_error is not None:
+        connection_state = "degraded"
+        health_state = "degraded"
+    else:
+        connection_state = "connected"
+        health_state = "healthy"
+    return HealthReport.model_validate(
+        {
+            "schemaVersion": "1.0",
+            "nodeId": node_id,
+            "reportedAt": at,
+            "connectionState": connection_state,
+            "healthState": health_state,
+            "message": message,
+            "batteryPercent": telemetry.get("batteryPercent"),
+            "metrics": {
+                "boundedManualFlightCommands": True,
+                "takeoffEnabled": connection_state == "connected" and last_error is None,
+                "telemetryActive": telemetry_active,
+                "cameraFramesPublished": camera_frames_published,
+                "cameraError": camera_error,
+            },
+        }
+    )
+
+
 class TelloCommandHandler:
     def __init__(self, backend: TelloBackend, *, node_id: str) -> None:
         self._backend = backend
@@ -53,19 +118,80 @@ class TelloCommandHandler:
             raise ValueError("Command target is not this Tello node")
         if command.expiresAt <= datetime.now(UTC):
             raise ValueError("Command expired before Tello execution")
-        if command.action not in {LAND_CAPABILITY, EMERGENCY_STOP_CAPABILITY}:
-            raise ValueError(
-                "Tello takeoff and movement are intentionally unavailable in this safe slice"
-            )
-        if command.parameters.model_dump(mode="json"):
+        supported = {
+            TAKEOFF_CAPABILITY,
+            MOVE_CAPABILITY,
+            ROTATE_CAPABILITY,
+            LAND_CAPABILITY,
+            EMERGENCY_STOP_CAPABILITY,
+        }
+        if command.action not in supported:
+            raise ValueError("Tello command is unsupported")
+        parameters = command.parameters.model_dump(mode="json")
+        if command.action in {LAND_CAPABILITY, EMERGENCY_STOP_CAPABILITY} and parameters:
             raise ValueError("Tello safe-state commands do not accept parameters")
+        confirmations = {
+            "instructorPresent",
+            "flightAreaClear",
+            "emergencyPlanReady",
+        }
+        if command.action == TAKEOFF_CAPABILITY:
+            if set(parameters) != confirmations or not all(
+                parameters.get(name) is True for name in confirmations
+            ):
+                raise ValueError("Tello takeoff requires all instructor safety confirmations")
+        if command.action == MOVE_CAPABILITY:
+            if set(parameters) != confirmations | {"direction", "distanceCentimeters"}:
+                raise ValueError("Tello movement parameters are incomplete or unsupported")
+            if not all(parameters.get(name) is True for name in confirmations):
+                raise ValueError("Tello movement requires all instructor safety confirmations")
+            if parameters.get("direction") not in {
+                "forward",
+                "back",
+                "left",
+                "right",
+                "up",
+                "down",
+            }:
+                raise ValueError("Tello movement direction is unsupported")
+            distance = parameters.get("distanceCentimeters")
+            if (
+                isinstance(distance, bool)
+                or not isinstance(distance, int)
+                or not 20 <= distance <= 50
+            ):
+                raise ValueError("Tello movement must be between 20 and 50 centimeters")
+        if command.action == ROTATE_CAPABILITY:
+            if set(parameters) != confirmations | {"clockwise", "degrees"}:
+                raise ValueError("Tello rotation parameters are incomplete or unsupported")
+            if not all(parameters.get(name) is True for name in confirmations):
+                raise ValueError("Tello rotation requires all instructor safety confirmations")
+            clockwise = parameters.get("clockwise")
+            degrees = parameters.get("degrees")
+            if not isinstance(clockwise, bool):
+                raise ValueError("Tello rotation direction must be boolean")
+            if isinstance(degrees, bool) or not isinstance(degrees, int) or not 1 <= degrees <= 90:
+                raise ValueError("Tello rotation must be between 1 and 90 degrees")
 
     async def execute(self, command: FabricResolvedCommand) -> Mapping[str, object]:
         command_id = str(command.commandId)
         if self._executions.contains(command_id):
             return {"duplicatePrevented": True}
         self.validate(command)
-        if command.action == LAND_CAPABILITY:
+        parameters = command.parameters.model_dump(mode="json")
+        if command.action == TAKEOFF_CAPABILITY:
+            details = await self._backend.takeoff()
+        elif command.action == MOVE_CAPABILITY:
+            details = await self._backend.move(
+                direction=str(parameters["direction"]),
+                distance_centimeters=int(parameters["distanceCentimeters"]),
+            )
+        elif command.action == ROTATE_CAPABILITY:
+            details = await self._backend.rotate(
+                clockwise=bool(parameters["clockwise"]),
+                degrees=int(parameters["degrees"]),
+            )
+        elif command.action == LAND_CAPABILITY:
             details = await self._backend.land(reason="fabric_command")
         else:
             details = await self._backend.emergency_stop(reason="fabric_command")
@@ -210,33 +336,21 @@ class FabricTelloBridge:
     async def _heartbeat(self, client: FabricAdapterClient) -> None:
         while True:
             await asyncio.sleep(5)
-            healthy = self._last_error is None
+            media_publisher = self.configuration.media_publisher
             await client.publish_heartbeat(
                 [
-                    HealthReport.model_validate(
-                        {
-                            "schemaVersion": "1.0",
-                            "nodeId": self.configuration.node_id,
-                            "reportedAt": datetime.now(UTC),
-                            "connectionState": "connected" if healthy else "degraded",
-                            "healthState": "healthy" if healthy else "degraded",
-                            "message": self._last_error,
-                            "metrics": {
-                                "safeFlightCommandsOnly": True,
-                                "takeoffEnabled": False,
-                                "telemetryActive": self.configuration.activation_file.is_file(),
-                                "cameraFramesPublished": (
-                                    self.configuration.media_publisher.frames_published
-                                    if self.configuration.media_publisher is not None
-                                    else 0
-                                ),
-                                "cameraError": (
-                                    self.configuration.media_publisher.last_error
-                                    if self.configuration.media_publisher is not None
-                                    else None
-                                ),
-                            },
-                        }
+                    tello_health_report(
+                        node_id=self.configuration.node_id,
+                        at=datetime.now(UTC),
+                        telemetry=self._last_telemetry,
+                        last_error=self._last_error,
+                        telemetry_active=self.configuration.activation_file.is_file(),
+                        camera_frames_published=(
+                            media_publisher.frames_published if media_publisher is not None else 0
+                        ),
+                        camera_error=(
+                            media_publisher.last_error if media_publisher is not None else None
+                        ),
                     )
                 ]
             )

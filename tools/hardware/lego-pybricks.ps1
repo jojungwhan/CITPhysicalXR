@@ -231,7 +231,7 @@ if ($Mode -eq "Preflight") {
 }
 if ($Mode -eq "ConfigureStart") { Save-JsonFile $profilePath $profile }
 if (-not $SkipBuild) {
-  & uv sync --all-packages --directory $repositoryRoot
+  & uv sync --all-packages --directory $repositoryRoot --inexact
   if ($LASTEXITCODE -ne 0) { throw "uv sync failed" }
 }
 

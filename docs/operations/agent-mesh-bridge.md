@@ -31,8 +31,9 @@ menu button to reopen the screen without restarting either service.
 
 Prefer `-AgentMeshSessionId <exact-id>` over `-SelectMostRecentAgentSession` when the intended G2 or Meta session is already known. `-ProvisionWearables` invokes Agent Mesh's existing phone/G2 provisioner and therefore requires one authorized Android phone attached through ADB. Without that switch, a previously provisioned G2 or Meta phone bridge can reconnect normally.
 
-For the multi-drone lesson, tutors do not run that command. Connect at least two
-Tellos in Classroom Control first, choose **Find devices**, then choose **Connect**
+For the ordered-drone lesson, tutors do not run that command. Connect one or more
+Tellos in Classroom Control first (two or more for a multi-drone exercise),
+choose **Find devices**, then choose **Connect**
 on the G2/Meta card. The fixed launcher detects the existing bounded fleet
 session, restarts the bridge against that exact session if necessary, and binds
 up to four connected wearables as input-only nodes. It neither selects a coding
@@ -127,6 +128,7 @@ Provide these values to the bridge process through the local service manager or 
 | ----------------------------- | --------------------------------------------- |
 | `CIT_FABRIC_ADAPTER_URL`      | `ws://127.0.0.1:8766/api/v1/adapters/connect` |
 | `CIT_FABRIC_ADAPTER_TOKEN`    | Dedicated CIT adapter credential              |
+| `CIT_FABRIC_READ_TOKEN`       | Session-scoped nodes/session read credential  |
 | `CIT_FABRIC_SESSION_ID`       | Active interaction-session ID                 |
 | `CIT_AGENT_MESH_URL`          | `http://127.0.0.1:7342`                       |
 | `CIT_AGENT_MESH_DEVICE_TOKEN` | Exact read-only bridge device credential      |

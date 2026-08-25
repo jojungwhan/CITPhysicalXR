@@ -5,6 +5,8 @@ const IDENTIFIER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/u;
 export interface BridgeConfig {
   readonly fabricAdapterUrl: string;
   readonly fabricCredential: string;
+  readonly fabricApiUrl: string;
+  readonly fabricReadCredential: string;
   readonly fabricSessionId: string;
   readonly agentMeshBaseUrl: string;
   readonly agentMeshDeviceToken: string;
@@ -45,6 +47,12 @@ export const loadBridgeConfig = (
       "CIT_FABRIC_ADAPTER_TOKEN",
       512,
     ),
+    fabricApiUrl: fabricHttpOrigin(fabricAdapterUrl),
+    fabricReadCredential: boundedSecret(
+      required(environment, "CIT_FABRIC_READ_TOKEN"),
+      "CIT_FABRIC_READ_TOKEN",
+      512,
+    ),
     fabricSessionId: identifier(
       required(environment, "CIT_FABRIC_SESSION_ID"),
       "CIT_FABRIC_SESSION_ID",
@@ -77,6 +85,13 @@ export const loadBridgeConfig = (
       "CIT_BRIDGE_RECONNECT_DELAY_MS",
     ),
   };
+};
+
+const fabricHttpOrigin = (adapterUrl: string): string => {
+  const url = new URL(adapterUrl);
+  url.protocol = url.protocol === "wss:" ? "https:" : "http:";
+  url.pathname = "/";
+  return url.toString().replace(/\/$/u, "");
 };
 
 const required = (environment: NodeJS.ProcessEnv, name: string): string => {
