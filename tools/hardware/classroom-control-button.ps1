@@ -6,7 +6,9 @@ param(
   [string]$Mode = "Show",
   [ValidateRange(1024, 65535)]
   [int]$FabricPort = 8766,
-  [string]$StateRoot = ""
+  [string]$StateRoot = "",
+  [ValidateRange(30, 1800)]
+  [int]$OperationTimeoutSeconds = 240
 )
 
 Set-StrictMode -Version Latest
@@ -175,8 +177,37 @@ $form.Controls.Add($refreshButton)
 
 $script:currentState = $null
 $script:operation = $null
-$script:stdoutTask = $null
-$script:stderrTask = $null
+$script:operationDeadline = [DateTime]::MaxValue
+$script:diagnosticsRoot = Join-Path ([IO.Path]::GetTempPath()) "cit-classroom-control"
+$script:stdoutPath = Join-Path $script:diagnosticsRoot "launcher.stdout.log"
+$script:stderrPath = Join-Path $script:diagnosticsRoot "launcher.stderr.log"
+
+function Read-LauncherDiagnostics([string]$Path) {
+  # The launcher has only just exited, so its log file can still be held open
+  # for a moment. Share the handle and retry briefly rather than losing the
+  # message that tells the technician what actually went wrong.
+  foreach ($attempt in 1..5) {
+    try {
+      if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) { return "" }
+      $stream = [IO.File]::Open(
+        $Path,
+        [IO.FileMode]::Open,
+        [IO.FileAccess]::Read,
+        [IO.FileShare]::ReadWrite
+      )
+      try {
+        $reader = [IO.StreamReader]::new($stream)
+        try { return $reader.ReadToEnd() } finally { $reader.Dispose() }
+      } finally {
+        $stream.Dispose()
+      }
+    } catch {
+      if ($attempt -eq 5) { return "" }
+      Start-Sleep -Milliseconds 150
+    }
+  }
+  return ""
+}
 
 function Update-ClassroomStatus {
   $script:currentState = Get-ClassroomHostState
@@ -198,61 +229,77 @@ function Start-FixedClassroomAction(
   $statusDetail.Text = "This usually takes a few seconds. Keep this window open until the browser appears."
   [Windows.Forms.Application]::DoEvents()
 
-  $startInfo = [Diagnostics.ProcessStartInfo]::new()
-  $startInfo.FileName = $pwshCommand.Source
-  $startInfo.WorkingDirectory = $repositoryRoot
-  $startInfo.UseShellExecute = $false
-  $startInfo.CreateNoWindow = $true
-  $startInfo.RedirectStandardOutput = $true
-  $startInfo.RedirectStandardError = $true
-  foreach ($argument in @(
-      "-NoProfile",
-      "-NonInteractive",
-      "-File",
-      $deviceLauncher,
-      "-Mode",
-      $Action,
-      "-FabricPort",
-      [string]$FabricPort,
-      "-StateRoot",
-      $StateRoot
-    )) {
-    $startInfo.ArgumentList.Add($argument)
-  }
-  if ($Action -eq "Start") { $startInfo.ArgumentList.Add("-AllowPhysical") }
+  $arguments = @(
+    "-NoProfile",
+    "-NonInteractive",
+    "-File",
+    $deviceLauncher,
+    "-Mode",
+    $Action,
+    "-FabricPort",
+    [string]$FabricPort,
+    "-StateRoot",
+    $StateRoot
+  )
+  if ($Action -eq "Start") { $arguments += "-AllowPhysical" }
 
-  $process = [Diagnostics.Process]::new()
-  $process.StartInfo = $startInfo
-  if (-not $process.Start()) { throw "The fixed classroom launcher could not start." }
-  $script:stdoutTask = $process.StandardOutput.ReadToEndAsync()
-  $script:stderrTask = $process.StandardError.ReadToEndAsync()
-  $script:operation = $process
+  # The launcher starts long-running classroom services, and those
+  # grandchildren inherit the handles it holds. A redirected pipe would
+  # therefore never reach EOF, so reading one to the end on this thread would
+  # block forever and leave the window stuck on a disabled button. Files carry
+  # the diagnostics instead, and are read only after the launcher exits.
+  New-Item -ItemType Directory -Path $script:diagnosticsRoot -Force | Out-Null
+  foreach ($path in @($script:stdoutPath, $script:stderrPath)) {
+    Remove-Item -LiteralPath $path -Force -ErrorAction SilentlyContinue
+  }
+
+  $script:operationDeadline = (Get-Date).AddSeconds($OperationTimeoutSeconds)
+  $script:operation = Start-Process `
+    -FilePath $pwshCommand.Source `
+    -ArgumentList $arguments `
+    -WorkingDirectory $repositoryRoot `
+    -WindowStyle Hidden `
+    -RedirectStandardOutput $script:stdoutPath `
+    -RedirectStandardError $script:stderrPath `
+    -PassThru
+  if ($null -eq $script:operation) { throw "The fixed classroom launcher could not start." }
 }
 
 $operationTimer = [Windows.Forms.Timer]::new()
 $operationTimer.Interval = 300
 $operationTimer.Add_Tick({
-    if ($null -eq $script:operation -or -not $script:operation.HasExited) { return }
+    if ($null -eq $script:operation) { return }
+    $timedOut = (Get-Date) -gt $script:operationDeadline
+    if (-not $script:operation.HasExited -and -not $timedOut) { return }
     $operationTimer.Stop()
-    $script:operation.WaitForExit()
-    $exitCode = $script:operation.ExitCode
-    $standardError = $script:stderrTask.GetAwaiter().GetResult()
-    $null = $script:stdoutTask.GetAwaiter().GetResult()
-    $script:operation.Dispose()
-    $script:operation = $null
-    $script:stdoutTask = $null
-    $script:stderrTask = $null
-    if ($exitCode -eq 0) {
+
+    $exitCode = -1
+    $standardError = ""
+    try {
+      if ($script:operation.HasExited) {
+        $exitCode = $script:operation.ExitCode
+        $standardError = Read-LauncherDiagnostics $script:stderrPath
+      } else {
+        $standardError = "The classroom launcher is still running after $OperationTimeoutSeconds seconds. Ask the classroom technician to check the CIT installation."
+      }
+    } catch {
+      $standardError = $_.Exception.Message
+    } finally {
+      # Whatever happened above, the operator gets the window back. Leaving
+      # the buttons disabled here is what makes the app look frozen.
+      try { $script:operation.Dispose() } catch { }
+      $script:operation = $null
+      $script:operationDeadline = [DateTime]::MaxValue
       Update-ClassroomStatus
-      return
     }
+
+    if ($exitCode -eq 0) { return }
     $diagnostics = @($standardError -split "\r?\n" | Where-Object { $_ })
     $message = if ($diagnostics.Count -gt 0) {
       ($diagnostics | Select-Object -Last 4) -join [Environment]::NewLine
     } else {
       "The local device host did not start. Ask the classroom technician to check the CIT installation."
     }
-    Update-ClassroomStatus
     [Windows.Forms.MessageBox]::Show(
       $form,
       $message,
@@ -329,16 +376,17 @@ $metaSetupButton.Add_Click({
 $refreshButton.Add_Click({ Update-ClassroomStatus })
 $form.Add_FormClosing({
     param($sender, $event)
-    if ($null -ne $script:operation -and -not $script:operation.HasExited) {
-      $event.Cancel = $true
-      [Windows.Forms.MessageBox]::Show(
-        $form,
-        "CIT is still preparing the local services. Wait for startup to finish before closing this window.",
-        "Startup in progress",
-        [Windows.Forms.MessageBoxButtons]::OK,
-        [Windows.Forms.MessageBoxIcon]::Information
-      ) | Out-Null
-    }
+    if ($null -eq $script:operation -or $script:operation.HasExited) { return }
+    # Warn, but never refuse. A window that cannot be closed is worse than a
+    # startup that carries on in the background.
+    $choice = [Windows.Forms.MessageBox]::Show(
+      $form,
+      "CIT is still preparing the local services. Close anyway? Services that already started keep running.",
+      "Startup in progress",
+      [Windows.Forms.MessageBoxButtons]::YesNo,
+      [Windows.Forms.MessageBoxIcon]::Warning
+    )
+    if ($choice -ne [Windows.Forms.DialogResult]::Yes) { $event.Cancel = $true }
   })
 
 Update-ClassroomStatus
