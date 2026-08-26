@@ -366,7 +366,7 @@ def test_classroom_start_button_runs_only_the_fixed_disarmed_host_launcher() -> 
 
     assert "Start classroom devices" in button
     assert 'Join-Path $PSScriptRoot "classroom-devices.ps1"' in button
-    assert '$startInfo.ArgumentList.Add("-AllowPhysical")' in button
+    assert '$arguments += "-AllowPhysical"' in button
     assert '[ValidateSet("Start", "Enable", "Open")]' in button
     assert "Read-Host" not in button
     assert "Invoke-Expression" not in button
@@ -387,6 +387,36 @@ def test_classroom_start_button_runs_only_the_fixed_disarmed_host_launcher() -> 
     assert "Start classroom devices" in catalog
     assert "Windows 바탕 화면이나 시작 메뉴" in catalog
     assert "pnpm hardware:fabric:windows -- -Mode Open" not in console
+
+
+def test_classroom_start_button_cannot_latch_on_a_launcher_pipe() -> None:
+    """The button must never wedge itself waiting on the launcher's output.
+
+    The classroom launcher starts long-running services, and on Windows those
+    grandchildren inherit whatever handles the launcher holds. A redirected
+    pipe therefore never reaches EOF even after the launcher exits, so reading
+    it to the end on the UI thread blocks forever: the primary button stays
+    disabled on "Starting safely..." and the window can no longer be closed.
+    Diagnostics go to files, which have no such dependency.
+    """
+
+    button = _launcher("classroom-control-button.ps1")
+
+    assert "ReadToEndAsync" not in button
+    assert "GetAwaiter().GetResult()" not in button
+    assert "RedirectStandardOutput = $true" not in button
+    assert "RedirectStandardError = $true" not in button
+    assert "-RedirectStandardError $script:stderrPath" in button
+
+    # Whatever happens while completing an operation, the controls come back.
+    assert "finally {" in button
+    assert "$script:operation = $null" in button
+
+    # A launcher that never exits must not disable the window forever.
+    assert "$script:operationDeadline" in button
+
+    # The close guard may warn, but it must not trap the operator.
+    assert "Close anyway" in button
 
 
 @pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows UI")
