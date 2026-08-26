@@ -1,12 +1,7 @@
 import type { IntegrationNode } from "@citxr/protocol";
 
-import {
-  fabricFormatTime,
-  fabricRoleText,
-  type FabricTranslate,
-} from "./fabric-i18n.js";
+import { fabricRoleText, type FabricTranslate } from "./fabric-i18n.js";
 import type { SmartPlugState } from "./fabric-smart-plug.js";
-import type { Locale } from "./i18n.js";
 
 export interface FabricSmartPlugAssignment {
   role: string;
@@ -24,7 +19,6 @@ export function FabricSmartPlugPanel({
   canManageSession,
   requiredRolesReady,
   onPower,
-  locale,
   t,
 }: {
   plugs: FabricSmartPlugAssignment[];
@@ -36,7 +30,6 @@ export function FabricSmartPlugPanel({
   canManageSession: boolean;
   requiredRolesReady: boolean;
   onPower: (role: string, on: boolean) => void;
-  locale: Locale;
   t: FabricTranslate;
 }) {
   if (plugs.length === 0) return null;
@@ -61,78 +54,43 @@ export function FabricSmartPlugPanel({
         <h2>{t("plug.title")}</h2>
       </div>
       <div className="fabric-smart-plug-list">
-        {plugs.map(({ role, node, state }) => (
-          <div
-            className="fabric-smart-plug-layout"
-            key={`${role}:${node.nodeId}`}
-          >
-            <div className="fabric-smart-plug-state">
-              <span
-                className={`fabric-plug-indicator ${state?.on ? "is-on" : "is-off"}`}
-                aria-hidden="true"
-              >
-                {state === undefined
-                  ? t("plug.unknownState")
-                  : state.on
-                    ? t("plug.onState")
-                    : t("plug.offState")}
-              </span>
-              <div>
-                <strong>{fabricRoleText(role, t).name}</strong>
-                <small>
-                  {node.displayName} · {node.nodeId}
-                </small>
-                <small>
-                  {metadataText(node, "vendorBrand") ?? "Matter"} ·{" "}
-                  {metadataText(node, "model") ?? "smart plug"}
-                </small>
-                <small>
+        {plugs.map(({ role, node, state }) => {
+          const turnOn = state?.on === false;
+          const actionKey = turnOn ? "plug.turnOn" : "plug.turnOff";
+          return (
+            <div
+              className="fabric-smart-plug-layout"
+              key={`${role}:${node.nodeId}`}
+            >
+              <div className="fabric-smart-plug-state">
+                <span
+                  className={`fabric-plug-indicator ${state?.on ? "is-on" : "is-off"}`}
+                  aria-hidden="true"
+                >
                   {state === undefined
-                    ? t("plug.stateUnknown")
-                    : t("plug.observed", {
-                        time: fabricFormatTime(state.observedAt, locale),
-                        source:
-                          state.source === undefined
-                            ? ""
-                            : ` · ${state.source}`,
-                      })}
-                </small>
+                    ? t("plug.unknownState")
+                    : state.on
+                      ? t("plug.onState")
+                      : t("plug.offState")}
+                </span>
+                <strong>{fabricRoleText(role, t).name}</strong>
+              </div>
+              <div className="fabric-smart-plug-actions">
+                <button
+                  className={`fabric-power-toggle ${turnOn ? "fabric-power-on" : "fabric-power-off"}`}
+                  type="button"
+                  aria-label={`${fabricRoleText(role, t).name}: ${t("plug.title")}`}
+                  aria-pressed={state?.on === true}
+                  disabled={turnOn ? !canTurnOn : !canTurnOff}
+                  onClick={() => onPower(role, turnOn)}
+                >
+                  {t(actionKey)}
+                </button>
               </div>
             </div>
-            <div className="fabric-smart-plug-actions">
-              <button
-                className="fabric-power-on"
-                type="button"
-                disabled={!canTurnOn}
-                onClick={() => onPower(role, true)}
-              >
-                {t("plug.turnOn")}
-                <small>{t("plug.turnOnHelp")}</small>
-              </button>
-              <button
-                className="fabric-power-off"
-                type="button"
-                disabled={!canTurnOff}
-                onClick={() => onPower(role, false)}
-              >
-                {t("plug.turnOff")}
-                <small>{t("plug.turnOffHelp")}</small>
-              </button>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-      <p className="fabric-help">{t("plug.help")}</p>
     </section>
   );
 }
-
-const metadataText = (
-  node: IntegrationNode,
-  key: string,
-): string | undefined => {
-  const value = node.metadata?.[key];
-  return typeof value === "string" && value.trim() !== ""
-    ? value.trim()
-    : undefined;
-};
