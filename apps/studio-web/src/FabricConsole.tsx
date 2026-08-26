@@ -2389,7 +2389,6 @@ export function FabricConsole() {
             }
             requiredRolesReady={assignedSmartPlugs.length > 0}
             onPower={(role, on) => void setSmartPlugPower(role, on)}
-            locale={locale}
             t={t}
           />
         );

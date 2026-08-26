@@ -33,14 +33,22 @@ const flightCapability = (
 describe("Fabric direct device controls", () => {
   const t = fabricTranslatorFor("ko");
 
-  it("shows smart-plug power controls without a separate enable step", () => {
-    const html = renderToStaticMarkup(
+  it("shows one immediately enabled smart-plug toggle before setup", () => {
+    const offHtml = renderToStaticMarkup(
       <FabricSmartPlugPanel
         plugs={[
           {
             role: "classroom_plug",
-            node: physicalNode({ nodeId: "plug-1", displayName: "P110M" }),
-            state: { on: false, observedAt: "2026-08-24T12:00:00Z" },
+            node: physicalNode({
+              nodeId: "plug-1",
+              displayName: "P110M",
+              metadata: { vendorBrand: "TP-Link", model: "Tapo P110M" },
+            }),
+            state: {
+              on: false,
+              observedAt: "2026-08-24T12:00:00Z",
+              source: "command",
+            },
           },
         ]}
         sessionState=""
@@ -51,17 +59,57 @@ describe("Fabric direct device controls", () => {
         canManageSession={true}
         requiredRolesReady={true}
         onPower={vi.fn()}
-        locale="ko"
         t={t}
       />,
     );
 
-    expect(html).not.toContain("켜기 제어 활성화");
-    const powerOnButton = html.match(
-      /<button class="fabric-power-on"[^>]*>/,
+    expect(offHtml).not.toContain("켜기 제어 활성화");
+    expect(offHtml.match(/<button/g)).toHaveLength(1);
+    const turnOnToggle = offHtml.match(
+      /<button class="fabric-power-toggle fabric-power-on"[^>]*>/,
     )?.[0];
-    expect(powerOnButton).toBeDefined();
-    expect(powerOnButton).not.toContain("disabled");
+    expect(turnOnToggle).toBeDefined();
+    expect(turnOnToggle).toContain('aria-pressed="false"');
+    expect(turnOnToggle).not.toContain("disabled");
+    expect(offHtml).toContain("교실 플러그 1");
+    expect(offHtml).toContain("꺼짐");
+    expect(offHtml).toContain("켜기");
+    expect(offHtml).not.toContain("plug-1");
+    expect(offHtml).not.toContain("P110M");
+    expect(offHtml).not.toContain("TP-Link");
+    expect(offHtml).not.toContain("command");
+    expect(offHtml).not.toContain("승인된 교실 부하 켜기");
+    expect(offHtml).not.toContain("장치 찾기 후 하나의 전원 버튼");
+
+    const onHtml = renderToStaticMarkup(
+      <FabricSmartPlugPanel
+        plugs={[
+          {
+            role: "classroom_plug",
+            node: physicalNode({ nodeId: "plug-1", displayName: "P110M" }),
+            state: { on: true, observedAt: "2026-08-24T12:00:00Z" },
+          },
+        ]}
+        sessionState="active"
+        sessionMode="physical"
+        sessionArmed
+        busy={false}
+        canSubmit
+        canManageSession
+        requiredRolesReady
+        onPower={vi.fn()}
+        t={t}
+      />,
+    );
+
+    expect(onHtml.match(/<button/g)).toHaveLength(1);
+    const turnOffToggle = onHtml.match(
+      /<button class="fabric-power-toggle fabric-power-off"[^>]*>/,
+    )?.[0];
+    expect(turnOffToggle).toBeDefined();
+    expect(turnOffToggle).toContain('aria-pressed="true"');
+    expect(turnOffToggle).not.toContain("disabled");
+    expect(onHtml).toContain("끄기");
   });
 
   it("shows Sphero movement controls without a separate enable step", () => {
