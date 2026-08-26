@@ -1,3 +1,5 @@
+import { useEffect, useState } from "react";
+
 import type { IntegrationNode } from "@citxr/protocol";
 
 import { fabricRoleText, type FabricTranslate } from "./fabric-i18n.js";
@@ -8,6 +10,8 @@ export interface FabricSmartPlugAssignment {
   node: IntegrationNode;
   state: SmartPlugState | undefined;
 }
+
+const UNKNOWN_STATE_MARK = "--";
 
 export function FabricSmartPlugPanel({
   plugs,
@@ -32,7 +36,12 @@ export function FabricSmartPlugPanel({
   onPower: (role: string, on: boolean) => void;
   t: FabricTranslate;
 }) {
-  if (plugs.length === 0) return null;
+  const [pendingRole, setPendingRole] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!busy) setPendingRole(undefined);
+  }, [busy]);
+
   const canUseOrPrepareSession = sessionState !== "" || canManageSession;
   const canTurnOff =
     canSubmit &&
@@ -44,53 +53,55 @@ export function FabricSmartPlugPanel({
     sessionState === "active" && (sessionMode !== "physical" || sessionArmed);
   const canTurnOn = canTurnOff && (controlsAlreadyReady || canManageSession);
 
+  if (plugs.length === 0) return null;
+
   return (
     <section
-      className="fabric-panel fabric-smart-plug-panel"
+      className="fabric-smart-plug-panel"
       id="smart-plug-controls"
+      aria-label={t("plug.title")}
     >
-      <div className="fabric-panel-heading">
-        <p className="eyebrow">{t("plug.eyebrow")}</p>
-        <h2>{t("plug.title")}</h2>
-      </div>
-      <div className="fabric-smart-plug-list">
+      <ul className="fabric-smart-plug-list">
         {plugs.map(({ role, node, state }) => {
           const turnOn = state?.on === false;
-          const actionKey = turnOn ? "plug.turnOn" : "plug.turnOff";
+          const action = t(turnOn ? "plug.turnOn" : "plug.turnOff");
+          const name = fabricRoleText(role, t).name;
+          const pending = busy && pendingRole === role;
+          const tone =
+            state === undefined ? "is-unknown" : state.on ? "is-on" : "is-off";
           return (
-            <div
-              className="fabric-smart-plug-layout"
+            <li
+              className="fabric-plug-row"
               key={`${role}:${node.nodeId}`}
+              {...(pending ? { "aria-busy": true } : {})}
             >
-              <div className="fabric-smart-plug-state">
-                <span
-                  className={`fabric-plug-indicator ${state?.on ? "is-on" : "is-off"}`}
-                  aria-hidden="true"
-                >
-                  {state === undefined
-                    ? t("plug.unknownState")
-                    : state.on
-                      ? t("plug.onState")
-                      : t("plug.offState")}
-                </span>
-                <strong>{fabricRoleText(role, t).name}</strong>
-              </div>
-              <div className="fabric-smart-plug-actions">
-                <button
-                  className={`fabric-power-toggle ${turnOn ? "fabric-power-on" : "fabric-power-off"}`}
-                  type="button"
-                  aria-label={`${fabricRoleText(role, t).name}: ${t("plug.title")}`}
-                  aria-pressed={state?.on === true}
-                  disabled={turnOn ? !canTurnOn : !canTurnOff}
-                  onClick={() => onPower(role, turnOn)}
-                >
-                  {t(actionKey)}
-                </button>
-              </div>
-            </div>
+              <span className="fabric-plug-name">{name}</span>
+              <span
+                className={`fabric-plug-state ${tone}`}
+                {...(state === undefined
+                  ? { title: t("plug.stateUnknown") }
+                  : {})}
+              >
+                {state === undefined
+                  ? UNKNOWN_STATE_MARK
+                  : t(state.on ? "plug.onState" : "plug.offState")}
+              </span>
+              <button
+                className={`fabric-power-toggle ${turnOn ? "fabric-power-on" : "fabric-power-off"}${pending ? " is-pending" : ""}`}
+                type="button"
+                aria-label={`${name}: ${action}`}
+                disabled={turnOn ? !canTurnOn : !canTurnOff}
+                onClick={() => {
+                  setPendingRole(role);
+                  onPower(role, turnOn);
+                }}
+              >
+                {action}
+              </button>
+            </li>
           );
         })}
-      </div>
+      </ul>
     </section>
   );
 }
