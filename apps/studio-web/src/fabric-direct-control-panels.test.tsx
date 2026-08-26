@@ -69,17 +69,28 @@ describe("Fabric direct device controls", () => {
       /<button class="fabric-power-toggle fabric-power-on"[^>]*>/,
     )?.[0];
     expect(turnOnToggle).toBeDefined();
-    expect(turnOnToggle).toContain('aria-pressed="false"');
+    // The label already states the action, so aria-pressed would double-encode
+    // it. The accessible name names the target and what pressing will do.
+    expect(turnOnToggle).not.toContain("aria-pressed");
+    expect(turnOnToggle).toContain('aria-label="교실 플러그 1: 켜기"');
     expect(turnOnToggle).not.toContain("disabled");
     expect(offHtml).toContain("교실 플러그 1");
     expect(offHtml).toContain("꺼짐");
     expect(offHtml).toContain("켜기");
+    // Current state and the action live in separate elements, never in one
+    // control that has to mean both at once.
+    expect(offHtml).toContain(
+      '<span class="fabric-plug-state is-off">꺼짐</span>',
+    );
     expect(offHtml).not.toContain("plug-1");
     expect(offHtml).not.toContain("P110M");
     expect(offHtml).not.toContain("TP-Link");
     expect(offHtml).not.toContain("command");
     expect(offHtml).not.toContain("승인된 교실 부하 켜기");
     expect(offHtml).not.toContain("장치 찾기 후 하나의 전원 버튼");
+    // No heading: the enclosing discovery card already names the integration.
+    expect(offHtml).not.toContain("<h2");
+    expect(offHtml).not.toContain("eyebrow");
 
     const onHtml = renderToStaticMarkup(
       <FabricSmartPlugPanel
@@ -107,9 +118,45 @@ describe("Fabric direct device controls", () => {
       /<button class="fabric-power-toggle fabric-power-off"[^>]*>/,
     )?.[0];
     expect(turnOffToggle).toBeDefined();
-    expect(turnOffToggle).toContain('aria-pressed="true"');
+    expect(turnOffToggle).toContain('aria-label="교실 플러그 1: 끄기"');
     expect(turnOffToggle).not.toContain("disabled");
     expect(onHtml).toContain("끄기");
+    expect(onHtml).toContain(
+      '<span class="fabric-plug-state is-on">켜짐</span>',
+    );
+  });
+
+  it("marks unobserved smart-plug state without overflowing the row", () => {
+    const html = renderToStaticMarkup(
+      <FabricSmartPlugPanel
+        plugs={[
+          {
+            role: "classroom_plug",
+            node: physicalNode({ nodeId: "plug-1", displayName: "P110M" }),
+            state: undefined,
+          },
+        ]}
+        sessionState="active"
+        sessionMode="physical"
+        sessionArmed
+        busy={false}
+        canSubmit
+        canManageSession
+        requiredRolesReady
+        onPower={vi.fn()}
+        t={t}
+      />,
+    );
+
+    // A word like "알 수 없음" cannot fit the state column; a null-reading mark
+    // can, and the full sentence stays available as the tooltip.
+    expect(html).not.toContain(">알 수 없음<");
+    expect(html).toContain("--");
+    expect(html).toContain(
+      '<span class="fabric-plug-state is-unknown" title="이 수업에서 아직 상태를 확인하지 못했습니다">',
+    );
+    // Unknown state still offers the safe direction.
+    expect(html).toContain("끄기");
   });
 
   it("shows Sphero movement controls without a separate enable step", () => {

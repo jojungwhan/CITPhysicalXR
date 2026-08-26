@@ -846,6 +846,10 @@ main.fabric-main {
   container: fabric-device-controls / inline-size;
 }
 
+.fabric-inline-device-controls > .fabric-smart-plug-panel {
+  margin: 0;
+}
+
 .fabric-inline-device-controls > .fabric-panel {
   margin: 0;
   padding: 6px;
@@ -2412,8 +2416,10 @@ main.fabric-main {
 
 .fabric-smart-plug-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: 5px;
+  margin: 0;
+  padding: 0;
+  gap: 0;
+  list-style: none;
 }
 
 .fabric-plug-control-entry,
@@ -2492,91 +2498,90 @@ main.fabric-main {
   background: rgb(117 199 255 / 6%);
 }
 
-.fabric-smart-plug-layout,
-.fabric-smart-plug-state,
-.fabric-smart-plug-actions {
-  display: flex;
-  gap: 8px;
-}
-
-.fabric-smart-plug-layout {
-  align-items: stretch;
-}
-
-.fabric-smart-plug-state {
-  min-width: 0;
-  flex: 1;
-  align-items: center;
-  padding: 6px;
-  border: 1px solid rgb(255 255 255 / 8%);
-  border-radius: 10px;
-  background: rgb(0 0 0 / 16%);
-}
-
-.fabric-smart-plug-state strong,
-.fabric-smart-plug-state small,
-.fabric-smart-plug-actions button small {
-  display: block;
-}
-
-.fabric-smart-plug-state small {
-  color: #84938a;
-  overflow-wrap: anywhere;
-}
-
-.fabric-plug-indicator {
+.fabric-plug-row {
   display: grid;
-  width: 34px;
-  height: 34px;
-  flex: 0 0 auto;
-  place-items: center;
-  border-radius: 50%;
-  color: #d7e1da;
-  background: #39433d;
+  min-height: 34px;
+  padding: 3px 0;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 10px;
+}
+
+.fabric-plug-row + .fabric-plug-row {
+  border-top: 1px solid rgb(255 255 255 / 8%);
+}
+
+.fabric-plug-name {
+  min-width: 0;
+  color: #e8f5ea;
+  font-weight: 650;
+  line-height: 1.25;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+.fabric-plug-state {
+  min-width: 2.9rem;
+  color: #92a29a;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
   font-size: 0.72rem;
-  font-weight: 900;
-  letter-spacing: 0.08em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
-.fabric-plug-indicator.is-on {
-  color: #102013;
-  background: var(--fabric-green);
-  box-shadow: 0 0 22px rgb(158 234 100 / 28%);
+.fabric-plug-state.is-on {
+  color: var(--fabric-green);
 }
 
-.fabric-smart-plug-actions {
-  min-width: min(100%, 250px);
+.fabric-plug-state.is-unknown {
+  cursor: help;
 }
 
-.fabric-smart-plug-actions button {
-  flex: 1;
-}
-
-.fabric-smart-plug-actions button small {
-  margin-top: 3px;
-}
-
-@container fabric-device-controls (max-width: 620px) {
-  .fabric-smart-plug-layout {
-    flex-direction: column;
-  }
-
-  .fabric-smart-plug-state {
-    flex: none;
-  }
-
-  .fabric-smart-plug-actions {
-    width: 100%;
-    min-width: 0;
-  }
+.fabric-power-toggle {
+  min-width: 5.5rem;
+  min-height: 30px;
+  padding: 4px 10px;
+  font-size: 0.79rem;
+  white-space: nowrap;
 }
 
 .fabric-power-on {
   border-color: rgb(255 157 98 / 45%) !important;
+  color: #ffe4d6 !important;
+  background: rgb(255 157 98 / 12%) !important;
 }
 
 .fabric-power-off {
   border-color: rgb(117 199 255 / 40%) !important;
+  color: #dceeff !important;
+  background: rgb(117 199 255 / 10%) !important;
+}
+
+.fabric-power-toggle.is-pending {
+  animation: fabric-plug-pending 900ms ease-in-out infinite;
+}
+
+.fabric-plug-row[aria-busy="true"] .fabric-plug-state {
+  animation: fabric-plug-pending 900ms ease-in-out infinite;
+}
+
+@keyframes fabric-plug-pending {
+  50% {
+    opacity: 0.42;
+  }
+}
+
+@container fabric-device-controls (max-width: 330px) {
+  .fabric-plug-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .fabric-power-toggle {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
 }
 
 .fabric-drone-list {
@@ -3847,7 +3852,9 @@ main.fabric-main {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .leap-search-pulse circle {
+  .leap-search-pulse circle,
+  .fabric-power-toggle.is-pending,
+  .fabric-plug-row[aria-busy="true"] .fabric-plug-state {
     animation: none;
   }
 }
@@ -4253,8 +4260,6 @@ main.fabric-main {
   .fabric-grid,
   .fabric-stream-grid,
   .fabric-test-actions,
-  .fabric-smart-plug-layout,
-  .fabric-smart-plug-actions,
   .fabric-plug-control-entry,
   .fabric-plug-safety-gate,
   .fabric-sphero-control-entry,
@@ -4266,8 +4271,6 @@ main.fabric-main {
     grid-template-columns: 1fr;
   }
 
-  .fabric-smart-plug-layout,
-  .fabric-smart-plug-actions,
   .fabric-plug-control-entry,
   .fabric-plug-safety-gate,
   .fabric-sphero-control-entry,
