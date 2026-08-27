@@ -222,10 +222,27 @@ export class AgentMeshApiClient {
 const parseWearable = (value: unknown): AgentMeshWearable => {
   const item = record(value, "wearable");
   const lastUsedAt = optionalDateTime(item.lastUsedAt, "lastUsedAt");
+  const scopes = array(item.scopes, "scopes").map((scope) =>
+    oneOf(
+      scope,
+      ["read", "prompt", "approval", "control", "robot"] as const,
+      "scope",
+    ),
+  );
+  if (
+    scopes.length < 1 ||
+    scopes.length > 5 ||
+    new Set(scopes).size !== scopes.length
+  ) {
+    throw new TypeError(
+      "Agent Mesh wearable scopes must contain 1 through 5 unique values",
+    );
+  }
   return {
     deviceId: string(item.deviceId, "deviceId"),
     displayName: string(item.displayName, "displayName"),
     kind: oneOf(item.kind, ["even_g2", "ray_ban"] as const, "kind"),
+    scopes,
     status: oneOf(
       item.status,
       ["active", "expired", "revoked"] as const,
@@ -296,6 +313,8 @@ const parseInteraction = (value: unknown): AgentMeshInteraction => {
         "demo",
         "takeoff",
         "land",
+        "power_on",
+        "power_off",
         "activate",
       ] as const,
       "action",
@@ -305,6 +324,7 @@ const parseInteraction = (value: unknown): AgentMeshInteraction => {
       [
         "ground_outputs",
         "tello_fleet",
+        "power_outputs",
         "assigned_output",
         "all_outputs",
       ] as const,

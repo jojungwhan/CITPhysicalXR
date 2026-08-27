@@ -8,6 +8,7 @@ export interface BridgeConfig {
   readonly fabricApiUrl: string;
   readonly fabricReadCredential: string;
   readonly fabricSessionId: string;
+  readonly projectFabricControls: boolean;
   readonly agentMeshBaseUrl: string;
   readonly agentMeshDeviceToken: string;
   readonly databasePath: string;
@@ -57,6 +58,11 @@ export const loadBridgeConfig = (
       required(environment, "CIT_FABRIC_SESSION_ID"),
       "CIT_FABRIC_SESSION_ID",
     ),
+    projectFabricControls: booleanFlag(
+      environment.CIT_FABRIC_CONTROL_PROJECTION,
+      false,
+      "CIT_FABRIC_CONTROL_PROJECTION",
+    ),
     agentMeshBaseUrl,
     agentMeshDeviceToken: boundedSecret(
       required(environment, "CIT_AGENT_MESH_DEVICE_TOKEN"),
@@ -85,6 +91,17 @@ export const loadBridgeConfig = (
       "CIT_BRIDGE_RECONNECT_DELAY_MS",
     ),
   };
+};
+
+const booleanFlag = (
+  raw: string | undefined,
+  fallback: boolean,
+  name: string,
+): boolean => {
+  if (raw === undefined) return fallback;
+  if (raw === "true") return true;
+  if (raw === "false") return false;
+  throw new TypeError(`${name} must be true or false`);
 };
 
 const fabricHttpOrigin = (adapterUrl: string): string => {

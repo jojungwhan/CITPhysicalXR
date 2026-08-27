@@ -113,7 +113,12 @@ def test_explicit_physical_mode_and_robot_course_are_visible(tmp_path: Path) -> 
     assert all("parallelGroup" not in flow for flow in glasses["flows"])
     assert {
         flow["parallelGroup"] for flow in glasses_control["flows"] if "parallelGroup" in flow
-    } == {"glasses-ground-control"}
+    } == {
+        "glasses-activate-all",
+        "glasses-ground-control",
+        "glasses-power-on",
+        "glasses-power-off",
+    }
     assert glasses_control["roles"][0]["oneOfCapabilities"] == ["interaction.intent.device_control"]
     assert {flow["parallelGroup"] for flow in simultaneous["flows"] if "parallelGroup" in flow} == {
         "simultaneous-classroom-cue"
@@ -177,16 +182,25 @@ def test_monitoring_session_is_reused_for_independent_adapters(tmp_path: Path) -
             f"/api/v1/fabric/sessions/{first.json()['sessionId']}/start-policy",
             headers=ADMIN_HEADERS,
         )
+        retrieved = client.get(
+            f"/api/v1/fabric/sessions/{first.json()['sessionId']}",
+            headers=ADMIN_HEADERS,
+        )
         sessions = client.get("/api/v1/fabric/sessions", headers=ADMIN_HEADERS)
 
     assert first.status_code == 200
     assert second.status_code == 200
     assert first.json()["sessionId"] == second.json()["sessionId"]
+    absent_optional_fields = {"armedAt", "armedBy", "startedAt", "endedAt"}
+    assert absent_optional_fields.isdisjoint(first.json())
+    assert absent_optional_fields.isdisjoint(second.json())
+    assert absent_optional_fields.isdisjoint(retrieved.json())
     assert start_policy.json() == {
         "sessionId": first.json()["sessionId"],
         "requiresArming": False,
     }
     assert len(sessions.json()) == 1
+    assert absent_optional_fields.isdisjoint(sessions.json()[0])
 
 
 def test_event_listing_can_return_the_latest_window_in_chronological_order(

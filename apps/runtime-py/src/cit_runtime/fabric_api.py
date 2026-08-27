@@ -1008,6 +1008,7 @@ def install_fabric_api(
     @app.post(
         "/api/v1/fabric/sessions",
         response_model=InteractionSession,
+        response_model_exclude_none=True,
         status_code=201,
     )
     async def create_session(
@@ -1037,6 +1038,7 @@ def install_fabric_api(
     @app.post(
         "/api/v1/fabric/monitoring/session",
         response_model=InteractionSession,
+        response_model_exclude_none=True,
     )
     async def ensure_monitoring_session(
         request: EnsureMonitoringSessionRequest,
@@ -1071,7 +1073,11 @@ def install_fabric_api(
         )
         return session
 
-    @app.get("/api/v1/fabric/sessions", response_model=list[InteractionSession])
+    @app.get(
+        "/api/v1/fabric/sessions",
+        response_model=list[InteractionSession],
+        response_model_exclude_none=True,
+    )
     async def sessions(
         principal: Annotated[
             FabricPrincipal,
@@ -1092,6 +1098,7 @@ def install_fabric_api(
     @app.get(
         "/api/v1/fabric/sessions/{session_id}",
         response_model=InteractionSession,
+        response_model_exclude_none=True,
     )
     async def get_session(
         session_id: str,
@@ -1138,6 +1145,7 @@ def install_fabric_api(
     @app.put(
         "/api/v1/fabric/sessions/{session_id}/roles/{role}",
         response_model=InteractionSession,
+        response_model_exclude_none=True,
     )
     async def assign_role(
         session_id: str,
@@ -1474,6 +1482,7 @@ def _install_session_action(
         session_action,
         methods=["POST"],
         response_model=InteractionSession,
+        response_model_exclude_none=True,
         name=f"fabric_session_{action}",
     )
 

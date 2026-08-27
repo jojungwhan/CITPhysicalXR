@@ -11,8 +11,39 @@ interface RoleSelectionRequirement {
   candidateNodeIds: readonly string[];
 }
 
+interface VersionedCoursePack {
+  coursePackId: string;
+  version: string;
+}
+
+const compareCourseVersions = (left: string, right: string): number =>
+  left.localeCompare(right, undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+
+/**
+ * Keep historical packs available for existing sessions while presenting only
+ * the newest installed version when a tutor creates a new lesson.
+ */
+export const latestCoursePacks = <T extends VersionedCoursePack>(
+  coursePacks: readonly T[],
+): T[] => {
+  const latestById = new Map<string, T>();
+  for (const coursePack of coursePacks) {
+    const current = latestById.get(coursePack.coursePackId);
+    if (
+      current === undefined ||
+      compareCourseVersions(current.version, coursePack.version) < 0
+    ) {
+      latestById.set(coursePack.coursePackId, coursePack);
+    }
+  }
+  return [...latestById.values()];
+};
+
 const AUTO_FILL_ROLE =
-  /^(?:safety_drone|fleet_sequence_input|ground_output|robot_sensor|glasses_input|message_output)_[1-8]$/;
+  /^(?:safety_drone|fleet_sequence_input|ground_output|power_output|robot_sensor|glasses_input|message_output)_[1-8]$/;
 
 /**
  * Choose deterministic defaults without guessing between multiple devices for

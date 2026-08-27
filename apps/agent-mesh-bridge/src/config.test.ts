@@ -27,6 +27,22 @@ describe("Agent Mesh bridge configuration", () => {
     expect(config.agentMeshBaseUrl).toBe("http://127.0.0.1:7342");
     expect(config.siteId).toBe("local-site");
     expect(config.pollIntervalMs).toBe(2_000);
+    expect(config.projectFabricControls).toBe(false);
+  });
+
+  it("enables control projection only when the launcher opts in", () => {
+    expect(
+      loadBridgeConfig({
+        ...environment(),
+        CIT_FABRIC_CONTROL_PROJECTION: "true",
+      }).projectFabricControls,
+    ).toBe(true);
+    expect(() =>
+      loadBridgeConfig({
+        ...environment(),
+        CIT_FABRIC_CONTROL_PROJECTION: "yes",
+      }),
+    ).toThrow(/true or false/iu);
   });
 
   it("rejects query credentials and relative persistence paths", () => {

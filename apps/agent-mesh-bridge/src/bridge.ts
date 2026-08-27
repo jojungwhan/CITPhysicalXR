@@ -524,7 +524,10 @@ export const runBridgeForever = async (
     source,
     outbox,
     options.socketFactory ?? defaultSocketFactory,
-    options.controlSource ?? new FabricControlApiClient(config),
+    options.controlSource ??
+      (config.projectFabricControls
+        ? new FabricControlApiClient(config)
+        : undefined),
     options.onDiagnostic,
   );
   try {

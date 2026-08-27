@@ -18,8 +18,11 @@ describe("FabricG2Guide", () => {
     expect(html).toContain("음성·버튼 입력");
     expect(html).toContain("Codex 또는 Claude");
     expect(html).toContain("CIT 로봇 앞으로");
-    expect(html).toContain("RoboMaster, Sphero, LEGO 또는 Dash");
-    expect(html).toContain("이동과 이륙은 한 번 더 눌러 확인");
+    expect(html).toContain("로컬 스마트 플러그");
+    expect(html).toContain("CIT 모든 플러그 켜기");
+    expect(html).toContain("CIT 모든 장치 켜기");
+    expect(html).toContain("한 번 확인");
+    expect(html).toContain("로봇 시연, 플러그 켜기");
     expect(html).toContain("Telegram은 안경이 아니라");
     expect(html).toContain("일반 문구를 직접 보내는 작성창");
     expect(html).toContain("fabric-g2-guide-actions");

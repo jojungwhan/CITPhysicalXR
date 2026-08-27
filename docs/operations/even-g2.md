@@ -28,12 +28,13 @@ to choose an assigned output, press to open its supported actions, then press
 again to review. Press or swipe right once more to confirm. Double-press goes
 back; stop and land are sent immediately.
 
-Choose **All assigned devices > Activate all** for the bounded classroom
+Choose **All assigned devices > Turn on all devices** for the bounded classroom
 demonstration. Light-capable robots turn cyan, demo-capable ground robots travel
-about 10 cm forward and back, and the assigned Tello fleet requests takeoff.
-The action does not arm anything: the lesson and robots must already be armed,
-and Tello must already have its separate tutor one-shot arm. **Stop / land**
-preempts robot demonstrations and requests fleet landing.
+about 10 cm forward and back, assigned smart plugs turn on, and the assigned
+Tello fleet requests takeoff. The action does not arm anything: the lesson and
+outputs must already be armed, and Tello must already have its separate tutor
+one-shot arm. **Stop / land** preempts robot demonstrations, turns assigned
+plugs off, and requests fleet landing.
 
 Discovery and connection do not record raw microphone audio. Only the semantic
 interaction enters the Fabric.
@@ -61,6 +62,7 @@ Supported phrases include:
 - CIT drones take off / CIT 드론 이륙
 - CIT drones land / CIT 드론 착륙
 - CIT controls / CIT 장치 제어
+- CIT turn on all devices / CIT 모든 장치 켜기
 - CIT activate all devices / CIT 모든 장치 실행
 - CIT stop all devices / CIT 모든 장치 정지
 - CIT robots demo / CIT 로봇 시연

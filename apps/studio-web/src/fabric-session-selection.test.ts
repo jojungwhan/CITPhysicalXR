@@ -2,11 +2,35 @@ import { describe, expect, it } from "vitest";
 
 import {
   automaticRoleAssignments,
+  latestCoursePacks,
   reconciledRoleSelections,
   refreshedSessionSelection,
 } from "./fabric-session-selection.js";
 
 describe("Fabric tutor session selection", () => {
+  it("offers only the newest installed version of each course", () => {
+    const legacyGlassesCourse = {
+      coursePackId: "glasses-device-control",
+      version: "1.0.0",
+    };
+    const currentGlassesCourse = {
+      coursePackId: "glasses-device-control",
+      version: "1.10.0",
+    };
+    const robotCourse = {
+      coursePackId: "gesture-ground-robot",
+      version: "2.0.0",
+    };
+
+    expect(
+      latestCoursePacks([
+        legacyGlassesCourse,
+        robotCourse,
+        currentGlassesCourse,
+      ]),
+    ).toEqual([currentGlassesCourse, robotCourse]);
+  });
+
   it("keeps the lesson builder open instead of restoring an old session", () => {
     expect(
       refreshedSessionSelection("", [
@@ -87,6 +111,21 @@ describe("Fabric tutor session selection", () => {
             candidateNodeIds: ["robot-a", "robot-b"],
           },
           {
+            role: "power_output_1",
+            optional: true,
+            candidateNodeIds: ["plug-a", "plug-b"],
+          },
+          {
+            role: "power_output_2",
+            optional: true,
+            candidateNodeIds: ["plug-a", "plug-b"],
+          },
+          {
+            role: "power_output_3",
+            optional: true,
+            candidateNodeIds: ["plug-a", "plug-b"],
+          },
+          {
             role: "fleet_sequence_controller",
             optional: true,
             candidateNodeIds: ["fleet-1"],
@@ -97,6 +136,8 @@ describe("Fabric tutor session selection", () => {
       smart_ring_input: "ring-1",
       ground_output_1: "robot-a",
       ground_output_2: "robot-b",
+      power_output_1: "plug-a",
+      power_output_2: "plug-b",
       fleet_sequence_controller: "fleet-1",
     });
   });

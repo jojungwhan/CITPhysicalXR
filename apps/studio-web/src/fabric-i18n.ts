@@ -24,12 +24,12 @@ const EN = {
   "g2.guide.output":
     "Receive coding-agent completions and configured notifications through the glasses display or audio.",
   "g2.guide.deviceControl":
-    "Control every assigned RoboMaster, Sphero, LEGO, or Dash together, and request an armed Tello sequence.",
+    "Control assigned RoboMaster, Sphero, LEGO, Dash, and local smart plugs, or request an armed Tello sequence.",
   "g2.guide.commandsTitle": "Voice examples:",
   "g2.guide.commands":
-    "“CIT robots forward”, “CIT robots left”, “CIT robots stop”, “CIT drones take off”, or “CIT drones land”.",
+    "“CIT robots forward”, “CIT smart plugs on”, or “CIT turn on all devices”.",
   "g2.guide.controlSetup":
-    "Choose Glasses device control, assign this glasses input and each output, start and arm the lesson, then speak. Movement and takeoff require one more press to confirm.",
+    "Choose Glasses device control, assign the inputs and outputs, then start and arm the lesson. Turn on all devices confirms once, then runs assigned robot demos, turns plugs on, and requests the prepared Tello sequence.",
   "g2.guide.telegram":
     "Install Telegram on the paired phone, not on the glasses. For G2, enable Telegram in Even app → Settings → Notification; Meta uses the paired phone’s notification/audio path.",
   "g2.guide.directMessage":
@@ -996,9 +996,9 @@ const EN = {
   "course.glasses.description":
     "Students send a request from their glasses to a coding assistant and receive the response on a classroom display.",
   "course.glassesControl.name": "Glasses device control",
-  "course.glassesControl.summary": "G2 or Meta + assigned robots and drones",
+  "course.glassesControl.summary": "G2 or Meta + robots, plugs, and drones",
   "course.glassesControl.description":
-    "Confirmed G2 or Meta voice commands move every assigned RoboMaster, Sphero, LEGO, or Dash at once. Tello takeoff still requires the separate tutor flight checklist and one-shot arm.",
+    "Confirmed G2 or Meta controls operate assigned RoboMaster, Sphero, LEGO, Dash, and local Matter smart plugs. Tello takeoff still requires the tutor flight checklist and one-shot arm.",
   "course.gesture.name": "Gesture-controlled robot",
   "course.gesture.summary": "Gesture + classroom robot",
   "course.gesture.description":
@@ -1064,6 +1064,9 @@ const EN = {
   "role.groundOutput.name": "Ground robot output {number}",
   "role.groundOutput.description":
     "Receives the same bounded, watchdog-limited movement cue; assign RoboMaster, Sphero, LEGO, or Dash",
+  "role.powerOutput.name": "Smart plug output {number}",
+  "role.powerOutput.description":
+    "Turns one assigned local Matter smart plug on or off without a vendor cloud",
   "role.messageOutput.name": "Glasses message output {number}",
   "role.messageOutput.description":
     "Receives the same fixed lesson message; assign G2 or Meta glasses",
@@ -1111,12 +1114,12 @@ const KO: Record<FabricMessageKey, string> = {
   "g2.guide.output":
     "코딩 에이전트 완료 결과와 설정된 알림을 안경 화면 또는 음성으로 받을 수 있습니다.",
   "g2.guide.deviceControl":
-    "배정한 RoboMaster, Sphero, LEGO 또는 Dash를 동시에 제어하고 준비된 Tello 순차 비행을 요청할 수 있습니다.",
+    "배정한 RoboMaster, Sphero, LEGO, Dash와 로컬 스마트 플러그를 제어하고 준비된 Tello 순차 비행을 요청할 수 있습니다.",
   "g2.guide.commandsTitle": "음성 예시:",
   "g2.guide.commands":
-    "‘CIT 로봇 앞으로’, ‘CIT 로봇 왼쪽’, ‘CIT 로봇 정지’, ‘CIT 드론 이륙’ 또는 ‘CIT 드론 착륙’.",
+    "‘CIT 로봇 앞으로’, ‘CIT 모든 플러그 켜기’ 또는 ‘CIT 모든 장치 켜기’.",
   "g2.guide.controlSetup":
-    "‘안경으로 장치 제어’를 선택하고 안경 입력과 각 출력을 배정한 뒤 수업을 시작·준비하세요. 이동과 이륙은 한 번 더 눌러 확인해야 합니다.",
+    "‘안경으로 장치 제어’를 선택해 입출력을 배정하고 수업을 시작·준비하세요. ‘모든 장치 켜기’는 한 번 확인한 뒤 로봇 시연, 플러그 켜기, 준비된 Tello 순차 이륙을 요청합니다.",
   "g2.guide.telegram":
     "Telegram은 안경이 아니라 페어링한 휴대전화에 설치합니다. G2는 Even 앱 → 설정 → 알림에서 Telegram을 켜고, Meta는 휴대전화 알림·음성 경로를 사용합니다.",
   "g2.guide.directMessage":
@@ -2040,9 +2043,9 @@ const KO: Record<FabricMessageKey, string> = {
   "course.glasses.description":
     "학생이 안경에서 코딩 도우미에게 요청을 보내고 교실 화면에서 답변을 확인합니다.",
   "course.glassesControl.name": "안경으로 장치 제어",
-  "course.glassesControl.summary": "G2 또는 Meta + 배정한 로봇과 드론",
+  "course.glassesControl.summary": "G2 또는 Meta + 로봇, 플러그 및 드론",
   "course.glassesControl.description":
-    "확인된 G2 또는 Meta 음성 명령으로 배정한 RoboMaster, Sphero, LEGO 또는 Dash를 동시에 움직입니다. Tello 이륙에는 별도의 강사 비행 확인과 1회 준비가 계속 필요합니다.",
+    "확인된 G2 또는 Meta 제어로 배정한 RoboMaster, Sphero, LEGO, Dash 및 로컬 Matter 스마트 플러그를 작동합니다. Tello 이륙에는 강사 비행 확인과 1회 준비가 계속 필요합니다.",
   "course.gesture.name": "제스처로 로봇 제어",
   "course.gesture.summary": "제스처 + 교실 로봇",
   "course.gesture.description":
@@ -2105,6 +2108,9 @@ const KO: Record<FabricMessageKey, string> = {
   "role.groundOutput.name": "지상 로봇 출력 {number}",
   "role.groundOutput.description":
     "동일한 제한 속도 및 감시 타이머가 적용된 이동 신호를 받습니다. RoboMaster, Sphero, LEGO 또는 Dash를 배정하세요",
+  "role.powerOutput.name": "스마트 플러그 출력 {number}",
+  "role.powerOutput.description":
+    "제조사 클라우드 없이 배정한 로컬 Matter 스마트 플러그 하나를 켜거나 끕니다",
   "role.messageOutput.name": "안경 메시지 출력 {number}",
   "role.messageOutput.description":
     "동일한 고정 수업 메시지를 받습니다. G2 또는 Meta 안경을 배정하세요",
@@ -2574,6 +2580,11 @@ export const fabricRoleText = (
       /^ground_output_(\d+)$/,
       "role.groundOutput.name",
       "role.groundOutput.description",
+    ) ??
+    dynamic(
+      /^power_output_(\d+)$/,
+      "role.powerOutput.name",
+      "role.powerOutput.description",
     ) ??
     dynamic(
       /^message_output_(\d+)$/,

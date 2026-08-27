@@ -2,6 +2,7 @@ export interface AgentMeshWearable {
   readonly deviceId: string;
   readonly displayName: string;
   readonly kind: "even_g2" | "ray_ban";
+  readonly scopes: Array<"read" | "prompt" | "approval" | "control" | "robot">;
   readonly status: "active" | "expired" | "revoked";
   readonly lastUsedAt?: string;
 }
@@ -46,13 +47,15 @@ export type CitFabricControlAction =
   | "light"
   | "demo"
   | "takeoff"
-  | "land";
+  | "land"
+  | "power_on"
+  | "power_off";
 
 export interface CitFabricControlTarget {
   readonly role: string;
   readonly nodeId: string;
   readonly displayName: string;
-  readonly kind: "ground_robot" | "drone_fleet";
+  readonly kind: "ground_robot" | "drone_fleet" | "smart_plug";
   readonly connectionState:
     "connected" | "degraded" | "disconnected" | "unavailable";
   readonly actions: CitFabricControlAction[];
@@ -103,9 +106,15 @@ export interface AgentMeshDeviceControlInteraction extends AgentMeshInteractionB
     | "demo"
     | "takeoff"
     | "land"
+    | "power_on"
+    | "power_off"
     | "activate";
   readonly target:
-    "ground_outputs" | "tello_fleet" | "assigned_output" | "all_outputs";
+    | "ground_outputs"
+    | "tello_fleet"
+    | "power_outputs"
+    | "assigned_output"
+    | "all_outputs";
   readonly targetRole?: string;
   readonly batchId?: string;
   readonly confirmed: true;

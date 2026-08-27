@@ -17,12 +17,14 @@ const CONTROL_COURSE_PACK_IDS = new Set([
   "synchronized-motor-control",
 ]);
 const GROUND_ROLE = /^ground_output_[1-8]$/u;
+const POWER_ROLE = /^power_output_[1-8]$/u;
 const FLEET_ROLE = "fleet_sequence_controller";
 const GROUND_NUDGE = "mobility.ground.nudge";
 const GROUND_DEMO = "mobility.ground.demonstration.start";
 const ROBOT_LIGHT = "robot.light.set";
 const FLEET_START = "mobility.flight.fleet_sequence.start";
 const FLEET_STOP = "mobility.flight.fleet_sequence.stop";
+const POWER_SET = "power.switch.set";
 
 export class FabricControlApiClient {
   readonly #config: BridgeConfig;
@@ -119,6 +121,18 @@ export class FabricControlApiClient {
               kind: "drone_fleet",
               connectionState: projectedConnectionState(node.connectionState),
               actions: ["takeoff", "land"],
+            },
+          ];
+        }
+        if (POWER_ROLE.test(binding.role) && capabilities.has(POWER_SET)) {
+          return [
+            {
+              role: binding.role,
+              nodeId: node.nodeId,
+              displayName: node.displayName,
+              kind: "smart_plug",
+              connectionState: projectedConnectionState(node.connectionState),
+              actions: ["power_on", "power_off"],
             },
           ];
         }

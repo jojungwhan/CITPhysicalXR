@@ -42,6 +42,7 @@ const config = (databasePath: string): BridgeConfig => ({
   fabricApiUrl: "http://127.0.0.1:8765",
   fabricReadCredential: "cit-reader-" + "c".repeat(40),
   fabricSessionId: "lesson-session-a",
+  projectFabricControls: false,
   agentMeshBaseUrl: "http://127.0.0.1:7342",
   agentMeshDeviceToken: "device_" + "b".repeat(43),
   databasePath,
@@ -56,8 +57,16 @@ const classG2: AgentMeshWearable = {
   deviceId: "class-g2",
   displayName: "Class G2",
   kind: "even_g2",
+  scopes: ["read", "prompt"],
   status: "active",
   lastUsedAt: "2026-08-21T02:59:00.000Z",
+};
+
+const controlsG2: AgentMeshWearable = {
+  ...classG2,
+  deviceId: "class-g2-controls",
+  displayName: "CIT controls · Class G2",
+  scopes: ["read", "control"],
 };
 
 const managedCodex: AgentMeshSession = {
@@ -95,17 +104,14 @@ describe("Agent Mesh canonical mapping", () => {
     expect(mapping.wearableNodeByDeviceId.get("class-g2")).toMatchObject({
       nodeId: "agentmesh-wearable-class-g2",
       physical: true,
-      publishedCapabilities: [
-        { name: INTENT_CAPABILITY },
-        { name: FLIGHT_SEQUENCE_INTENT_CAPABILITY },
-        { name: DEVICE_CONTROL_INTENT_CAPABILITY },
-      ],
+      publishedCapabilities: [{ name: INTENT_CAPABILITY }],
       consumedCapabilities: [{ name: DISPLAY_CAPABILITY }],
       metadata: {
         model: "even-realities-g2",
         productFamily: "Even Realities G2",
         fabricProfile: "even-g2",
         mediaCompanionSupported: false,
+        applicationProfile: "coding_agents",
       },
     });
     expect(mapping.agentNodeBySessionId.get("managed-codex")).toMatchObject({
@@ -127,6 +133,7 @@ describe("Agent Mesh canonical mapping", () => {
             deviceId: "class-meta",
             displayName: "Class Meta",
             kind: "ray_ban",
+            scopes: ["read", "prompt", "control"],
             status: "active",
             lastUsedAt: discovery.generatedAt,
           },
@@ -159,9 +166,10 @@ describe("Agent Mesh canonical mapping", () => {
     const mapping = mapDiscovery(
       {
         ...discovery,
+        wearables: [controlsG2],
         companionInputs: [
           {
-            parentDeviceId: classG2.deviceId,
+            parentDeviceId: controlsG2.deviceId,
             displayName: "Class G2 · Even R1",
             kind: "even_r1",
             status: "active",
@@ -172,10 +180,10 @@ describe("Agent Mesh canonical mapping", () => {
       config(databasePath),
     );
     const ringNode = mapping.companionNodeByParentDeviceId.get(
-      classG2.deviceId,
+      controlsG2.deviceId,
     );
     expect(ringNode).toMatchObject({
-      nodeId: "agentmesh-input-even-r1-class-g2",
+      nodeId: "agentmesh-input-even-r1-class-g2-controls",
       connectionState: "connected",
       physical: true,
       publishedCapabilities: [
@@ -186,7 +194,7 @@ describe("Agent Mesh canonical mapping", () => {
       metadata: {
         model: "even-realities-r1",
         inputOnly: true,
-        agentMeshParentDeviceId: classG2.deviceId,
+        agentMeshParentDeviceId: controlsG2.deviceId,
       },
     });
     if (ringNode === undefined) throw new Error("R1 node is missing");
@@ -195,9 +203,9 @@ describe("Agent Mesh canonical mapping", () => {
       const interaction: AgentMeshInteraction = {
         interactionId: "6463013e-fe23-4ff7-babc-34239d88f1db",
         sequence: 1,
-        deviceId: classG2.deviceId,
+        deviceId: controlsG2.deviceId,
         deviceKind: "even_g2",
-        deviceDisplayName: classG2.displayName,
+        deviceDisplayName: controlsG2.displayName,
         source: "even_r1",
         gesture: "double_tap",
         createdAt: discovery.generatedAt,
@@ -305,11 +313,7 @@ describe("Agent Mesh canonical mapping", () => {
       connectionState: "disconnected",
       healthState: "degraded",
       physical: true,
-      publishedCapabilities: [
-        { name: INTENT_CAPABILITY },
-        { name: FLIGHT_SEQUENCE_INTENT_CAPABILITY },
-        { name: DEVICE_CONTROL_INTENT_CAPABILITY },
-      ],
+      publishedCapabilities: [{ name: INTENT_CAPABILITY }],
       consumedCapabilities: [{ name: DISPLAY_CAPABILITY }],
     });
   });
@@ -325,6 +329,7 @@ describe("Agent Mesh canonical mapping", () => {
             deviceId: "retired-g2",
             displayName: "Retired G2",
             kind: "even_g2",
+            scopes: ["read", "prompt"],
             status: "revoked",
           },
         ],
@@ -335,11 +340,7 @@ describe("Agent Mesh canonical mapping", () => {
     expect(mapping.wearableNodeByDeviceId.get("retired-g2")).toMatchObject({
       connectionState: "unavailable",
       healthState: "unhealthy",
-      publishedCapabilities: [
-        { name: INTENT_CAPABILITY },
-        { name: FLIGHT_SEQUENCE_INTENT_CAPABILITY },
-        { name: DEVICE_CONTROL_INTENT_CAPABILITY },
-      ],
+      publishedCapabilities: [{ name: INTENT_CAPABILITY }],
       consumedCapabilities: [{ name: DISPLAY_CAPABILITY }],
     });
   });
@@ -349,8 +350,11 @@ describe("Agent Mesh canonical mapping", () => {
     roots.push(root);
     const databasePath = path.join(root, "bridge.sqlite3");
     const bridgeConfig = config(databasePath);
-    const mapping = mapDiscovery(discovery, bridgeConfig);
-    const wearable = mapping.wearableNodeByDeviceId.get("class-g2");
+    const mapping = mapDiscovery(
+      { ...discovery, wearables: [controlsG2] },
+      bridgeConfig,
+    );
+    const wearable = mapping.wearableNodeByDeviceId.get(controlsG2.deviceId);
     if (wearable === undefined) throw new Error("Fixture mapping failed");
     const outbox = new BridgeOutbox(databasePath);
     try {
@@ -358,9 +362,9 @@ describe("Agent Mesh canonical mapping", () => {
         {
           interactionId: "fe3d7f0e-cbea-4a45-888b-1af3a69f497c",
           sequence: 1,
-          deviceId: classG2.deviceId,
+          deviceId: controlsG2.deviceId,
           deviceKind: "even_g2",
-          deviceDisplayName: classG2.displayName,
+          deviceDisplayName: controlsG2.displayName,
           source: "device_control",
           action: "left",
           target: "ground_outputs",
@@ -390,6 +394,60 @@ describe("Agent Mesh canonical mapping", () => {
       });
       expect(frame.event.payload).not.toHaveProperty("text");
       expect(frame.event.payload).not.toHaveProperty("transcript");
+
+      const plugFrame = deviceControlEventFrame(
+        {
+          interactionId: "c414232b-d0c7-40b6-8868-207276350ed3",
+          sequence: 2,
+          deviceId: controlsG2.deviceId,
+          deviceKind: "even_g2",
+          deviceDisplayName: controlsG2.displayName,
+          source: "device_control",
+          action: "power_on",
+          target: "assigned_output",
+          targetRole: "power_output_1",
+          confirmed: true,
+          createdAt: discovery.generatedAt,
+        },
+        wearable,
+        bridgeConfig,
+        outbox,
+      );
+      expect(validateDefinition("AdapterEventFrame", plugFrame).valid).toBe(
+        true,
+      );
+      expect(plugFrame.event.payload).toMatchObject({
+        action: "power_on",
+        target: "assigned_output",
+        targetRole: "power_output_1",
+        confirmed: true,
+      });
+
+      const activateAllFrame = deviceControlEventFrame(
+        {
+          interactionId: "34b33aa9-13bc-47bd-8401-913a7e1b78a3",
+          sequence: 3,
+          deviceId: controlsG2.deviceId,
+          deviceKind: "even_g2",
+          deviceDisplayName: controlsG2.displayName,
+          source: "device_control",
+          action: "activate",
+          target: "all_outputs",
+          confirmed: true,
+          createdAt: discovery.generatedAt,
+        },
+        wearable,
+        bridgeConfig,
+        outbox,
+      );
+      expect(
+        validateDefinition("AdapterEventFrame", activateAllFrame).valid,
+      ).toBe(true);
+      expect(activateAllFrame.event.payload).toMatchObject({
+        action: "activate",
+        target: "all_outputs",
+        confirmed: true,
+      });
     } finally {
       outbox.close();
     }
@@ -478,7 +536,7 @@ describe("Agent Mesh canonical mapping", () => {
     }
   });
 
-  it("normalizes only explicit G2 or Meta fleet-launch phrases", () => {
+  it("never turns a CLI-only G2 prompt into a physical fleet command", () => {
     const root = mkdtempSync(path.join(os.tmpdir(), "cit-agent-map-"));
     roots.push(root);
     const bridgeConfig = config(path.join(root, "bridge.sqlite3"));
@@ -508,16 +566,7 @@ describe("Agent Mesh canonical mapping", () => {
         outbox,
       );
 
-      expect(frame?.event).toMatchObject({
-        topic: FLIGHT_SEQUENCE_INTENT_CAPABILITY,
-        sourceCapability: FLIGHT_SEQUENCE_INTENT_CAPABILITY,
-        dataClassification: "operational",
-        payload: {
-          intent: "start",
-          inputModality: "voice",
-          deviceKind: "even_g2",
-        },
-      });
+      expect(frame).toBeUndefined();
       const metaMapping = mapDiscovery(
         {
           ...discovery,
@@ -527,6 +576,7 @@ describe("Agent Mesh canonical mapping", () => {
               deviceId: "class-meta",
               displayName: "Class Meta",
               kind: "ray_ban",
+              scopes: ["read", "prompt", "control"],
             },
           ],
         },
