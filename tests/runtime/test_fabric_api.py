@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import mimetypes
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
+import pytest
 from cit_protocol import FabricEventEnvelope, IntegrationNode, PluginManifest
 from cit_runtime.fabric_auth import FABRIC_PERMISSIONS, FabricAuthService, FabricBootstrapIdentity
 from cit_runtime.fabric_repository import SQLiteFabricRepository
@@ -318,7 +320,14 @@ def test_event_listing_can_return_the_latest_window_in_chronological_order(
     assert [item["event"]["payload"]["sequence"] for item in response.json()] == [3, 4, 5]
 
 
-def test_fabric_console_serves_static_images_from_the_same_origin(tmp_path: Path) -> None:
+def test_fabric_console_serves_static_images_from_the_same_origin(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mimetypes.init()
+    monkeypatch.delitem(mimetypes.types_map, ".webp", raising=False)
+    monkeypatch.delitem(mimetypes.common_types, ".webp", raising=False)
+
     studio_path = tmp_path / "studio"
     (studio_path / "assets").mkdir(parents=True)
     (studio_path / "device-images").mkdir()
