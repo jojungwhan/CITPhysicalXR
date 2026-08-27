@@ -27,12 +27,13 @@ aircraft is grounded with its propellers removed or guarded. You can still use
 an individual card's connection button when troubleshooting one integration.
 
 After an adapter has connected successfully once, CIT remembers its fixed,
-allowlisted reconnect action for this Windows host. On later visits, **Connect
-remembered devices** reuses the exact local Matter, LEGO, Sphero, Dash/Dot, or
-other adapter profile without running the broad USB/Bluetooth/Wi-Fi/Android
-scan. The adjacent opt-in checkbox performs the same fast reconnect when the
-tutor page opens. The full **Find devices** button remains available for new,
-changed, missing, or partially connected hardware.
+allowlisted reconnect action for this Windows host. On later starts, CIT
+automatically reuses the exact local Matter, LEGO, Sphero, Dash/Dot, glasses,
+sensor, or other non-aircraft adapter profile without running the broad
+USB/Bluetooth/Wi-Fi/Android scan. **Connect remembered devices** retries the
+same profiles immediately when troubleshooting. The full **Find devices**
+button remains available for new, changed, missing, or partially connected
+hardware.
 
 Remembering a connection stores only the host ID, fixed reconnect action ID,
 grounded-aircraft requirement, actor, and timestamp in the Fabric SQLite

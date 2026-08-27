@@ -48,6 +48,7 @@ async def supervise_remembered_reconnects(
     fabric: InteractionFabric,
     repository: SQLiteFabricRepository,
     discovery: FabricDiscoveryService,
+    clock: Callable[[], datetime] | None = None,
 ) -> None:
     """Retry remembered adapters that opted into unattended reconnection.
 
@@ -71,7 +72,24 @@ async def supervise_remembered_reconnects(
     )
     if not connections:
         return
-    await discovery.supervise_remembered_reconnects(connections, nodes=nodes)
+
+    def record_transition(action_id: str, status: str) -> None:
+        repository.record_fabric_audit(
+            actor_id="system.reconnect-supervisor",
+            action="fabric.discovery.reconnect_remembered",
+            resource_type="host",
+            resource_id=report.hostId,
+            outcome="succeeded" if status != "failed" else "failed",
+            correlation_id=None,
+            occurred_at=(clock or (lambda: datetime.now(UTC)))(),
+            details={"actionId": action_id, "status": status, "unattended": True},
+        )
+
+    await discovery.supervise_remembered_reconnects(
+        connections,
+        nodes=nodes,
+        on_transition=record_transition,
+    )
 
 
 def create_fabric_app(
@@ -202,6 +220,7 @@ def create_fabric_app(
                         active,
                         active_repo,
                         configured_discovery,
+                        wall_clock,
                     )
 
     @asynccontextmanager
