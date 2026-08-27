@@ -94,6 +94,7 @@ import {
 import { parallelFlowGroups } from "./fabric-parallel-flow.js";
 import {
   automaticRoleAssignments,
+  latestCoursePacks,
   reconciledRoleSelections,
   refreshedSessionSelection,
 } from "./fabric-session-selection.js";
@@ -264,6 +265,10 @@ export function FabricConsole() {
         courseKey(coursePack.coursePackId, coursePack.version) === key,
     );
   }, [coursePacks, selectedCourseKey, selectedSession]);
+  const selectableCoursePacks = useMemo(
+    () => latestCoursePacks(coursePacks),
+    [coursePacks],
+  );
   const simultaneousFlowGroups = useMemo(
     () => parallelFlowGroups(selectedCourse),
     [selectedCourse],
@@ -593,12 +598,16 @@ export function FabricConsole() {
           nextSessions,
           nextFleetControllerIds,
         );
+        const nextSelectableCourses = latestCoursePacks(nextCourses);
         setSelectedCourseKey(
           (current) =>
             current ||
-            (nextCourses[0] === undefined
+            (nextSelectableCourses[0] === undefined
               ? ""
-              : courseKey(nextCourses[0].coursePackId, nextCourses[0].version)),
+              : courseKey(
+                  nextSelectableCourses[0].coursePackId,
+                  nextSelectableCourses[0].version,
+                )),
         );
         const detailSessionId = refreshedSessionSelection(
           selectedSessionId,
@@ -2840,7 +2849,7 @@ export function FabricConsole() {
               title={t("lesson.chooseTitle")}
             />
             <div className="fabric-course-choices">
-              {coursePacks.map((coursePack) => {
+              {selectableCoursePacks.map((coursePack) => {
                 const key = courseKey(
                   coursePack.coursePackId,
                   coursePack.version,
@@ -4531,6 +4540,7 @@ const isRobotSensorRole = (role: string) => /^robot_sensor_[1-8]$/.test(role);
 const isFleetSequenceInputRole = (role: string) =>
   /^fleet_sequence_input_[1-4]$/.test(role);
 const isGroundOutputRole = (role: string) => /^ground_output_[1-8]$/.test(role);
+const isPowerOutputRole = (role: string) => /^power_output_[1-8]$/.test(role);
 
 const visibleRoleRequirements = (
   requirements: CoursePack["roles"],
@@ -4546,9 +4556,11 @@ const visibleRoleRequirements = (
         ? "fleet_sequence_input"
         : isGroundOutputRole(requirement.role)
           ? "ground_output"
-          : isRobotSensorRole(requirement.role)
-            ? "robot_sensor"
-            : null;
+          : isPowerOutputRole(requirement.role)
+            ? "power_output"
+            : isRobotSensorRole(requirement.role)
+              ? "robot_sensor"
+              : null;
     if (family === null || boundRoles.has(requirement.role)) return true;
     if (!showOneEmptySlot) return false;
     if (shownEmptyFamilies.has(family)) return false;

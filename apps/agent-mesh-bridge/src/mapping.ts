@@ -112,11 +112,14 @@ const deviceControlIntentCapability: CapabilityDescriptor = {
       "demo",
       "takeoff",
       "land",
+      "power_on",
+      "power_off",
       "activate",
     ],
     targets: [
       "ground_outputs",
       "tello_fleet",
+      "power_outputs",
       "assigned_output",
       "all_outputs",
     ],
@@ -188,7 +191,11 @@ export const mapDiscovery = (
   }
   for (const companion of discovery.companionInputs ?? []) {
     const parent = wearableNodeByDeviceId.get(companion.parentDeviceId);
-    if (parent === undefined || parent.metadata.model !== "even-realities-g2") {
+    if (
+      parent === undefined ||
+      parent.metadata.model !== "even-realities-g2" ||
+      parent.metadata.applicationProfile !== "physical_controls"
+    ) {
       continue;
     }
     const node = companionInputNode(companion, config, discovery.generatedAt);
@@ -452,6 +459,13 @@ export const flightSequenceIntentFrame = (
   config: BridgeConfig,
   outbox: BridgeOutbox,
 ): AdapterEventFrame | undefined => {
+  if (
+    !sourceNode.publishedCapabilities.some(
+      (capability) => capability.name === FLIGHT_SEQUENCE_INTENT_CAPABILITY,
+    )
+  ) {
+    return undefined;
+  }
   const normalized = intent.prompt
     .normalize("NFKC")
     .toLocaleLowerCase("en-US")
@@ -557,6 +571,8 @@ const wearableNode = (
   config: BridgeConfig,
   generatedAt: string,
 ): IntegrationNode => {
+  const promptEnabled = wearable.scopes.includes("prompt");
+  const controlEnabled = wearable.scopes.includes("control");
   const wearableProfile =
     wearable.kind === "even_g2"
       ? {
@@ -603,20 +619,30 @@ const wearableNode = (
     physical: true,
     simulated: false,
     publishedCapabilities: [
-      intentCapability,
-      flightSequenceIntentCapability,
-      deviceControlIntentCapability,
+      ...(promptEnabled ? [intentCapability] : []),
+      ...(controlEnabled
+        ? [flightSequenceIntentCapability, deviceControlIntentCapability]
+        : []),
     ],
-    consumedCapabilities: [displayCapability],
+    consumedCapabilities: promptEnabled ? [displayCapability] : [],
     configurationSchema: {},
     safetyClassification: "informational",
-    dataClassifications: ["voice_transcript", "student", "operational"],
+    dataClassifications: promptEnabled
+      ? ["voice_transcript", "student", "operational"]
+      : ["operational"],
     simulatorAvailable: false,
-    requiredPermissions: ["microphone", "display"],
+    requiredPermissions: [
+      ...(promptEnabled || controlEnabled ? ["microphone"] : []),
+      ...(promptEnabled ? ["display"] : []),
+    ],
     lastSeenAt: wearable.lastUsedAt ?? generatedAt,
     metadata: {
       agentMeshDeviceId: wearable.deviceId,
       deviceKind: wearable.kind,
+      agentMeshScopes: wearable.scopes.join(","),
+      applicationProfile: controlEnabled
+        ? "physical_controls"
+        : "coding_agents",
       ...wearableProfile,
       compatibilityMode: true,
     },

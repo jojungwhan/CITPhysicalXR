@@ -16,6 +16,7 @@ const config: BridgeConfig = {
   fabricApiUrl: "http://127.0.0.1:8766",
   fabricReadCredential: `cit-reader-${"b".repeat(40)}`,
   fabricSessionId: "lesson-session-a",
+  projectFabricControls: true,
   agentMeshBaseUrl: "http://127.0.0.1:7342",
   agentMeshDeviceToken: `device_${"c".repeat(43)}`,
   databasePath: "D:\\temp\\agent-mesh-bridge.sqlite3",
@@ -92,6 +93,13 @@ const session: InteractionSession = {
       assignedAt: AT,
       assignedBy: "instructor-a",
     },
+    {
+      role: "power_output_1",
+      nodeId: "matter-plug-a",
+      requiredCapability: "power.switch.set",
+      assignedAt: AT,
+      assignedBy: "instructor-a",
+    },
   ],
   safetyProfile: "classroom-drone-monitoring",
   createdAt: AT,
@@ -113,6 +121,7 @@ describe("Fabric control inventory", () => {
         "mobility.flight.fleet_sequence.stop",
       ]),
       node("unassigned-robot", "Unassigned robot", ["mobility.ground.nudge"]),
+      node("matter-plug-a", "Tapo P110M 1", ["power.switch.set"]),
     ];
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
@@ -158,6 +167,12 @@ describe("Fabric control inventory", () => {
           nodeId: "tello-fleet-a",
           kind: "drone_fleet",
           actions: ["takeoff", "land"],
+        },
+        {
+          role: "power_output_1",
+          nodeId: "matter-plug-a",
+          kind: "smart_plug",
+          actions: ["power_on", "power_off"],
         },
       ],
     });

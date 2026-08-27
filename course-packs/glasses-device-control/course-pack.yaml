@@ -1,11 +1,11 @@
 schemaVersion: "1.0"
 coursePackId: glasses-device-control
-version: 1.0.0
+version: 1.2.0
 displayName: Glasses device control
 description: >-
   Routes explicitly confirmed, structured G2 or Meta voice commands to assigned
-  ground robots and the separately armed Tello fleet. The glasses never emit
-  vendor packets or free-form motor values.
+  ground robots, approved local smart plugs, and the separately armed Tello
+  fleet. The glasses never emit vendor packets or free-form physical values.
 
 roles:
   - role: glasses_input_1
@@ -56,6 +56,46 @@ roles:
   - role: ground_output_8
     ioType: output
     oneOfCapabilities: [mobility.ground.nudge]
+    optional: true
+
+  - role: power_output_1
+    ioType: output
+    oneOfCapabilities: [power.switch.set]
+    optional: true
+
+  - role: power_output_2
+    ioType: output
+    oneOfCapabilities: [power.switch.set]
+    optional: true
+
+  - role: power_output_3
+    ioType: output
+    oneOfCapabilities: [power.switch.set]
+    optional: true
+
+  - role: power_output_4
+    ioType: output
+    oneOfCapabilities: [power.switch.set]
+    optional: true
+
+  - role: power_output_5
+    ioType: output
+    oneOfCapabilities: [power.switch.set]
+    optional: true
+
+  - role: power_output_6
+    ioType: output
+    oneOfCapabilities: [power.switch.set]
+    optional: true
+
+  - role: power_output_7
+    ioType: output
+    oneOfCapabilities: [power.switch.set]
+    optional: true
+
+  - role: power_output_8
+    ioType: output
+    oneOfCapabilities: [power.switch.set]
     optional: true
 
   - role: fleet_sequence_controller
@@ -1431,13 +1471,800 @@ flows:
     outputRoles: [fleet_sequence_controller]
     enabled: true
 
+  - flowId: glasses-exact-power-output-1-on
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 500
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_1
+        action: power_on
+        confirmed: true
+    command: &power-on-command
+      action: power.switch.set
+      fixedParameters: { "on": true }
+      parameterBindings: []
+    target: { role: power_output_1 }
+    guards: &power-on-guards
+      - session_is_active
+      - role_is_assigned
+      - target_is_connected
+      - target_is_armed
+      - instructor_override_is_clear
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_1]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-1-off
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_1
+        action: power_off
+        confirmed: true
+    command: &power-off-command
+      action: power.switch.set
+      fixedParameters: { "on": false }
+      parameterBindings: []
+    target: { role: power_output_1 }
+    guards: &power-off-guards
+      - session_is_active
+      - role_is_assigned
+      - target_is_connected
+      - target_is_armed
+      - instructor_override_is_clear
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_1]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-2-on
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 500
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_2
+        action: power_on
+        confirmed: true
+    command: *power-on-command
+    target: { role: power_output_2 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_2]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-2-off
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_2
+        action: power_off
+        confirmed: true
+    command: *power-off-command
+    target: { role: power_output_2 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_2]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-3-on
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 500
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_3
+        action: power_on
+        confirmed: true
+    command: *power-on-command
+    target: { role: power_output_3 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_3]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-3-off
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_3
+        action: power_off
+        confirmed: true
+    command: *power-off-command
+    target: { role: power_output_3 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_3]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-4-on
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 500
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_4
+        action: power_on
+        confirmed: true
+    command: *power-on-command
+    target: { role: power_output_4 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_4]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-4-off
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_4
+        action: power_off
+        confirmed: true
+    command: *power-off-command
+    target: { role: power_output_4 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_4]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-5-on
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 500
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_5
+        action: power_on
+        confirmed: true
+    command: *power-on-command
+    target: { role: power_output_5 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_5]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-5-off
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_5
+        action: power_off
+        confirmed: true
+    command: *power-off-command
+    target: { role: power_output_5 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_5]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-6-on
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 500
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_6
+        action: power_on
+        confirmed: true
+    command: *power-on-command
+    target: { role: power_output_6 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_6]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-6-off
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_6
+        action: power_off
+        confirmed: true
+    command: *power-off-command
+    target: { role: power_output_6 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_6]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-7-on
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 500
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_7
+        action: power_on
+        confirmed: true
+    command: *power-on-command
+    target: { role: power_output_7 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_7]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-7-off
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_7
+        action: power_off
+        confirmed: true
+    command: *power-off-command
+    target: { role: power_output_7 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_7]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-8-on
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 500
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_8
+        action: power_on
+        confirmed: true
+    command: *power-on-command
+    target: { role: power_output_8 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_8]
+    enabled: true
+
+  - flowId: glasses-exact-power-output-8-off
+    version: 1
+    trigger:
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: assigned_output
+        targetRole: power_output_8
+        action: power_off
+        confirmed: true
+    command: *power-off-command
+    target: { role: power_output_8 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_8]
+    enabled: true
+
+  - flowId: glasses-all-power-output-1-on
+    version: 1
+    trigger: &all-power-on-trigger
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 500
+      payloadEquals:
+        target: power_outputs
+        action: power_on
+        confirmed: true
+    command: *power-on-command
+    target: { role: power_output_1 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_1]
+    parallelGroup: glasses-power-on
+    enabled: true
+
+  - flowId: glasses-all-power-output-1-off
+    version: 1
+    trigger: &all-power-off-trigger
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 250
+      payloadEquals:
+        target: power_outputs
+        action: power_off
+        confirmed: true
+    command: *power-off-command
+    target: { role: power_output_1 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_1]
+    parallelGroup: glasses-power-off
+    enabled: true
+
+  - flowId: glasses-all-power-output-2-on
+    version: 1
+    trigger: *all-power-on-trigger
+    command: *power-on-command
+    target: { role: power_output_2 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_2]
+    parallelGroup: glasses-power-on
+    enabled: true
+
+  - flowId: glasses-all-power-output-2-off
+    version: 1
+    trigger: *all-power-off-trigger
+    command: *power-off-command
+    target: { role: power_output_2 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_2]
+    parallelGroup: glasses-power-off
+    enabled: true
+
+  - flowId: glasses-all-power-output-3-on
+    version: 1
+    trigger: *all-power-on-trigger
+    command: *power-on-command
+    target: { role: power_output_3 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_3]
+    parallelGroup: glasses-power-on
+    enabled: true
+
+  - flowId: glasses-all-power-output-3-off
+    version: 1
+    trigger: *all-power-off-trigger
+    command: *power-off-command
+    target: { role: power_output_3 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_3]
+    parallelGroup: glasses-power-off
+    enabled: true
+
+  - flowId: glasses-all-power-output-4-on
+    version: 1
+    trigger: *all-power-on-trigger
+    command: *power-on-command
+    target: { role: power_output_4 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_4]
+    parallelGroup: glasses-power-on
+    enabled: true
+
+  - flowId: glasses-all-power-output-4-off
+    version: 1
+    trigger: *all-power-off-trigger
+    command: *power-off-command
+    target: { role: power_output_4 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_4]
+    parallelGroup: glasses-power-off
+    enabled: true
+
+  - flowId: glasses-all-power-output-5-on
+    version: 1
+    trigger: *all-power-on-trigger
+    command: *power-on-command
+    target: { role: power_output_5 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_5]
+    parallelGroup: glasses-power-on
+    enabled: true
+
+  - flowId: glasses-all-power-output-5-off
+    version: 1
+    trigger: *all-power-off-trigger
+    command: *power-off-command
+    target: { role: power_output_5 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_5]
+    parallelGroup: glasses-power-off
+    enabled: true
+
+  - flowId: glasses-all-power-output-6-on
+    version: 1
+    trigger: *all-power-on-trigger
+    command: *power-on-command
+    target: { role: power_output_6 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_6]
+    parallelGroup: glasses-power-on
+    enabled: true
+
+  - flowId: glasses-all-power-output-6-off
+    version: 1
+    trigger: *all-power-off-trigger
+    command: *power-off-command
+    target: { role: power_output_6 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_6]
+    parallelGroup: glasses-power-off
+    enabled: true
+
+  - flowId: glasses-all-power-output-7-on
+    version: 1
+    trigger: *all-power-on-trigger
+    command: *power-on-command
+    target: { role: power_output_7 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_7]
+    parallelGroup: glasses-power-on
+    enabled: true
+
+  - flowId: glasses-all-power-output-7-off
+    version: 1
+    trigger: *all-power-off-trigger
+    command: *power-off-command
+    target: { role: power_output_7 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_7]
+    parallelGroup: glasses-power-off
+    enabled: true
+
+  - flowId: glasses-all-power-output-8-on
+    version: 1
+    trigger: *all-power-on-trigger
+    command: *power-on-command
+    target: { role: power_output_8 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_8]
+    parallelGroup: glasses-power-on
+    enabled: true
+
+  - flowId: glasses-all-power-output-8-off
+    version: 1
+    trigger: *all-power-off-trigger
+    command: *power-off-command
+    target: { role: power_output_8 }
+    guards: *power-off-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_8]
+    parallelGroup: glasses-power-off
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-1
+    version: 1
+    trigger: &activate-all-trigger
+      event: interaction.intent.device_control
+      minimumConfidence: 1.0
+      debounceMs: 2000
+      payloadEquals:
+        target: all_outputs
+        action: activate
+        confirmed: true
+    command: &activate-all-ground-command
+      action: mobility.ground.demonstration.start
+      fixedParameters: { distanceMeters: 0.1 }
+      parameterBindings: []
+    target: { role: ground_output_1 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_1]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-2
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-ground-command
+    target: { role: ground_output_2 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_2]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-3
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-ground-command
+    target: { role: ground_output_3 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_3]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-4
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-ground-command
+    target: { role: ground_output_4 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_4]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-5
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-ground-command
+    target: { role: ground_output_5 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_5]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-6
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-ground-command
+    target: { role: ground_output_6 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_6]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-7
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-ground-command
+    target: { role: ground_output_7 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_7]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-8
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-ground-command
+    target: { role: ground_output_8 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_8]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-1-light
+    version: 1
+    trigger: *activate-all-trigger
+    command: &activate-all-light-command
+      action: robot.light.set
+      fixedParameters: { red: 0, green: 180, blue: 255 }
+      parameterBindings: []
+    target: { role: ground_output_1 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_1]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-2-light
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-light-command
+    target: { role: ground_output_2 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_2]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-3-light
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-light-command
+    target: { role: ground_output_3 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_3]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-4-light
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-light-command
+    target: { role: ground_output_4 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_4]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-5-light
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-light-command
+    target: { role: ground_output_5 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_5]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-6-light
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-light-command
+    target: { role: ground_output_6 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_6]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-7-light
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-light-command
+    target: { role: ground_output_7 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_7]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-ground-output-8-light
+    version: 1
+    trigger: *activate-all-trigger
+    command: *activate-all-light-command
+    target: { role: ground_output_8 }
+    guards: *ground-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [ground_output_8]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-tello-fleet
+    version: 1
+    trigger: *activate-all-trigger
+    command:
+      action: mobility.flight.fleet_sequence.start
+      fixedParameters: {}
+      parameterBindings: []
+    target: { role: fleet_sequence_controller }
+    guards: *flight-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [fleet_sequence_controller]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-power-output-1
+    version: 1
+    trigger: *activate-all-trigger
+    command: *power-on-command
+    target: { role: power_output_1 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_1]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-power-output-2
+    version: 1
+    trigger: *activate-all-trigger
+    command: *power-on-command
+    target: { role: power_output_2 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_2]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-power-output-3
+    version: 1
+    trigger: *activate-all-trigger
+    command: *power-on-command
+    target: { role: power_output_3 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_3]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-power-output-4
+    version: 1
+    trigger: *activate-all-trigger
+    command: *power-on-command
+    target: { role: power_output_4 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_4]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-power-output-5
+    version: 1
+    trigger: *activate-all-trigger
+    command: *power-on-command
+    target: { role: power_output_5 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_5]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-power-output-6
+    version: 1
+    trigger: *activate-all-trigger
+    command: *power-on-command
+    target: { role: power_output_6 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_6]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-power-output-7
+    version: 1
+    trigger: *activate-all-trigger
+    command: *power-on-command
+    target: { role: power_output_7 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_7]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
+  - flowId: glasses-activate-all-power-output-8
+    version: 1
+    trigger: *activate-all-trigger
+    command: *power-on-command
+    target: { role: power_output_8 }
+    guards: *power-on-guards
+    safetyProfile: classroom-drone-monitoring
+    outputRoles: [power_output_8]
+    parallelGroup: glasses-activate-all
+    enabled: true
+
 safetyProfile: classroom-drone-monitoring
 simulatorRequired: true
 assessmentEvents:
   - interaction.intent.device_control
   - telemetry.motion.commanded
   - telemetry.flight.fleet_sequence.status
+  - power.switch.state
 fallbackBehavior: >-
   Report each unavailable output independently. Ground adapters stop through
   their local watchdog; takeoff remains dormant until a tutor separately arms
-  the fleet controller; a land request never requires an LLM interpretation.
+  the fleet controller; a land or plug-off request never requires an LLM
+  interpretation.

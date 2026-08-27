@@ -330,7 +330,7 @@ Platform paths are stored separately and never translated between Windows and Li
 - `apps/studio-web`: the Studio console -- device cards, session controls, drive controls, and a live event stream
 - `apps/agent-mesh-bridge`: authenticated Agent Mesh compatibility adapter with a durable local outbox
 - `course-packs/glasses-agent-control`: capability-based glasses/agent reference lesson
-- `course-packs/glasses-device-control`: confirmed G2/Meta voice intents to assigned ground robots and the independently armed Tello fleet
+- `course-packs/glasses-device-control`: confirmed G2/Meta controls to assigned ground robots, local Matter smart plugs, and the independently armed Tello fleet
 - `course-packs/gesture-ground-robot`: Leap semantic velocity to interchangeable ground-mobility role
 - `course-packs/smart-ring-device-control`: Even R1 semantic gestures to assigned ground outputs and an independently armed Tello sequence
 - `course-packs/smart-plug-control`: approved electrical output assigned through the `classroom_plug` role

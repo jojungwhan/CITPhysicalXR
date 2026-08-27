@@ -1,6 +1,6 @@
 # ADR 0029: Structured glasses device control
 
-- Status: accepted
+- Status: superseded in part by ADR 0035
 - Date: 2026-08-24
 
 ## Context

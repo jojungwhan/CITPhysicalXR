@@ -1062,7 +1062,7 @@ def test_glasses_connection_is_scoped_to_the_selected_physical_lesson(
             headers=ADMIN_HEADERS,
             json={
                 "coursePackId": "glasses-device-control",
-                "coursePackVersion": "1.0.0",
+                "coursePackVersion": pack.version,
                 "siteId": "local-site",
                 "roomId": "local-room",
                 "mode": "physical",

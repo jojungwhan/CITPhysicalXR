@@ -369,6 +369,12 @@ function Start-MirrorHub([hashtable]$State, [string]$AgentMeshCredential) {
 
 function Start-AgentMeshNode([hashtable]$State, [string]$AgentMeshCredential) {
   $task = Get-ScheduledTask -TaskName $NodeTaskName -ErrorAction Stop
+  if ($FleetInputOnly -or $DeviceControlInputOnly) {
+    $State.nodeTaskWasRunning = ([string]$task.State -eq "Running")
+    $State.nodeTaskStartedByLauncher = $false
+    Save-State $State
+    return
+  }
   if ([string]$task.State -ne "Running") {
     $State.nodeTaskWasRunning = $false
     $State.nodeTaskStartedByLauncher = $true
@@ -612,6 +618,7 @@ function Start-Bridge(
     CIT_FABRIC_ADAPTER_TOKEN = $AdapterCredential
     CIT_FABRIC_READ_TOKEN = $ReadCredential
     CIT_FABRIC_SESSION_ID = $SessionId
+    CIT_FABRIC_CONTROL_PROJECTION = if ($FleetInputOnly -or $DeviceControlInputOnly) { "true" } else { "false" }
     CIT_AGENT_MESH_URL = $AgentMeshHubUrl
     CIT_AGENT_MESH_DEVICE_TOKEN = $AgentMeshCredential
     CIT_BRIDGE_DATABASE_PATH = $bridgeDatabasePath
@@ -970,8 +977,8 @@ if ($FleetInputOnly) {
   Write-Host "The input only submits a bounded start request after the tutor arms the one-shot sequence in the UI."
 } elseif ($DeviceControlInputOnly) {
   Write-Host "Device-control inputs: $(@($binding.wearables).Count) connected G2/Meta node(s)"
-  Write-Host "Use an exact 'CIT robots ...' or 'CIT drones ...' voice cue."
-  Write-Host "Movement and takeoff require voice confirmation; the tutor still assigns outputs and arms the lesson in the UI."
+  Write-Host "Use an exact 'CIT robots ...', 'CIT drones ...', or 'CIT smart plugs ...' voice cue."
+  Write-Host "Movement, takeoff, and power-on require voice confirmation; the tutor still assigns outputs and arms the lesson in the UI."
 } else {
 if ($null -eq $binding.wearable) {
   Write-Host "ACTION REQUIRED: open/wear G2 or open the Meta phone bridge, wait for it to poll, then rerun this Start command."

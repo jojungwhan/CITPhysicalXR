@@ -30,6 +30,7 @@ from pydantic import BaseModel
 
 FABRIC_PAGE_LIMIT = 500
 _MAX_JSON_BYTES = 65_536
+_MAX_COURSE_PACK_JSON_BYTES = 131_072
 _PRIORITY_RANK: dict[FabricCommandPriority, int] = {
     FabricCommandPriority.emergency_stop: 6,
     FabricCommandPriority.safety_engine: 5,
@@ -444,7 +445,7 @@ class FabricPersistenceMixin:
         at: datetime,
     ) -> CoursePack:
         timestamp = _aware_utc(at, field_name="at")
-        encoded = _encode_model(course_pack)
+        encoded = _encode_model(course_pack, max_bytes=_MAX_COURSE_PACK_JSON_BYTES)
         with self._connection:
             self._connection.execute(
                 """
@@ -1165,15 +1166,15 @@ def _identity_from_row(row: sqlite3.Row) -> FabricIdentityRecord:
     )
 
 
-def _encode_model(model: BaseModel) -> str:
-    return _encode_json(model.model_dump(mode="json", exclude_none=True))
+def _encode_model(model: BaseModel, *, max_bytes: int = _MAX_JSON_BYTES) -> str:
+    return _encode_json(model.model_dump(mode="json", exclude_none=True), max_bytes=max_bytes)
 
 
 def _decode_model(model_type: type[ModelT], encoded: str) -> ModelT:
     return model_type.model_validate_json(encoded)
 
 
-def _encode_json(value: object) -> str:
+def _encode_json(value: object, *, max_bytes: int = _MAX_JSON_BYTES) -> str:
     _validate_json_value(value, depth=0)
     encoded = json.dumps(
         value,
@@ -1182,8 +1183,8 @@ def _encode_json(value: object) -> str:
         separators=(",", ":"),
         sort_keys=True,
     )
-    if len(encoded.encode("utf-8")) > _MAX_JSON_BYTES:
-        raise ValueError("Fabric record exceeds the 64 KiB persistence limit")
+    if len(encoded.encode("utf-8")) > max_bytes:
+        raise ValueError(f"Fabric record exceeds the {max_bytes // 1_024} KiB persistence limit")
     return encoded
 
 

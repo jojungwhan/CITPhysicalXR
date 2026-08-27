@@ -23,6 +23,7 @@ DEMONSTRATION_CAPABILITY = "mobility.ground.demonstration.start"
 LIGHT_CAPABILITY = "robot.light.set"
 FLEET_START_CAPABILITY = "mobility.flight.fleet_sequence.start"
 FLEET_STOP_CAPABILITY = "mobility.flight.fleet_sequence.stop"
+POWER_SET_CAPABILITY = "power.switch.set"
 
 
 def _plugin_and_nodes(
@@ -34,6 +35,7 @@ def _plugin_and_nodes(
     light = capability_descriptor("robot_light_set", "consume")
     fleet_start = capability_descriptor("flight_fleet_sequence_start", "consume")
     fleet_stop = capability_descriptor("flight_fleet_sequence_stop", "consume")
+    power_set = capability_descriptor("power_switch_set", "consume")
     manifest = PluginManifest.model_validate(
         {
             "schemaVersion": "1.0",
@@ -44,7 +46,14 @@ def _plugin_and_nodes(
             "adapterMode": "out_of_process",
             "configurationSchema": {},
             "publishedCapabilities": [control],
-            "consumedCapabilities": [nudge, demonstration, light, fleet_start, fleet_stop],
+            "consumedCapabilities": [
+                nudge,
+                demonstration,
+                light,
+                fleet_start,
+                fleet_stop,
+                power_set,
+            ],
             "requiredPermissions": [],
             "safetyClassification": "bounded_physical",
             "dataClassifications": ["operational"],
@@ -96,6 +105,18 @@ def _plugin_and_nodes(
             published=[],
             consumed=[fleet_start, fleet_stop],
             safety="flight",
+        ),
+        node(
+            "matter-plug-a",
+            published=[],
+            consumed=[power_set],
+            safety="electrical",
+        ),
+        node(
+            "matter-plug-b",
+            published=[],
+            consumed=[power_set],
+            safety="electrical",
         ),
     )
 
@@ -191,6 +212,70 @@ async def test_one_confirmed_glasses_intent_fans_out_to_assigned_robot_simulator
     }
     assert all(command.sourceNodeId == "g2-a" for command in dispatched)
     assert [item.stage.value for item in result.command_lifecycle].count("DISPATCHED") == 2
+
+
+@pytest.mark.asyncio
+async def test_turn_on_all_fans_out_to_every_assigned_output_kind() -> None:
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(repository, clock=lambda: NOW)
+        dispatched: list[FabricResolvedCommand] = []
+
+        async def dispatch(
+            command: FabricResolvedCommand,
+            _node: IntegrationNode,
+        ) -> FabricDispatchOutcome:
+            dispatched.append(command)
+            return FabricDispatchOutcome(accepted=True)
+
+        fabric.set_dispatcher(dispatch)
+        manifest, nodes = _plugin_and_nodes()
+        fabric.register_plugin_and_nodes(manifest, nodes)
+        pack = load_builtin_course_pack("glasses-device-control")
+        fabric.install_course_pack(pack, actor_id="instructor-a")
+        session = fabric.create_session(
+            CreateInteractionSessionRequest.model_validate(
+                {
+                    "coursePackId": pack.coursePackId,
+                    "coursePackVersion": pack.version,
+                    "siteId": "local-site",
+                    "roomId": "local-room",
+                    "mode": "simulation",
+                }
+            ),
+            actor_id="instructor-a",
+        )
+        for role, node_id in (
+            ("glasses_input_1", "g2-a"),
+            ("ground_output_1", "sphero-a"),
+            ("ground_output_2", "lego-a"),
+            ("fleet_sequence_controller", "tello-fleet-a"),
+            ("power_output_1", "matter-plug-a"),
+            ("power_output_2", "matter-plug-b"),
+        ):
+            fabric.assign_role(session.sessionId, role, node_id, actor_id="instructor-a")
+        fabric.transition_session(session.sessionId, "start", actor_id="instructor-a")
+
+        result = await fabric.ingest_event(
+            _event(session.sessionId, action="activate", target="all_outputs")
+        )
+
+    assert {command.targetNodeId for command in dispatched} == {
+        "sphero-a",
+        "lego-a",
+        "tello-fleet-a",
+        "matter-plug-a",
+        "matter-plug-b",
+    }
+    assert [command.action for command in dispatched].count(DEMONSTRATION_CAPABILITY) == 2
+    assert [command.action for command in dispatched].count(LIGHT_CAPABILITY) == 1
+    assert [command.action for command in dispatched].count(FLEET_START_CAPABILITY) == 1
+    assert [command.action for command in dispatched].count(POWER_SET_CAPABILITY) == 2
+    assert all(
+        command.parameters.model_dump(mode="json") == {"on": True}
+        for command in dispatched
+        if command.action == POWER_SET_CAPABILITY
+    )
+    assert [item.stage.value for item in result.command_lifecycle].count("DISPATCHED") == 6
 
 
 @pytest.mark.asyncio
@@ -411,3 +496,131 @@ async def test_confirmed_glasses_takeoff_and_land_use_the_bounded_fleet_controll
     assert [item.stage.value for item in land.command_lifecycle].count("DISPATCHED") == 1
     assert [item.stage.value for item in exact_takeoff.command_lifecycle].count("DISPATCHED") == 1
     assert [item.stage.value for item in exact_land.command_lifecycle].count("DISPATCHED") == 1
+
+
+@pytest.mark.asyncio
+async def test_g2_menu_routes_explicit_on_and_off_to_one_assigned_smart_plug() -> None:
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(repository, clock=lambda: NOW)
+        dispatched: list[FabricResolvedCommand] = []
+
+        async def dispatch(
+            command: FabricResolvedCommand,
+            _node: IntegrationNode,
+        ) -> FabricDispatchOutcome:
+            dispatched.append(command)
+            return FabricDispatchOutcome(accepted=True)
+
+        fabric.set_dispatcher(dispatch)
+        manifest, nodes = _plugin_and_nodes()
+        fabric.register_plugin_and_nodes(manifest, nodes)
+        pack = load_builtin_course_pack("glasses-device-control")
+        fabric.install_course_pack(pack, actor_id="instructor-a")
+        session = fabric.create_session(
+            CreateInteractionSessionRequest.model_validate(
+                {
+                    "coursePackId": pack.coursePackId,
+                    "coursePackVersion": pack.version,
+                    "siteId": "local-site",
+                    "roomId": "local-room",
+                    "mode": "simulation",
+                }
+            ),
+            actor_id="instructor-a",
+        )
+        for role, node_id in (
+            ("glasses_input_1", "g2-a"),
+            ("power_output_1", "matter-plug-a"),
+        ):
+            fabric.assign_role(session.sessionId, role, node_id, actor_id="instructor-a")
+        fabric.transition_session(session.sessionId, "start", actor_id="instructor-a")
+
+        power_on = await fabric.ingest_event(
+            _event(
+                session.sessionId,
+                action="power_on",
+                target="assigned_output",
+                target_role="power_output_1",
+                sequence=1,
+            )
+        )
+        power_off = await fabric.ingest_event(
+            _event(
+                session.sessionId,
+                action="power_off",
+                target="assigned_output",
+                target_role="power_output_1",
+                sequence=2,
+            )
+        )
+
+    assert [command.targetNodeId for command in dispatched] == [
+        "matter-plug-a",
+        "matter-plug-a",
+    ]
+    assert [command.action for command in dispatched] == [
+        POWER_SET_CAPABILITY,
+        POWER_SET_CAPABILITY,
+    ]
+    assert [command.parameters.model_dump(mode="json") for command in dispatched] == [
+        {"on": True},
+        {"on": False},
+    ]
+    assert [item.stage.value for item in power_on.command_lifecycle].count("DISPATCHED") == 1
+    assert [item.stage.value for item in power_off.command_lifecycle].count("DISPATCHED") == 1
+
+
+@pytest.mark.asyncio
+async def test_meta_or_g2_all_plugs_intent_fans_out_to_each_assigned_plug() -> None:
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(repository, clock=lambda: NOW)
+        dispatched: list[FabricResolvedCommand] = []
+
+        async def dispatch(
+            command: FabricResolvedCommand,
+            _node: IntegrationNode,
+        ) -> FabricDispatchOutcome:
+            dispatched.append(command)
+            return FabricDispatchOutcome(accepted=True)
+
+        fabric.set_dispatcher(dispatch)
+        manifest, nodes = _plugin_and_nodes()
+        fabric.register_plugin_and_nodes(manifest, nodes)
+        pack = load_builtin_course_pack("glasses-device-control")
+        fabric.install_course_pack(pack, actor_id="instructor-a")
+        session = fabric.create_session(
+            CreateInteractionSessionRequest.model_validate(
+                {
+                    "coursePackId": pack.coursePackId,
+                    "coursePackVersion": pack.version,
+                    "siteId": "local-site",
+                    "roomId": "local-room",
+                    "mode": "simulation",
+                }
+            ),
+            actor_id="instructor-a",
+        )
+        for role, node_id in (
+            ("glasses_input_1", "g2-a"),
+            ("power_output_1", "matter-plug-a"),
+            ("power_output_2", "matter-plug-b"),
+        ):
+            fabric.assign_role(session.sessionId, role, node_id, actor_id="instructor-a")
+        fabric.transition_session(session.sessionId, "start", actor_id="instructor-a")
+
+        result = await fabric.ingest_event(
+            _event(
+                session.sessionId,
+                action="power_on",
+                target="power_outputs",
+                sequence=1,
+            )
+        )
+
+    assert [command.targetNodeId for command in dispatched] == [
+        "matter-plug-a",
+        "matter-plug-b",
+    ]
+    assert all(command.action == POWER_SET_CAPABILITY for command in dispatched)
+    assert all(command.parameters.model_dump(mode="json") == {"on": True} for command in dispatched)
+    assert [item.stage.value for item in result.command_lifecycle].count("DISPATCHED") == 2

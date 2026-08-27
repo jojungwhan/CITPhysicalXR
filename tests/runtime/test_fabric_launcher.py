@@ -547,6 +547,8 @@ def test_glasses_and_leap_launchers_can_attach_inputs_to_a_shared_fleet_session(
     assert '"fleet_sequence_input"' in glasses
     assert '"glasses_input"' in glasses
     assert "interaction.intent.device_control" in glasses
+    assert "CIT_FABRIC_CONTROL_PROJECTION" in glasses
+    assert "$State.nodeTaskStartedByLauncher = $false" in glasses
     assert 'coursePackId -ne "device-monitoring"' in leap
     assert '"fleet_sequence_input_$_"' in leap
     assert "$State.bridgeSessionId -eq $SessionId" in glasses
