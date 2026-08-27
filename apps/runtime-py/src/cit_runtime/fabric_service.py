@@ -29,8 +29,10 @@ from .fabric_auth import FABRIC_PERMISSIONS, FabricAuthService, FabricBootstrapI
 from .fabric_course import load_builtin_course_packs
 from .fabric_discovery import (
     FabricDiscoveryService,
+    FabricRememberedConnection,
     PowerShellDiscoveryRunner,
     UnavailableDiscoveryRunner,
+    remembered_connection_policy,
 )
 from .fabric_installation import FabricInstallationCatalog
 from .fabric_media import (
@@ -40,6 +42,36 @@ from .fabric_media import (
 )
 from .fabric_media_api import install_fabric_media_api
 from .fabric_repository import SQLiteFabricRepository
+
+
+async def supervise_remembered_reconnects(
+    fabric: InteractionFabric,
+    repository: SQLiteFabricRepository,
+    discovery: FabricDiscoveryService,
+) -> None:
+    """Retry remembered adapters that opted into unattended reconnection.
+
+    Runs without a principal, so it uses the unscoped system node view and
+    never confirms grounded aircraft.
+    """
+
+    def nodes() -> tuple[IntegrationNode, ...]:
+        return fabric.list_nodes()
+
+    report = discovery.current(nodes())
+    records = repository.list_fabric_remembered_connections(host_id=report.hostId)
+    connections = tuple(
+        FabricRememberedConnection(
+            actionId=record.reconnect_action_id,
+            requiresGroundedConfirmation=record.requires_grounded_confirmation,
+            rememberedAt=record.remembered_at,
+        )
+        for record in records
+        if remembered_connection_policy(record.reconnect_action_id) is not None
+    )
+    if not connections:
+        return
+    await discovery.supervise_remembered_reconnects(connections, nodes=nodes)
 
 
 def create_fabric_app(
@@ -163,6 +195,14 @@ def create_fabric_app(
             if active is not None:
                 active.expire_nodes()
                 active.expire_armed_sessions()
+            active_repo = repository
+            if active is not None and active_repo is not None:
+                with suppress(Exception):
+                    await supervise_remembered_reconnects(
+                        active,
+                        active_repo,
+                        configured_discovery,
+                    )
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
