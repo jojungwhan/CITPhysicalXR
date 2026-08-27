@@ -9,6 +9,7 @@ still disabled unless the local operator explicitly enables it at startup.
 from __future__ import annotations
 
 import asyncio
+import mimetypes
 import os
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable
 from contextlib import asynccontextmanager, suppress
@@ -348,6 +349,9 @@ def create_fabric_app(
         }
 
     if configured_studio is not None:
+        # Python 3.11 on Windows does not include WebP in its built-in MIME map.
+        mimetypes.add_type("image/webp", ".webp")
+
         index_path = configured_studio / "index.html"
         assets_path = configured_studio / "assets"
         if not index_path.is_file() or not assets_path.is_dir():
