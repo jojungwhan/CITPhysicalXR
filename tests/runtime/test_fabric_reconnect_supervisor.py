@@ -27,6 +27,18 @@ from cit_runtime.fabric_service import supervise_remembered_reconnects
 
 NOW = datetime(2026, 8, 21, 7, 0, 0, tzinfo=UTC)
 PLUG_ACTION = "cit.matter-smart-plug.connect"
+SAFE_REMEMBERED_ACTIONS = (
+    "cit.glasses-agent.connect",
+    "cit.even-g2.connect",
+    "cit.even-r1.connect",
+    "cit.robomaster-leap.connect",
+    PLUG_ACTION,
+    "cit.lego-pybricks.connect",
+    "cit.wonder-workshop.reconnect",
+    "cit.sphero-bolt.reconnect",
+    "cit.sphero-ollie.reconnect",
+    "brain2devices.mindwave.connect",
+)
 
 
 class RecordingRunner:
@@ -89,18 +101,18 @@ def test_auto_reconnect_delay_grows_exponentially_then_caps() -> None:
     assert auto_reconnect_delay_seconds(99) == AUTO_RECONNECT_MAX_DELAY_SECONDS
 
 
-def test_supervisor_attempts_only_policies_marked_auto_reconnect() -> None:
+def test_supervisor_attempts_every_remembered_non_aircraft_profile() -> None:
     runner = RecordingRunner()
     service = FabricDiscoveryService(runner, clock=lambda: NOW)
 
     asyncio.run(
         service.supervise_remembered_reconnects(
-            (_remembered("cit.robomaster-leap.connect"), _remembered(PLUG_ACTION)),
+            tuple(_remembered(action_id) for action_id in SAFE_REMEMBERED_ACTIONS),
             nodes=lambda: (),
         )
     )
 
-    assert runner.actions == [(PLUG_ACTION, False)]
+    assert runner.actions == [(action_id, False) for action_id in SAFE_REMEMBERED_ACTIONS]
     assert runner.scans == 0
 
 
@@ -164,3 +176,112 @@ def test_service_supervisor_reconnects_a_remembered_plug_without_a_principal() -
 
     assert runner.actions == [(PLUG_ACTION, False)]
     assert runner.scans == 0
+
+
+class RecoveringRunner(RecordingRunner):
+    """Fails until `succeed_from` attempts have been made."""
+
+    def __init__(self, succeed_from: int) -> None:
+        super().__init__()
+        self._succeed_from = succeed_from
+
+    async def perform(
+        self,
+        action_id: str,
+        *,
+        confirm_grounded: bool,
+        session_target: FabricDiscoverySessionTarget | None = None,
+    ) -> str:
+        self.actions.append((action_id, confirm_grounded))
+        if len(self.actions) >= self._succeed_from:
+            return "Connection started; no actuation command was sent."
+        raise FabricDiscoveryError(
+            "DISCOVERY_ACTION_NOT_ALLOWED",
+            "The adapter is still unavailable.",
+        )
+
+
+def test_supervisor_reports_only_the_first_failure_of_a_streak() -> None:
+    runner = RecordingRunner()
+    moment = {"now": NOW}
+    service = FabricDiscoveryService(runner, clock=lambda: moment["now"])
+    remembered = (_remembered(PLUG_ACTION),)
+    seen: list[tuple[str, str]] = []
+
+    async def scenario() -> None:
+        for _ in range(3):
+            await service.supervise_remembered_reconnects(
+                remembered,
+                nodes=lambda: (),
+                on_transition=lambda action_id, status: seen.append((action_id, status)),
+            )
+            moment["now"] += timedelta(seconds=AUTO_RECONNECT_MAX_DELAY_SECONDS + 1)
+
+    asyncio.run(scenario())
+
+    assert len(runner.actions) == 3
+    assert seen == [(PLUG_ACTION, "failed")]
+
+
+def test_supervisor_reports_the_recovery_after_a_failure() -> None:
+    runner = RecoveringRunner(succeed_from=2)
+    moment = {"now": NOW}
+    service = FabricDiscoveryService(runner, clock=lambda: moment["now"])
+    remembered = (_remembered(PLUG_ACTION),)
+    seen: list[tuple[str, str]] = []
+
+    async def scenario() -> None:
+        for _ in range(2):
+            await service.supervise_remembered_reconnects(
+                remembered,
+                nodes=lambda: (),
+                on_transition=lambda action_id, status: seen.append((action_id, status)),
+            )
+            moment["now"] += timedelta(seconds=AUTO_RECONNECT_MAX_DELAY_SECONDS + 1)
+
+    asyncio.run(scenario())
+
+    assert seen == [(PLUG_ACTION, "failed"), (PLUG_ACTION, "connected")]
+
+
+def test_supervisor_reports_nothing_for_a_profile_it_never_attempts() -> None:
+    runner = RecordingRunner()
+    service = FabricDiscoveryService(runner, clock=lambda: NOW)
+    seen: list[tuple[str, str]] = []
+
+    asyncio.run(
+        service.supervise_remembered_reconnects(
+            (_remembered("brain2devices.tello.connect-all"),),
+            nodes=lambda: (),
+            on_transition=lambda action_id, status: seen.append((action_id, status)),
+        )
+    )
+
+    assert runner.actions == []
+    assert seen == []
+
+
+def test_service_supervisor_audits_a_reconnect_transition() -> None:
+    runner = RecordingRunner()
+    discovery = FabricDiscoveryService(runner, clock=lambda: NOW)
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(repository, clock=lambda: NOW)
+        report = discovery.current(fabric.list_nodes())
+        repository.remember_fabric_connection(
+            host_id=report.hostId,
+            reconnect_action_id=PLUG_ACTION,
+            requires_grounded_confirmation=False,
+            remembered_at=NOW,
+            remembered_by="runtime-node-history",
+        )
+
+        asyncio.run(supervise_remembered_reconnects(fabric, repository, discovery))
+
+        records = repository.list_fabric_audit(limit=10)
+
+    supervised = [
+        record for record in records if record.action == "fabric.discovery.reconnect_remembered"
+    ]
+    assert len(supervised) == 1
+    assert supervised[0].actor_id == "system.reconnect-supervisor"
+    assert supervised[0].outcome == "failed"

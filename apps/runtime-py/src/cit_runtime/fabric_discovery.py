@@ -379,18 +379,22 @@ _REMEMBERED_CONNECTION_POLICIES: Mapping[str, RememberedConnectionPolicy] = Mapp
             RememberedConnectionPolicy(
                 "cit.glasses-agent.connect",
                 ("meta-rayban", "coding-agents"),
+                auto_reconnect=True,
             ),
             RememberedConnectionPolicy(
                 "cit.even-g2.connect",
                 ("even-realities-g2",),
+                auto_reconnect=True,
             ),
             RememberedConnectionPolicy(
                 "cit.even-r1.connect",
                 ("even-realities-r1",),
+                auto_reconnect=True,
             ),
             RememberedConnectionPolicy(
                 "cit.robomaster-leap.connect",
                 ("leap-motion", "robomaster-s1"),
+                auto_reconnect=True,
             ),
             RememberedConnectionPolicy(
                 "cit.matter-smart-plug.connect",
@@ -400,22 +404,27 @@ _REMEMBERED_CONNECTION_POLICIES: Mapping[str, RememberedConnectionPolicy] = Mapp
             RememberedConnectionPolicy(
                 "cit.lego-pybricks.connect",
                 ("lego-hubs",),
+                auto_reconnect=True,
             ),
             RememberedConnectionPolicy(
                 "cit.wonder-workshop.reconnect",
                 ("wonder-workshop-dash-dot",),
+                auto_reconnect=True,
             ),
             RememberedConnectionPolicy(
                 "cit.sphero-bolt.reconnect",
                 ("sphero-bolt",),
+                auto_reconnect=True,
             ),
             RememberedConnectionPolicy(
                 "cit.sphero-ollie.reconnect",
                 ("sphero-ollie",),
+                auto_reconnect=True,
             ),
             RememberedConnectionPolicy(
                 "brain2devices.mindwave.connect",
                 ("mindwave-mobile2",),
+                auto_reconnect=True,
             ),
             RememberedConnectionPolicy(
                 "brain2devices.tello.connect-all",
@@ -824,11 +833,16 @@ class FabricDiscoveryService:
         connections: Iterable[FabricRememberedConnection],
         *,
         nodes: NodeProvider,
+        on_transition: Callable[[str, str], None] | None = None,
     ) -> FabricRememberedConnectionResult:
         """Reconnect remembered adapters that opted into unattended recovery.
 
         Never confirms grounded aircraft, so any policy requiring that
         confirmation stays skipped until a tutor acts in the console.
+
+        ``on_transition`` is invoked only when an action changes state: the
+        first failure of a streak, or a recovery. Repeated failures stay quiet
+        so an adapter that is gone for hours does not flood the audit trail.
         """
 
         now = self._clock()
@@ -849,12 +863,16 @@ class FabricDiscoveryService:
         )
 
         for outcome in result.outcomes:
+            previous = self._auto_reconnect_state.pop(outcome.actionId, None)
             if outcome.status in {"connected", "already_connected"}:
-                self._auto_reconnect_state.pop(outcome.actionId, None)
+                if previous is not None and on_transition is not None:
+                    on_transition(outcome.actionId, outcome.status)
                 continue
-            failures = self._auto_reconnect_state.get(outcome.actionId, (0, now))[0] + 1
+            failures = (previous[0] if previous is not None else 0) + 1
             retry_at = now + timedelta(seconds=auto_reconnect_delay_seconds(failures))
             self._auto_reconnect_state[outcome.actionId] = (failures, retry_at)
+            if failures == 1 and on_transition is not None:
+                on_transition(outcome.actionId, outcome.status)
         return result
 
     async def commission_matter(
