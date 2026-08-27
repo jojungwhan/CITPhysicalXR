@@ -17,7 +17,7 @@ import subprocess
 from collections.abc import Callable, Iterable, Mapping
 from contextlib import suppress
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from html.parser import HTMLParser
 from pathlib import Path
 from tempfile import TemporaryFile
@@ -369,6 +369,7 @@ class RememberedConnectionPolicy:
     action_id: str
     integration_ids: tuple[str, ...]
     requires_grounded_confirmation: bool = False
+    auto_reconnect: bool = False
 
 
 _REMEMBERED_CONNECTION_POLICIES: Mapping[str, RememberedConnectionPolicy] = MappingProxyType(
@@ -394,6 +395,7 @@ _REMEMBERED_CONNECTION_POLICIES: Mapping[str, RememberedConnectionPolicy] = Mapp
             RememberedConnectionPolicy(
                 "cit.matter-smart-plug.connect",
                 ("matter-smart-plugs",),
+                auto_reconnect=True,
             ),
             RememberedConnectionPolicy(
                 "cit.lego-pybricks.connect",
@@ -427,6 +429,19 @@ _REMEMBERED_CONNECTION_POLICIES: Mapping[str, RememberedConnectionPolicy] = Mapp
 _REMEMBERED_CONNECTION_ALIASES: Mapping[str, str] = MappingProxyType(
     {"brain2devices.tello.connect-primary": "brain2devices.tello.connect-all"}
 )
+
+
+AUTO_RECONNECT_BASE_DELAY_SECONDS = 20.0
+AUTO_RECONNECT_MAX_DELAY_SECONDS = 300.0
+
+
+def auto_reconnect_delay_seconds(consecutive_failures: int) -> float:
+    """Back off exponentially between unattended reconnection attempts."""
+
+    if consecutive_failures <= 0:
+        return AUTO_RECONNECT_BASE_DELAY_SECONDS
+    delay = AUTO_RECONNECT_BASE_DELAY_SECONDS * float(2**consecutive_failures)
+    return min(delay, AUTO_RECONNECT_MAX_DELAY_SECONDS)
 
 
 def remembered_connection_policy(action_id: str) -> RememberedConnectionPolicy | None:
@@ -673,6 +688,7 @@ class FabricDiscoveryService:
         self._physical_actuation_enabled = physical_actuation_enabled
         self._scan_lock = asyncio.Lock()
         self._connection_lock = asyncio.Lock()
+        self._auto_reconnect_state: dict[str, tuple[int, datetime]] = {}
         self._last_report = initial_discovery_report(
             at=self._clock(),
             physical_actuation_enabled=physical_actuation_enabled,
@@ -802,6 +818,44 @@ class FabricDiscoveryService:
             outcomes=outcomes,
             report=report,
         )
+
+    async def supervise_remembered_reconnects(
+        self,
+        connections: Iterable[FabricRememberedConnection],
+        *,
+        nodes: NodeProvider,
+    ) -> FabricRememberedConnectionResult:
+        """Reconnect remembered adapters that opted into unattended recovery.
+
+        Never confirms grounded aircraft, so any policy requiring that
+        confirmation stays skipped until a tutor acts in the console.
+        """
+
+        now = self._clock()
+        due: list[FabricRememberedConnection] = []
+        for connection in connections:
+            policy = remembered_connection_policy(connection.actionId)
+            if policy is None or not policy.auto_reconnect:
+                continue
+            scheduled = self._auto_reconnect_state.get(connection.actionId)
+            if scheduled is not None and now < scheduled[1]:
+                continue
+            due.append(connection)
+
+        result = await self.reconnect_remembered(
+            tuple(due),
+            confirm_grounded=False,
+            nodes=nodes,
+        )
+
+        for outcome in result.outcomes:
+            if outcome.status in {"connected", "already_connected"}:
+                self._auto_reconnect_state.pop(outcome.actionId, None)
+                continue
+            failures = self._auto_reconnect_state.get(outcome.actionId, (0, now))[0] + 1
+            retry_at = now + timedelta(seconds=auto_reconnect_delay_seconds(failures))
+            self._auto_reconnect_state[outcome.actionId] = (failures, retry_at)
+        return result
 
     async def commission_matter(
         self,
