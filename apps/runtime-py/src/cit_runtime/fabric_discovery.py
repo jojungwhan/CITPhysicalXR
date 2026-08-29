@@ -440,6 +440,9 @@ _REMEMBERED_CONNECTION_ALIASES: Mapping[str, str] = MappingProxyType(
 )
 
 
+# A node that dropped this recently is treated as recoverable; older records
+# are stale hardware and must not keep relaunching a working adapter.
+_RECENT_DROP_RECOVERY_WINDOW = timedelta(minutes=30)
 AUTO_RECONNECT_BASE_DELAY_SECONDS = 20.0
 AUTO_RECONNECT_MAX_DELAY_SECONDS = 300.0
 
@@ -770,7 +773,7 @@ class FabricDiscoveryService:
                         )
                     )
                     continue
-                if _policy_has_live_node(policy, nodes()):
+                if not _policy_needs_reconnect(policy, nodes(), at=self._clock()):
                     outcomes.append(
                         FabricRememberedConnectionOutcome(
                             actionId=connection.actionId,
@@ -2161,6 +2164,39 @@ def _policy_has_live_node(
         node.connectionState.value in {"connected", "degraded"}
         and any(descriptor.matches(node) for descriptor in descriptors)
         for node in nodes
+    )
+
+
+def _policy_needs_reconnect(
+    policy: RememberedConnectionPolicy,
+    nodes: Iterable[IntegrationNode],
+    *,
+    at: datetime,
+) -> bool:
+    """Decide whether a remembered profile still has work to recover.
+
+    A policy covers a whole integration, but an integration can own several
+    endpoints -- a Matter fabric commonly owns one node per plug. Treating any
+    single live node as "connected" hid a sibling that had dropped, so neither
+    the console button nor the supervisor could ever recover it.
+
+    Relaunching an adapter briefly interrupts every endpoint it owns, so a
+    partially connected integration is only recovered for nodes that dropped
+    recently. Records for hardware that has been absent for days are left
+    alone rather than bouncing the endpoints that are working.
+    """
+
+    catalog = load_integration_catalog()
+    descriptors = tuple(catalog.require(value) for value in policy.integration_ids)
+    matching = tuple(
+        node for node in nodes if any(descriptor.matches(node) for descriptor in descriptors)
+    )
+    if not any(node.connectionState.value in {"connected", "degraded"} for node in matching):
+        return True
+    return any(
+        node.connectionState.value not in {"connected", "degraded"}
+        and at - node.lastSeenAt <= _RECENT_DROP_RECOVERY_WINDOW
+        for node in matching
     )
 
 

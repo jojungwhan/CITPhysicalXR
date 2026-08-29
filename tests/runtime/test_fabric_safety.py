@@ -334,3 +334,75 @@ def test_simulation_session_rejects_real_physical_actuation_capability() -> None
                 node.nodeId,
                 actor_id="instructor-a",
             )
+
+
+def test_attended_armed_session_survives_the_unattended_timeout() -> None:
+    """An open tutor console keeps a class armed past the 2 minute window."""
+
+    manifest, node = physical_ground_plugin()
+    current = NOW
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(
+            repository,
+            clock=lambda: current,
+            allow_physical=True,
+        )
+        session_id = prepare_physical_session(fabric, manifest=manifest, node=node)
+        fabric.transition_session(session_id, "arm", actor_id="instructor-a")
+
+        for minute in range(1, 200):
+            current = NOW + timedelta(minutes=minute)
+            fabric.note_console_attendance()
+            assert fabric.expire_armed_sessions() == ()
+
+        assert fabric.get_session(session_id).armed is True
+
+
+def test_attended_armed_session_still_disarms_at_the_attended_ceiling() -> None:
+    """Attendance raises the ceiling to six hours; it does not remove it."""
+
+    manifest, node = physical_ground_plugin()
+    current = NOW
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(
+            repository,
+            clock=lambda: current,
+            allow_physical=True,
+        )
+        session_id = prepare_physical_session(fabric, manifest=manifest, node=node)
+        fabric.transition_session(session_id, "arm", actor_id="instructor-a")
+
+        current = NOW + timedelta(hours=6, minutes=1)
+        fabric.note_console_attendance()
+        assert fabric.expire_armed_sessions() == (session_id,)
+        disarmed = fabric.get_session(session_id)
+
+    assert disarmed.armed is False
+    assert disarmed.disarmReason == "inactivity_timeout"
+
+
+def test_armed_session_disarms_once_console_attendance_stops() -> None:
+    """Closing the console returns the session to the unattended timeout."""
+
+    manifest, node = physical_ground_plugin()
+    current = NOW
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(
+            repository,
+            clock=lambda: current,
+            allow_physical=True,
+        )
+        session_id = prepare_physical_session(fabric, manifest=manifest, node=node)
+        fabric.transition_session(session_id, "arm", actor_id="instructor-a")
+
+        current = NOW + timedelta(minutes=30)
+        fabric.note_console_attendance()
+        assert fabric.expire_armed_sessions() == ()
+
+        # The console closes: no further attendance is recorded.
+        current = NOW + timedelta(minutes=33)
+        assert fabric.expire_armed_sessions() == (session_id,)
+        disarmed = fabric.get_session(session_id)
+
+    assert disarmed.armed is False
+    assert disarmed.disarmReason == "inactivity_timeout"

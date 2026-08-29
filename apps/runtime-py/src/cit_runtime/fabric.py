@@ -40,6 +40,10 @@ _NODE_LEASE_TTL = timedelta(seconds=15)
 _MAX_CLOCK_SKEW = timedelta(seconds=30)
 _MAX_FLOW_COMMAND_TTL = timedelta(seconds=2)
 _ARM_INACTIVITY_TTL = timedelta(minutes=2)
+# A tutor console that is open and polling counts as attendance. While a class
+# is attended an armed session may run for a full teaching block; the moment
+# attendance stops it falls back to the unattended window above.
+_ARM_ATTENDED_TTL = timedelta(hours=6)
 _BRAIN_FLIGHT_DEMO_ARM = "mobility.flight.brain_demo.arm"
 _BRAIN_FLIGHT_DEMO_SAFETY_PROFILE = "classroom-drone-monitoring"
 _FLEET_SEQUENCE_ARM = "mobility.flight.fleet_sequence.arm"
@@ -158,6 +162,7 @@ class InteractionFabric:
         self._command_id_factory = command_id_factory or (lambda: str(uuid4()))
         self._allow_physical = allow_physical
         self._dispatcher: FabricDispatcher | None = None
+        self._last_attended_at: datetime | None = None
 
     def set_dispatcher(self, dispatcher: FabricDispatcher | None) -> None:
         self._dispatcher = dispatcher
@@ -226,14 +231,28 @@ class InteractionFabric:
         self._disarm_sessions_for_nodes(expired, reason="node_lease_expired")
         return expired
 
+    def note_console_attendance(self) -> None:
+        """Record that an instructor console is currently watching this room."""
+
+        self._last_attended_at = self._clock()
+
+    def _armed_session_ttl(self, now: datetime) -> timedelta:
+        if (
+            self._last_attended_at is not None
+            and now - self._last_attended_at <= _ARM_INACTIVITY_TTL
+        ):
+            return _ARM_ATTENDED_TTL
+        return _ARM_INACTIVITY_TTL
+
     def expire_armed_sessions(self) -> tuple[str, ...]:
         now = self._clock()
+        arm_ttl = self._armed_session_ttl(now)
         expired: list[str] = []
         for session in self._repository.list_interaction_sessions():
             if (
                 session.mode is FabricSessionMode.physical
                 and session.armed
-                and session.updatedAt + _ARM_INACTIVITY_TTL <= now
+                and session.updatedAt + arm_ttl <= now
             ):
                 self._save_disarmed_session(
                     session,

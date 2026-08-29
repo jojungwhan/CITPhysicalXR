@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import UTC, datetime, timedelta
 
+from cit_protocol import IntegrationNode
 from cit_runtime.fabric import InteractionFabric
 from cit_runtime.fabric_discovery import (
     AUTO_RECONNECT_BASE_DELAY_SECONDS,
@@ -285,3 +286,117 @@ def test_service_supervisor_audits_a_reconnect_transition() -> None:
     assert len(supervised) == 1
     assert supervised[0].actor_id == "system.reconnect-supervisor"
     assert supervised[0].outcome == "failed"
+
+
+def _plug_node(node_id: str, *, state: str, last_seen: datetime) -> IntegrationNode:
+    return IntegrationNode.model_validate(
+        {
+            "schemaVersion": "1.0",
+            "nodeId": node_id,
+            "pluginId": "cit.matter-smart-plug",
+            "pluginVersion": "0.1.0",
+            "runtimeVersion": "python-3.11",
+            "displayName": "Smart Wi-Fi Plug",
+            "hostId": "test-host",
+            "siteId": "local-site",
+            "roomId": "local-room",
+            "connectionState": state,
+            "healthState": "healthy",
+            "physical": True,
+            "simulated": False,
+            "publishedCapabilities": [],
+            "consumedCapabilities": [
+                {
+                    "name": "power.switch.set",
+                    "version": "1.0",
+                    "direction": "consume",
+                    "latencyClass": "interactive",
+                    "safetyClassification": "electrical",
+                    "dataClassification": "operational",
+                    "constraints": {},
+                }
+            ],
+            "configurationSchema": {},
+            "safetyClassification": "electrical",
+            "dataClassifications": ["operational"],
+            "simulatorAvailable": False,
+            "requiredPermissions": [],
+            "lastSeenAt": last_seen,
+            "metadata": {},
+        }
+    )
+
+
+def test_a_recently_dropped_plug_is_retried_even_though_its_sibling_is_live() -> None:
+    """One healthy plug must not mask a sibling that just dropped.
+
+    The live-node check is per integration, so a partially connected Matter
+    fabric used to report already_connected and never recover the dropped
+    endpoint -- for the console button as much as for the supervisor.
+    """
+
+    runner = RecordingRunner()
+    service = FabricDiscoveryService(runner, clock=lambda: NOW)
+    nodes = (
+        _plug_node("matter-8-ep1", state="connected", last_seen=NOW),
+        _plug_node(
+            "matter-c-ep1",
+            state="disconnected",
+            last_seen=NOW - timedelta(minutes=4),
+        ),
+    )
+
+    asyncio.run(
+        service.supervise_remembered_reconnects(
+            (_remembered(PLUG_ACTION),),
+            nodes=lambda: nodes,
+        )
+    )
+
+    assert runner.actions == [(PLUG_ACTION, False)]
+
+
+def test_a_long_gone_node_is_not_retried_while_a_sibling_is_live() -> None:
+    """Stale records must not relaunch an adapter that is working.
+
+    Relaunching the Matter adapter briefly drops every endpoint it owns, so a
+    device absent for days must not keep bouncing the plugs that are fine.
+    """
+
+    runner = RecordingRunner()
+    service = FabricDiscoveryService(runner, clock=lambda: NOW)
+    nodes = (
+        _plug_node("matter-8-ep1", state="connected", last_seen=NOW),
+        _plug_node(
+            "matter-c-ep1",
+            state="disconnected",
+            last_seen=NOW - timedelta(days=3),
+        ),
+    )
+
+    asyncio.run(
+        service.supervise_remembered_reconnects(
+            (_remembered(PLUG_ACTION),),
+            nodes=lambda: nodes,
+        )
+    )
+
+    assert runner.actions == []
+
+
+def test_a_fully_connected_integration_is_left_alone() -> None:
+    runner = RecordingRunner()
+    service = FabricDiscoveryService(runner, clock=lambda: NOW)
+    nodes = (
+        _plug_node("matter-8-ep1", state="connected", last_seen=NOW),
+        _plug_node("matter-c-ep1", state="connected", last_seen=NOW),
+    )
+
+    asyncio.run(
+        service.supervise_remembered_reconnects(
+            (_remembered(PLUG_ACTION),),
+            nodes=lambda: nodes,
+        )
+    )
+
+    assert runner.actions == []

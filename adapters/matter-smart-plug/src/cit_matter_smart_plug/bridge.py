@@ -258,22 +258,34 @@ class FabricMatterBridge:
                 pass
         while self.configuration.activation_file.is_file():
             await asyncio.sleep(self.configuration.poll_interval_seconds)
-            state = await self._backend.read_state()
-            session_id = self._state_publication_session_id
-            if state != self._last_state:
-                self._last_state = state
+            try:
+                state = await self._backend.read_state()
+                session_id = self._state_publication_session_id
+                if state != self._last_state:
+                    self._last_state = state
+                    if session_id is not None:
+                        await self._publish_state(
+                            client,
+                            state=state,
+                            source="matter-subscription",
+                            session_id=session_id,
+                        )
                 if session_id is not None:
-                    await self._publish_state(
+                    await self._publish_current_electrical(
                         client,
-                        state=state,
                         source="matter-subscription",
                         session_id=session_id,
                     )
-            if session_id is not None:
-                await self._publish_current_electrical(
-                    client,
-                    source="matter-subscription",
-                    session_id=session_id,
+            except (SmartPlugError, OSError) as error:
+                # A controller read can time out on a momentary RF or mDNS
+                # stall. Keep polling: dropping the adapter here would leave
+                # the plug disconnected until someone relaunched it by hand.
+                self._last_error = str(error)[:500]
+                LOGGER.warning(
+                    "Matter state poll failed node_id=%s error_type=%s error=%s",
+                    self.configuration.node_id,
+                    type(error).__name__,
+                    self._last_error,
                 )
 
     async def _publish_state(
