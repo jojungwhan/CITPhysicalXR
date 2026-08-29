@@ -185,6 +185,11 @@ def install_fabric_api(
             principal: Annotated[FabricPrincipal, Depends(principal_from_header)],
         ) -> FabricPrincipal:
             get_auth().require(principal, permission)
+            if principal.actor_type in {"instructor", "administrator"}:
+                # An open console polls this API continuously. Treat that as a
+                # tutor attending the room so a lesson can stay armed for a
+                # full teaching block instead of the unattended window.
+                get_fabric().note_console_attendance()
             return principal
 
         return dependency

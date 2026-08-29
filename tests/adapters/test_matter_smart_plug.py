@@ -21,7 +21,11 @@ from cit_matter_smart_plug import (
     extract_electrical_measurements,
 )
 from cit_matter_smart_plug.bridge import BridgeConfiguration, FabricMatterBridge
-from cit_matter_smart_plug.matter_client import MatterServerClient, validate_setup_code
+from cit_matter_smart_plug.matter_client import (
+    MatterServerClient,
+    MatterServerError,
+    validate_setup_code,
+)
 from cit_protocol import FabricResolvedCommand
 
 NOW = datetime(2026, 8, 22, 8, 0, tzinfo=UTC)
@@ -498,3 +502,88 @@ def test_setup_code_accepts_qr_and_manual_forms(code: str) -> None:
 def test_setup_code_rejects_non_matter_values(code: str) -> None:
     with pytest.raises(ValueError, match="Matter"):
         validate_setup_code(code)
+
+
+def test_transient_matter_read_failure_does_not_stop_the_state_loop(
+    tmp_path: Path,
+) -> None:
+    """A momentary controller timeout must not kill the adapter process.
+
+    Before this was handled, one SmartPlugError propagated out of the poll
+    loop, tripped FIRST_COMPLETED in run(), and ended the bridge -- so the
+    plug stayed disconnected until someone relaunched it by hand.
+    """
+
+    class FlakyMatterClient(FakeMatterClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.reads = 0
+            self.fail_next = False
+
+        async def read_on_off(self, node_id: int, endpoint_id: int) -> bool:
+            self.reads += 1
+            if self.fail_next:
+                self.fail_next = False
+                raise MatterServerError("timed out during read_attribute")
+            return await super().read_on_off(node_id, endpoint_id)
+
+    class RecordingFabricClient:
+        def __init__(self) -> None:
+            self.events: list[dict[str, object]] = []
+
+        async def publish_event(self, **event: object) -> None:
+            self.events.append(event)
+
+    async def scenario() -> None:
+        activation_file = tmp_path / "matter-active.flag"
+        activation_file.write_text("connected\n", encoding="ascii")
+        matter_client = FlakyMatterClient()
+        backend = MatterSmartPlug(
+            MatterSmartPlugConfiguration(
+                server_url="ws://127.0.0.1:5580/ws",
+                matter_node_id=7,
+                endpoint_id=1,
+            ),
+            client=matter_client,
+        )
+        await backend.start()
+        bridge = FabricMatterBridge(
+            BridgeConfiguration(
+                connection=FabricConnectionConfiguration(
+                    adapter_url="ws://127.0.0.1:8766/api/v1/adapters/connect",
+                    adapter_token="test-adapter-token",
+                    fabric_origin="http://127.0.0.1:8766",
+                    session_id="session-a",
+                    site_id="site-a",
+                    room_id="room-a",
+                ),
+                host_id="host-a",
+                node_id="matter-7-ep1",
+                activation_file=activation_file,
+                matter_node_id=7,
+                endpoint_id=1,
+                display_name="Test plug",
+                vendor_name="Matter",
+                product_name="On/Off Plug-in Unit",
+                poll_interval_seconds=1,
+            ),
+            backend=backend,
+        )
+        bridge._state_publication_session_id = "session-a"
+        bridge._state_publication_enabled.set()
+        reads_before = matter_client.reads
+        matter_client.fail_next = True
+
+        client = RecordingFabricClient()
+        state_task = asyncio.create_task(bridge._publish_state_changes(client))  # type: ignore[arg-type]
+        await asyncio.sleep(1.4)
+
+        # The poll raised, and the loop must have survived it.
+        assert matter_client.reads > reads_before
+        assert not state_task.done()
+
+        activation_file.unlink()
+        await asyncio.wait_for(state_task, timeout=3)
+        await backend.close()
+
+    asyncio.run(scenario())
