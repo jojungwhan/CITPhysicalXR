@@ -3,6 +3,7 @@ import type {
   SynchronizedInputKind,
   SynchronizedMotionDirection,
 } from "./fabric-synchronized-motion.js";
+import { FabricInfoDisclosure } from "./FabricInfoDisclosure.js";
 
 const INPUTS: readonly SynchronizedInputKind[] = [
   "g2",
@@ -134,7 +135,15 @@ export function FabricSynchronizedMotionPanel({
 
         <div className="fabric-sync-inputs">
           <div>
-            <strong>{t("sync.inputs")}</strong>
+            <div className="fabric-compact-title">
+              <strong>{t("sync.inputs")}</strong>
+              <FabricInfoDisclosure
+                className="fabric-sync-input-info"
+                label={t("common.moreInfo")}
+              >
+                <p>{t("sync.inputHelp")}</p>
+              </FabricInfoDisclosure>
+            </div>
             <span>
               {INPUTS.map((kind) => (
                 <em
@@ -153,7 +162,6 @@ export function FabricSynchronizedMotionPanel({
           >
             {t("sync.connectWearables")}
           </button>
-          <small>{t("sync.inputHelp")}</small>
         </div>
       </div>
     </section>

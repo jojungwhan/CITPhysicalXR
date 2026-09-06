@@ -2761,6 +2761,7 @@ export function FabricConsole() {
                   <p>{t("discovery.intro")}</p>
                   <strong>{t("discovery.safeTitle")}</strong>
                   <p>{t("discovery.safeBody")}</p>
+                  <p>{t("discovery.noMovement")}</p>
                 </FabricInfoDisclosure>
               </div>
             </div>
@@ -2773,7 +2774,6 @@ export function FabricConsole() {
               {busy?.key === "busy.findingDevices"
                 ? t("discovery.checking")
                 : t("discovery.find")}
-              <small>{t("discovery.noMovement")}</small>
             </button>
           </div>
 
@@ -2805,6 +2805,7 @@ export function FabricConsole() {
                       </strong>
                       <FabricInfoDisclosure label={t("common.moreInfo")}>
                         <p>{t("discovery.rememberedHelp")}</p>
+                        <p>{t("discovery.rememberedNoScan")}</p>
                       </FabricInfoDisclosure>
                     </div>
                   </div>
@@ -2819,11 +2820,9 @@ export function FabricConsole() {
                     {busy?.key === "busy.connectingRemembered"
                       ? t("discovery.reconnectingRemembered")
                       : t("discovery.connectRemembered")}
-                    <small>
-                      {discovery?.physicalActuationEnabled
-                        ? t("discovery.rememberedNoScan")
-                        : t("discovery.startHost")}
-                    </small>
+                    {!discovery?.physicalActuationEnabled && (
+                      <small>{t("discovery.startHost")}</small>
+                    )}
                   </button>
                 </div>
               )}
@@ -3973,7 +3972,6 @@ export function FabricDiscoveryCard({
       <header>
         <div>
           <h3>{integration.displayName}</h3>
-          <small>{integration.connectionMethod}</small>
           <span className={`fabric-io-label is-${integration.ioType}`}>
             {fabricIoLabel(integration.ioType, t)}
           </span>
@@ -3981,6 +3979,7 @@ export function FabricDiscoveryCard({
             className="fabric-card-info"
             label={t("common.moreInfo")}
           >
+            <p>{integration.connectionMethod}</p>
             <p>{integration.summary}</p>
           </FabricInfoDisclosure>
         </div>

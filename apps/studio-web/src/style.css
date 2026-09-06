@@ -427,14 +427,6 @@ main.fabric-main {
   font-size: 0.9rem;
 }
 
-.fabric-find-devices small {
-  display: block;
-  margin-top: 3px;
-  color: #2b4a31;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
 .fabric-discovery-meta {
   display: flex;
   margin: 5px 0 7px;
@@ -926,12 +918,6 @@ main.fabric-main {
   margin: 0 0 2px;
   color: #eff6f1;
   font-size: 0.9rem;
-}
-
-.fabric-discovery-card header small {
-  display: block;
-  color: #7f8e84;
-  font-size: 0.73rem;
 }
 
 .fabric-card-info,
@@ -2951,8 +2937,7 @@ main.fabric-main {
   font-size: 0.74rem;
 }
 
-.fabric-sync-targets small,
-.fabric-sync-inputs small {
+.fabric-sync-targets small {
   color: #829087;
   font-size: 0.68rem;
   line-height: 1.3;

@@ -71,6 +71,9 @@ describe("connected device card density", () => {
     expect(html.indexOf("Connection details")).toBeLessThan(
       html.indexOf("TELLO-58C5B7"),
     );
+    expect(html).toContain('class="fabric-info-disclosure fabric-card-info"');
+    expect(html).toContain("One Wi-Fi route per aircraft");
+    expect(html).not.toContain("<small>One Wi-Fi route per aircraft</small>");
     expect(html).toContain("First Tello connected.");
   });
 });

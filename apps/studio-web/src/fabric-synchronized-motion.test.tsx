@@ -148,6 +148,15 @@ describe("synchronized motor control", () => {
     expect(html).toContain("G2 음성");
     expect(html).toContain("R1 링");
     expect(html).toContain("MindWave 깜박임");
+    expect(html).toContain(
+      'class="fabric-info-disclosure fabric-sync-input-info"',
+    );
+    expect(html).toContain(
+      "G2·Meta 음성과 R1 제스처는 같은 제한 이동을 사용합니다.",
+    );
+    expect(html).not.toContain(
+      "<small>G2·Meta 음성과 R1 제스처는 같은 제한 이동을 사용합니다.",
+    );
   });
 
   it("keeps the synchronized-control option visible before devices connect", () => {
