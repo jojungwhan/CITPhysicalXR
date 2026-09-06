@@ -20,6 +20,29 @@ const TERMINAL_STAGES = new Set([
   "REJECTED",
 ]);
 
+export interface FabricCommandBatchResult {
+  succeeded: number;
+  failed: number;
+}
+
+export async function awaitFabricCommandBatch(
+  reader: LifecycleReader,
+  submissions: readonly Promise<FabricCommandSubmission>[],
+  options: { timeoutMs?: number; pollIntervalMs?: number } = {},
+): Promise<FabricCommandBatchResult> {
+  const outcomes = await Promise.allSettled(
+    submissions.map(async (submission) =>
+      awaitFabricCommandTerminal(reader, await submission, options),
+    ),
+  );
+  const succeeded = outcomes.filter(
+    (outcome) =>
+      outcome.status === "fulfilled" && outcome.value.stage === "SUCCEEDED",
+  ).length;
+
+  return { succeeded, failed: submissions.length - succeeded };
+}
+
 export async function awaitFabricCommandTerminal(
   reader: LifecycleReader,
   submission: FabricCommandSubmission,

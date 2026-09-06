@@ -1,7 +1,10 @@
 import type { FabricCommandLifecycleEvent } from "@citxr/protocol";
 import { describe, expect, it, vi } from "vitest";
 
-import { awaitFabricCommandTerminal } from "./fabric-command-chain.js";
+import {
+  awaitFabricCommandBatch,
+  awaitFabricCommandTerminal,
+} from "./fabric-command-chain.js";
 
 describe("Fabric command chaining", () => {
   it("waits for the exact command to succeed before a dependent command", async () => {
@@ -33,10 +36,45 @@ describe("Fabric command chaining", () => {
     expect(terminal).toBe(rejected);
     expect(listLifecycle).not.toHaveBeenCalled();
   });
+
+  it("counts delayed terminal success for every command in a dispatched batch", async () => {
+    const commandIds = ["command-a", "command-b", "command-c"];
+    const listLifecycle = vi.fn(
+      async (_afterSequence: number, commandId?: string) => [
+        {
+          streamSequence: 7,
+          lifecycle: lifecycle("SUCCEEDED", commandId),
+        },
+      ],
+    );
+
+    const result = await awaitFabricCommandBatch(
+      { listLifecycle },
+      commandIds.map((commandId) =>
+        Promise.resolve({
+          lifecycle: [lifecycle("DISPATCHED", commandId)],
+        }),
+      ),
+      { pollIntervalMs: 0 },
+    );
+
+    expect(result).toEqual({ succeeded: 3, failed: 0 });
+    expect(listLifecycle).toHaveBeenCalledTimes(3);
+  });
+
+  it("counts terminal failures and rejected submissions as failed batch commands", async () => {
+    const result = await awaitFabricCommandBatch({ listLifecycle: vi.fn() }, [
+      Promise.resolve({ lifecycle: [lifecycle("SUCCEEDED", "command-a")] }),
+      Promise.resolve({ lifecycle: [lifecycle("FAILED", "command-b")] }),
+      Promise.reject(new Error("submission failed")),
+    ]);
+
+    expect(result).toEqual({ succeeded: 1, failed: 2 });
+  });
 });
 
-const lifecycle = (stage: string) =>
+const lifecycle = (stage: string, commandId = "command-a") =>
   ({
-    commandId: "command-a",
+    commandId,
     stage,
   }) as FabricCommandLifecycleEvent;
