@@ -572,7 +572,7 @@ def test_safe_off_result_does_not_disconnect_matter_adapter(tmp_path: Path) -> N
                 headers=ADMIN_HEADERS,
                 json={
                     "coursePackId": "smart-plug-control",
-                    "coursePackVersion": "1.0.0",
+                    "coursePackVersion": "1.1.0",
                     "siteId": "local-site",
                     "roomId": "local-room",
                     "mode": "physical",

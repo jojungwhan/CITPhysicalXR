@@ -1,3 +1,9 @@
+import type {
+  CoursePack,
+  IntegrationNode,
+  InteractionSession,
+} from "@citxr/protocol";
+
 type SessionIdentity = { sessionId: string };
 
 interface RoleBinding {
@@ -15,6 +21,39 @@ interface VersionedCoursePack {
   coursePackId: string;
   version: string;
 }
+
+/** Apply the same one-of plus all-of role contract that Fabric enforces on assignment. */
+export const compatibleRoleNodes = (
+  nodes: readonly IntegrationNode[],
+  session: Pick<InteractionSession, "siteId" | "roomId" | "mode">,
+  requirement: CoursePack["roles"][number],
+): IntegrationNode[] => {
+  const alternatives = new Set(requirement.oneOfCapabilities);
+  const required = new Set(requirement.allOfCapabilities ?? []);
+  return nodes.filter((node) => {
+    const descriptors = [
+      ...node.publishedCapabilities,
+      ...node.consumedCapabilities,
+    ];
+    const names = new Set(descriptors.map((capability) => capability.name));
+    const relevant = descriptors.filter(
+      (capability) =>
+        alternatives.has(capability.name) || required.has(capability.name),
+    );
+    return (
+      node.siteId === session.siteId &&
+      node.roomId === session.roomId &&
+      ["connected", "degraded"].includes(node.connectionState) &&
+      [...alternatives].some((capability) => names.has(capability)) &&
+      [...required].every((capability) => names.has(capability)) &&
+      (session.mode !== "simulation" ||
+        node.simulated ||
+        relevant.every((capability) =>
+          ["none", "informational"].includes(capability.safetyClassification),
+        ))
+    );
+  });
+};
 
 const compareCourseVersions = (left: string, right: string): number =>
   left.localeCompare(right, undefined, {
@@ -42,8 +81,7 @@ export const latestCoursePacks = <T extends VersionedCoursePack>(
   return [...latestById.values()];
 };
 
-const AUTO_FILL_ROLE =
-  /^(?:safety_drone|fleet_sequence_input|ground_output|power_output|robot_sensor|glasses_input|message_output)_[1-8]$/;
+const NUMBERED_ROLE = /^(.*)_([1-9][0-9]*)$/;
 
 /**
  * Choose deterministic defaults without guessing between multiple devices for
@@ -57,6 +95,15 @@ export const automaticRoleAssignments = (
   const assignments: Record<string, string> = Object.fromEntries(
     roleBindings.map((binding) => [binding.role, binding.nodeId]),
   );
+  const numberedFamilyCounts = new Map<string, number>();
+  for (const requirement of requirements) {
+    const match = NUMBERED_ROLE.exec(requirement.role);
+    if (match?.[1] === undefined) continue;
+    numberedFamilyCounts.set(
+      match[1],
+      (numberedFamilyCounts.get(match[1]) ?? 0) + 1,
+    );
+  }
   const usedNodeIdsByFamily = new Map<string, Set<string>>();
   for (const binding of roleBindings) {
     const family = roleFamily(binding.role);
@@ -74,7 +121,7 @@ export const automaticRoleAssignments = (
     );
     if (
       candidates.length === 0 ||
-      (candidates.length > 1 && !AUTO_FILL_ROLE.test(requirement.role))
+      (candidates.length > 1 && (numberedFamilyCounts.get(family) ?? 0) < 2)
     ) {
       continue;
     }
@@ -87,7 +134,8 @@ export const automaticRoleAssignments = (
   return assignments;
 };
 
-const roleFamily = (role: string): string => role.replace(/_[1-8]$/, "");
+const roleFamily = (role: string): string =>
+  NUMBERED_ROLE.exec(role)?.[1] ?? role;
 
 /** Preserve the tutor's explicit lesson-builder state across background polls. */
 export const refreshedSessionSelection = (

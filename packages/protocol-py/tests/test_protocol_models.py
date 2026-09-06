@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,7 @@ from cit_protocol import (
     AdapterRegistrationFrame,
     CoursePack,
     FabricEventEnvelope,
+    FabricRoleTarget,
     IntegrationNode,
     PluginManifest,
 )
@@ -58,7 +60,9 @@ def test_transport_neutral_fabric_contracts_share_schema_and_python_models() -> 
     ):
         assert validate_definition(definition, to_wire(model)) == []
     assert registration.nodes[0].pluginId == manifest.pluginId
-    assert course_pack.flows[0].target.role == "coding_agent"
+    target = course_pack.flows[0].target
+    assert isinstance(target, FabricRoleTarget)
+    assert target.role == "coding_agent"
 
 
 def test_generated_models_reject_unknown_version_and_missing_device_identity() -> None:
@@ -70,3 +74,42 @@ def test_generated_models_reject_unknown_version_and_missing_device_identity() -
         CitEnvelope.model_validate(bad_envelope)
     with pytest.raises(ValidationError):
         DeviceCommandIntent.model_validate(bad_command)
+
+
+def test_course_pack_flow_targets_accept_only_bounded_explicit_role_sets() -> None:
+    group_pack = fixture("valid-course-pack.json")
+    group_flow = group_pack["flows"][0]
+    group_flow["target"] = {
+        "roles": ["coding_agent", "coding_agent_2"],
+        "requiredCapability": "agent.prompt.submit",
+    }
+    group_flow["outputRoles"] = ["coding_agent", "coding_agent_2"]
+    parsed_group = CoursePack.model_validate(group_pack)
+    group_wire = to_wire(parsed_group)
+
+    assert group_wire["flows"][0]["target"]["roles"] == [
+        "coding_agent",
+        "coding_agent_2",
+    ]
+    assert validate_definition("CoursePack", group_wire) == []
+
+    selected_pack = deepcopy(group_pack)
+    selected_flow = selected_pack["flows"][0]
+    selected_flow["target"] = {
+        "roleFromPayload": "targetRole",
+        "allowedRoles": ["coding_agent", "coding_agent_2"],
+        "requiredCapability": "agent.prompt.submit",
+    }
+    parsed_selected = CoursePack.model_validate(selected_pack)
+    selected_wire = to_wire(parsed_selected)
+
+    assert selected_wire["flows"][0]["target"]["roleFromPayload"] == "targetRole"
+    assert selected_wire["flows"][0]["target"]["allowedRoles"] == [
+        "coding_agent",
+        "coding_agent_2",
+    ]
+    assert validate_definition("CoursePack", selected_wire) == []
+
+    selected_flow["target"]["allowedRoles"] = []
+    with pytest.raises(ValidationError):
+        CoursePack.model_validate(selected_pack)

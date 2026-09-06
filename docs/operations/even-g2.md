@@ -28,6 +28,13 @@ to choose an assigned output, press to open its supported actions, then press
 again to review. Press or swipe right once more to confirm. Double-press goes
 back; stop and land are sent immediately.
 
+The phone view and glasses menu are generated from the active lesson's exact
+role assignments and live capability set. A light-only Dot therefore appears
+with **Change LED** but no invented movement control. The Meta Android
+companion follows the same structured voice-command contract, while Fabric
+independently enforces the active lesson and role allowlist; Meta does not
+consume the G2 menu inventory or route device phrases through a coding agent.
+
 Choose **All assigned devices > Turn on all devices** for the bounded classroom
 demonstration. Light-capable robots turn cyan, demo-capable ground robots travel
 about 10 cm forward and back, assigned smart plugs turn on, and the assigned
@@ -50,9 +57,9 @@ interaction enters the Fabric.
   the paired G2 and Even phone path.
 - Exact CIT voice phrases publish a structured device-control intent without
   first sending the phrase to Codex or Claude.
-- One confirmed ground command fans out to every ground output assigned in the
-  lesson. Each adapter independently translates direction and applies its local
-  watchdog.
+- One confirmed ground command fans out to every assigned ground output that
+  advertises the requested capability. Each adapter independently translates
+  direction and applies its local watchdog.
 
 Supported phrases include:
 
@@ -67,10 +74,23 @@ Supported phrases include:
 - CIT stop all devices / CIT 모든 장치 정지
 - CIT robots demo / CIT 로봇 시연
 - CIT robots lights / CIT 로봇 조명
+- CIT robot 3 forward / CIT 로봇 3번 앞으로 (replace 3 with any positive
+  integer used by an assigned robot role)
+- CIT robot 2 demo / CIT 로봇 2번 시연
+- CIT robot 2 light / CIT 로봇 2번 조명
+- CIT plug 2 on / CIT 플러그 2번 켜기
+- CIT plug 2 off / CIT 플러그 2번 끄기
 
 Movement and takeoff show a review on G2 and require one more press. Stop and
-land are submitted immediately. Every request still passes through the active
-lesson, role assignment, arbitration, safety policy, and adapter bounds.
+land are submitted immediately. Group commands, including **Stop all**, enter
+Fabric as one semantic event; the installed course pack performs the bounded,
+capability-gated fan-out. Every resulting request still passes through the
+active lesson, role assignment, arbitration, safety policy, and adapter bounds.
+
+The wearable bridge projects no control routes when it cannot load the exact
+course ID and version recorded by the active session. After upgrading, create
+or migrate the device-control session to `glasses-device-control` 1.3.0; older
+sessions remain fail-closed rather than inheriting newer controls implicitly.
 
 Classroom Control does not currently offer an arbitrary-text composer for a
 physical G2. The current Fabric adapter acknowledges display text already

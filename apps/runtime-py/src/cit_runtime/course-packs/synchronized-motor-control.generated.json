@@ -87,6 +87,7 @@
       "role": "fleet_sequence_controller",
       "ioType": "output",
       "oneOfCapabilities": ["mobility.flight.fleet_sequence.start"],
+      "allOfCapabilities": ["mobility.flight.fleet_sequence.stop"],
       "optional": true
     }
   ],

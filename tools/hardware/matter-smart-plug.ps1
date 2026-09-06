@@ -2,7 +2,7 @@
 
 [CmdletBinding()]
 param(
-  [ValidateSet("ControllerStart", "ConfigureWifi", "Commission", "Start", "Status", "Stop")]
+  [ValidateSet("ControllerStart", "ConfigureWifi", "Commission", "ListSetupCodes", "Rename", "Start", "Status", "Stop")]
   [string]$Mode = "Start",
   [ValidateRange(1024, 65535)]
   [int]$FabricPort = 8766,
@@ -56,6 +56,7 @@ $secretRoot = Join-Path $StateRoot "secrets"
 $logRoot = Join-Path $StateRoot "logs"
 $activationRoot = Join-Path $StateRoot "active"
 $statePath = Join-Path $StateRoot "state.json"
+$setupCodeRegistryPath = Join-Path $secretRoot "known-setup-codes.dpapi"
 $bootstrapSecretPath = Join-Path $SharedFabricRoot "secrets\fabric-bootstrap.dpapi"
 $fabricOrigin = "http://127.0.0.1:$FabricPort"
 $fabricAdapterUrl = "ws://127.0.0.1:$FabricPort/api/v1/adapters/connect"
@@ -105,6 +106,137 @@ function Read-ProtectedSecret([string]$Path) {
   Assert-Path $Path "Protected local credential"
   $ciphertext = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8).Trim()
   return ConvertFrom-SecretValue (ConvertTo-SecureString -String $ciphertext)
+}
+
+function Normalize-MatterSetupCode([string]$SetupCode) {
+  $normalized = $SetupCode.Trim()
+  $hasControlCharacters = @(
+    $normalized.ToCharArray() |
+      Where-Object { [int]$_ -lt 32 -or [int]$_ -eq 127 }
+  ).Count -gt 0
+  if (
+    $normalized.Length -lt 11 -or
+    $normalized.Length -gt 103 -or
+    $hasControlCharacters
+  ) {
+    throw "The protected Matter setup-code registry is invalid."
+  }
+  if ($normalized.StartsWith("MT:", [StringComparison]::OrdinalIgnoreCase)) {
+    return $normalized
+  }
+  $digits = [regex]::Replace($normalized, '\D', '')
+  if ($digits.Length -notin @(11, 21)) {
+    throw "The protected Matter setup-code registry is invalid."
+  }
+  return $digits
+}
+
+function Normalize-MatterPlugName([string]$Name) {
+  $normalized = $Name.Trim()
+  $hasControlCharacters = @(
+    $normalized.ToCharArray() |
+      Where-Object { [int]$_ -lt 32 -or [int]$_ -eq 127 }
+  ).Count -gt 0
+  if (
+    $normalized -ne $Name -or
+    $normalized.Length -lt 1 -or
+    $normalized.Length -gt 64 -or
+    $hasControlCharacters
+  ) {
+    throw "CIT_MATTER_ERROR|MATTER_PLUG_NAME_INVALID|Enter a name between 1 and 64 printable characters."
+  }
+  return $normalized
+}
+
+function Read-MatterSetupCodeRegistry {
+  $registry = [ordered]@{ schemaVersion = "1.0"; entries = @() }
+  if (-not (Test-Path -LiteralPath $setupCodeRegistryPath -PathType Leaf)) {
+    return $registry
+  }
+  try {
+    $document = Read-ProtectedSecret $setupCodeRegistryPath |
+      ConvertFrom-Json -AsHashtable
+    $sourceEntries = if ($document -is [Collections.IDictionary]) {
+      if ($document.schemaVersion -ne "1.0") { throw "Unsupported registry schema." }
+      @($document.entries)
+    } else {
+      @($document)
+    }
+    $entries = [Collections.Generic.List[hashtable]]::new()
+    foreach ($source in $sourceEntries) {
+      $setupCode = if ($source -is [string]) { $source } else { [string]$source.setupCode }
+      $matterNodeIds = @(
+        if ($source -isnot [string] -and $source.ContainsKey("matterNodeIds")) {
+          $source.matterNodeIds
+        }
+      )
+      $validatedNodeIds = @(
+        $matterNodeIds |
+          ForEach-Object { [string]$_ } |
+          Where-Object { $_ -match '^[1-9][0-9]{0,19}$' } |
+          Select-Object -Unique
+      )
+      if ($validatedNodeIds.Count -ne $matterNodeIds.Count) {
+        throw "Invalid Matter node mapping."
+      }
+      $validatedEntry = @{
+          setupCode = Normalize-MatterSetupCode $setupCode
+          matterNodeIds = $validatedNodeIds
+      }
+      if ($source -isnot [string] -and $source.ContainsKey("name") -and $null -ne $source.name) {
+        $validatedEntry.name = Normalize-MatterPlugName ([string]$source.name)
+      }
+      $entries.Add($validatedEntry)
+    }
+    $registry.entries = @($entries)
+    return $registry
+  } catch {
+    throw "The protected Matter setup-code registry is invalid."
+  }
+}
+
+function Save-MatterSetupCodeRegistry([Collections.IDictionary]$Registry) {
+  $payload = $Registry | ConvertTo-Json -Depth 6 -Compress
+  Save-ProtectedSecret $setupCodeRegistryPath $payload
+}
+
+function Register-MatterSetupCode([string]$SetupCode, [object[]]$MatterNodeIds) {
+  $normalized = Normalize-MatterSetupCode $SetupCode
+  $registry = Read-MatterSetupCodeRegistry
+  $entry = @($registry.entries | Where-Object { $_.setupCode -eq $normalized }) |
+    Select-Object -First 1
+  if ($null -eq $entry) {
+    $entry = @{ setupCode = $normalized; matterNodeIds = @() }
+    $registry.entries = @($registry.entries) + $entry
+  }
+  $mapped = [Collections.Generic.List[string]]::new()
+  foreach ($nodeId in @($entry.matterNodeIds) + $MatterNodeIds) {
+    $value = [string]$nodeId
+    if ($value -notmatch '^[1-9][0-9]{0,19}$') {
+      throw "Matter returned an invalid node identifier."
+    }
+    if (-not $mapped.Contains($value)) { $mapped.Add($value) }
+  }
+  $entry.matterNodeIds = @($mapped)
+  Save-MatterSetupCodeRegistry $registry
+}
+
+function Set-MatterPlugName([string]$MatterNodeId, [string]$Name) {
+  if ($MatterNodeId -notmatch '^[1-9][0-9]{0,19}$') {
+    throw "CIT_MATTER_ERROR|MATTER_PLUG_NODE_INVALID|The Matter plug identifier is invalid."
+  }
+  $normalizedName = Normalize-MatterPlugName $Name
+  $registry = Read-MatterSetupCodeRegistry
+  $matches = @(
+    $registry.entries |
+      Where-Object { @($_.matterNodeIds) -contains $MatterNodeId }
+  )
+  if ($matches.Count -ne 1) {
+    throw "CIT_MATTER_ERROR|MATTER_PLUG_NOT_REGISTERED|That Matter plug is not registered on this computer."
+  }
+  $matches[0].name = $normalizedName
+  Save-MatterSetupCodeRegistry $registry
+  return $registry
 }
 
 function Load-State {
@@ -502,10 +634,32 @@ function Assert-Fabric([string]$Bootstrap) {
   }
 }
 
-function New-AdapterSession([hashtable]$Plug, [string]$Bootstrap) {
+function Get-LatestSmartPlugCourse([string]$Bootstrap) {
+  $coursePacks = @(
+    Expand-Sequence (
+      Invoke-JsonApi `
+        -Method GET `
+        -Uri "$fabricOrigin/api/v1/fabric/course-packs" `
+        -Credential $Bootstrap
+    )
+  )
+  $coursePack = $coursePacks |
+    Where-Object { $_.coursePackId -eq "smart-plug-control" } |
+    Sort-Object { [version]$_.version } -Descending |
+    Select-Object -First 1
+  if ($null -eq $coursePack) {
+    throw "The smart-plug control course is not installed in Classroom Control."
+  }
+  return $coursePack
+}
+
+function New-AdapterSession(
+  [string]$Bootstrap,
+  [object]$CoursePack
+) {
   return Invoke-JsonApi -Method POST -Uri "$fabricOrigin/api/v1/fabric/sessions" -Credential $Bootstrap -Body @{
-    coursePackId = "smart-plug-control"
-    coursePackVersion = "1.0.0"
+    coursePackId = [string]$CoursePack.coursePackId
+    coursePackVersion = [string]$CoursePack.version
     siteId = $SiteId
     roomId = $RoomId
     mode = "physical"
@@ -594,9 +748,10 @@ function Start-Adapters([hashtable]$State, [string]$Bootstrap) {
   if ($plugs.Count -eq 0) {
     throw "No available commissioned Matter smart plugs were found. Add a plug from Classroom Control."
   }
+  $coursePack = Get-LatestSmartPlugCourse $Bootstrap
   $records = [Collections.Generic.List[hashtable]]::new()
   foreach ($plug in $plugs) {
-    $session = New-AdapterSession $plug $Bootstrap
+    $session = New-AdapterSession $Bootstrap $coursePack
     $credential = New-AdapterCredential $plug $Bootstrap ([string]$session.sessionId)
     $process = Start-OneAdapter $plug $credential ([string]$session.sessionId)
     $record = @{
@@ -642,8 +797,9 @@ function Show-Status([hashtable]$State) {
       $inventory = Get-MatterInventory
       Write-Host "Wi-Fi credentials configured: $($inventory.controller.wifiCredentialsSet)"
       Write-Host "Bluetooth commissioning enabled: $($inventory.controller.bluetoothEnabled)"
+      Write-Host "Bluetooth radio: $($inventory.controller.bluetoothStatus)"
       if ($State.ContainsKey("bleMode") -and $State.bleMode -eq "proxy") {
-        Write-Host "Windows BLE proxy: $(if (Test-BleProxyReady $State) { 'ready' } else { 'offline' })"
+        Write-Host "Windows BLE proxy link: $(if (Test-BleProxyReady $State) { 'connected' } else { 'offline' })"
       }
       Write-Host "Commissioned plug endpoints: $(@($inventory.plugs).Count)"
       foreach ($plug in @($inventory.plugs)) {
@@ -674,7 +830,35 @@ function Show-Status([hashtable]$State) {
 New-Item -ItemType Directory -Path $StateRoot, $controllerStorage, $secretRoot, $logRoot, $activationRoot -Force | Out-Null
 $state = Load-State
 
-if ($Mode -notin @("Status", "Stop")) { Build-Systems }
+if ($Mode -notin @("ListSetupCodes", "Rename", "Status", "Stop")) { Build-Systems }
+if ($Mode -eq "ListSetupCodes") {
+  $registry = Read-MatterSetupCodeRegistry
+  Write-Output ($registry | ConvertTo-Json -Depth 6 -Compress)
+  exit 0
+}
+if ($Mode -eq "Rename") {
+  $inputJson = [Console]::In.ReadToEnd()
+  if (-not $inputJson.Trim()) {
+    throw "CIT_MATTER_ERROR|MATTER_PLUG_NAME_INVALID|A Matter plug identifier and name are required."
+  }
+  try {
+    $renameInput = $inputJson | ConvertFrom-Json -AsHashtable
+    if (
+      $renameInput -isnot [Collections.IDictionary] -or
+      @($renameInput.Keys).Count -ne 2 -or
+      -not $renameInput.ContainsKey("matterNodeId") -or
+      -not $renameInput.ContainsKey("name")
+    ) {
+      throw "CIT_MATTER_ERROR|MATTER_PLUG_NAME_INVALID|A Matter plug identifier and name are required."
+    }
+    $registry = Set-MatterPlugName ([string]$renameInput.matterNodeId) ([string]$renameInput.name)
+    Write-Output ($registry | ConvertTo-Json -Depth 6 -Compress)
+    exit 0
+  } catch {
+    if ($_.Exception.Message.Contains("CIT_MATTER_ERROR|")) { throw }
+    throw "CIT_MATTER_ERROR|MATTER_PLUG_NAME_INVALID|A Matter plug identifier and valid name are required."
+  }
+}
 if ($Mode -eq "ControllerStart") {
   Start-Controller $state
   Show-Status $state
@@ -719,11 +903,18 @@ Assert-Fabric $bootstrap
 if ($Mode -eq "Commission") {
   $inventory = Get-MatterInventory
   if (-not $inventory.controller.wifiCredentialsSet) {
-    throw "MATTER_WIFI_NOT_CONFIGURED: Save the classroom Wi-Fi in Classroom Control before adding a plug."
+    [Console]::Error.WriteLine(
+      "CIT_MATTER_ERROR|MATTER_WIFI_NOT_CONFIGURED|Save the classroom 2.4 GHz Wi-Fi before adding a Matter plug."
+    )
+    exit 1
   }
   $inputJson = [Console]::In.ReadToEnd()
   if (-not $inputJson.Trim()) { throw "Matter setup code must be supplied through standard input." }
   $result = Invoke-AdminWithStdin "commission" $inputJson 260000
+  $commissioningInput = $inputJson | ConvertFrom-Json -AsHashtable
+  Register-MatterSetupCode `
+    ([string]$commissioningInput.setupCode) `
+    @($result.plugs | ForEach-Object { [string]$_.matterNodeId })
   Write-Host "Commissioned $(@($result.plugs).Count) standard Matter plug endpoint(s) into the local CIT fabric."
 }
 Start-Adapters $state $bootstrap

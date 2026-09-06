@@ -9,6 +9,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./flow-target": {
+      "types": "./dist/flow-target.d.ts",
+      "default": "./dist/flow-target.js"
     }
   },
   "scripts": {

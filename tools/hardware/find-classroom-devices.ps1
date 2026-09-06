@@ -272,7 +272,9 @@ function New-Candidate(
   [ValidateSet("", "usb", "bluetooth", "wifi", "android", "android_usb", "android_wifi", "local_service")]
   [string]$ConnectionPath = "",
   [ValidateSet("", "attached", "connected", "recently_active", "visible", "paired", "provisioned", "ready")]
-  [string]$LinkState = ""
+  [string]$LinkState = "",
+  [ValidatePattern("^$|^[A-Z][A-Z0-9_]*$")]
+  [string]$DiagnosticCode = ""
 ) {
   $candidate = [ordered]@{
     candidateId = $Id
@@ -285,6 +287,7 @@ function New-Candidate(
   if ($Model) { $candidate.model = $Model }
   if ($ConnectionPath) { $candidate.connectionPath = $ConnectionPath }
   if ($LinkState) { $candidate.linkState = $LinkState }
+  if ($DiagnosticCode) { $candidate.diagnosticCode = $DiagnosticCode }
   return $candidate
 }
 
@@ -1225,6 +1228,15 @@ $matterWifiReady = (
   $null -ne $matterInventory -and
   $matterInventory.controller.wifiCredentialsSet -eq $true
 )
+$matterBluetoothReady = (
+  $null -ne $matterInventory -and
+  $matterInventory.controller.bluetoothReady -eq $true
+)
+$matterBluetoothStatus = if ($null -ne $matterInventory) {
+  [string]$matterInventory.controller.bluetoothStatus
+} else {
+  "unavailable"
+}
 $availableMatterPlugs = @($matterPlugs | Where-Object { $_.available })
 $matterCandidates = @()
 if ($matterControllerReady) {
@@ -1236,6 +1248,30 @@ if ($matterControllerReady) {
     -ConnectionPath "local_service" `
     -LinkState $(if ($matterWifiReady) { "ready" } else { "" }) `
     -Detail $(if ($matterWifiReady) { "Wi-Fi is stored locally and the controller is ready to add plugs." } else { "Wi-Fi has not been saved. Enter the classroom 2.4 GHz network below before adding a plug." })
+  $matterBluetoothDetail = switch ($matterBluetoothStatus) {
+    "adapter_missing" { "Windows has no connected Bluetooth adapter. Connect a Bluetooth Low Energy adapter, then scan again." }
+    "radio_off" { "A Bluetooth adapter is present, but its radio is off. Turn on Windows Bluetooth, then scan again." }
+    "unsupported" { "The connected Bluetooth adapter does not support the Low Energy central role required by Matter setup." }
+    "transport_missing" { "The Windows Bluetooth runtime is unavailable. Repair the CIT hardware installation, then scan again." }
+    "ready" { "Windows Bluetooth Low Energy is ready for first-time Matter commissioning." }
+    default { "Windows Bluetooth Low Energy is unavailable. Check the adapter and Windows Bluetooth, then scan again." }
+  }
+  $matterBluetoothDiagnosticCode = switch ($matterBluetoothStatus) {
+    "adapter_missing" { "MATTER_BLUETOOTH_ADAPTER_MISSING" }
+    "radio_off" { "MATTER_BLUETOOTH_RADIO_OFF" }
+    "unsupported" { "MATTER_BLUETOOTH_UNSUPPORTED" }
+    "ready" { "" }
+    default { "MATTER_BLUETOOTH_UNAVAILABLE" }
+  }
+  $matterCandidates += New-Candidate `
+    -Id "matter-controller-bluetooth" `
+    -Name "Windows Bluetooth for Matter setup" `
+    -Transport "Windows Bluetooth Low Energy" `
+    -Status $(if ($matterBluetoothReady) { "ready" } else { "setup_required" }) `
+    -ConnectionPath "bluetooth" `
+    -LinkState $(if ($matterBluetoothReady) { "ready" } else { "" }) `
+    -Detail $matterBluetoothDetail `
+    -DiagnosticCode $matterBluetoothDiagnosticCode
 }
 $matterCandidates += @(
   $matterPlugs | ForEach-Object {
@@ -1278,7 +1314,8 @@ $integrations.Add((New-Integration `
   -Candidates $matterCandidates `
   -SetupSteps @(
     "Use a plug whose packaging or label explicitly shows the Matter logo and setup code.",
-    "Connect this Windows computer to the classroom network and put the plug in pairing mode.",
+    "Connect this Windows computer to the classroom network and confirm a Bluetooth Low Energy adapter is ready.",
+    "Put the plug in pairing mode near this computer.",
     "Enter the printed Matter setup code in Classroom Control; no vendor app or account is required."
   ) `
   -ActionId $(if ($availableMatterPlugs.Count -gt 0) { "cit.matter-smart-plug.connect" } else { "" }) `

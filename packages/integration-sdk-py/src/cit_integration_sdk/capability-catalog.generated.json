@@ -352,6 +352,33 @@
       "safetyClassification": "informational",
       "dataClassification": "operational",
       "constraints": {
+        "semanticOnly": true,
+        "structuredIntentOnly": true,
+        "rawTranscriptExcluded": true,
+        "confirmedOnly": true,
+        "exactLessonRoleSelection": true,
+        "correlatedBatchId": true,
+        "actions": [
+          "forward",
+          "backward",
+          "left",
+          "right",
+          "stop",
+          "light",
+          "demo",
+          "takeoff",
+          "land",
+          "power_on",
+          "power_off",
+          "activate"
+        ],
+        "targets": [
+          "ground_outputs",
+          "tello_fleet",
+          "power_outputs",
+          "assigned_output",
+          "all_outputs"
+        ],
         "payload": {
           "action": {
             "type": "string",
@@ -361,13 +388,32 @@
               "left",
               "right",
               "stop",
+              "light",
+              "demo",
               "takeoff",
-              "land"
+              "land",
+              "power_on",
+              "power_off",
+              "activate"
             ]
           },
           "target": {
             "type": "string",
-            "enum": ["ground_outputs", "tello_fleet"]
+            "enum": [
+              "ground_outputs",
+              "tello_fleet",
+              "power_outputs",
+              "assigned_output",
+              "all_outputs"
+            ]
+          },
+          "targetRole": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          },
+          "batchId": {
+            "type": "string",
+            "format": "uuid"
           },
           "confirmed": {
             "type": "boolean",

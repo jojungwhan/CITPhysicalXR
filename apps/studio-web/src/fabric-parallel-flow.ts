@@ -1,4 +1,4 @@
-import type { CoursePack } from "@citxr/protocol";
+import { flowTargetRoles, type CoursePack } from "@citxr/protocol";
 
 export interface FabricParallelOutput {
   flowId: string;
@@ -18,6 +18,7 @@ export function parallelFlowGroups(
 ): FabricParallelFlowGroup[] {
   if (coursePack === undefined) return [];
   const groups = new Map<string, FabricParallelFlowGroup>();
+  const seenOutputs = new Map<string, Set<string>>();
 
   coursePack.flows.forEach((flow) => {
     if (flow.parallelGroup === undefined || !flow.enabled) return;
@@ -26,19 +27,20 @@ export function parallelFlowGroups(
       trigger: flow.trigger.event,
       outputs: [],
     };
-    const alreadyShown = current.outputs.some(
-      (output) =>
-        output.role === flow.target.role &&
-        output.action === flow.command.action,
-    );
-    if (!alreadyShown) {
-      current.outputs.push({
-        flowId: flow.flowId,
-        role: flow.target.role,
-        action: flow.command.action,
-      });
+    const seen = seenOutputs.get(flow.parallelGroup) ?? new Set<string>();
+    for (const role of flowTargetRoles(flow.target)) {
+      const key = `${role}\u0000${flow.command.action}`;
+      if (!seen.has(key)) {
+        current.outputs.push({
+          flowId: flow.flowId,
+          role,
+          action: flow.command.action,
+        });
+        seen.add(key);
+      }
     }
     groups.set(flow.parallelGroup, current);
+    seenOutputs.set(flow.parallelGroup, seen);
   });
 
   return [...groups.values()];

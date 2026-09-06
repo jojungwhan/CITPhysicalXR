@@ -1,13 +1,60 @@
+import type {
+  CoursePack,
+  IntegrationNode,
+  InteractionSession,
+} from "@citxr/protocol";
 import { describe, expect, it } from "vitest";
 
 import {
   automaticRoleAssignments,
+  compatibleRoleNodes,
   latestCoursePacks,
   reconciledRoleSelections,
   refreshedSessionSelection,
 } from "./fabric-session-selection.js";
 
 describe("Fabric tutor session selection", () => {
+  it("excludes a takeoff-only controller from a start-and-land fleet role", () => {
+    const capability = (
+      name: string,
+    ): IntegrationNode["consumedCapabilities"][number] =>
+      ({
+        name,
+        safetyClassification: "flight",
+      }) as IntegrationNode["consumedCapabilities"][number];
+    const node = (nodeId: string, capabilities: string[]): IntegrationNode =>
+      ({
+        nodeId,
+        siteId: "local-site",
+        roomId: "local-room",
+        connectionState: "connected",
+        simulated: false,
+        publishedCapabilities: [],
+        consumedCapabilities: capabilities.map(capability),
+      }) as unknown as IntegrationNode;
+    const start = "mobility.flight.fleet_sequence.start";
+    const stop = "mobility.flight.fleet_sequence.stop";
+    const session = {
+      siteId: "local-site",
+      roomId: "local-room",
+      mode: "physical",
+    } as InteractionSession;
+    const requirement = {
+      role: "fleet_sequence_controller",
+      oneOfCapabilities: [start],
+      allOfCapabilities: [stop],
+      optional: true,
+    } as CoursePack["roles"][number];
+
+    expect(
+      compatibleRoleNodes(
+        [node("unsafe-start-only", [start]), node("safe-fleet", [start, stop])],
+        session,
+        requirement,
+      ).map((candidate) => candidate.nodeId),
+    ).toEqual(["safe-fleet"]);
+  });
+
   it("offers only the newest installed version of each course", () => {
     const legacyGlassesCourse = {
       coursePackId: "glasses-device-control",
@@ -160,5 +207,43 @@ describe("Fabric tutor session selection", () => {
         ],
       ),
     ).toEqual({ glasses_input_1: "g2-1", message_output_1: "g2-1" });
+  });
+
+  it("fills arbitrary numbered role banks without a hard-coded family or ceiling", () => {
+    expect(
+      automaticRoleAssignments(
+        [],
+        [
+          {
+            role: "classroom_actuator_9",
+            optional: true,
+            candidateNodeIds: ["actuator-a", "actuator-b"],
+          },
+          {
+            role: "classroom_actuator_10",
+            optional: true,
+            candidateNodeIds: ["actuator-a", "actuator-b"],
+          },
+        ],
+      ),
+    ).toEqual({
+      classroom_actuator_9: "actuator-a",
+      classroom_actuator_10: "actuator-b",
+    });
+  });
+
+  it("does not guess between devices for one ambiguous numbered role", () => {
+    expect(
+      automaticRoleAssignments(
+        [],
+        [
+          {
+            role: "special_output_12",
+            optional: true,
+            candidateNodeIds: ["device-a", "device-b"],
+          },
+        ],
+      ),
+    ).toEqual({});
   });
 });

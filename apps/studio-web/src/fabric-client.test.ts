@@ -228,6 +228,43 @@ describe("Fabric client credentials", () => {
     });
   });
 
+  it("renames one exact Matter plug with a bounded request body", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          schemaVersion: "1.0",
+          entries: [
+            {
+              setupCode: "12345678901",
+              matterNodeIds: ["19"],
+              name: "Window lamp",
+            },
+          ],
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+    const client = new FabricClient("http://127.0.0.1:8766", fetchMock);
+    client.setCredential("cit-instructor-" + "n".repeat(40));
+
+    await client.renameMatterPlug("19", "Window lamp");
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe("http://127.0.0.1:8766/api/v1/fabric/matter/plug-name");
+    expect(init?.method).toBe("PUT");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      matterNodeId: "19",
+      name: "Window lamp",
+    });
+    expect(() => client.renameMatterPlug("../19", "Window lamp")).toThrow(
+      "identifier is invalid",
+    );
+    expect(() => client.renameMatterPlug("19", " Window lamp")).toThrow(
+      "between 1 and 64",
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it("sends Matter Wi-Fi credentials only in the authenticated request body", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(

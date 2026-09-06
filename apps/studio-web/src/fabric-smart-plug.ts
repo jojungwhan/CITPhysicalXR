@@ -7,6 +7,14 @@ interface SmartPlugNodeCapabilities {
 
 interface SmartPlugNodeIdentity extends SmartPlugNodeCapabilities {
   nodeId: string;
+  connectionState?: string;
+  metadata?: Readonly<Record<string, unknown>>;
+}
+
+export interface MatterSetupCodeMapping {
+  setupCode: string;
+  matterNodeIds: readonly string[];
+  name?: string;
 }
 
 interface SmartPlugRoleBinding {
@@ -54,6 +62,88 @@ export const isSmartPlugNode = (node: SmartPlugNodeCapabilities): boolean =>
 
 export const isSmartPlugRole = (role: string): boolean =>
   /^classroom_plug(?:_[2-8])?$/.test(role);
+
+const MAX_SMART_PLUG_CONTROLS = 8;
+
+/** Build the exact bounded role plan shared by the visible controls and session. */
+export function smartPlugControlPlan<T extends SmartPlugNodeIdentity>(
+  nodes: readonly T[],
+): AssignedSmartPlugNode<T>[] {
+  return nodes
+    .filter(isSmartPlugNode)
+    .sort(
+      (left, right) =>
+        smartPlugAvailabilityRank(left) - smartPlugAvailabilityRank(right),
+    )
+    .slice(0, MAX_SMART_PLUG_CONTROLS)
+    .map((node, index) => ({
+      role: index === 0 ? "classroom_plug" : `classroom_plug_${index + 1}`,
+      node,
+    }));
+}
+
+const smartPlugAvailabilityRank = (node: SmartPlugNodeIdentity): number =>
+  node.connectionState === "connected" || node.connectionState === "degraded"
+    ? 0
+    : 1;
+
+const matterNodeId = (node: SmartPlugNodeIdentity): string | undefined => {
+  const value = node.metadata?.matterNodeId;
+  return typeof value === "string" && /^[1-9][0-9]*$/.test(value)
+    ? value
+    : undefined;
+};
+
+/** Hide an older controller record after the same physical plug is recommissioned. */
+export function currentSmartPlugNodes<T extends SmartPlugNodeIdentity>(
+  nodes: readonly T[],
+  setupCodes: readonly MatterSetupCodeMapping[],
+): T[] {
+  const byMatterNodeId = new Map(
+    nodes.flatMap((node) => {
+      const id = matterNodeId(node);
+      return id === undefined ? [] : ([[id, node]] as const);
+    }),
+  );
+  const superseded = new Set<string>();
+  for (const mapping of setupCodes) {
+    const mapped = mapping.matterNodeIds.flatMap((id) => {
+      const node = byMatterNodeId.get(id);
+      return node === undefined ? [] : [node];
+    });
+    if (mapped.length < 2) continue;
+    const current =
+      mapped.findLast((node) => smartPlugAvailabilityRank(node) === 0) ??
+      mapped.at(-1);
+    for (const node of mapped) {
+      if (node !== current) superseded.add(node.nodeId);
+    }
+  }
+  return nodes.filter((node) => !superseded.has(node.nodeId));
+}
+
+export const setupCodeMappingForMatterNode = (
+  node: SmartPlugNodeIdentity,
+  setupCodes: readonly MatterSetupCodeMapping[],
+): MatterSetupCodeMapping | undefined => {
+  const id = matterNodeId(node);
+  return id === undefined
+    ? undefined
+    : setupCodes.find((mapping) => mapping.matterNodeIds.includes(id));
+};
+
+export const setupCodeForMatterNode = (
+  node: SmartPlugNodeIdentity,
+  setupCodes: readonly MatterSetupCodeMapping[],
+): string | undefined =>
+  setupCodeMappingForMatterNode(node, setupCodes)?.setupCode;
+
+export const formatMatterSetupCode = (setupCode: string): string => {
+  const digits = setupCode.replace(/\D/g, "");
+  return digits.length === 11
+    ? `${digits.slice(0, 4)} ${digits.slice(4, 7)} ${digits.slice(7)}`
+    : setupCode;
+};
 
 export function assignedSmartPlugNodes<T extends SmartPlugNodeIdentity>(
   bindings: readonly SmartPlugRoleBinding[],

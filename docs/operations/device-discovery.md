@@ -86,6 +86,12 @@ For stock Tello access-point mode, use one physical USB Wi-Fi adapter per
 simultaneous aircraft. Tello EDU/RoboMaster TT station mode may instead use
 unique addresses on a common access point.
 
+With only one Wi-Fi radio, you may inspect or commission stock aircraft one at
+a time while every aircraft is grounded. Switching the radio does not create a
+multi-aircraft flight route: reconnect the classroom network afterward, or add
+one stable radio/route per aircraft before enabling a fleet. Never switch the
+only command interface away from an airborne Tello.
+
 1. Remove propellers for the first connection test. Keep every aircraft
    grounded and separated.
 2. Attach and enable the USB Wi-Fi adapters.

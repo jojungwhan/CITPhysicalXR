@@ -36,4 +36,5 @@ ADRs are immutable decision snapshots. A superseding decision adds a new ADR and
 - [0032 — Independent Sphero Ollie boundary](0032-independent-sphero-ollie-boundary.md)
 - [0033 — Explicit synchronized motor control](0033-explicit-synchronized-motor-control.md)
 - [0034 — Wearable smart-plug control through exact Fabric roles (superseded in part)](0034-wearable-smart-plug-control.md)
-- [0035 — Canonical turn-on-all demonstration](0035-canonical-turn-on-all-demonstration.md)
+- [0035 — Canonical turn-on-all demonstration (superseded in part)](0035-canonical-turn-on-all-demonstration.md)
+- [0036 — Capability-gated wearable routing](0036-capability-gated-wearable-routing.md)

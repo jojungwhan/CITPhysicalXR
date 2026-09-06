@@ -253,11 +253,34 @@ def test_matter_launcher_and_probe_expose_wifi_readiness_before_commissioning() 
     assert "wifiCredentialsSet" in launcher
     assert "MATTER_WIFI_NOT_CONFIGURED" in launcher
     assert '"matter-controller-wifi"' in probe
+    assert '"matter-controller-bluetooth"' in probe
     assert "cit_matter_smart_plug.admin discover" in probe
     assert "wifiCredentialsSet" in probe
+    assert "bluetoothReady" in probe
     assert "Running Fabric adapters:" in launcher
+
+
+def test_matter_launcher_uses_the_latest_installed_smart_plug_course() -> None:
+    launcher = _launcher("matter-smart-plug.ps1")
+
+    assert '"$fabricOrigin/api/v1/fabric/course-packs"' in launcher
+    assert 'coursePackId -eq "smart-plug-control"' in launcher
+    assert "Sort-Object { [version]$_.version } -Descending" in launcher
+    assert "coursePackVersion = [string]$CoursePack.version" in launcher
+    assert 'coursePackVersion = "1.0.0"' not in launcher
     assert "Offline Fabric adapter records:" in launcher
     assert "Test-ExactProcess $record.adapterPid $adapterMarker" in launcher
+
+
+def test_matter_launcher_persists_bounded_names_by_stable_node_history() -> None:
+    launcher = _launcher("matter-smart-plug.ps1")
+
+    assert '"Rename"' in launcher
+    assert "function Normalize-MatterPlugName" in launcher
+    assert "function Set-MatterPlugName" in launcher
+    assert "@($_.matterNodeIds) -contains $MatterNodeId" in launcher
+    assert "$matches[0].name = $normalizedName" in launcher
+    assert "Save-MatterSetupCodeRegistry $registry" in launcher
 
 
 def test_matter_controller_retries_windows_reserved_operational_ports() -> None:
@@ -548,6 +571,8 @@ def test_glasses_and_leap_launchers_can_attach_inputs_to_a_shared_fleet_session(
     assert '"glasses_input"' in glasses
     assert "interaction.intent.device_control" in glasses
     assert "CIT_FABRIC_CONTROL_PROJECTION" in glasses
+    assert '"fabric.course.read"' in glasses
+    assert "$State.readCredentialVersion -eq 2" in glasses
     assert "$State.nodeTaskStartedByLauncher = $false" in glasses
     assert 'coursePackId -ne "device-monitoring"' in leap
     assert '"fleet_sequence_input_$_"' in leap

@@ -27,6 +27,7 @@ import {
   type FabricMediaSource,
   type FabricRememberedConnections,
   type LegoConnectionConfiguration,
+  type MatterSetupCodeEntry,
   type SpheroBoltSelection,
   type SpheroOllieSelection,
   type WonderRobotSelection,
@@ -94,6 +95,7 @@ import {
 import { parallelFlowGroups } from "./fabric-parallel-flow.js";
 import {
   automaticRoleAssignments,
+  compatibleRoleNodes,
   latestCoursePacks,
   reconciledRoleSelections,
   refreshedSessionSelection,
@@ -105,6 +107,8 @@ import {
   latestSmartPlugState,
   preferredSmartPlugControlSession,
   POWER_SET_CAPABILITY,
+  currentSmartPlugNodes,
+  smartPlugControlPlan,
   smartPlugStateFromHealth,
 } from "./fabric-smart-plug.js";
 import {
@@ -188,6 +192,9 @@ export function FabricConsole() {
   const [credential, setCredential] = useState("");
   const [principal, setPrincipal] = useState<FabricPrincipal | null>(null);
   const [nodes, setNodes] = useState<IntegrationNode[]>([]);
+  const [matterSetupCodes, setMatterSetupCodes] = useState<
+    MatterSetupCodeEntry[]
+  >([]);
   const [discovery, setDiscovery] = useState<FabricDiscoveryReport | null>(
     null,
   );
@@ -236,6 +243,9 @@ export function FabricConsole() {
   const [busy, setBusy] = useState<BusyAction>(null);
   const [notice, setNotice] = useState(() => t("notice.ready"));
   const [error, setError] = useState<string | null>(null);
+  const [matterCommissionError, setMatterCommissionError] = useState<
+    string | null
+  >(null);
   const [integrationActionFeedback, setIntegrationActionFeedback] =
     useState<IntegrationActionFeedback | null>(null);
   const pollActive = useRef(false);
@@ -329,17 +339,40 @@ export function FabricConsole() {
     [nodes],
   );
   const offlineNodeCount = nodes.length - availableNodes.length;
-  const smartPlugNodes = useMemo(
-    () => availableNodes.filter(isSmartPlugNode),
-    [availableNodes],
+  const knownSmartPlugNodes = useMemo(
+    () => nodes.filter(isSmartPlugNode),
+    [nodes],
+  );
+  const currentKnownSmartPlugNodes = useMemo(
+    () => currentSmartPlugNodes(knownSmartPlugNodes, matterSetupCodes),
+    [knownSmartPlugNodes, matterSetupCodes],
+  );
+  const plannedSmartPlugControls = useMemo(
+    () => smartPlugControlPlan(currentKnownSmartPlugNodes),
+    [currentKnownSmartPlugNodes],
+  );
+  const displayedSmartPlugNodes = useMemo(
+    () => plannedSmartPlugControls.map(({ node }) => node),
+    [plannedSmartPlugControls],
+  );
+  const controlledSmartPlugControls = useMemo(
+    () =>
+      plannedSmartPlugControls.filter(({ node }) =>
+        isAvailableFabricNode(node),
+      ),
+    [plannedSmartPlugControls],
+  );
+  const controlledSmartPlugNodes = useMemo(
+    () => controlledSmartPlugControls.map(({ node }) => node),
+    [controlledSmartPlugControls],
   );
   const preferredSmartPlugSession = useMemo(
     () =>
       preferredSmartPlugControlSession(
         sessions,
-        smartPlugNodes.map((node) => node.nodeId),
+        controlledSmartPlugNodes.map((node) => node.nodeId),
       ),
-    [sessions, smartPlugNodes],
+    [controlledSmartPlugNodes, sessions],
   );
   const spheroNodes = useMemo(
     () => availableNodes.filter(isSpheroNode),
@@ -352,10 +385,6 @@ export function FabricConsole() {
         spheroNodes.map((node) => node.nodeId),
       ),
     [sessions, spheroNodes],
-  );
-  const controlledSmartPlugNodes = useMemo(
-    () => smartPlugNodes.slice(0, 2),
-    [smartPlugNodes],
   );
   const smartPlugControlSession =
     preferredSmartPlugSession !== undefined &&
@@ -493,10 +522,9 @@ export function FabricConsole() {
   const assignedSmartPlugs = useMemo(
     () =>
       plannedControlAssignments(
-        controlledSmartPlugNodes,
+        displayedSmartPlugNodes,
         smartPlugControlSession,
-        (index) =>
-          index === 0 ? "classroom_plug" : `classroom_plug_${index + 1}`,
+        (index) => plannedSmartPlugControls[index]?.role ?? "classroom_plug",
         isSmartPlugRole,
       ).map(({ role, node }) => ({
         role,
@@ -505,9 +533,16 @@ export function FabricConsole() {
           latestSmartPlugState(events, node.nodeId) ??
           smartPlugStateFromHealth(node),
       })),
-    [controlledSmartPlugNodes, events, smartPlugControlSession?.roleBindings],
+    [
+      displayedSmartPlugNodes,
+      events,
+      plannedSmartPlugControls,
+      smartPlugControlSession?.roleBindings,
+    ],
   );
-  const selectedSmartPlug = assignedSmartPlugs[0]?.node;
+  const selectedSmartPlug = assignedSmartPlugs.find(({ node }) =>
+    isAvailableFabricNode(node),
+  )?.node;
   const sensorReadings = useMemo(() => latestSensorReadings(events), [events]);
   const canTurnSmartPlugOff =
     canSubmitCommands && busy === null && selectedSmartPlug !== undefined;
@@ -719,6 +754,25 @@ export function FabricConsole() {
   }, [principal, refresh]);
 
   useEffect(() => {
+    if (principal === null) {
+      setMatterSetupCodes([]);
+      return;
+    }
+    let active = true;
+    void client
+      .listMatterSetupCodes()
+      .then((registry) => {
+        if (active) setMatterSetupCodes(registry.entries);
+      })
+      .catch(() => {
+        if (active) setMatterSetupCodes([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [client, principal]);
+
+  useEffect(() => {
     if (selectedSession === undefined) {
       roleSelectionSessionId.current = "";
       setRoleSelections({});
@@ -730,7 +784,7 @@ export function FabricConsole() {
     const requirements = (selectedCourse?.roles ?? []).map((requirement) => ({
       role: requirement.role,
       optional: requirement.optional,
-      candidateNodeIds: compatibleNodes(
+      candidateNodeIds: compatibleRoleNodes(
         nodes,
         selectedSession,
         requirement,
@@ -804,6 +858,7 @@ export function FabricConsole() {
     key: FabricMessageKey,
     action: () => Promise<void>,
     values?: Record<string, string | number>,
+    onError?: (message: string) => void,
   ): Promise<boolean> => {
     if (busy !== null) return false;
     setBusy({ key, ...(values === undefined ? {} : { values }) });
@@ -813,7 +868,9 @@ export function FabricConsole() {
       await refresh(false);
       return true;
     } catch (caught) {
-      setError(describeFabricError(caught, t));
+      const message = describeFabricError(caught, t);
+      setError(message);
+      onError?.(message);
       return false;
     } finally {
       setBusy(null);
@@ -842,6 +899,7 @@ export function FabricConsole() {
     clearFlightSafetyConfirmation();
     setPrincipal(null);
     setNodes([]);
+    setMatterSetupCodes([]);
     setDiscovery(null);
     setRememberedConnections(null);
     setInstallation(null);
@@ -921,9 +979,11 @@ export function FabricConsole() {
         coursePack.roles.map((requirement) => ({
           role: requirement.role,
           optional: requirement.optional,
-          candidateNodeIds: compatibleNodes(nodes, prepared, requirement).map(
-            (node) => node.nodeId,
-          ),
+          candidateNodeIds: compatibleRoleNodes(
+            nodes,
+            prepared,
+            requirement,
+          ).map((node) => node.nodeId),
         })),
       );
       for (const [role, nodeId] of Object.entries(defaults)) {
@@ -954,7 +1014,7 @@ export function FabricConsole() {
     if (!canManageSessions || !canAssignRoles) {
       throw new Error(t("error.smartPlugSetupPermission"));
     }
-    const coursePack = coursePacks.find(
+    const coursePack = selectableCoursePacks.find(
       (candidate) => candidate.coursePackId === "smart-plug-control",
     );
     if (coursePack === undefined) {
@@ -967,12 +1027,8 @@ export function FabricConsole() {
       roomId,
       mode: "physical",
     });
-    for (const [index, node] of controlledSmartPlugNodes.entries()) {
-      prepared = await client.assignRole(
-        prepared.sessionId,
-        index === 0 ? "classroom_plug" : "classroom_plug_2",
-        node.nodeId,
-      );
+    for (const { role, node } of controlledSmartPlugControls) {
+      prepared = await client.assignRole(prepared.sessionId, role, node.nodeId);
     }
     setSessions((current) => [...current, prepared]);
     return prepared;
@@ -1568,11 +1624,27 @@ export function FabricConsole() {
       setNotice(t("notice.glassesControlConnected"));
     });
 
-  const commissionMatterPlug = (setupCode: string) =>
-    runAction("busy.addingMatter", async () => {
-      const result = await client.commissionMatterPlug(setupCode);
-      setDiscovery(result.report);
-      setNotice(t("notice.matterAdded"));
+  const commissionMatterPlug = (setupCode: string) => {
+    setMatterCommissionError(null);
+    return runAction(
+      "busy.addingMatter",
+      async () => {
+        const result = await client.commissionMatterPlug(setupCode);
+        const registry = await client.listMatterSetupCodes();
+        setMatterSetupCodes(registry.entries);
+        setDiscovery(result.report);
+        setNotice(t("notice.matterAdded"));
+      },
+      undefined,
+      setMatterCommissionError,
+    );
+  };
+
+  const renameMatterPlug = (matterNodeId: string, name: string) =>
+    runAction("busy.renamingMatter", async () => {
+      const registry = await client.renameMatterPlug(matterNodeId, name);
+      setMatterSetupCodes(registry.entries);
+      setNotice(t("notice.matterRenamed", { name }));
     });
 
   const configureMatterWifi = (ssid: string, password: string) =>
@@ -1856,52 +1928,97 @@ export function FabricConsole() {
       setNotice(commandResultNotice(label, terminal?.stage, t));
     });
 
+  const setSmartPlugGroupPower = (roles: readonly string[], on: boolean) => {
+    const uniqueRoles = Array.from(new Set(roles));
+    return runAction(
+      uniqueRoles.length > 1 ? "busy.smartPlugGroup" : "busy.smartPlug",
+      async () => {
+        if (uniqueRoles.length === 0) {
+          throw new Error(t("error.assignPlug"));
+        }
+
+        let controlSession = await ensureSmartPlugControlSession();
+        const rolesAreControllable = uniqueRoles.every((role) => {
+          const binding = controlSession.roleBindings.find(
+            (candidate) => candidate.role === role,
+          );
+          return (
+            isSmartPlugRole(role) &&
+            binding !== undefined &&
+            controlledSmartPlugNodes.some(
+              (node) => node.nodeId === binding.nodeId,
+            )
+          );
+        });
+        if (!rolesAreControllable) {
+          throw new Error(t("error.assignPlug"));
+        }
+        if (on) {
+          controlSession = await prepareDirectControlSession(controlSession);
+        }
+        const correlationId = crypto.randomUUID();
+        const priority: FabricCommandPriority =
+          principal?.roles.some((roleName) =>
+            ["administrator", "instructor"].includes(roleName),
+          ) === true
+            ? "instructor_override"
+            : "lesson_automation";
+        const submit = (role: string, index: number) =>
+          client.submitCommand({
+            messageId: crypto.randomUUID(),
+            schemaVersion: "1.0",
+            messageType: "command.requested",
+            action: POWER_SET_CAPABILITY,
+            target: { role },
+            sessionId: controlSession.sessionId,
+            parameters: { on },
+            priority,
+            idempotencyKey: `console-smart-plug:${role}:${on ? "on" : "off"}:${index}:${correlationId}`,
+            requestedAt: new Date().toISOString(),
+            ttlMs: 2_000,
+            safetyProfile: controlSession.safetyProfile,
+            correlationId,
+          });
+
+        if (uniqueRoles.length === 1) {
+          const result = await submit(uniqueRoles[0]!, 0);
+          setNotice(
+            commandResultNotice(
+              on ? t("plug.turnOn") : t("plug.turnOff"),
+              result.lifecycle.at(-1)?.stage,
+              t,
+            ),
+          );
+          return;
+        }
+
+        const results = await Promise.allSettled(
+          uniqueRoles.map((role, index) => submit(role, index)),
+        );
+        const succeeded = results.filter(
+          (result) =>
+            result.status === "fulfilled" &&
+            result.value.lifecycle.at(-1)?.stage === "SUCCEEDED",
+        ).length;
+        if (succeeded !== uniqueRoles.length) {
+          throw new Error(
+            t("error.smartPlugGroupPartial", {
+              failed: uniqueRoles.length - succeeded,
+              count: uniqueRoles.length,
+            }),
+          );
+        }
+        setNotice(
+          t(on ? "notice.smartPlugGroupOn" : "notice.smartPlugGroupOff", {
+            count: succeeded,
+          }),
+        );
+      },
+    );
+  };
+
   const setSmartPlugPower = (role: string, on: boolean) =>
-    runAction("busy.smartPlug", async () => {
-      let controlSession = await ensureSmartPlugControlSession();
-      const binding = controlSession.roleBindings.find(
-        (candidate) => candidate.role === role,
-      );
-      if (
-        !isSmartPlugRole(role) ||
-        binding === undefined ||
-        !smartPlugNodes.some((node) => node.nodeId === binding.nodeId)
-      )
-        throw new Error(t("error.assignPlug"));
-      if (on) {
-        controlSession = await prepareDirectControlSession(controlSession);
-      }
-      const correlationId = crypto.randomUUID();
-      const priority: FabricCommandPriority =
-        principal?.roles.some((roleName) =>
-          ["administrator", "instructor"].includes(roleName),
-        ) === true
-          ? "instructor_override"
-          : "lesson_automation";
-      const result = await client.submitCommand({
-        messageId: crypto.randomUUID(),
-        schemaVersion: "1.0",
-        messageType: "command.requested",
-        action: POWER_SET_CAPABILITY,
-        target: { role },
-        sessionId: controlSession.sessionId,
-        parameters: { on },
-        priority,
-        idempotencyKey: `console-smart-plug:${role}:${on ? "on" : "off"}:${correlationId}`,
-        requestedAt: new Date().toISOString(),
-        ttlMs: 2_000,
-        safetyProfile: controlSession.safetyProfile,
-        correlationId,
-      });
-      const terminal = result.lifecycle.at(-1);
-      setNotice(
-        commandResultNotice(
-          on ? t("plug.turnOn") : t("plug.turnOff"),
-          terminal?.stage,
-          t,
-        ),
-      );
-    });
+    setSmartPlugGroupPower([role], on);
 
   const sendTelloCommand = (
     role: string,
@@ -2384,9 +2501,8 @@ export function FabricConsole() {
       case "matter-smart-plugs":
         return (
           <FabricSmartPlugPanel
-            plugs={assignedSmartPlugs.filter(({ node }) =>
-              connectedNodeIds.has(node.nodeId),
-            )}
+            plugs={assignedSmartPlugs}
+            setupCodes={matterSetupCodes}
             sessionState={smartPlugControlSession?.state ?? ""}
             sessionMode={smartPlugControlSession?.mode}
             sessionArmed={smartPlugControlSession?.armed === true}
@@ -2396,8 +2512,11 @@ export function FabricConsole() {
               canManageSessions &&
               (smartPlugControlSession !== undefined || canAssignRoles)
             }
-            requiredRolesReady={assignedSmartPlugs.length > 0}
+            canRename={canConnectDevices}
+            requiredRolesReady={controlledSmartPlugNodes.length > 0}
             onPower={(role, on) => void setSmartPlugPower(role, on)}
+            onGroupPower={(roles, on) => void setSmartPlugGroupPower(roles, on)}
+            onRename={renameMatterPlug}
             t={t}
           />
         );
@@ -2545,6 +2664,7 @@ export function FabricConsole() {
             onConnect={() => void connectDiscovered(integration)}
             onCopySetup={() => void copySetupCommand(integration)}
             onMatterCommission={commissionMatterPlug}
+            matterCommissionError={matterCommissionError}
             onMatterWifiConfigure={configureMatterWifi}
             onLegoConnect={(configuration) =>
               void connectLegoHub(configuration)
@@ -3070,7 +3190,7 @@ export function FabricConsole() {
                                 ? "is-unassigned"
                                 : "is-assigned"
                             }
-                            key={output.flowId}
+                            key={`${output.flowId}:${output.role}:${output.action}`}
                           >
                             <span aria-hidden="true">
                               {binding === undefined ? "○" : "✓"}
@@ -3651,7 +3771,7 @@ function FabricRoleAssignment({
   onSelect: (nodeId: string) => void;
   onAssign: () => void;
 }) {
-  const candidates = compatibleNodes(nodes, session, requirement);
+  const candidates = compatibleRoleNodes(nodes, session, requirement);
   const binding = session.roleBindings.find(
     (candidate) => candidate.role === requirement.role,
   );
@@ -3763,6 +3883,7 @@ export function FabricDiscoveryCard({
   onConnect,
   onCopySetup,
   onMatterCommission,
+  matterCommissionError,
   onMatterWifiConfigure,
   onLegoConnect,
   onWonderConnect,
@@ -3783,6 +3904,7 @@ export function FabricDiscoveryCard({
   onConnect: () => void;
   onCopySetup: () => void;
   onMatterCommission: (setupCode: string) => Promise<boolean>;
+  matterCommissionError: string | null;
   onMatterWifiConfigure: (ssid: string, password: string) => Promise<boolean>;
   onLegoConnect: (configuration: LegoConnectionConfiguration) => void;
   onWonderConnect: (robots: WonderRobotSelection[]) => void;
@@ -3894,6 +4016,7 @@ export function FabricDiscoveryCard({
           configuringWifi={busy?.key === "busy.configuringMatterWifi"}
           canConnect={canConnect}
           connected={connected}
+          commissionError={matterCommissionError}
           onCommission={onMatterCommission}
           onConfigureWifi={onMatterWifiConfigure}
           t={t}
@@ -4489,29 +4612,6 @@ const replaceSession = (
     session.sessionId === replacement.sessionId ? replacement : session,
   );
 
-const compatibleNodes = (
-  nodes: IntegrationNode[],
-  session: InteractionSession,
-  requirement: CoursePack["roles"][number],
-) => {
-  const capabilities = new Set(requirement.oneOfCapabilities);
-  return nodes.filter(
-    (node) =>
-      node.siteId === session.siteId &&
-      node.roomId === session.roomId &&
-      ["connected", "degraded"].includes(node.connectionState) &&
-      [...node.publishedCapabilities, ...node.consumedCapabilities].some(
-        (capability) =>
-          capabilities.has(capability.name) &&
-          (session.mode !== "simulation" ||
-            node.simulated ||
-            ["none", "informational"].includes(
-              capability.safetyClassification,
-            )),
-      ),
-  );
-};
-
 const hasPermission = (principal: FabricPrincipal | null, permission: string) =>
   principal?.permissions.includes(permission) === true;
 
@@ -4610,6 +4710,34 @@ export const describeFabricError = (caught: unknown, t: FabricTranslate) => {
       SESSION_NOT_ACTIVE: t("error.sessionInactive"),
       NODE_UNAVAILABLE: t("error.nodeUnavailable"),
       REQUIRED_ROLES_UNASSIGNED: t("error.rolesMissing"),
+      MATTER_BLUETOOTH_UNAVAILABLE: t("error.matterBluetoothUnavailable"),
+      MATTER_BLUETOOTH_ADAPTER_MISSING: t(
+        "error.matterBluetoothAdapterMissing",
+      ),
+      MATTER_BLUETOOTH_RADIO_OFF: t("error.matterBluetoothRadioOff"),
+      MATTER_BLUETOOTH_UNSUPPORTED: t("error.matterBluetoothUnsupported"),
+      MATTER_DEVICE_NOT_FOUND: t("error.matterDeviceNotFound"),
+      MATTER_WIFI_JOIN_FAILED: t("error.matterWifiJoinFailed"),
+      MATTER_WIFI_NOT_CONFIGURED: t("error.matterWifiNotConfigured"),
+      MATTER_WIFI_CONFIGURATION_FAILED: t(
+        "error.matterWifiConfigurationFailed",
+      ),
+      MATTER_WIFI_CONFIGURATION_UNAVAILABLE: t(
+        "error.matterWifiConfigurationFailed",
+      ),
+      MATTER_SETUP_CODE_INVALID: t("error.matterSetupCodeInvalid"),
+      MATTER_SETUP_CODE_REJECTED: t("error.matterSetupCodeRejected"),
+      MATTER_ATTESTATION_FAILED: t("error.matterAttestationFailed"),
+      MATTER_CONTROLLER_UNAVAILABLE: t("error.matterControllerUnavailable"),
+      MATTER_COMMISSIONING_UNAVAILABLE: t(
+        "error.matterCommissioningUnavailable",
+      ),
+      MATTER_COMMISSIONING_FAILED: t("error.matterCommissioningFailed"),
+      MATTER_PLUG_NAME_INVALID: t("error.matterPlugRenameFailed"),
+      MATTER_PLUG_NODE_INVALID: t("error.matterPlugRenameFailed"),
+      MATTER_PLUG_NOT_REGISTERED: t("error.matterPlugRenameFailed"),
+      MATTER_PLUG_RENAME_FAILED: t("error.matterPlugRenameFailed"),
+      MATTER_PLUG_RENAME_UNAVAILABLE: t("error.matterPlugRenameFailed"),
     };
     return (
       messages[caught.code] ?? t("error.requestFailed") + ` (${caught.code})`

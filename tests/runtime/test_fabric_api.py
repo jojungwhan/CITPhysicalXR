@@ -120,6 +120,7 @@ def test_explicit_physical_mode_and_robot_course_are_visible(tmp_path: Path) -> 
         "glasses-ground-control",
         "glasses-power-on",
         "glasses-power-off",
+        "glasses-stop-all",
     }
     assert glasses_control["roles"][0]["oneOfCapabilities"] == ["interaction.intent.device_control"]
     assert {flow["parallelGroup"] for flow in simultaneous["flows"] if "parallelGroup" in flow} == {

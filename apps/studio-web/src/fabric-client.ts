@@ -133,6 +133,7 @@ export interface FabricDiscoveryCandidate {
   transport: string;
   status: "found" | "ready" | "setup_required" | "not_found";
   detail: string;
+  diagnosticCode?: string;
   model?: string;
   signalPercent?: number;
   connectionPath?:
@@ -235,6 +236,17 @@ export interface FabricRememberedConnectionResult {
   failedCount: number;
   outcomes: FabricRememberedConnectionOutcome[];
   report: FabricDiscoveryReport;
+}
+
+export interface MatterSetupCodeEntry {
+  setupCode: string;
+  matterNodeIds: string[];
+  name?: string;
+}
+
+export interface MatterSetupCodeRegistry {
+  schemaVersion: "1.0";
+  entries: MatterSetupCodeEntry[];
 }
 
 export interface LegoConnectionConfiguration {
@@ -460,6 +472,35 @@ export class FabricClient {
         body: JSON.stringify({ confirmGrounded, sessionId }),
       },
     );
+  }
+
+  listMatterSetupCodes(): Promise<MatterSetupCodeRegistry> {
+    return this.#request("/api/v1/fabric/matter/setup-codes");
+  }
+
+  renameMatterPlug(
+    matterNodeId: string,
+    name: string,
+  ): Promise<MatterSetupCodeRegistry> {
+    const normalized = name.trim();
+    if (!/^[1-9][0-9]{0,19}$/.test(matterNodeId)) {
+      throw new Error("The Matter plug identifier is invalid.");
+    }
+    if (
+      normalized !== name ||
+      Array.from(normalized).length < 1 ||
+      Array.from(normalized).length > 64 ||
+      Array.from(normalized).some((character) => {
+        const code = character.charCodeAt(0);
+        return code < 32 || code === 127;
+      })
+    ) {
+      throw new Error("Enter a name between 1 and 64 printable characters.");
+    }
+    return this.#request("/api/v1/fabric/matter/plug-name", {
+      method: "PUT",
+      body: JSON.stringify({ matterNodeId, name: normalized }),
+    });
   }
 
   commissionMatterPlug(

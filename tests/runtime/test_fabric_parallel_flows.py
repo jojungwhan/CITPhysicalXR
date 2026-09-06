@@ -10,6 +10,7 @@ from cit_protocol import (
     CreateInteractionSessionRequest,
     FabricEventEnvelope,
     FabricResolvedCommand,
+    FabricRoleTarget,
     IntegrationNode,
     PluginManifest,
 )
@@ -226,6 +227,43 @@ def test_course_validation_rejects_command_target_declared_as_input_only() -> No
         validate_course_pack(invalid)
 
 
+def test_course_validation_rejects_incomplete_dynamic_target_audit_roles() -> None:
+    value = load_builtin_course_pack("glasses-device-control").model_dump(mode="json")
+    value["flows"][0]["outputRoles"] = value["flows"][0]["outputRoles"][:-1]
+    invalid = CoursePack.model_validate(value)
+
+    with pytest.raises(ValueError, match="must list every dynamic target"):
+        validate_course_pack(invalid)
+
+
+def test_course_validation_rejects_dynamic_capability_different_from_action() -> None:
+    value = load_builtin_course_pack("glasses-device-control").model_dump(mode="json")
+    value["flows"][0]["target"]["requiredCapability"] = "robot.light.set"
+    invalid = CoursePack.model_validate(value)
+
+    with pytest.raises(ValueError, match="target capability must equal its command action"):
+        validate_course_pack(invalid)
+
+
+def test_course_validation_rejects_duplicate_dynamic_targets() -> None:
+    value = load_builtin_course_pack("glasses-device-control").model_dump(mode="json")
+    value["flows"][0]["target"]["roles"][1] = value["flows"][0]["target"]["roles"][0]
+    invalid = CoursePack.model_validate(value)
+
+    with pytest.raises(ValueError, match="target roles must be unique"):
+        validate_course_pack(invalid)
+
+
+def test_course_validation_preserves_bounded_parallel_dispatch_after_group_expansion() -> None:
+    value = load_builtin_course_pack("glasses-device-control").model_dump(mode="json")
+    for flow in value["flows"]:
+        flow["parallelGroup"] = "oversized-group"
+    invalid = CoursePack.model_validate(value)
+
+    with pytest.raises(ValueError, match="exceeds the 128-request bound"):
+        validate_course_pack(invalid)
+
+
 def test_synchronized_motor_course_keeps_each_input_on_bounded_parallel_flows() -> None:
     course = load_builtin_course_pack("synchronized-motor-control")
     validate_course_pack(course)
@@ -244,9 +282,15 @@ def test_synchronized_motor_course_keeps_each_input_on_bounded_parallel_flows() 
     ]
     mindwave = [flow for flow in course.flows if flow.parallelGroup == "synchronized-mindwave-demo"]
 
-    assert {flow.target.role for flow in voice} == ground_roles
+    assert all(isinstance(flow.target, FabricRoleTarget) for flow in voice)
+    assert {flow.target.role for flow in voice if isinstance(flow.target, FabricRoleTarget)} == (
+        ground_roles
+    )
     assert len(ring) == 24
-    assert {flow.target.role for flow in mindwave} == ground_roles
+    assert all(isinstance(flow.target, FabricRoleTarget) for flow in mindwave)
+    assert {
+        flow.target.role for flow in mindwave if isinstance(flow.target, FabricRoleTarget)
+    } == ground_roles
     assert all(flow.command.action == "mobility.ground.nudge" for flow in voice + ring)
     assert all(flow.command.action == "mobility.ground.demonstration.start" for flow in mindwave)
     assert all("target_is_armed" in {guard.value for guard in flow.guards} for flow in course.flows)

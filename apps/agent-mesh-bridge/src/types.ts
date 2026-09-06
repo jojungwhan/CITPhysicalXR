@@ -1,3 +1,8 @@
+import type {
+  DeviceControlAction,
+  DeviceControlTarget,
+} from "./device-control-contract.generated.js";
+
 export interface AgentMeshWearable {
   readonly deviceId: string;
   readonly displayName: string;
@@ -38,18 +43,9 @@ export interface AgentMeshDiscovery {
   readonly sessions: AgentMeshSession[];
 }
 
-export type CitFabricControlAction =
-  | "forward"
-  | "backward"
-  | "left"
-  | "right"
-  | "stop"
-  | "light"
-  | "demo"
-  | "takeoff"
-  | "land"
-  | "power_on"
-  | "power_off";
+export type CitFabricControlAction = Exclude<DeviceControlAction, "activate">;
+export type CitFabricDeviceControlAction = DeviceControlAction;
+export type CitFabricDeviceControlTarget = DeviceControlTarget;
 
 export interface CitFabricControlTarget {
   readonly role: string;
@@ -59,6 +55,12 @@ export interface CitFabricControlTarget {
   readonly connectionState:
     "connected" | "degraded" | "disconnected" | "unavailable";
   readonly actions: CitFabricControlAction[];
+}
+
+export interface CitFabricControlRoute {
+  readonly target: CitFabricDeviceControlTarget;
+  readonly targetRole?: string;
+  readonly actions: CitFabricDeviceControlAction[];
 }
 
 export interface CitFabricControlInventory {
@@ -77,6 +79,7 @@ export interface CitFabricControlInventory {
     | "failed";
   readonly armed: boolean;
   readonly targets: CitFabricControlTarget[];
+  readonly routes: CitFabricControlRoute[];
 }
 
 interface AgentMeshInteractionBase {
@@ -96,25 +99,8 @@ export interface AgentMeshRingInteraction extends AgentMeshInteractionBase {
 export interface AgentMeshDeviceControlInteraction extends AgentMeshInteractionBase {
   readonly deviceKind: "even_g2" | "ray_ban";
   readonly source: "device_control";
-  readonly action:
-    | "forward"
-    | "backward"
-    | "left"
-    | "right"
-    | "stop"
-    | "light"
-    | "demo"
-    | "takeoff"
-    | "land"
-    | "power_on"
-    | "power_off"
-    | "activate";
-  readonly target:
-    | "ground_outputs"
-    | "tello_fleet"
-    | "power_outputs"
-    | "assigned_output"
-    | "all_outputs";
+  readonly action: CitFabricDeviceControlAction;
+  readonly target: CitFabricDeviceControlTarget;
   readonly targetRole?: string;
   readonly batchId?: string;
   readonly confirmed: true;

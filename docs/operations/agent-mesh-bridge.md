@@ -122,13 +122,19 @@ Compatibility mode intentionally rejects a coding-agent role that differs from t
 
 ## 5. Start the bridge
 
+Issue the separate `CIT_FABRIC_READ_TOKEN` with only
+`fabric.course.read`, `fabric.nodes.read`, and `fabric.sessions.read`, scoped to
+the exact site, room, and session. Course read is required because device
+actions are projected from the installed course version rather than inferred
+from role names.
+
 Provide these values to the bridge process through the local service manager or approved secret injection mechanism:
 
 | Variable                      | Value                                         |
 | ----------------------------- | --------------------------------------------- |
 | `CIT_FABRIC_ADAPTER_URL`      | `ws://127.0.0.1:8766/api/v1/adapters/connect` |
 | `CIT_FABRIC_ADAPTER_TOKEN`    | Dedicated CIT adapter credential              |
-| `CIT_FABRIC_READ_TOKEN`       | Session-scoped nodes/session read credential  |
+| `CIT_FABRIC_READ_TOKEN`       | Session-scoped course/nodes/session reader    |
 | `CIT_FABRIC_SESSION_ID`       | Active interaction-session ID                 |
 | `CIT_AGENT_MESH_URL`          | `http://127.0.0.1:7342`                       |
 | `CIT_AGENT_MESH_DEVICE_TOKEN` | Exact read-only bridge device credential      |

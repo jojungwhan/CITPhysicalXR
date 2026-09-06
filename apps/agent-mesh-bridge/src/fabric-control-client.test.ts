@@ -1,5 +1,8 @@
+import { readFileSync } from "node:fs";
+
 import type {
   CapabilityDescriptor,
+  CoursePack,
   IntegrationNode,
   InteractionSession,
 } from "@citxr/protocol";
@@ -35,8 +38,31 @@ const capability = (name: string): CapabilityDescriptor => ({
   latencyClass: "interactive",
   safetyClassification: "bounded_physical",
   dataClassification: "operational",
-  constraints: {},
+  constraints:
+    name === "mobility.ground.nudge"
+      ? {
+          arguments: {
+            direction: {
+              enum: ["forward", "backward", "left", "right", "stop"],
+            },
+          },
+        }
+      : {},
 });
+
+const coursePackFixture = (filename: string): CoursePack =>
+  JSON.parse(
+    readFileSync(
+      new URL(
+        `../../runtime-py/src/cit_runtime/course-packs/${filename}.generated.json`,
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ) as CoursePack;
+
+const glassesCoursePack = coursePackFixture("glasses-device-control");
+const synchronizedCoursePack = coursePackFixture("synchronized-motor-control");
 
 const node = (
   nodeId: string,
@@ -71,7 +97,7 @@ const session: InteractionSession = {
   schemaVersion: "1.0",
   sessionId: "lesson-session-a",
   coursePackId: "glasses-device-control",
-  coursePackVersion: "1.0.0",
+  coursePackVersion: "1.3.0",
   siteId: "local-site",
   roomId: "local-room",
   mode: "simulation",
@@ -110,6 +136,7 @@ const session: InteractionSession = {
 
 describe("Fabric control inventory", () => {
   it("projects only exact lesson assignments and capability-supported actions", async () => {
+    let now = 1_000;
     const nodes = [
       node("sphero-a", "Sphero BOLT SB-B7BE", [
         "mobility.ground.nudge",
@@ -125,7 +152,11 @@ describe("Fabric control inventory", () => {
     ];
     const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input);
-      const body = url.includes("/sessions/") ? session : nodes;
+      const body = url.includes("/sessions/")
+        ? session
+        : url.includes("/course-packs")
+          ? [glassesCoursePack]
+          : nodes;
       expect(new Headers(init?.headers).get("authorization")).toBe(
         `Bearer ${config.fabricReadCredential}`,
       );
@@ -137,10 +168,12 @@ describe("Fabric control inventory", () => {
       );
     });
 
-    const inventory = await new FabricControlApiClient(
+    const client = new FabricControlApiClient(
       config,
       fetchMock as unknown as typeof fetch,
-    ).inventory();
+      () => now,
+    );
+    const inventory = await client.inventory();
 
     expect(inventory).toMatchObject({
       sessionId: "lesson-session-a",
@@ -179,7 +212,87 @@ describe("Fabric control inventory", () => {
     expect(
       inventory.targets.some((target) => target.nodeId === "unassigned-robot"),
     ).toBe(false);
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(inventory.routes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          target: "ground_outputs",
+          actions: [
+            "forward",
+            "backward",
+            "left",
+            "right",
+            "stop",
+            "demo",
+            "light",
+          ],
+        }),
+        expect.objectContaining({
+          target: "tello_fleet",
+          actions: ["takeoff", "land"],
+        }),
+        expect.objectContaining({
+          target: "power_outputs",
+          actions: ["power_on", "power_off"],
+        }),
+        expect.objectContaining({
+          target: "all_outputs",
+          actions: ["activate", "stop"],
+        }),
+      ]),
+    );
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+
+    await client.inventory();
+    expect(fetchMock).toHaveBeenCalledTimes(5);
+
+    now += config.pollIntervalMs;
+    await client.inventory();
+    expect(fetchMock).toHaveBeenCalledTimes(8);
+  });
+
+  it("projects a light-only robot without inventing movement support", async () => {
+    const dotSession = {
+      ...session,
+      roleBindings: [
+        ...session.roleBindings,
+        {
+          role: "ground_output_2",
+          nodeId: "dot-a",
+          requiredCapability: "robot.light.set",
+          assignedAt: AT,
+          assignedBy: "instructor-a",
+        },
+      ],
+    } satisfies InteractionSession;
+    const nodes = [node("dot-a", "Sphero Mini Dot", ["robot.light.set"])];
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes("/sessions/")
+        ? dotSession
+        : url.includes("/course-packs")
+          ? [glassesCoursePack]
+          : nodes;
+      return Promise.resolve(
+        new Response(JSON.stringify(body), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+      );
+    });
+
+    const inventory = await new FabricControlApiClient(
+      config,
+      fetchMock as unknown as typeof fetch,
+    ).inventory();
+
+    expect(inventory.targets).toEqual([
+      expect.objectContaining({
+        role: "ground_output_2",
+        nodeId: "dot-a",
+        kind: "ground_robot",
+        actions: ["light"],
+      }),
+    ]);
   });
 
   it("rejects a session from another course pack", async () => {
@@ -208,6 +321,7 @@ describe("Fabric control inventory", () => {
     const synchronized = {
       ...session,
       coursePackId: "synchronized-motor-control",
+      coursePackVersion: "1.0.0",
     } as InteractionSession;
     const nodes = [
       node("sphero-a", "Sphero Ollie 2B-2DF3", ["mobility.ground.nudge"]),
@@ -216,16 +330,17 @@ describe("Fabric control inventory", () => {
         "mobility.flight.fleet_sequence.stop",
       ]),
     ];
-    const fetchMock = vi.fn((input: RequestInfo | URL) =>
-      Promise.resolve(
-        new Response(
-          JSON.stringify(
-            String(input).includes("/sessions/") ? synchronized : nodes,
-          ),
-          { status: 200 },
-        ),
-      ),
-    );
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes("/sessions/")
+        ? synchronized
+        : url.includes("/course-packs")
+          ? [synchronizedCoursePack]
+          : nodes;
+      return Promise.resolve(
+        new Response(JSON.stringify(body), { status: 200 }),
+      );
+    });
 
     const inventory = await new FabricControlApiClient(
       config,
@@ -237,5 +352,118 @@ describe("Fabric control inventory", () => {
       "sphero-a",
       "tello-fleet-a",
     ]);
+    expect(inventory.routes).toEqual([
+      {
+        target: "ground_outputs",
+        actions: ["forward", "backward", "left", "right", "stop"],
+      },
+      { target: "tello_fleet", actions: ["takeoff", "land"] },
+    ]);
+  });
+
+  it("does not advertise actions contributed only by a disconnected output", async () => {
+    const mixedSession = {
+      ...session,
+      roleBindings: [
+        {
+          role: "ground_output_1",
+          nodeId: "sphero-offline",
+          requiredCapability: "mobility.ground.nudge",
+          assignedAt: AT,
+          assignedBy: "instructor-a",
+        },
+        {
+          role: "ground_output_2",
+          nodeId: "dot-online",
+          requiredCapability: "robot.light.set",
+          assignedAt: AT,
+          assignedBy: "instructor-a",
+        },
+      ],
+    } satisfies InteractionSession;
+    const offlineRobot = {
+      ...node("sphero-offline", "Offline Sphero", [
+        "mobility.ground.nudge",
+        "mobility.ground.demonstration.start",
+        "robot.light.set",
+      ]),
+      connectionState: "disconnected" as const,
+    };
+    const nodes = [
+      offlineRobot,
+      node("dot-online", "Online Dot", ["robot.light.set"]),
+    ];
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes("/sessions/")
+        ? mixedSession
+        : url.includes("/course-packs")
+          ? [glassesCoursePack]
+          : nodes;
+      return Promise.resolve(
+        new Response(JSON.stringify(body), { status: 200 }),
+      );
+    });
+
+    const inventory = await new FabricControlApiClient(
+      config,
+      fetchMock as unknown as typeof fetch,
+    ).inventory();
+
+    expect(
+      inventory.routes.find((route) => route.target === "ground_outputs"),
+    ).toEqual({ target: "ground_outputs", actions: ["light"] });
+    expect(
+      inventory.routes.find(
+        (route) =>
+          route.target === "assigned_output" &&
+          route.targetRole === "ground_output_1",
+      ),
+    ).toBeUndefined();
+  });
+
+  it("fails closed when a legacy fleet binding can take off but cannot land", async () => {
+    const fleetOnlySession = {
+      ...session,
+      roleBindings: [
+        {
+          role: "fleet_sequence_controller",
+          nodeId: "start-only-fleet",
+          requiredCapability: "mobility.flight.fleet_sequence.start",
+          assignedAt: AT,
+          assignedBy: "instructor-a",
+        },
+      ],
+    } satisfies InteractionSession;
+    const nodes = [
+      node("start-only-fleet", "Unsafe legacy fleet", [
+        "mobility.flight.fleet_sequence.start",
+      ]),
+    ];
+    const fetchMock = vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      const body = url.includes("/sessions/")
+        ? fleetOnlySession
+        : url.includes("/course-packs")
+          ? [glassesCoursePack]
+          : nodes;
+      return Promise.resolve(
+        new Response(JSON.stringify(body), { status: 200 }),
+      );
+    });
+
+    const inventory = await new FabricControlApiClient(
+      config,
+      fetchMock as unknown as typeof fetch,
+    ).inventory();
+
+    expect(inventory.targets).toEqual([]);
+    expect(
+      inventory.routes.some(
+        (route) =>
+          route.actions.includes("takeoff") ||
+          route.actions.includes("activate"),
+      ),
+    ).toBe(false);
   });
 });

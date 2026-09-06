@@ -118,6 +118,12 @@ ignore_missing_imports = true
 module = ["bleak", "bleak.*"]
 ignore_missing_imports = true
 
+# WinRT is installed only with the Windows Matter BLE transport. The imports
+# remain lazy so Linux CI and non-BLE installations can use the adapter.
+[[tool.mypy.overrides]]
+module = ["winrt", "winrt.*"]
+ignore_missing_imports = true
+
 # spherov2 is isolated behind the optional BOLT and Ollie hardware boundaries and does not
 # publish typing metadata. The default environment intentionally omits it.
 [[tool.mypy.overrides]]

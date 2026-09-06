@@ -19,9 +19,18 @@ from cit_protocol import (
     PluginManifest,
     to_wire,
 )
-from fastapi import Depends, FastAPI, Header, Query, Request, WebSocket, WebSocketDisconnect
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    Query,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from fastapi.responses import FileResponse, JSONResponse
-from pydantic import BaseModel, ConfigDict, Field, SecretStr
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
 
 from .fabric import (
     FabricConflictError,
@@ -49,6 +58,7 @@ from .fabric_discovery import (
     FabricRememberedConnectionResult,
     FabricRememberedConnections,
     LegoConnectionConfiguration,
+    MatterSetupCodeRegistry,
     MatterWifiConfiguration,
     SpheroBoltConnectionConfiguration,
     SpheroOllieConnectionConfiguration,
@@ -134,6 +144,24 @@ class MatterCommissioningRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     setupCode: SecretStr
+
+
+class MatterPlugNameRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    matterNodeId: Annotated[
+        str,
+        Field(min_length=1, max_length=20, pattern=r"^[1-9][0-9]*$"),
+    ]
+    name: Annotated[str, Field(min_length=1, max_length=64)]
+
+    @model_validator(mode="after")
+    def validate_name(self) -> "MatterPlugNameRequest":
+        if self.name != self.name.strip() or any(
+            ord(character) < 32 or ord(character) == 127 for character in self.name
+        ):
+            raise ValueError("Matter plug names must be trimmed printable text")
+        return self
 
 
 class FabricStreamAuthentication(BaseModel):
@@ -838,6 +866,79 @@ def install_fabric_api(
         remember_connection_action("cit.wonder-workshop.reconnect", principal)
         return result
 
+    @app.get(
+        "/api/v1/fabric/matter/setup-codes",
+        response_model=MatterSetupCodeRegistry,
+        response_model_exclude_none=True,
+    )
+    async def list_matter_setup_codes(
+        response: Response,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.discovery.connect")),
+        ],
+    ) -> MatterSetupCodeRegistry:
+        registry = await get_discovery().list_matter_setup_codes()
+        response.headers["Cache-Control"] = "no-store"
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.matter.setup_codes.view",
+            resource_type="integration_configuration",
+            resource_id="cit.matter-smart-plug",
+            at=current_time(),
+            outcome="succeeded",
+            details={"entryCount": len(registry.entries), "protectedAtRest": True},
+        )
+        return registry
+
+    @app.put(
+        "/api/v1/fabric/matter/plug-name",
+        response_model=MatterSetupCodeRegistry,
+        response_model_exclude_none=True,
+    )
+    async def rename_matter_plug(
+        request: MatterPlugNameRequest,
+        response: Response,
+        principal: Annotated[
+            FabricPrincipal,
+            Depends(require("fabric.discovery.connect")),
+        ],
+    ) -> MatterSetupCodeRegistry:
+        try:
+            registry = await get_discovery().rename_matter_plug(
+                request.matterNodeId,
+                request.name,
+            )
+        except FabricDiscoveryError as error:
+            _audit(
+                get_repository(),
+                principal,
+                action="fabric.matter.plug_name.update",
+                resource_type="integration_configuration",
+                resource_id="cit.matter-smart-plug",
+                at=current_time(),
+                outcome="denied",
+                details={"code": error.code, "matterNodeId": request.matterNodeId},
+            )
+            raise
+        response.headers["Cache-Control"] = "no-store"
+        _audit(
+            get_repository(),
+            principal,
+            action="fabric.matter.plug_name.update",
+            resource_type="integration_configuration",
+            resource_id="cit.matter-smart-plug",
+            at=current_time(),
+            outcome="succeeded",
+            details={
+                "matterNodeId": request.matterNodeId,
+                "nameLength": len(request.name),
+                "protectedAtRest": True,
+            },
+        )
+        return registry
+
     @app.post(
         "/api/v1/fabric/matter/wifi",
         response_model=FabricDiscoveryActionResult,
@@ -919,7 +1020,11 @@ def install_fabric_api(
             resource_id="cit.matter-smart-plug",
             at=current_time(),
             outcome="succeeded",
-            details={"inputRetained": False, "vendorAccountUsed": False},
+            details={
+                "inputRetained": True,
+                "storageProtection": "windows_dpapi",
+                "vendorAccountUsed": False,
+            },
         )
         remember_connection_action("cit.matter-smart-plug.connect", principal)
         return result

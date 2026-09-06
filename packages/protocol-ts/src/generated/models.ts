@@ -84,6 +84,16 @@ export type FabricSessionState =
   | "stopped"
   | "emergency_stopped"
   | "failed";
+export type FlowTarget =
+  FabricRoleTarget | FlowRoleGroupTarget | FlowPayloadRoleTarget;
+/**
+ * Skip assigned roles whose node does not consume this exact output capability.
+ */
+export type CapabilityIdentifier1 = string;
+/**
+ * Route only when the selected node consumes this exact output capability.
+ */
+export type CapabilityIdentifier2 = string;
 export type FlowGuard =
   | "session_is_active"
   | "target_is_connected"
@@ -520,6 +530,12 @@ export interface CourseRoleRequirement {
    */
   oneOfCapabilities: [CapabilityIdentifier, ...CapabilityIdentifier[]];
   /**
+   * Additional capabilities every node assigned to this role must expose.
+   *
+   * @maxItems 32
+   */
+  allOfCapabilities?: CapabilityIdentifier[];
+  /**
    * The role's direction within this course. Registered node capabilities remain authoritative for the device itself.
    */
   ioType?: "input" | "output" | "bidirectional";
@@ -530,7 +546,7 @@ export interface FlowRecipe {
   version: number;
   trigger: FlowTrigger;
   command: FlowAction;
-  target: FabricRoleTarget;
+  target: FlowTarget;
   /**
    * @maxItems 16
    */
@@ -844,6 +860,311 @@ export interface FlowAction {
 export interface FlowParameterBinding {
   payloadField: Identifier;
   parameter: Identifier;
+}
+/**
+ * A bounded, explicit set of lesson roles resolved independently for one semantic event.
+ */
+export interface FlowRoleGroupTarget {
+  /**
+   * @minItems 1
+   * @maxItems 16
+   */
+  roles:
+    | [Identifier]
+    | [Identifier, Identifier]
+    | [Identifier, Identifier, Identifier]
+    | [Identifier, Identifier, Identifier, Identifier]
+    | [Identifier, Identifier, Identifier, Identifier, Identifier]
+    | [Identifier, Identifier, Identifier, Identifier, Identifier, Identifier]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ];
+  requiredCapability?: CapabilityIdentifier1;
+}
+/**
+ * One lesson role selected from an explicit allowlist by a structured event payload field.
+ */
+export interface FlowPayloadRoleTarget {
+  roleFromPayload: Identifier;
+  /**
+   * @minItems 1
+   * @maxItems 16
+   */
+  allowedRoles:
+    | [Identifier]
+    | [Identifier, Identifier]
+    | [Identifier, Identifier, Identifier]
+    | [Identifier, Identifier, Identifier, Identifier]
+    | [Identifier, Identifier, Identifier, Identifier, Identifier]
+    | [Identifier, Identifier, Identifier, Identifier, Identifier, Identifier]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ]
+    | [
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+        Identifier,
+      ];
+  requiredCapability?: CapabilityIdentifier2;
 }
 export interface AdapterAuthenticationFrame {
   frameType: "adapter.authenticate";
