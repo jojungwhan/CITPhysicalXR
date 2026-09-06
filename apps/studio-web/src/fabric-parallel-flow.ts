@@ -1,5 +1,4 @@
-import type { CoursePack } from "@citxr/protocol";
-import { flowTargetRoles } from "@citxr/protocol/flow-target";
+import { flowTargetRoles, type CoursePack } from "@citxr/protocol";
 
 export interface FabricParallelOutput {
   flowId: string;

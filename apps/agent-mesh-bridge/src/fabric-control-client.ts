@@ -1,11 +1,11 @@
 import {
+  flowTargetRoles,
   validateDefinition,
   type CoursePack,
   type FlowRecipe,
   type IntegrationNode,
   type InteractionSession,
 } from "@citxr/protocol";
-import { flowTargetRoles } from "@citxr/protocol/flow-target";
 
 import type { BridgeConfig } from "./config.js";
 import {
