@@ -9,6 +9,10 @@ import {
   isSwitchableLoadVisionLabel,
   latestSmartPlugState,
   preferredSmartPlugControlSession,
+  readSmartPlugSelection,
+  retainKnownSmartPlugSelection,
+  saveSmartPlugSelection,
+  SMART_PLUG_SELECTION_STORAGE_KEY,
   smartPlugControlPlan,
   smartPlugStateFromHealth,
 } from "./fabric-smart-plug.js";
@@ -122,6 +126,38 @@ describe("Fabric smart-plug presentation", () => {
     ]);
   });
 
+  it("persists selected plug identities without storing plug state", () => {
+    const storage = memoryStorage();
+
+    saveSmartPlugSelection(
+      new Set(["matter-13-ep1", "matter-16-ep1"]),
+      storage,
+    );
+
+    expect(Array.from(readSmartPlugSelection(storage))).toEqual([
+      "matter-13-ep1",
+      "matter-16-ep1",
+    ]);
+    expect(storage.getItem(SMART_PLUG_SELECTION_STORAGE_KEY)).toBe(
+      '["matter-13-ep1","matter-16-ep1"]',
+    );
+  });
+
+  it("ignores corrupt selection storage and removes identities no longer shown", () => {
+    const storage = memoryStorage();
+    storage.setItem(SMART_PLUG_SELECTION_STORAGE_KEY, "not-json");
+
+    expect(Array.from(readSmartPlugSelection(storage))).toEqual([]);
+    expect(
+      Array.from(
+        retainKnownSmartPlugSelection(
+          new Set(["plug-connected", "plug-offline", "plug-removed"]),
+          new Set(["plug-connected", "plug-offline"]),
+        ),
+      ),
+    ).toEqual(["plug-connected", "plug-offline"]);
+  });
+
   it("replaces a stale controller node with the latest live node for the same setup code", () => {
     const nodes = [
       {
@@ -212,3 +248,12 @@ const stateEvent = (
     payload: { on, source },
   },
 });
+
+const memoryStorage = () => {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+  };
+};
