@@ -41,7 +41,10 @@ import {
   discoveryLinkLabel,
 } from "./fabric-discovery.js";
 import { consumeConsoleTicket } from "./fabric-console-access.js";
-import { awaitFabricCommandTerminal } from "./fabric-command-chain.js";
+import {
+  awaitFabricCommandBatch,
+  awaitFabricCommandTerminal,
+} from "./fabric-command-chain.js";
 import {
   directControlSessionActions,
   plannedControlAssignments,
@@ -1992,18 +1995,14 @@ export function FabricConsole() {
           return;
         }
 
-        const results = await Promise.allSettled(
+        const { succeeded, failed } = await awaitFabricCommandBatch(
+          client,
           uniqueRoles.map((role, index) => submit(role, index)),
         );
-        const succeeded = results.filter(
-          (result) =>
-            result.status === "fulfilled" &&
-            result.value.lifecycle.at(-1)?.stage === "SUCCEEDED",
-        ).length;
-        if (succeeded !== uniqueRoles.length) {
+        if (failed > 0) {
           throw new Error(
             t("error.smartPlugGroupPartial", {
-              failed: uniqueRoles.length - succeeded,
+              failed,
               count: uniqueRoles.length,
             }),
           );
