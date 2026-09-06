@@ -1,8 +1,20 @@
 import { useState } from "react";
 
 import type { FabricDiscoveryCandidate } from "./fabric-client.js";
-import type { FabricTranslate } from "./fabric-i18n.js";
+import type { FabricMessageKey, FabricTranslate } from "./fabric-i18n.js";
 import { FabricInfoDisclosure } from "./FabricInfoDisclosure.js";
+
+const bluetoothDiagnosticMessage = (
+  code: string | undefined,
+): FabricMessageKey | null => {
+  const messages: Record<string, FabricMessageKey> = {
+    MATTER_BLUETOOTH_ADAPTER_MISSING: "error.matterBluetoothAdapterMissing",
+    MATTER_BLUETOOTH_RADIO_OFF: "error.matterBluetoothRadioOff",
+    MATTER_BLUETOOTH_UNSUPPORTED: "error.matterBluetoothUnsupported",
+    MATTER_BLUETOOTH_UNAVAILABLE: "error.matterBluetoothUnavailable",
+  };
+  return code === undefined ? null : (messages[code] ?? null);
+};
 
 export function FabricMatterSetup({
   candidates,
@@ -10,6 +22,7 @@ export function FabricMatterSetup({
   configuringWifi,
   canConnect,
   connected,
+  commissionError,
   onCommission,
   onConfigureWifi,
   t,
@@ -19,6 +32,7 @@ export function FabricMatterSetup({
   configuringWifi: boolean;
   canConnect: boolean;
   connected: boolean;
+  commissionError: string | null;
   onCommission: (setupCode: string) => Promise<boolean>;
   onConfigureWifi: (ssid: string, password: string) => Promise<boolean>;
   t: FabricTranslate;
@@ -30,12 +44,22 @@ export function FabricMatterSetup({
     (candidate) => candidate.candidateId === "matter-controller-wifi",
   );
   const wifiReady = wifiCandidate?.status === "ready";
+  const bluetoothCandidate = candidates.find(
+    (candidate) => candidate.candidateId === "matter-controller-bluetooth",
+  );
+  const bluetoothReady = bluetoothCandidate?.status === "ready";
+  const bluetoothMessageKey = bluetoothDiagnosticMessage(
+    bluetoothCandidate?.diagnosticCode,
+  );
   const nearbyDevices = candidates.filter(
     (candidate) =>
       candidate.candidateId.startsWith("matter-") &&
       candidate.candidateId !== "matter-controller-wifi" &&
+      candidate.candidateId !== "matter-controller-bluetooth" &&
       candidate.status === "found",
   );
+  const onNetworkSetupReady = nearbyDevices.length > 0;
+  const commissioningTransportReady = bluetoothReady || onNetworkSetupReady;
   const busy = commissioning || configuringWifi;
 
   const configureWifi = async () => {
@@ -123,11 +147,43 @@ export function FabricMatterSetup({
       </section>
 
       <section
+        className={`fabric-matter-stage ${commissioningTransportReady ? "is-ready" : "is-required"}`}
+        aria-labelledby="matter-bluetooth-stage"
+      >
+        <header>
+          <span aria-hidden="true">2</span>
+          <div>
+            <strong id="matter-bluetooth-stage">
+              {t("matter.bluetooth.title")}
+            </strong>
+            <small>
+              {bluetoothReady
+                ? t("matter.bluetooth.ready")
+                : onNetworkSetupReady
+                  ? t("matter.bluetooth.networkReady")
+                  : bluetoothMessageKey !== null
+                    ? t(bluetoothMessageKey)
+                    : bluetoothCandidate
+                      ? t("matter.bluetooth.required")
+                      : t("matter.bluetooth.scanFirst")}
+            </small>
+          </div>
+          <b>
+            {onNetworkSetupReady && !bluetoothReady
+              ? t("matter.bluetooth.networkReadyTitle")
+              : bluetoothReady
+                ? t("matter.bluetooth.readyTitle")
+                : t("matter.bluetooth.requiredTitle")}
+          </b>
+        </header>
+      </section>
+
+      <section
         className="fabric-matter-stage"
         aria-labelledby="matter-device-stage"
       >
         <header>
-          <span aria-hidden="true">2</span>
+          <span aria-hidden="true">3</span>
           <div>
             <strong id="matter-device-stage">{t("matter.device.title")}</strong>
             <FabricInfoDisclosure label={t("common.moreInfo")}>
@@ -150,16 +206,18 @@ export function FabricMatterSetup({
       </section>
 
       <section
-        className={`fabric-matter-stage ${wifiReady ? "" : "is-locked"}`}
+        className={`fabric-matter-stage ${wifiReady && commissioningTransportReady ? "" : "is-locked"}`}
         aria-labelledby="matter-code-stage"
       >
         <header>
-          <span aria-hidden="true">3</span>
+          <span aria-hidden="true">4</span>
           <div>
             <strong id="matter-code-stage">{t("matter.code.title")}</strong>
             <FabricInfoDisclosure label={t("common.moreInfo")}>
               <p>
-                {wifiReady ? t("matter.code.help") : t("matter.code.locked")}
+                {wifiReady && commissioningTransportReady
+                  ? t("matter.code.help")
+                  : t("matter.code.locked")}
               </p>
               <p>{t("matter.memory")}</p>
             </FabricInfoDisclosure>
@@ -174,15 +232,24 @@ export function FabricMatterSetup({
             autoCapitalize="characters"
             spellCheck={false}
             placeholder={t("matter.placeholder")}
-            disabled={!wifiReady}
+            disabled={!wifiReady || !commissioningTransportReady}
             onChange={(event) => setSetupCode(event.target.value)}
           />
         </label>
+        {commissionError !== null && (
+          <div className="fabric-matter-error" role="alert">
+            {commissionError}
+          </div>
+        )}
         <button
           className="fabric-connect-device"
           type="button"
           disabled={
-            !canConnect || busy || !wifiReady || setupCode.trim().length < 11
+            !canConnect ||
+            busy ||
+            !wifiReady ||
+            !commissioningTransportReady ||
+            setupCode.trim().length < 11
           }
           onClick={() => void commission()}
         >

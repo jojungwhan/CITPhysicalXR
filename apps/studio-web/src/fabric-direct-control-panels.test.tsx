@@ -13,6 +13,7 @@ const physicalNode = (overrides: Partial<IntegrationNode>): IntegrationNode =>
   ({
     nodeId: "device-1",
     displayName: "Classroom device",
+    connectionState: "connected",
     simulated: false,
     metadata: {},
     ...overrides,
@@ -59,12 +60,13 @@ describe("Fabric direct device controls", () => {
         canManageSession={true}
         requiredRolesReady={true}
         onPower={vi.fn()}
+        onGroupPower={vi.fn()}
         t={t}
       />,
     );
 
     expect(offHtml).not.toContain("켜기 제어 활성화");
-    expect(offHtml.match(/<button/g)).toHaveLength(1);
+    expect(offHtml.match(/class="fabric-power-toggle/g)).toHaveLength(1);
     const turnOnToggle = offHtml.match(
       /<button class="fabric-power-toggle fabric-power-on"[^>]*>/,
     )?.[0];
@@ -109,11 +111,12 @@ describe("Fabric direct device controls", () => {
         canManageSession
         requiredRolesReady
         onPower={vi.fn()}
+        onGroupPower={vi.fn()}
         t={t}
       />,
     );
 
-    expect(onHtml.match(/<button/g)).toHaveLength(1);
+    expect(onHtml.match(/class="fabric-power-toggle/g)).toHaveLength(1);
     const turnOffToggle = onHtml.match(
       /<button class="fabric-power-toggle fabric-power-off"[^>]*>/,
     )?.[0];
@@ -144,6 +147,7 @@ describe("Fabric direct device controls", () => {
         canManageSession
         requiredRolesReady
         onPower={vi.fn()}
+        onGroupPower={vi.fn()}
         t={t}
       />,
     );
@@ -157,6 +161,197 @@ describe("Fabric direct device controls", () => {
     );
     // Unknown state still offers the safe direction.
     expect(html).toContain("끄기");
+  });
+
+  it("renders every connected classroom plug as an independently named control", () => {
+    const html = renderToStaticMarkup(
+      <FabricSmartPlugPanel
+        plugs={Array.from({ length: 4 }, (_, index) => ({
+          role: index === 0 ? "classroom_plug" : `classroom_plug_${index + 1}`,
+          node: physicalNode({
+            nodeId: `plug-${index + 1}`,
+            displayName: "Smart Wi-Fi Plug",
+          }),
+          state: { on: false, observedAt: "2026-09-01T12:00:00Z" },
+        }))}
+        sessionState="active"
+        sessionMode="physical"
+        sessionArmed
+        busy={false}
+        canSubmit
+        canManageSession
+        requiredRolesReady
+        onPower={vi.fn()}
+        onGroupPower={vi.fn()}
+        t={t}
+      />,
+    );
+
+    expect(html.match(/class="fabric-power-toggle/g)).toHaveLength(4);
+    expect(html.match(/type="checkbox"/g)).toHaveLength(5);
+    expect(html).toContain("모두 선택");
+    expect(html).toContain("0개 선택됨");
+    const groupOn = html.match(
+      /<button class="fabric-plug-group-on"[^>]*>/,
+    )?.[0];
+    const groupOff = html.match(
+      /<button class="fabric-plug-group-off"[^>]*>/,
+    )?.[0];
+    expect(groupOn).toContain("disabled");
+    expect(groupOff).toContain("disabled");
+    expect(html).toContain("선택 켜기");
+    expect(html).toContain("선택 끄기");
+    for (const number of [1, 2, 3, 4]) {
+      expect(html).toContain(`교실 플러그 ${number}`);
+      expect(html).toContain(`aria-label="교실 플러그 ${number} 선택"`);
+      expect(html).toContain(`aria-label="교실 플러그 ${number}: 켜기"`);
+    }
+  });
+
+  it("shows a persisted custom plug name with an accessible rename control", () => {
+    const html = renderToStaticMarkup(
+      <FabricSmartPlugPanel
+        plugs={[
+          {
+            role: "classroom_plug",
+            node: physicalNode({
+              nodeId: "matter-13-ep1",
+              displayName: "Smart Wi-Fi Plug",
+              metadata: { matterNodeId: "19", endpointId: 1 },
+            }),
+            state: { on: false, observedAt: "2026-09-06T01:00:00Z" },
+          },
+        ]}
+        setupCodes={[
+          {
+            setupCode: "12345678901",
+            matterNodeIds: ["19"],
+            name: "창가 램프",
+          },
+        ]}
+        sessionState="ready"
+        sessionMode="physical"
+        sessionArmed={false}
+        busy={false}
+        canSubmit
+        canManageSession
+        canRename
+        requiredRolesReady
+        onPower={vi.fn()}
+        onGroupPower={vi.fn()}
+        onRename={vi.fn().mockResolvedValue(true)}
+        t={t}
+      />,
+    );
+
+    expect(html).toContain('<span class="fabric-plug-name">창가 램프</span>');
+    expect(html).toContain('aria-label="창가 램프 이름 변경"');
+    expect(html).toContain(">이름 변경</button>");
+    expect(html).toContain('aria-label="창가 램프: 켜기"');
+    expect(html).not.toContain(">교실 플러그 1</span>");
+  });
+
+  it("shows the controller Matter node ID for each connected plug", () => {
+    const html = renderToStaticMarkup(
+      <FabricSmartPlugPanel
+        plugs={[
+          {
+            role: "classroom_plug",
+            node: physicalNode({
+              nodeId: "matter-13-ep1",
+              displayName: "Smart Wi-Fi Plug",
+              metadata: { matterNodeId: "19", endpointId: 1 },
+            }),
+            state: { on: false, observedAt: "2026-09-03T02:00:00Z" },
+          },
+          {
+            role: "classroom_plug_2",
+            node: physicalNode({
+              nodeId: "matter-16-ep1",
+              displayName: "Smart Wi-Fi Plug",
+              metadata: { matterNodeId: "22", endpointId: 1 },
+            }),
+            state: { on: false, observedAt: "2026-09-03T02:00:00Z" },
+          },
+        ]}
+        setupCodes={[
+          { setupCode: "12345678901", matterNodeIds: ["19"] },
+          { setupCode: "10987654321", matterNodeIds: ["22"] },
+        ]}
+        sessionState="active"
+        sessionMode="physical"
+        sessionArmed
+        busy={false}
+        canSubmit
+        canManageSession
+        requiredRolesReady
+        onPower={vi.fn()}
+        onGroupPower={vi.fn()}
+        t={t}
+      />,
+    );
+
+    expect(html).toContain(
+      '<small class="fabric-plug-matter-id">Matter 노드 ID 19</small>',
+    );
+    expect(html).toContain(
+      '<small class="fabric-plug-matter-id">Matter 노드 ID 22</small>',
+    );
+    expect(html).toContain(
+      '<small class="fabric-plug-setup-code">Matter 설정 코드 1234 567 8901</small>',
+    );
+    expect(html).toContain(
+      '<small class="fabric-plug-setup-code">Matter 설정 코드 1098 765 4321</small>',
+    );
+  });
+
+  it("keeps commissioned offline plugs visible with unavailable controls", () => {
+    const html = renderToStaticMarkup(
+      <FabricSmartPlugPanel
+        plugs={Array.from({ length: 4 }, (_, index) => ({
+          role: index === 0 ? "classroom_plug" : `classroom_plug_${index + 1}`,
+          node: physicalNode({
+            nodeId: `plug-${index + 1}`,
+            displayName: "Smart Wi-Fi Plug",
+            connectionState: index < 2 ? "connected" : "disconnected",
+          }),
+          state:
+            index < 2
+              ? { on: false, observedAt: "2026-09-01T12:00:00Z" }
+              : undefined,
+        }))}
+        sessionState="ready"
+        sessionMode="physical"
+        sessionArmed={false}
+        busy={false}
+        canSubmit
+        canManageSession
+        requiredRolesReady
+        onPower={vi.fn()}
+        onGroupPower={vi.fn()}
+        t={t}
+      />,
+    );
+
+    expect(html.match(/class="fabric-power-toggle/g)).toHaveLength(4);
+    expect(html.match(/>연결 끊김</g)).toHaveLength(2);
+    for (const number of [3, 4]) {
+      const selection = html.match(
+        new RegExp(`<input[^>]*aria-label="교실 플러그 ${number} 선택"[^>]*>`),
+      )?.[0];
+      expect(selection).toBeDefined();
+      expect(selection).toContain("disabled");
+      const unavailable = html.match(
+        new RegExp(
+          `<button[^>]*aria-label="교실 플러그 ${number}: 제어 불가"[^>]*>`,
+        ),
+      )?.[0];
+      expect(unavailable).toBeDefined();
+      expect(unavailable).toContain("disabled");
+      expect(unavailable).toContain(
+        'title="플러그 연결이 끊겼습니다. 전원과 교실 Wi-Fi를 확인한 뒤 장치 찾기를 다시 실행하세요."',
+      );
+    }
   });
 
   it("shows Sphero movement controls without a separate enable step", () => {

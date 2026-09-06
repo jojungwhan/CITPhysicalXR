@@ -10,6 +10,10 @@ import {
 } from "@citxr/protocol";
 
 import type { BridgeConfig } from "./config.js";
+import {
+  DEVICE_CONTROL_INTENT_DESCRIPTOR,
+  DEVICE_CONTROL_INTENT_NAME,
+} from "./device-control-contract.generated.js";
 import type { BridgeOutbox } from "./outbox.js";
 import type {
   AgentMeshCompletion,
@@ -29,8 +33,7 @@ export const INTENT_CAPABILITY = "interaction.intent.agent_prompt";
 export const FLIGHT_SEQUENCE_INTENT_CAPABILITY =
   "interaction.intent.flight_sequence_start";
 export const RING_GESTURE_CAPABILITY = "interaction.gesture.smart_ring";
-export const DEVICE_CONTROL_INTENT_CAPABILITY =
-  "interaction.intent.device_control";
+export const DEVICE_CONTROL_INTENT_CAPABILITY = DEVICE_CONTROL_INTENT_NAME;
 export const AGENT_PROMPT_CAPABILITY = "agent.prompt.submit";
 export const AGENT_OUTPUT_CAPABILITY = "agent.output.completed";
 export const DISPLAY_CAPABILITY = "display.text.render";
@@ -50,6 +53,20 @@ const UNAVAILABLE_AGENT_STATES = new Set([
   "stopped",
   "disconnected",
 ]);
+
+function publishingCatalogCapability(descriptor: object): CapabilityDescriptor {
+  const candidate: unknown = {
+    ...descriptor,
+    direction: "publish",
+  };
+  const result = validateDefinition("CapabilityDescriptor", candidate);
+  if (!result.valid) {
+    throw new TypeError(
+      `Invalid generated device-control capability: ${result.errors.join("; ")}`,
+    );
+  }
+  return candidate as CapabilityDescriptor;
+}
 
 const intentCapability: CapabilityDescriptor = {
   name: INTENT_CAPABILITY,
@@ -90,43 +107,9 @@ const ringGestureCapability: CapabilityDescriptor = {
   },
 };
 
-const deviceControlIntentCapability: CapabilityDescriptor = {
-  name: DEVICE_CONTROL_INTENT_CAPABILITY,
-  version: "1.0",
-  direction: "publish",
-  latencyClass: "interactive",
-  safetyClassification: "informational",
-  dataClassification: "operational",
-  constraints: {
-    semanticOnly: true,
-    structuredIntentOnly: true,
-    rawTranscriptExcluded: true,
-    confirmedOnly: true,
-    actions: [
-      "forward",
-      "backward",
-      "left",
-      "right",
-      "stop",
-      "light",
-      "demo",
-      "takeoff",
-      "land",
-      "power_on",
-      "power_off",
-      "activate",
-    ],
-    targets: [
-      "ground_outputs",
-      "tello_fleet",
-      "power_outputs",
-      "assigned_output",
-      "all_outputs",
-    ],
-    exactLessonRoleSelection: true,
-    correlatedBatchId: true,
-  },
-};
+const deviceControlIntentCapability = publishingCatalogCapability(
+  DEVICE_CONTROL_INTENT_DESCRIPTOR,
+);
 
 const promptCapability: CapabilityDescriptor = {
   name: AGENT_PROMPT_CAPABILITY,

@@ -14,6 +14,7 @@ import type {
   IntegrationNode,
   PluginManifest,
 } from "./generated/models.js";
+import { flowTargetRoles } from "./flow-target.js";
 import { validateDefinition } from "./validator.js";
 
 const fixture = <Value>(name: string): Value => {
@@ -71,7 +72,55 @@ describe("protocol v1 public seam", () => {
       valid: true,
     });
     expect(registration.nodes[0]?.pluginId).toBe(manifest.pluginId);
-    expect(coursePack.flows[0]?.target.role).toBe("coding_agent");
+    const firstTarget = coursePack.flows[0]?.target;
+    expect(
+      firstTarget !== undefined && "role" in firstTarget
+        ? firstTarget.role
+        : undefined,
+    ).toBe("coding_agent");
+  });
+
+  it("validates bounded group and payload-selected flow targets", () => {
+    const groupPack = fixture<CoursePack>("valid-course-pack.json");
+    const groupFlow = groupPack.flows[0];
+    if (groupFlow === undefined) throw new Error("course fixture has no flow");
+    groupFlow.target = {
+      roles: ["coding_agent", "coding_agent_2"],
+      requiredCapability: "agent.prompt.submit",
+    };
+    groupFlow.outputRoles = ["coding_agent", "coding_agent_2"];
+
+    expect(validateDefinition("CoursePack", groupPack)).toEqual({
+      valid: true,
+    });
+    expect(flowTargetRoles(groupFlow.target)).toEqual([
+      "coding_agent",
+      "coding_agent_2",
+    ]);
+
+    const selectedPack = structuredClone(groupPack);
+    const selectedFlow = selectedPack.flows[0];
+    if (selectedFlow === undefined)
+      throw new Error("course fixture has no flow");
+    selectedFlow.target = {
+      roleFromPayload: "targetRole",
+      allowedRoles: ["coding_agent", "coding_agent_2"],
+      requiredCapability: "agent.prompt.submit",
+    };
+
+    expect(validateDefinition("CoursePack", selectedPack)).toEqual({
+      valid: true,
+    });
+    expect(flowTargetRoles(selectedFlow.target)).toEqual([
+      "coding_agent",
+      "coding_agent_2",
+    ]);
+    expect(
+      validateDefinition("FlowPayloadRoleTarget", {
+        roleFromPayload: "targetRole",
+        allowedRoles: [],
+      }).valid,
+    ).toBe(false);
   });
 
   it("rejects an unknown major version and a command without exact device identity", () => {

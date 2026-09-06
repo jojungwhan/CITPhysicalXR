@@ -559,7 +559,9 @@ function Ensure-ReadCredential(
   if (
     (Test-Path -LiteralPath $readSecretPath) -and
     $State.ContainsKey("readSessionId") -and
-    $State.readSessionId -eq $SessionId
+    $State.readSessionId -eq $SessionId -and
+    $State.ContainsKey("readCredentialVersion") -and
+    $State.readCredentialVersion -eq 2
   ) {
     $credential = Read-ProtectedSecret $readSecretPath
     if (Test-JsonApi "$fabricOrigin/api/v1/fabric/auth/whoami" $credential) {
@@ -571,7 +573,7 @@ function Ensure-ReadCredential(
     identityId = $identityId
     actorType = "adapter"
     roles = @("plugin.cit.agent-mesh-bridge.inventory")
-    permissions = @("fabric.nodes.read", "fabric.sessions.read")
+    permissions = @("fabric.course.read", "fabric.nodes.read", "fabric.sessions.read")
     siteId = $SiteId
     roomId = $RoomId
     sessionId = $SessionId
@@ -580,6 +582,7 @@ function Ensure-ReadCredential(
   Save-ProtectedSecret $readSecretPath ([string]$response.token)
   $State.readIdentityId = $identityId
   $State.readSessionId = $SessionId
+  $State.readCredentialVersion = 2
   Save-State $State
   return [string]$response.token
 }

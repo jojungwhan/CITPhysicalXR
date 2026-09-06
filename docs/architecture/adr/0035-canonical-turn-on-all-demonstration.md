@@ -1,6 +1,6 @@
 # ADR 0035: Canonical turn-on-all demonstration
 
-- Status: accepted
+- Status: superseded in part by ADR 0036
 - Date: 2026-08-26
 
 ## Context

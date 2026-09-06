@@ -177,3 +177,48 @@ for (const { source: sourcePath, outputs, label } of generatedData) {
     }
   }
 }
+
+const capabilityCatalog = YAML.parse(
+  await readFile(path.join(root, "config", "capability-catalog.yaml"), "utf8"),
+);
+const deviceControlDescriptor =
+  capabilityCatalog?.capabilities?.device_control_intent;
+if (
+  typeof deviceControlDescriptor?.name !== "string" ||
+  !Array.isArray(deviceControlDescriptor?.constraints?.actions) ||
+  !Array.isArray(deviceControlDescriptor?.constraints?.targets)
+) {
+  throw new Error("Device-control capability catalog entry is incomplete");
+}
+const deviceControlContractPath = path.join(
+  root,
+  "apps",
+  "agent-mesh-bridge",
+  "src",
+  "device-control-contract.generated.ts",
+);
+const deviceControlContract = await format(
+  `/** Generated from config/capability-catalog.yaml. Do not edit. */
+export const DEVICE_CONTROL_INTENT_DESCRIPTOR = ${JSON.stringify(deviceControlDescriptor, null, 2)} as const;
+export const DEVICE_CONTROL_INTENT_NAME = DEVICE_CONTROL_INTENT_DESCRIPTOR.name;
+export const DEVICE_CONTROL_ACTIONS = DEVICE_CONTROL_INTENT_DESCRIPTOR.constraints.actions;
+export const DEVICE_CONTROL_TARGETS = DEVICE_CONTROL_INTENT_DESCRIPTOR.constraints.targets;
+export type DeviceControlAction = (typeof DEVICE_CONTROL_ACTIONS)[number];
+export type DeviceControlTarget = (typeof DEVICE_CONTROL_TARGETS)[number];
+`,
+  { parser: "typescript" },
+);
+
+if (process.argv.includes("--check")) {
+  const committed = await readFile(deviceControlContractPath, "utf8").catch(
+    () => undefined,
+  );
+  if (committed !== deviceControlContract) {
+    throw new Error(
+      `Generated device-control contract is stale or missing: ${path.relative(root, deviceControlContractPath)}. Run pnpm generate.`,
+    );
+  }
+} else {
+  await mkdir(path.dirname(deviceControlContractPath), { recursive: true });
+  await writeFile(deviceControlContractPath, deviceControlContract, "utf8");
+}

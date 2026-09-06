@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import BinaryIO, cast
 
+import cit_runtime.fabric_discovery as fabric_discovery_module
 import pytest
 from cit_protocol import IntegrationNode
 from cit_runtime.fabric_auth import FABRIC_PERMISSIONS, FabricBootstrapIdentity
@@ -18,6 +20,8 @@ from cit_runtime.fabric_discovery import (
     FabricDiscoverySessionTarget,
     FabricRememberedConnection,
     LegoConnectionConfiguration,
+    MatterSetupCodeEntry,
+    MatterSetupCodeRegistry,
     MatterWifiConfiguration,
     PowerShellDiscoveryRunner,
     SpheroBoltConnectionConfiguration,
@@ -44,6 +48,14 @@ class FakeDiscoveryRunner:
         self.actions: list[tuple[str, bool]] = []
         self.session_targets: list[FabricDiscoverySessionTarget] = []
         self.matter_codes: list[str] = []
+        self.matter_setup_code_registry = MatterSetupCodeRegistry(
+            entries=[
+                MatterSetupCodeEntry(
+                    setupCode="12345678901",
+                    matterNodeIds=["19"],
+                )
+            ]
+        )
         self.matter_wifi_configurations: list[tuple[str, str]] = []
         self.lego_configurations: list[LegoConnectionConfiguration] = []
         self.wonder_configurations: list[WonderWorkshopConnectionConfiguration] = []
@@ -101,6 +113,24 @@ class FakeDiscoveryRunner:
     async def commission_matter(self, setup_code: str) -> str:
         self.matter_codes.append(setup_code)
         return "Matter plug commissioned locally."
+
+    async def list_matter_setup_codes(self) -> MatterSetupCodeRegistry:
+        return self.matter_setup_code_registry
+
+    async def rename_matter_plug(self, matter_node_id: str, name: str) -> MatterSetupCodeRegistry:
+        entries = [
+            entry.model_copy(update={"name": name})
+            if matter_node_id in entry.matterNodeIds
+            else entry
+            for entry in self.matter_setup_code_registry.entries
+        ]
+        if entries == self.matter_setup_code_registry.entries:
+            raise FabricDiscoveryError(
+                "MATTER_PLUG_NOT_REGISTERED",
+                "That Matter plug is not registered on this computer.",
+            )
+        self.matter_setup_code_registry = MatterSetupCodeRegistry(entries=entries)
+        return self.matter_setup_code_registry
 
     async def configure_matter_wifi(self, configuration: MatterWifiConfiguration) -> str:
         self.matter_wifi_configurations.append(
@@ -1280,9 +1310,147 @@ def test_matter_commissioning_code_is_not_written_to_audit(tmp_path: Path) -> No
         if record["action"] == "fabric.matter.commission" and record["outcome"] == "succeeded"
     )
     assert matter_record["details"] == {
-        "inputRetained": False,
+        "inputRetained": True,
+        "storageProtection": "windows_dpapi",
         "vendorAccountUsed": False,
     }
+
+
+def test_matter_setup_code_labels_are_authenticated_and_audited_without_values(
+    tmp_path: Path,
+) -> None:
+    runner = FakeDiscoveryRunner()
+    setup_code = runner.matter_setup_code_registry.entries[0].setupCode
+    discovery = FabricDiscoveryService(runner, clock=lambda: NOW)
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "fabric.sqlite3",
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=(admin_identity(),),
+            maintenance_interval=None,
+            discovery_service=discovery,
+        )
+    ) as client:
+        unauthenticated = client.get("/api/v1/fabric/matter/setup-codes")
+        listed = client.get(
+            "/api/v1/fabric/matter/setup-codes",
+            headers=ADMIN_HEADERS,
+        )
+        audit = client.get("/api/v1/fabric/audit?limit=50", headers=ADMIN_HEADERS)
+
+    assert unauthenticated.status_code == 401
+    assert listed.status_code == 200
+    assert listed.headers["cache-control"] == "no-store"
+    assert listed.json() == {
+        "schemaVersion": "1.0",
+        "entries": [{"setupCode": setup_code, "matterNodeIds": ["19"]}],
+    }
+    label_record = next(
+        record for record in audit.json() if record["action"] == "fabric.matter.setup_codes.view"
+    )
+    assert label_record["details"] == {"entryCount": 1, "protectedAtRest": True}
+    assert setup_code not in audit.text
+
+
+def test_matter_plug_names_are_validated_persisted_and_audited_without_values(
+    tmp_path: Path,
+) -> None:
+    runner = FakeDiscoveryRunner()
+    discovery = FabricDiscoveryService(runner, clock=lambda: NOW)
+    request = {"matterNodeId": "19", "name": "창가 램프"}
+    with TestClient(
+        create_fabric_app(
+            database_path=tmp_path / "fabric.sqlite3",
+            clock=lambda: NOW,
+            fabric_bootstrap_identities=(admin_identity(),),
+            maintenance_interval=None,
+            discovery_service=discovery,
+        )
+    ) as client:
+        unauthenticated = client.put(
+            "/api/v1/fabric/matter/plug-name",
+            json=request,
+        )
+        invalid = client.put(
+            "/api/v1/fabric/matter/plug-name",
+            headers=ADMIN_HEADERS,
+            json={"matterNodeId": "19", "name": "  창가 램프"},
+        )
+        renamed = client.put(
+            "/api/v1/fabric/matter/plug-name",
+            headers=ADMIN_HEADERS,
+            json=request,
+        )
+        listed = client.get(
+            "/api/v1/fabric/matter/setup-codes",
+            headers=ADMIN_HEADERS,
+        )
+        audit = client.get("/api/v1/fabric/audit?limit=50", headers=ADMIN_HEADERS)
+
+    assert unauthenticated.status_code == 401
+    assert invalid.status_code == 422
+    assert renamed.status_code == 200
+    assert renamed.headers["cache-control"] == "no-store"
+    assert renamed.json()["entries"][0]["name"] == request["name"]
+    assert listed.json()["entries"][0]["name"] == request["name"]
+    rename_record = next(
+        record for record in audit.json() if record["action"] == "fabric.matter.plug_name.update"
+    )
+    assert rename_record["details"] == {
+        "matterNodeId": "19",
+        "nameLength": 5,
+        "protectedAtRest": True,
+    }
+    assert request["name"] not in audit.text
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows Matter launcher")
+def test_matter_launcher_preserves_a_redacted_stage_specific_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    setup_code = "MT:Y.K9042C00KA0648G00"
+
+    async def failed_launcher(
+        *_command: str,
+        timeout_seconds: float,
+        input_bytes: bytes | None = None,
+        creationflags: int = 0,
+    ) -> tuple[int, bytes, bytes]:
+        assert timeout_seconds == 280
+        assert input_bytes is not None and setup_code.encode() in input_bytes
+        assert creationflags >= 0
+        return (
+            1,
+            b"",
+            b"CIT_MATTER_ERROR|MATTER_BLUETOOTH_UNAVAILABLE|"
+            b"This computer has no usable Bluetooth LE adapter.\n",
+        )
+
+    monkeypatch.setattr(
+        fabric_discovery_module,
+        "_run_with_bounded_file_output",
+        failed_launcher,
+    )
+    runner = PowerShellDiscoveryRunner(
+        script_path=Path(__file__).resolve().parents[2]
+        / "tools"
+        / "hardware"
+        / "find-classroom-devices.ps1",
+        state_root=tmp_path / "fabric",
+        brain2devices_root=tmp_path / "brain",
+        robomaster_root=tmp_path / "robot",
+        agent_mesh_root=tmp_path / "agent-mesh",
+        fabric_port=9876,
+        powershell_path="pwsh",
+    )
+
+    with pytest.raises(FabricDiscoveryError) as caught:
+        asyncio.run(runner.commission_matter(setup_code))
+
+    assert caught.value.code == "MATTER_BLUETOOTH_UNAVAILABLE"
+    assert str(caught.value) == "This computer has no usable Bluetooth LE adapter."
+    assert setup_code not in str(caught.value)
 
 
 def test_matter_wifi_configuration_is_authenticated_and_secret_is_not_audited(

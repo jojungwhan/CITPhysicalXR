@@ -2,11 +2,14 @@ import { describe, expect, it } from "vitest";
 
 import {
   assignedSmartPlugNodes,
+  currentSmartPlugNodes,
+  formatMatterSetupCode,
   isSmartPlugNode,
   isSmartPlugRole,
   isSwitchableLoadVisionLabel,
   latestSmartPlugState,
   preferredSmartPlugControlSession,
+  smartPlugControlPlan,
   smartPlugStateFromHealth,
 } from "./fabric-smart-plug.js";
 
@@ -75,6 +78,75 @@ describe("Fabric smart-plug presentation", () => {
       ["classroom_plug", "plug-a"],
       ["classroom_plug_2", "plug-b"],
     ]);
+  });
+
+  it("plans one independent role for each of up to eight connected plugs", () => {
+    const nodes = Array.from({ length: 9 }, (_, index) => ({
+      nodeId: `plug-${index + 1}`,
+      consumedCapabilities: [{ name: "power.switch.set" }],
+    }));
+
+    expect(
+      smartPlugControlPlan(nodes).map(({ role, node }) => [role, node.nodeId]),
+    ).toEqual([
+      ["classroom_plug", "plug-1"],
+      ["classroom_plug_2", "plug-2"],
+      ["classroom_plug_3", "plug-3"],
+      ["classroom_plug_4", "plug-4"],
+      ["classroom_plug_5", "plug-5"],
+      ["classroom_plug_6", "plug-6"],
+      ["classroom_plug_7", "plug-7"],
+      ["classroom_plug_8", "plug-8"],
+    ]);
+  });
+
+  it("keeps known offline plugs after connected plugs in the visible plan", () => {
+    const node = (nodeId: string, connectionState: string) => ({
+      nodeId,
+      connectionState,
+      consumedCapabilities: [{ name: "power.switch.set" }],
+    });
+
+    expect(
+      smartPlugControlPlan([
+        node("plug-offline-a", "disconnected"),
+        node("plug-connected-a", "connected"),
+        node("plug-offline-b", "unavailable"),
+        node("plug-connected-b", "degraded"),
+      ]).map(({ role, node: plannedNode }) => [role, plannedNode.nodeId]),
+    ).toEqual([
+      ["classroom_plug", "plug-connected-a"],
+      ["classroom_plug_2", "plug-connected-b"],
+      ["classroom_plug_3", "plug-offline-a"],
+      ["classroom_plug_4", "plug-offline-b"],
+    ]);
+  });
+
+  it("replaces a stale controller node with the latest live node for the same setup code", () => {
+    const nodes = [
+      {
+        nodeId: "matter-old-ep1",
+        connectionState: "disconnected",
+        metadata: { matterNodeId: "8" },
+        consumedCapabilities: [{ name: "power.switch.set" }],
+      },
+      {
+        nodeId: "matter-new-ep1",
+        connectionState: "connected",
+        metadata: { matterNodeId: "27" },
+        consumedCapabilities: [{ name: "power.switch.set" }],
+      },
+    ];
+
+    expect(
+      currentSmartPlugNodes(nodes, [
+        { setupCode: "12345678901", matterNodeIds: ["8", "27"] },
+      ]).map((node) => node.nodeId),
+    ).toEqual(["matter-new-ep1"]);
+  });
+
+  it("formats an eleven-digit setup code as the printed classroom label", () => {
+    expect(formatMatterSetupCode("12345678901")).toBe("1234 567 8901");
   });
 
   it("offers outlet actions only for explicitly switchable visual classes", () => {

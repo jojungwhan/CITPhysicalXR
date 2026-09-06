@@ -24,6 +24,7 @@ from cit_protocol import (
     FabricSafetyClassification,
     FabricSessionMode,
     FabricSessionState,
+    FlowPayloadRoleTarget,
     FlowRecipe,
     HealthReport,
     IntegrationNode,
@@ -32,7 +33,12 @@ from cit_protocol import (
     RoleBinding,
 )
 
-from .fabric_course import validate_course_pack
+from .fabric_course import (
+    flow_candidate_roles,
+    flow_target_required_capability,
+    resolve_flow_target_roles,
+    validate_course_pack,
+)
 from .fabric_persistence import FabricSequenceConflict, StoredFabricEvent, StoredFabricLifecycle
 from .fabric_repository import SQLiteFabricRepository
 
@@ -419,10 +425,13 @@ class InteractionFabric:
         if requirement is None:
             raise FabricNotFoundError("ROLE_NOT_FOUND", f"Course pack has no role {role!r}")
         required_options = [capability.root for capability in requirement.oneOfCapabilities]
+        required_all = [capability.root for capability in (requirement.allOfCapabilities or [])]
         compatible = [
             capability for capability in required_options if _node_has_capability(node, capability)
         ]
-        if not compatible:
+        if not compatible or any(
+            not _node_has_capability(node, capability) for capability in required_all
+        ):
             raise FabricConflictError(
                 "CAPABILITY_MISMATCH",
                 f"Node {node_id!r} does not satisfy role {role!r}",
@@ -432,6 +441,7 @@ class InteractionFabric:
             FabricSessionState.ready,
             FabricSessionState.paused,
         }
+        role_capabilities = tuple(dict.fromkeys([*compatible, *required_all]))
         active_monitoring_extension = (
             session.state is FabricSessionState.active
             and not session.armed
@@ -443,7 +453,7 @@ class InteractionFabric:
                     FabricSafetyClassification.none,
                     FabricSafetyClassification.informational,
                 }
-                for capability in compatible
+                for capability in role_capabilities
             )
         )
         if session.state not in ordinary_role_change_states and not active_monitoring_extension:
@@ -455,7 +465,7 @@ class InteractionFabric:
         if session.mode is FabricSessionMode.simulation:
             unsafe_capabilities = [
                 capability
-                for capability in compatible
+                for capability in role_capabilities
                 if _capability_descriptor(node, capability).safetyClassification
                 in {
                     FabricSafetyClassification.bounded_physical,
@@ -698,10 +708,10 @@ class InteractionFabric:
         lifecycles: list[FabricCommandLifecycleEvent] = []
         routed: list[tuple[FlowRecipe, FabricCommandRequest]] = []
         for flow in course_pack.flows:
-            request = self._request_from_flow(flow, event, session, now=now)
-            if request is None:
-                continue
-            routed.append((flow, request))
+            routed.extend(
+                (flow, request)
+                for request in self._requests_from_flow(flow, event, session, now=now)
+            )
 
         completed_parallel_groups: set[str] = set()
         for flow, request in routed:
@@ -1027,20 +1037,20 @@ class InteractionFabric:
             return "INVALID_COMMAND_PARAMETERS", parameter_error
         return None
 
-    def _request_from_flow(
+    def _requests_from_flow(
         self,
         flow: FlowRecipe,
         event: FabricEventEnvelope,
         session: InteractionSession,
         *,
         now: datetime,
-    ) -> FabricCommandRequest | None:
+    ) -> tuple[FabricCommandRequest, ...]:
         if not flow.enabled or flow.trigger.event != event.topic:
-            return None
+            return ()
         if flow.trigger.minimumConfidence is not None and (
             event.confidence is None or event.confidence < flow.trigger.minimumConfidence
         ):
-            return None
+            return ()
         payload = event.payload.model_dump(mode="json")
         expected = (
             flow.trigger.payloadEquals.model_dump(mode="json")
@@ -1048,66 +1058,85 @@ class InteractionFabric:
             else {}
         )
         if any(payload.get(key) != value for key, value in expected.items()):
-            return None
+            return ()
+        target_roles = resolve_flow_target_roles(flow, payload)
+        if not target_roles:
+            return ()
+        debounce_flow_id = (
+            f"{flow.flowId}:{target_roles[0]}"
+            if isinstance(flow.target, FlowPayloadRoleTarget)
+            else flow.flowId
+        )
         debounce = timedelta(milliseconds=flow.trigger.debounceMs or 0)
         if debounce and not self._repository.claim_flow_debounce(
             session_id=session.sessionId,
-            flow_id=flow.flowId,
+            flow_id=debounce_flow_id,
             source_node_id=event.sourceNodeId,
             at=now,
             debounce=debounce,
         ):
-            return None
+            return ()
         if "session_is_active" in {guard.value for guard in flow.guards} and (
             session.state is not FabricSessionState.active
         ):
-            return None
-        binding = next(
-            (item for item in session.roleBindings if item.role == flow.target.role),
-            None,
-        )
-        if binding is None:
-            return None
-        target = self._repository.get_fabric_node(binding.nodeId)
-        if target is None:
-            return None
-        if "target_is_connected" in {guard.value for guard in flow.guards} and (
-            target.connectionState is not FabricNodeConnectionState.connected
-        ):
-            return None
-        if (
-            "target_is_armed" in {guard.value for guard in flow.guards}
-            and target.physical
-            and not session.armed
-        ):
-            return None
+            return ()
         parameters = flow.command.fixedParameters.model_dump(mode="json")
         for parameter_binding in flow.command.parameterBindings:
             if parameter_binding.payloadField not in payload:
-                return None
+                return ()
             parameters[parameter_binding.parameter] = payload[parameter_binding.payloadField]
         remaining = event.timestamp + timedelta(milliseconds=event.ttlMs) - now
         ttl = min(max(remaining, timedelta(milliseconds=1)), _MAX_FLOW_COMMAND_TTL)
         correlation_id = event.correlationId or str(event.messageId)
-        return FabricCommandRequest.model_validate(
-            {
-                "messageId": str(uuid4()),
-                "schemaVersion": "1.0",
-                "messageType": "command.requested",
-                "action": flow.command.action,
-                "target": {"role": flow.target.role},
-                "sessionId": session.sessionId,
-                "parameters": parameters,
-                "priority": "lesson_automation",
-                "idempotencyKey": (f"flow:{session.sessionId}:{flow.flowId}:{event.messageId}"),
-                "requestedAt": now,
-                "ttlMs": max(1, int(ttl / timedelta(milliseconds=1))),
-                "safetyProfile": flow.safetyProfile,
-                "correlationId": correlation_id,
-                "causationId": str(event.messageId),
-                "sourceNodeId": event.sourceNodeId,
-            }
-        )
+        guards = {guard.value for guard in flow.guards}
+        required_capability = flow_target_required_capability(flow)
+        requests: list[FabricCommandRequest] = []
+        for role in target_roles:
+            binding = next(
+                (item for item in session.roleBindings if item.role == role),
+                None,
+            )
+            if binding is None:
+                continue
+            target = self._repository.get_fabric_node(binding.nodeId)
+            if target is None:
+                continue
+            if (
+                "target_is_connected" in guards
+                and target.connectionState is not FabricNodeConnectionState.connected
+            ):
+                continue
+            if "target_is_armed" in guards and target.physical and not session.armed:
+                continue
+            if (
+                required_capability is not None
+                and _consumed_capability(target, required_capability) is None
+            ):
+                continue
+            requests.append(
+                FabricCommandRequest.model_validate(
+                    {
+                        "messageId": str(uuid4()),
+                        "schemaVersion": "1.0",
+                        "messageType": "command.requested",
+                        "action": flow.command.action,
+                        "target": {"role": role},
+                        "sessionId": session.sessionId,
+                        "parameters": parameters,
+                        "priority": "lesson_automation",
+                        "idempotencyKey": (
+                            f"flow:{session.sessionId}:{flow.flowId}:{role}:{event.messageId}"
+                        ),
+                        "requestedAt": now,
+                        "ttlMs": max(1, int(ttl / timedelta(milliseconds=1))),
+                        "safetyProfile": flow.safetyProfile,
+                        "correlationId": correlation_id,
+                        "causationId": str(event.messageId),
+                        "sourceNodeId": event.sourceNodeId,
+                    }
+                )
+            )
+        return tuple(requests)
 
     def _append_lifecycle(
         self,
@@ -1305,6 +1334,17 @@ class InteractionFabric:
                     "CAPABILITY_MISMATCH",
                     f"Role {binding.role!r} no longer has its required capability",
                 )
+            requirement = next(item for item in course_pack.roles if item.role == binding.role)
+            missing = [
+                capability.root
+                for capability in (requirement.allOfCapabilities or [])
+                if not _node_has_capability(node, capability.root)
+            ]
+            if missing:
+                raise FabricConflictError(
+                    "CAPABILITY_MISMATCH",
+                    f"Role {binding.role!r} no longer has all required capabilities",
+                )
 
     def _is_unarmed_monitoring_session(self, session: InteractionSession) -> bool:
         """Allow observation without silently authorizing physical actuation.
@@ -1321,7 +1361,15 @@ class InteractionFabric:
             course_pack
         ):
             return False
+        command_target_roles = {
+            role
+            for flow in course_pack.flows
+            if flow.enabled
+            for role in flow_candidate_roles(flow)
+        }
         for binding in session.roleBindings:
+            if binding.role in command_target_roles:
+                return False
             node = self._require_node(binding.nodeId)
             descriptor = _capability_descriptor(node, binding.requiredCapability)
             if descriptor.safetyClassification not in {
@@ -1344,10 +1392,11 @@ class InteractionFabric:
         for flow in course_pack.flows:
             if not flow.enabled:
                 continue
-            target = roles.get(flow.target.role)
             guards = {guard.value for guard in flow.guards}
-            if target is None or not target.optional or not required_guards <= guards:
-                return False
+            for role in flow_candidate_roles(flow):
+                target = roles.get(role)
+                if target is None or not target.optional or not required_guards <= guards:
+                    return False
         return True
 
 

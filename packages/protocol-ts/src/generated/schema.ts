@@ -948,6 +948,71 @@ export const protocolSchema = {
         },
       },
     },
+    FlowRoleGroupTarget: {
+      title: "FlowRoleGroupTarget",
+      description:
+        "A bounded, explicit set of lesson roles resolved independently for one semantic event.",
+      type: "object",
+      additionalProperties: false,
+      required: ["roles"],
+      properties: {
+        roles: {
+          type: "array",
+          minItems: 1,
+          maxItems: 16,
+          uniqueItems: true,
+          items: {
+            $ref: "#/$defs/Identifier",
+          },
+        },
+        requiredCapability: {
+          $ref: "#/$defs/CapabilityIdentifier",
+          description:
+            "Skip assigned roles whose node does not consume this exact output capability.",
+        },
+      },
+    },
+    FlowPayloadRoleTarget: {
+      title: "FlowPayloadRoleTarget",
+      description:
+        "One lesson role selected from an explicit allowlist by a structured event payload field.",
+      type: "object",
+      additionalProperties: false,
+      required: ["roleFromPayload", "allowedRoles"],
+      properties: {
+        roleFromPayload: {
+          $ref: "#/$defs/Identifier",
+        },
+        allowedRoles: {
+          type: "array",
+          minItems: 1,
+          maxItems: 16,
+          uniqueItems: true,
+          items: {
+            $ref: "#/$defs/Identifier",
+          },
+        },
+        requiredCapability: {
+          $ref: "#/$defs/CapabilityIdentifier",
+          description:
+            "Route only when the selected node consumes this exact output capability.",
+        },
+      },
+    },
+    FlowTarget: {
+      title: "FlowTarget",
+      oneOf: [
+        {
+          $ref: "#/$defs/FabricRoleTarget",
+        },
+        {
+          $ref: "#/$defs/FlowRoleGroupTarget",
+        },
+        {
+          $ref: "#/$defs/FlowPayloadRoleTarget",
+        },
+      ],
+    },
     FabricCommandRequest: {
       title: "FabricCommandRequest",
       type: "object",
@@ -1477,7 +1542,7 @@ export const protocolSchema = {
           $ref: "#/$defs/FlowAction",
         },
         target: {
-          $ref: "#/$defs/FabricRoleTarget",
+          $ref: "#/$defs/FlowTarget",
         },
         guards: {
           type: "array",
@@ -1525,6 +1590,16 @@ export const protocolSchema = {
           items: {
             $ref: "#/$defs/CapabilityIdentifier",
           },
+        },
+        allOfCapabilities: {
+          type: "array",
+          maxItems: 32,
+          uniqueItems: true,
+          items: {
+            $ref: "#/$defs/CapabilityIdentifier",
+          },
+          description:
+            "Additional capabilities every node assigned to this role must expose.",
         },
         ioType: {
           type: "string",

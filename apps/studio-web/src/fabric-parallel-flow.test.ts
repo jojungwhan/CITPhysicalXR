@@ -97,4 +97,57 @@ describe("parallel Fabric flow presentation", () => {
       },
     ]);
   });
+
+  it("expands bounded group and payload-selected roles from the course recipe", () => {
+    const coursePack = {
+      flows: [
+        {
+          flowId: "all-lights",
+          enabled: true,
+          parallelGroup: "wearable-control",
+          trigger: { event: "interaction.intent.device_control" },
+          target: {
+            roles: ["ground_output_1", "ground_output_2"],
+            requiredCapability: "robot.light.set",
+          },
+          command: { action: "robot.light.set" },
+        },
+        {
+          flowId: "exact-plug",
+          enabled: true,
+          parallelGroup: "wearable-control",
+          trigger: { event: "interaction.intent.device_control" },
+          target: {
+            roleFromPayload: "targetRole",
+            allowedRoles: ["power_output_1", "power_output_2"],
+            requiredCapability: "power.switch.set",
+          },
+          command: { action: "power.switch.set" },
+        },
+      ],
+    } as unknown as CoursePack;
+
+    expect(parallelFlowGroups(coursePack)[0]?.outputs).toEqual([
+      {
+        flowId: "all-lights",
+        role: "ground_output_1",
+        action: "robot.light.set",
+      },
+      {
+        flowId: "all-lights",
+        role: "ground_output_2",
+        action: "robot.light.set",
+      },
+      {
+        flowId: "exact-plug",
+        role: "power_output_1",
+        action: "power.switch.set",
+      },
+      {
+        flowId: "exact-plug",
+        role: "power_output_2",
+        action: "power.switch.set",
+      },
+    ]);
+  });
 });

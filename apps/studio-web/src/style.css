@@ -1523,8 +1523,19 @@ main.fabric-main {
 
 .fabric-matter-stage > label,
 .fabric-matter-stage > button,
-.fabric-matter-stage > small {
+.fabric-matter-stage > small,
+.fabric-matter-error {
   margin-left: 37px;
+}
+
+.fabric-matter-error {
+  padding: 8px 10px;
+  color: #ffd8d8;
+  border: 1px solid rgb(255 122 122 / 42%);
+  border-radius: 7px;
+  background: rgb(118 24 24 / 30%);
+  font-size: 0.74rem;
+  line-height: 1.45;
 }
 
 .fabric-matter-stage > small {
@@ -2498,17 +2509,88 @@ main.fabric-main {
   background: rgb(117 199 255 / 6%);
 }
 
+.fabric-plug-group-controls {
+  display: grid;
+  padding: 4px 0 7px;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgb(255 255 255 / 10%);
+}
+
+.fabric-console .fabric-plug-select-all,
+.fabric-console .fabric-plug-select-one {
+  display: inline-flex;
+  margin: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 5px;
+}
+
+.fabric-plug-select-all {
+  color: #dce9e1;
+  font-size: 0.74rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.fabric-plug-select-all input,
+.fabric-plug-select-one input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--fabric-green);
+}
+
+.fabric-plug-selected-count {
+  color: #93a69b;
+  font-size: 0.69rem;
+  white-space: nowrap;
+}
+
+.fabric-plug-group-actions {
+  display: flex;
+  min-width: 0;
+  justify-content: flex-end;
+  gap: 5px;
+}
+
+.fabric-plug-group-actions button {
+  min-height: 28px;
+  padding: 3px 8px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.fabric-plug-group-on {
+  border-color: rgb(255 157 98 / 45%) !important;
+  color: #ffe4d6 !important;
+  background: rgb(255 157 98 / 12%) !important;
+}
+
+.fabric-plug-group-off {
+  border-color: rgb(117 199 255 / 40%) !important;
+  color: #dceeff !important;
+  background: rgb(117 199 255 / 10%) !important;
+}
+
 .fabric-plug-row {
   display: grid;
   min-height: 34px;
   padding: 3px 0;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: center;
   gap: 10px;
 }
 
 .fabric-plug-row + .fabric-plug-row {
   border-top: 1px solid rgb(255 255 255 / 8%);
+}
+
+.fabric-plug-identity {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
 }
 
 .fabric-plug-name {
@@ -2518,6 +2600,69 @@ main.fabric-main {
   line-height: 1.25;
   word-break: keep-all;
   overflow-wrap: break-word;
+}
+
+.fabric-plug-name-line {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+}
+
+.fabric-plug-rename,
+.fabric-plug-name-save,
+.fabric-plug-name-cancel {
+  min-height: 22px;
+  padding: 2px 6px;
+  font-size: 0.66rem;
+  line-height: 1.1;
+  white-space: nowrap;
+}
+
+.fabric-plug-rename {
+  border-color: rgb(183 200 192 / 28%);
+  color: #b7c8c0;
+  background: transparent;
+}
+
+.fabric-plug-rename-form {
+  display: grid;
+  grid-template-columns: minmax(5.5rem, 1fr) auto auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.fabric-plug-name-input {
+  width: 100%;
+  min-width: 0;
+  min-height: 28px;
+  padding: 3px 6px;
+  font-size: 0.78rem;
+}
+
+.fabric-plug-name-save {
+  border-color: rgb(112 213 154 / 42%);
+  color: #dff9e8;
+  background: rgb(112 213 154 / 10%);
+}
+
+.fabric-plug-name-cancel {
+  border-color: rgb(183 200 192 / 24%);
+  color: #b7c8c0;
+  background: transparent;
+}
+
+.fabric-plug-matter-id,
+.fabric-plug-setup-code {
+  color: #8fa099;
+  font-family: ui-monospace, "Cascadia Code", Consolas, monospace;
+  font-size: 0.66rem;
+  line-height: 1.25;
+  font-variant-numeric: tabular-nums;
+}
+
+.fabric-plug-setup-code {
+  color: #b7c8c0;
 }
 
 .fabric-plug-state {
@@ -2537,6 +2682,11 @@ main.fabric-main {
 
 .fabric-plug-state.is-unknown {
   cursor: help;
+}
+
+.fabric-plug-state.is-unavailable {
+  color: #ffad78;
+  letter-spacing: 0;
 }
 
 .fabric-power-toggle {
@@ -2559,6 +2709,12 @@ main.fabric-main {
   background: rgb(117 199 255 / 10%) !important;
 }
 
+.fabric-power-unavailable {
+  border-color: rgb(255 173 120 / 24%) !important;
+  color: #bdc8c0 !important;
+  background: rgb(255 173 120 / 5%) !important;
+}
+
 .fabric-power-toggle.is-pending {
   animation: fabric-plug-pending 900ms ease-in-out infinite;
 }
@@ -2574,8 +2730,20 @@ main.fabric-main {
 }
 
 @container fabric-device-controls (max-width: 330px) {
+  .fabric-plug-group-controls {
+    grid-template-columns: auto 1fr;
+  }
+
+  .fabric-plug-group-actions {
+    grid-column: 1 / -1;
+  }
+
+  .fabric-plug-group-actions button {
+    flex: 1 1 0;
+  }
+
   .fabric-plug-row {
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto;
   }
 
   .fabric-power-toggle {

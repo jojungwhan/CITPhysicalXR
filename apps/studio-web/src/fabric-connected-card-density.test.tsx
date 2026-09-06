@@ -52,6 +52,7 @@ describe("connected device card density", () => {
         actionFeedback={{ tone: "success", message: "First Tello connected." }}
         canConnect
         groundedConfirmed
+        matterCommissionError={null}
         onScan={vi.fn()}
         onConnect={vi.fn()}
         onCopySetup={vi.fn()}

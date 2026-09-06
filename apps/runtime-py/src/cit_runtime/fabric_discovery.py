@@ -36,6 +36,7 @@ DISCOVERY_REPORT_MAX_BYTES = 262_144
 DISCOVERY_SCAN_TIMEOUT_SECONDS = 35.0
 DISCOVERY_ACTION_TIMEOUT_SECONDS = 120.0
 DISCOVERY_OUTPUT_SIZE_POLL_SECONDS = 0.05
+MATTER_LAUNCHER_ERROR_MARKER = "CIT_MATTER_ERROR|"
 SESSION_TARGET_ACTION_COURSE_PACKS: Mapping[str, frozenset[str]] = MappingProxyType(
     {
         "cit.glasses-device-control.connect": frozenset(
@@ -48,6 +49,30 @@ SESSION_TARGET_ACTION_COURSE_PACKS: Mapping[str, frozenset[str]] = MappingProxyT
 
 class _ProcessOutputTooLarge(RuntimeError):
     pass
+
+
+def _matter_launcher_error(diagnostic: str) -> tuple[str, str] | None:
+    """Extract one bounded, adapter-owned Matter diagnostic from launcher output."""
+
+    for raw_line in reversed(diagnostic.splitlines()):
+        marker_at = raw_line.find(MATTER_LAUNCHER_ERROR_MARKER)
+        if marker_at < 0:
+            continue
+        payload = raw_line[marker_at + len(MATTER_LAUNCHER_ERROR_MARKER) :]
+        code, separator, message = payload.partition("|")
+        code = code.strip()
+        message = message.strip()
+        if (
+            separator
+            and code.startswith("MATTER_")
+            and len(code) <= 64
+            and code.replace("_", "").isalnum()
+            and code == code.upper()
+            and 1 <= len(message) <= 500
+            and all(ord(character) >= 32 for character in message)
+        ):
+            return code, message
+    return None
 
 
 class _FleetMonitoringAttachment(BaseModel):
@@ -217,6 +242,12 @@ class FabricDiscoveryCandidate(BaseModel):
     transport: str = Field(min_length=1, max_length=80)
     status: Literal["found", "ready", "setup_required", "not_found"]
     detail: str = Field(min_length=1, max_length=500)
+    diagnosticCode: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Z][A-Z0-9_]*$",
+    )
     model: str | None = Field(
         default=None,
         min_length=1,
@@ -501,6 +532,47 @@ class MatterWifiConfiguration(BaseModel):
         return self
 
 
+class MatterSetupCodeEntry(BaseModel):
+    """One locally protected setup-code label and its controller node history."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    setupCode: str = Field(min_length=11, max_length=103)
+    matterNodeIds: list[str] = Field(default_factory=list, max_length=32)
+    name: str | None = Field(default=None, min_length=1, max_length=64)
+
+    @model_validator(mode="after")
+    def validate_entry(self) -> MatterSetupCodeEntry:
+        if self.setupCode != self.setupCode.strip() or any(
+            ord(character) < 32 or ord(character) == 127 for character in self.setupCode
+        ):
+            raise ValueError("Matter setup code must be trimmed printable text")
+        if not self.setupCode.upper().startswith("MT:"):
+            digits = "".join(character for character in self.setupCode if character.isdigit())
+            if len(digits) not in {11, 21}:
+                raise ValueError("Matter setup code must be a manual or QR setup code")
+        if len(self.matterNodeIds) != len(set(self.matterNodeIds)) or any(
+            not node_id.isdecimal() or node_id.startswith("0") or len(node_id) > 20
+            for node_id in self.matterNodeIds
+        ):
+            raise ValueError("Matter node mappings must be unique positive decimal identifiers")
+        if self.name is not None and (
+            self.name != self.name.strip()
+            or any(ord(character) < 32 or ord(character) == 127 for character in self.name)
+        ):
+            raise ValueError("Matter plug names must be trimmed printable text")
+        return self
+
+
+class MatterSetupCodeRegistry(BaseModel):
+    """Authenticated projection of the current user's DPAPI-protected labels."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    schemaVersion: Literal["1.0"] = "1.0"
+    entries: list[MatterSetupCodeEntry] = Field(default_factory=list, max_length=64)
+
+
 class LegoConnectionConfiguration(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -666,6 +738,12 @@ class DiscoveryRunner(Protocol):
     async def configure_matter_wifi(self, configuration: MatterWifiConfiguration) -> str: ...
 
     async def commission_matter(self, setup_code: str) -> str: ...
+
+    async def list_matter_setup_codes(self) -> MatterSetupCodeRegistry: ...
+
+    async def rename_matter_plug(
+        self, matter_node_id: str, name: str
+    ) -> MatterSetupCodeRegistry: ...
 
     async def connect_lego(self, configuration: LegoConnectionConfiguration) -> str: ...
 
@@ -903,6 +981,14 @@ class FabricDiscoveryService:
             report=report,
         )
 
+    async def list_matter_setup_codes(self) -> MatterSetupCodeRegistry:
+        async with self._connection_lock:
+            return await self._runner.list_matter_setup_codes()
+
+    async def rename_matter_plug(self, matter_node_id: str, name: str) -> MatterSetupCodeRegistry:
+        async with self._connection_lock:
+            return await self._runner.rename_matter_plug(matter_node_id, name)
+
     async def configure_matter_wifi(
         self,
         configuration: MatterWifiConfiguration,
@@ -1011,6 +1097,16 @@ class UnavailableDiscoveryRunner:
         raise FabricDiscoveryError(
             "MATTER_COMMISSIONING_UNAVAILABLE",
             "Local Matter commissioning is unavailable in this runtime",
+        )
+
+    async def list_matter_setup_codes(self) -> MatterSetupCodeRegistry:
+        return MatterSetupCodeRegistry()
+
+    async def rename_matter_plug(self, matter_node_id: str, name: str) -> MatterSetupCodeRegistry:
+        del matter_node_id, name
+        raise FabricDiscoveryError(
+            "MATTER_PLUG_RENAME_UNAVAILABLE",
+            "Local Matter plug naming is unavailable in this runtime",
         )
 
     async def configure_matter_wifi(self, configuration: MatterWifiConfiguration) -> str:
@@ -1585,6 +1681,69 @@ class PowerShellDiscoveryRunner:
             "Its bounded adapter is connected in an unstarted, disarmed lesson."
         )
 
+    async def list_matter_setup_codes(self) -> MatterSetupCodeRegistry:
+        powershell = self._powershell_path or shutil.which("pwsh")
+        launcher = (self._script_path.parent / "matter-smart-plug.ps1").resolve()
+        if (
+            os.name != "nt"
+            or powershell is None
+            or launcher.parent != self._script_path.parent
+            or not launcher.is_file()
+        ):
+            return MatterSetupCodeRegistry()
+        try:
+            returncode, stdout, stderr = await _run_with_bounded_file_output(
+                powershell,
+                "-NoProfile",
+                "-NonInteractive",
+                "-File",
+                str(launcher),
+                "-Mode",
+                "ListSetupCodes",
+                "-StateRoot",
+                str(self._state_root.parent / "matter"),
+                timeout_seconds=15,
+                creationflags=int(getattr(subprocess, "CREATE_NO_WINDOW", 0)),
+            )
+        except (_ProcessOutputTooLarge, TimeoutError) as error:
+            raise FabricDiscoveryError(
+                "MATTER_SETUP_CODE_LABELS_UNAVAILABLE",
+                "The protected Matter setup-code labels could not be loaded",
+            ) from error
+        if returncode != 0 or stderr.strip():
+            raise FabricDiscoveryError(
+                "MATTER_SETUP_CODE_LABELS_UNAVAILABLE",
+                "The protected Matter setup-code labels could not be loaded",
+            )
+        try:
+            return MatterSetupCodeRegistry.model_validate_json(stdout)
+        except (UnicodeDecodeError, ValidationError, ValueError) as error:
+            raise FabricDiscoveryError(
+                "MATTER_SETUP_CODE_LABELS_INVALID",
+                "The protected Matter setup-code label registry is invalid",
+            ) from error
+
+    async def rename_matter_plug(self, matter_node_id: str, name: str) -> MatterSetupCodeRegistry:
+        await self._run_input_launcher(
+            "matter-smart-plug.ps1",
+            "-Mode",
+            "Rename",
+            "-StateRoot",
+            str(self._state_root.parent / "matter"),
+            input_text=json.dumps(
+                {"matterNodeId": matter_node_id, "name": name},
+                ensure_ascii=False,
+                separators=(",", ":"),
+            ),
+            redactions=(),
+            timeout_seconds=15,
+            error_prefix="MATTER_PLUG_RENAME",
+            operation_name="Matter plug rename",
+            timeout_message="Saving the Matter plug name timed out; try again",
+            failure_message="The Matter plug name could not be saved",
+        )
+        return await self.list_matter_setup_codes()
+
     async def configure_matter_wifi(self, configuration: MatterWifiConfiguration) -> str:
         password = configuration.password.get_secret_value()
         await self._run_input_launcher(
@@ -1849,6 +2008,10 @@ class PowerShellDiscoveryRunner:
                 diagnostic = stdout.decode("utf-8", errors="replace").strip()
             for secret in redactions:
                 diagnostic = diagnostic.replace(secret, "[redacted]")
+            matter_error = _matter_launcher_error(diagnostic)
+            if matter_error is not None:
+                code, message = matter_error
+                raise FabricDiscoveryError(code, message)
             raise FabricDiscoveryError(
                 f"{error_prefix}_FAILED",
                 (diagnostic.rsplit("\n", maxsplit=1)[-1] or failure_message)[:500],

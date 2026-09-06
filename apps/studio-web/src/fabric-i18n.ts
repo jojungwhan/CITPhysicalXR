@@ -156,6 +156,9 @@ const EN = {
   "notice.integrationScanned":
     "{name} scan refreshed: {status}. Use Connect or the setup controls in this card.",
   "notice.matterAdded": "The Matter plug was added locally and remains off.",
+  "notice.matterRenamed": "The plug is now named {name}.",
+  "notice.smartPlugGroupOn": "Turned on {count} selected plug(s) together.",
+  "notice.smartPlugGroupOff": "Turned off {count} selected plug(s) together.",
   "notice.matterWifiConfigured":
     "Classroom Wi-Fi was saved only in the local Matter controller. You can now add the plug.",
   "notice.legoConnected": "The LEGO hub was connected for unarmed monitoring.",
@@ -215,6 +218,8 @@ const EN = {
   "busy.testingInput": "Testing input",
   "busy.testingOutput": "Testing output",
   "busy.smartPlug": "Changing smart-plug power",
+  "busy.smartPlugGroup": "Changing selected smart-plug power",
+  "busy.renamingMatter": "Saving smart-plug name",
   "busy.telloLand": "Landing Tello",
   "busy.telloEmergency": "Emergency-stopping Tello",
   "busy.telloCommand": "Sending Tello command",
@@ -268,6 +273,9 @@ const EN = {
   "error.smartPlugSetupPermission":
     "This tutor account cannot prepare a smart-plug control session.",
   "error.smartPlugCourse": "The smart-plug control course is not installed.",
+  "error.matterPlugRenameFailed": "The smart-plug name could not be saved.",
+  "error.smartPlugGroupPartial":
+    "{failed} of {count} selected plug command(s) failed. Check their connection and state.",
   "error.safetyConfirmation":
     "Confirm the visible classroom safety check before starting.",
   "error.directControlSessionNotReady":
@@ -297,6 +305,34 @@ const EN = {
     "Tello Wi-Fi is not visible now. Power on the drone, scan again when TELLO-* appears, then connect it.",
   "error.telloSessionActive":
     "The drone connection remains active. Its in-use aircraft session prevented only the Wi-Fi route change.",
+  "error.matterBluetoothUnavailable":
+    "This computer has no usable Bluetooth LE adapter. Connect or enable the adapter, then try again.",
+  "error.matterBluetoothAdapterMissing":
+    "No Bluetooth LE adapter is connected. Connect the adapter, then choose Find devices again.",
+  "error.matterBluetoothRadioOff":
+    "A Bluetooth adapter is present, but Windows Bluetooth is off. Turn Bluetooth on, then try again.",
+  "error.matterBluetoothUnsupported":
+    "The connected Bluetooth adapter does not support the Bluetooth Low Energy role required by Matter setup.",
+  "error.matterDeviceNotFound":
+    "No Matter plug in setup mode was found. Factory-reset the plug and try again near this computer.",
+  "error.matterWifiJoinFailed":
+    "The plug was reached, but it could not join the saved Wi-Fi. Check the 2.4 GHz SSID and password.",
+  "error.matterWifiNotConfigured":
+    "Classroom Wi-Fi has not been saved for Matter setup. Complete the Wi-Fi step first.",
+  "error.matterWifiConfigurationFailed":
+    "The local Matter controller could not save the Wi-Fi configuration. Check the controller and try again.",
+  "error.matterSetupCodeInvalid":
+    "The Matter setup code is not valid. Re-enter the original manual code or QR text printed on this plug.",
+  "error.matterSetupCodeRejected":
+    "The plug answered, but it rejected the printed Matter setup code. Confirm the original code for this plug.",
+  "error.matterAttestationFailed":
+    "The plug answered, but its Matter device identity could not be verified. Check that it is certified and its firmware is current.",
+  "error.matterControllerUnavailable":
+    "The local Matter controller connection was lost. Restart Classroom Control, then try again.",
+  "error.matterCommissioningUnavailable":
+    "Matter setup is not available in this runtime. Restart Classroom Control with the Matter launcher installed.",
+  "error.matterCommissioningFailed":
+    "Matter setup failed at an unknown controller stage. Refresh device status and try again; the setup code was not logged.",
   "error.requestFailed": "The Fabric request failed.",
 
   "guide.find.title": "Find the classroom devices",
@@ -636,8 +672,26 @@ const EN = {
   "plug.title": "Classroom plugs",
   "plug.noneAssigned": "No classroom plugs assigned",
   "plug.compatible": "{count} compatible device(s) connected",
+  "plug.matterNodeId": "Matter node ID {id}",
+  "plug.matterSetupCode": "Matter setup code {code}",
+  "plug.groupControls": "Selected plug controls",
+  "plug.selectAll": "Select all",
+  "plug.selectOne": "Select {name}",
+  "plug.selectedCount": "{count} selected",
+  "plug.turnOnSelected": "Turn on selected",
+  "plug.turnOffSelected": "Turn off selected",
+  "plug.turnOnAll": "Turn on all",
+  "plug.turnOffAll": "Turn off all",
+  "plug.rename": "Rename {name}",
+  "plug.renameAction": "Rename",
+  "plug.nameInput": "New name for {name}",
+  "plug.renameSave": "Save",
+  "plug.renameCancel": "Cancel",
   "plug.unknownState": "UNKNOWN",
   "plug.stateUnknown": "State has not been observed in this lesson",
+  "plug.controlUnavailable": "Control unavailable",
+  "plug.offlineHelp":
+    "The plug is disconnected. Check its power and classroom Wi-Fi, then find devices again.",
   "plug.observed": "Observed {time}{source}",
   "plug.turnOn": "Turn on",
   "plug.turnOnHelp": "Turn on the approved classroom load",
@@ -699,6 +753,18 @@ const EN = {
   "matter.wifi.saving": "Saving Wi-Fi…",
   "matter.wifi.memory":
     "The password is sent only to the loopback Matter controller, is never logged, and is cleared from this page after success.",
+  "matter.bluetooth.title": "Bluetooth for first-time setup",
+  "matter.bluetooth.readyTitle": "Bluetooth adapter ready",
+  "matter.bluetooth.ready":
+    "A Bluetooth Low Energy adapter is available for securely sending Wi-Fi to a new plug.",
+  "matter.bluetooth.networkReadyTitle": "On-network setup ready",
+  "matter.bluetooth.networkReady":
+    "A plug in setup mode is already visible on this network, so Bluetooth is not required for this attempt.",
+  "matter.bluetooth.requiredTitle": "Bluetooth setup required",
+  "matter.bluetooth.required":
+    "Connect or enable a Bluetooth Low Energy adapter, then choose Find devices again.",
+  "matter.bluetooth.scanFirst":
+    "Choose Find devices above so CIT can check the Windows Bluetooth radio.",
   "matter.device.title": "Put each plug in setup mode",
   "matter.device.help":
     "Plug it in and hold Reset for 10 seconds. Then choose Find devices again.",
@@ -707,7 +773,8 @@ const EN = {
   "matter.code.title": "Add using the printed Matter code",
   "matter.code.help":
     "Enter the 11-digit manual code or scan text printed next to the Matter QR label.",
-  "matter.code.locked": "Complete classroom Wi-Fi setup in step 1 first.",
+  "matter.code.locked":
+    "Complete Wi-Fi and the first-time connection check in steps 1 and 2 first.",
   "matter.tapo.title": "Tapo P110M — direct local setup",
   "matter.tapo.support":
     "Supported through Matter over your classroom Wi-Fi, independently of the Tapo app and TP-Link cloud.",
@@ -1018,7 +1085,7 @@ const EN = {
   "course.plug.name": "Classroom smart plug",
   "course.plug.summary": "Tutor-controlled classroom plugs",
   "course.plug.description":
-    "The tutor independently controls up to two approved classroom lamps or other low-risk loads from this screen.",
+    "The tutor independently controls up to eight approved classroom lamps or other low-risk loads from this screen.",
   "course.fallback": "{count} classroom device role(s)",
 
   "role.brain.name": "One-shot MindWave flight demo",
@@ -1035,6 +1102,9 @@ const EN = {
   "role.plug2.name": "Classroom plug 2",
   "role.plug2.description":
     "Optionally controls a second approved classroom load independently",
+  "role.plugNumbered.name": "Classroom plug {number}",
+  "role.plugNumbered.description":
+    "Independently controls an approved classroom load",
   "role.agent.name": "Coding assistant",
   "role.agent.description":
     "Receives student prompts and returns coding progress",
@@ -1242,6 +1312,9 @@ const KO: Record<FabricMessageKey, string> = {
     "{name} 다시 검색 완료: {status}. 이 카드의 연결 또는 설정을 사용하세요.",
   "notice.matterAdded":
     "Matter 플러그를 로컬로 추가했습니다. 전원은 꺼진 안전 상태입니다.",
+  "notice.matterRenamed": "플러그 이름을 ‘{name}’(으)로 저장했습니다.",
+  "notice.smartPlugGroupOn": "선택한 플러그 {count}개를 동시에 켰습니다.",
+  "notice.smartPlugGroupOff": "선택한 플러그 {count}개를 동시에 껐습니다.",
   "notice.matterWifiConfigured":
     "교실 Wi-Fi를 로컬 Matter 컨트롤러에만 저장했습니다. 이제 플러그를 추가할 수 있습니다.",
   "notice.legoConnected":
@@ -1300,6 +1373,8 @@ const KO: Record<FabricMessageKey, string> = {
   "busy.testingInput": "입력 확인 중",
   "busy.testingOutput": "출력 확인 중",
   "busy.smartPlug": "스마트 플러그 전원 변경 중",
+  "busy.smartPlugGroup": "선택한 스마트 플러그 전원 변경 중",
+  "busy.renamingMatter": "스마트 플러그 이름 저장 중",
   "busy.telloLand": "Tello 착륙 요청 중",
   "busy.telloEmergency": "Tello 비상 정지 중",
   "busy.telloCommand": "Tello 명령 전송 중",
@@ -1351,6 +1426,9 @@ const KO: Record<FabricMessageKey, string> = {
   "error.smartPlugSetupPermission":
     "이 강사 계정으로 스마트 플러그 제어 세션을 준비할 수 없습니다.",
   "error.smartPlugCourse": "스마트 플러그 제어 수업이 설치되어 있지 않습니다.",
+  "error.matterPlugRenameFailed": "스마트 플러그 이름을 저장하지 못했습니다.",
+  "error.smartPlugGroupPartial":
+    "선택한 플러그 {count}개 중 {failed}개의 명령이 실패했습니다. 연결과 상태를 확인하세요.",
   "error.safetyConfirmation":
     "시작하기 전에 화면의 교실 안전 확인에 동의하세요.",
   "error.directControlSessionNotReady": "장치 제어 세션을 준비하지 못했습니다.",
@@ -1378,6 +1456,34 @@ const KO: Record<FabricMessageKey, string> = {
     "Tello Wi-Fi가 현재 보이지 않습니다. 드론 전원을 켜고 TELLO-*가 표시되면 장치를 다시 검색한 뒤 연결하세요.",
   "error.telloSessionActive":
     "드론 연결은 유지됩니다. 사용 중인 기체 세션 때문에 Wi-Fi 경로만 변경하지 않았습니다.",
+  "error.matterBluetoothUnavailable":
+    "이 컴퓨터에서 Bluetooth LE 어댑터를 사용할 수 없습니다. 어댑터를 연결하거나 Bluetooth를 켠 뒤 다시 시도하세요.",
+  "error.matterBluetoothAdapterMissing":
+    "연결된 Bluetooth LE 어댑터가 없습니다. 어댑터를 연결한 뒤 ‘장치 찾기’를 다시 누르세요.",
+  "error.matterBluetoothRadioOff":
+    "Bluetooth 어댑터는 있지만 Windows Bluetooth가 꺼져 있습니다. Bluetooth를 켠 뒤 다시 시도하세요.",
+  "error.matterBluetoothUnsupported":
+    "연결된 Bluetooth 어댑터가 Matter 설정에 필요한 Bluetooth Low Energy 역할을 지원하지 않습니다.",
+  "error.matterDeviceNotFound":
+    "설정 모드인 Matter 플러그를 찾지 못했습니다. 플러그를 공장 초기화하고 컴퓨터 가까이에서 다시 시도하세요.",
+  "error.matterWifiJoinFailed":
+    "플러그에는 연결했지만 저장된 Wi-Fi에 가입하지 못했습니다. 2.4GHz SSID와 비밀번호를 확인하세요.",
+  "error.matterWifiNotConfigured":
+    "Matter 설정에 사용할 교실 Wi-Fi가 저장되지 않았습니다. 먼저 Wi-Fi 단계를 완료하세요.",
+  "error.matterWifiConfigurationFailed":
+    "로컬 Matter 컨트롤러가 Wi-Fi 설정을 저장하지 못했습니다. 컨트롤러 상태를 확인한 뒤 다시 시도하세요.",
+  "error.matterSetupCodeInvalid":
+    "Matter 설정 코드가 올바르지 않습니다. 이 플러그에 인쇄된 원래 수동 코드 또는 QR 텍스트를 다시 입력하세요.",
+  "error.matterSetupCodeRejected":
+    "플러그가 응답했지만 인쇄된 Matter 설정 코드를 승인하지 않았습니다. 해당 플러그의 원래 코드를 확인하세요.",
+  "error.matterAttestationFailed":
+    "플러그가 응답했지만 Matter 장치 신원을 확인하지 못했습니다. 정품 인증 장치와 최신 펌웨어인지 확인하세요.",
+  "error.matterControllerUnavailable":
+    "로컬 Matter 컨트롤러 연결이 끊어졌습니다. Classroom Control을 다시 시작한 뒤 다시 시도하세요.",
+  "error.matterCommissioningUnavailable":
+    "이 런타임에서는 Matter 설정을 사용할 수 없습니다. Matter 실행기가 설치된 상태로 Classroom Control을 다시 시작하세요.",
+  "error.matterCommissioningFailed":
+    "알 수 없는 컨트롤러 단계에서 Matter 설정에 실패했습니다. 장치 상태를 새로고침한 뒤 다시 시도하세요. 설정 코드는 기록되지 않았습니다.",
   "error.requestFailed": "Fabric 요청에 실패했습니다.",
   "guide.find.title": "교실 장치 찾기",
   "guide.find.description":
@@ -1696,8 +1802,26 @@ const KO: Record<FabricMessageKey, string> = {
   "plug.title": "교실 플러그",
   "plug.noneAssigned": "배정된 교실 플러그 없음",
   "plug.compatible": "호환 장치 {count}개 연결됨",
+  "plug.matterNodeId": "Matter 노드 ID {id}",
+  "plug.matterSetupCode": "Matter 설정 코드 {code}",
+  "plug.groupControls": "선택한 플러그 제어",
+  "plug.selectAll": "모두 선택",
+  "plug.selectOne": "{name} 선택",
+  "plug.selectedCount": "{count}개 선택됨",
+  "plug.turnOnSelected": "선택 켜기",
+  "plug.turnOffSelected": "선택 끄기",
+  "plug.turnOnAll": "모두 켜기",
+  "plug.turnOffAll": "모두 끄기",
+  "plug.rename": "{name} 이름 변경",
+  "plug.renameAction": "이름 변경",
+  "plug.nameInput": "{name}의 새 이름",
+  "plug.renameSave": "저장",
+  "plug.renameCancel": "취소",
   "plug.unknownState": "알 수 없음",
   "plug.stateUnknown": "이 수업에서 아직 상태를 확인하지 못했습니다",
+  "plug.controlUnavailable": "제어 불가",
+  "plug.offlineHelp":
+    "플러그 연결이 끊겼습니다. 전원과 교실 Wi-Fi를 확인한 뒤 장치 찾기를 다시 실행하세요.",
   "plug.observed": "{time}에 확인{source}",
   "plug.turnOn": "켜기",
   "plug.turnOnHelp": "승인된 교실 부하 켜기",
@@ -1755,6 +1879,18 @@ const KO: Record<FabricMessageKey, string> = {
   "matter.wifi.saving": "Wi-Fi 저장 중…",
   "matter.wifi.memory":
     "비밀번호는 이 PC의 Matter 컨트롤러로만 전송되고 기록되지 않으며 성공 후 페이지에서 지워집니다.",
+  "matter.bluetooth.title": "최초 설정용 Bluetooth",
+  "matter.bluetooth.readyTitle": "Bluetooth 어댑터 준비됨",
+  "matter.bluetooth.ready":
+    "새 플러그에 Wi-Fi를 안전하게 전달할 Bluetooth LE 어댑터를 사용할 수 있습니다.",
+  "matter.bluetooth.networkReadyTitle": "네트워크 설정 연결 준비됨",
+  "matter.bluetooth.networkReady":
+    "설정 모드인 플러그가 이 네트워크에 이미 표시되어 이번 연결에는 Bluetooth가 필요하지 않습니다.",
+  "matter.bluetooth.requiredTitle": "Bluetooth 설정 필요",
+  "matter.bluetooth.required":
+    "Bluetooth LE 어댑터를 연결하거나 켠 다음 ‘장치 찾기’를 다시 누르세요.",
+  "matter.bluetooth.scanFirst":
+    "먼저 위의 ‘장치 찾기’를 눌러 Windows Bluetooth 라디오를 확인하세요.",
   "matter.device.title": "각 플러그를 설정 모드로 전환",
   "matter.device.help":
     "플러그를 콘센트에 꽂고 Reset을 10초간 누르세요. 그런 다음 ‘장치 찾기’를 다시 누르세요.",
@@ -1763,7 +1899,7 @@ const KO: Record<FabricMessageKey, string> = {
   "matter.code.title": "인쇄된 Matter 코드로 추가",
   "matter.code.help":
     "Matter QR 라벨 옆에 인쇄된 11자리 수동 코드 또는 QR 문자열을 입력하세요.",
-  "matter.code.locked": "먼저 1단계에서 교실 Wi-Fi 설정을 완료하세요.",
+  "matter.code.locked": "먼저 1단계 Wi-Fi와 2단계 최초 연결 확인을 완료하세요.",
   "matter.tapo.title": "Tapo P110M — 로컬 직접 설정",
   "matter.tapo.support":
     "Tapo 앱과 TP-Link 클라우드 없이 교실 Wi-Fi의 Matter로 지원합니다.",
@@ -2065,7 +2201,7 @@ const KO: Record<FabricMessageKey, string> = {
   "course.plug.name": "교실 스마트 플러그",
   "course.plug.summary": "강사가 개별 제어하는 교실 플러그",
   "course.plug.description":
-    "강사가 이 화면에서 승인된 교실 램프 또는 다른 저위험 부하를 최대 두 개까지 각각 켜고 끕니다.",
+    "강사가 이 화면에서 승인된 교실 램프 또는 다른 저위험 부하를 최대 여덟 개까지 각각 켜고 끕니다.",
   "course.fallback": "교실 장치 역할 {count}개",
   "role.brain.name": "MindWave 1회 비행 데모",
   "role.brain.description":
@@ -2081,6 +2217,8 @@ const KO: Record<FabricMessageKey, string> = {
   "role.plug2.name": "교실 플러그 2",
   "role.plug2.description":
     "두 번째 승인된 교실 부하를 선택적으로 개별 제어합니다",
+  "role.plugNumbered.name": "교실 플러그 {number}",
+  "role.plugNumbered.description": "승인된 교실 부하를 개별적으로 제어합니다",
   "role.agent.name": "코딩 도우미",
   "role.agent.description": "학생 요청을 받고 코딩 진행 상황을 돌려줍니다",
   "role.feedback.name": "피드백 화면",
@@ -2561,6 +2699,11 @@ export const fabricRoleText = (
         };
   };
   return (
+    dynamic(
+      /^classroom_plug_([2-8])$/,
+      "role.plugNumbered.name",
+      "role.plugNumbered.description",
+    ) ??
     dynamic(
       /^glasses_input_(\d+)$/,
       "role.glassesInput.name",

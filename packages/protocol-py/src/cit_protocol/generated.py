@@ -670,6 +670,49 @@ class FabricRoleTarget(BaseModel):
     ]
 
 
+class FlowRoleGroupTarget(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    roles: Annotated[list[Identifier], Field(max_length=16, min_length=1)]
+    requiredCapability: Annotated[
+        str | None,
+        Field(
+            description='Skip assigned roles whose node does not consume this exact output capability.',
+            max_length=128,
+            min_length=3,
+            pattern='^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$',
+            title='CapabilityIdentifier',
+        ),
+    ] = None
+
+
+class FlowPayloadRoleTarget(BaseModel):
+    model_config = ConfigDict(
+        extra='forbid',
+    )
+    roleFromPayload: Annotated[
+        str,
+        Field(
+            max_length=128,
+            min_length=1,
+            pattern='^[A-Za-z0-9][A-Za-z0-9._-]*$',
+            title='Identifier',
+        ),
+    ]
+    allowedRoles: Annotated[list[Identifier], Field(max_length=16, min_length=1)]
+    requiredCapability: Annotated[
+        str | None,
+        Field(
+            description='Route only when the selected node consumes this exact output capability.',
+            max_length=128,
+            min_length=3,
+            pattern='^[a-z][a-z0-9_]*(?:\\.[a-z][a-z0-9_]*)+$',
+            title='CapabilityIdentifier',
+        ),
+    ] = None
+
+
 class FabricCommandRequest(BaseModel):
     model_config = ConfigDict(
         extra='forbid',
@@ -1101,7 +1144,10 @@ class FlowRecipe(BaseModel):
     version: Annotated[int, Field(ge=1)]
     trigger: FlowTrigger
     command: FlowAction
-    target: FabricRoleTarget
+    target: Annotated[
+        FabricRoleTarget | FlowRoleGroupTarget | FlowPayloadRoleTarget,
+        Field(title='FlowTarget'),
+    ]
     guards: Annotated[list[FlowGuard], Field(max_length=16)]
     safetyProfile: Annotated[
         str,
@@ -1148,6 +1194,13 @@ class CourseRoleRequirement(BaseModel):
     oneOfCapabilities: Annotated[
         list[CapabilityIdentifier], Field(max_length=32, min_length=1)
     ]
+    allOfCapabilities: Annotated[
+        list[CapabilityIdentifier] | None,
+        Field(
+            description='Additional capabilities every node assigned to this role must expose.',
+            max_length=32,
+        ),
+    ] = None
     ioType: Annotated[
         IoType | None,
         Field(

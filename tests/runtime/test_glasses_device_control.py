@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -12,7 +13,12 @@ from cit_protocol import (
     IntegrationNode,
     PluginManifest,
 )
-from cit_runtime.fabric import FabricDispatchOutcome, InteractionFabric
+from cit_runtime.fabric import (
+    FabricConflictError,
+    FabricDispatchOutcome,
+    FabricPolicyError,
+    InteractionFabric,
+)
 from cit_runtime.fabric_course import load_builtin_course_pack
 from cit_runtime.fabric_repository import SQLiteFabricRepository
 
@@ -100,6 +106,7 @@ def _plugin_and_nodes(
         node("g2-a", published=[control], consumed=[]),
         node("sphero-a", published=[], consumed=[nudge, demonstration, light]),
         node("lego-a", published=[], consumed=[nudge, demonstration]),
+        node("dot-a", published=[], consumed=[light]),
         node(
             "tello-fleet-a",
             published=[],
@@ -624,3 +631,351 @@ async def test_meta_or_g2_all_plugs_intent_fans_out_to_each_assigned_plug() -> N
     assert all(command.action == POWER_SET_CAPABILITY for command in dispatched)
     assert all(command.parameters.model_dump(mode="json") == {"on": True} for command in dispatched)
     assert [item.stage.value for item in result.command_lifecycle].count("DISPATCHED") == 2
+
+
+@pytest.mark.asyncio
+async def test_capability_gated_robot_roles_include_light_only_dot_without_misrouting_motion() -> (
+    None
+):
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(repository, clock=lambda: NOW)
+        dispatched: list[FabricResolvedCommand] = []
+
+        async def dispatch(
+            command: FabricResolvedCommand,
+            _node: IntegrationNode,
+        ) -> FabricDispatchOutcome:
+            dispatched.append(command)
+            return FabricDispatchOutcome(accepted=True)
+
+        fabric.set_dispatcher(dispatch)
+        manifest, nodes = _plugin_and_nodes()
+        fabric.register_plugin_and_nodes(manifest, nodes)
+        pack = load_builtin_course_pack("glasses-device-control")
+        fabric.install_course_pack(pack, actor_id="instructor-a")
+        session = fabric.create_session(
+            CreateInteractionSessionRequest.model_validate(
+                {
+                    "coursePackId": pack.coursePackId,
+                    "coursePackVersion": pack.version,
+                    "siteId": "local-site",
+                    "roomId": "local-room",
+                    "mode": "simulation",
+                }
+            ),
+            actor_id="instructor-a",
+        )
+        for role, node_id in (
+            ("glasses_input_1", "g2-a"),
+            ("ground_output_1", "dot-a"),
+            ("ground_output_2", "sphero-a"),
+        ):
+            fabric.assign_role(session.sessionId, role, node_id, actor_id="instructor-a")
+        fabric.transition_session(session.sessionId, "start", actor_id="instructor-a")
+
+        await fabric.ingest_event(_event(session.sessionId, action="forward", sequence=1))
+        await fabric.ingest_event(_event(session.sessionId, action="light", sequence=2))
+        await fabric.ingest_event(
+            _event(
+                session.sessionId,
+                action="light",
+                target="assigned_output",
+                target_role="ground_output_1",
+                sequence=3,
+            )
+        )
+
+    assert [(command.targetNodeId, command.action) for command in dispatched] == [
+        ("sphero-a", NUDGE_CAPABILITY),
+        ("dot-a", LIGHT_CAPABILITY),
+        ("sphero-a", LIGHT_CAPABILITY),
+        ("dot-a", LIGHT_CAPABILITY),
+    ]
+
+
+@pytest.mark.asyncio
+async def test_canonical_stop_all_routes_every_safe_state_from_one_wearable_event() -> None:
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(repository, clock=lambda: NOW)
+        dispatched: list[FabricResolvedCommand] = []
+        all_started = asyncio.Event()
+
+        async def dispatch(
+            command: FabricResolvedCommand,
+            _node: IntegrationNode,
+        ) -> FabricDispatchOutcome:
+            dispatched.append(command)
+            if len(dispatched) == 3:
+                all_started.set()
+            await asyncio.wait_for(all_started.wait(), timeout=0.5)
+            return FabricDispatchOutcome(accepted=True)
+
+        fabric.set_dispatcher(dispatch)
+        manifest, nodes = _plugin_and_nodes()
+        fabric.register_plugin_and_nodes(manifest, nodes)
+        pack = load_builtin_course_pack("glasses-device-control")
+        fabric.install_course_pack(pack, actor_id="instructor-a")
+        session = fabric.create_session(
+            CreateInteractionSessionRequest.model_validate(
+                {
+                    "coursePackId": pack.coursePackId,
+                    "coursePackVersion": pack.version,
+                    "siteId": "local-site",
+                    "roomId": "local-room",
+                    "mode": "simulation",
+                }
+            ),
+            actor_id="instructor-a",
+        )
+        for role, node_id in (
+            ("glasses_input_1", "g2-a"),
+            ("ground_output_1", "sphero-a"),
+            ("fleet_sequence_controller", "tello-fleet-a"),
+            ("power_output_1", "matter-plug-a"),
+        ):
+            fabric.assign_role(session.sessionId, role, node_id, actor_id="instructor-a")
+        fabric.transition_session(session.sessionId, "start", actor_id="instructor-a")
+
+        result = await fabric.ingest_event(
+            _event(session.sessionId, action="stop", target="all_outputs")
+        )
+
+    assert {(command.targetNodeId, command.action) for command in dispatched} == {
+        ("sphero-a", NUDGE_CAPABILITY),
+        ("tello-fleet-a", FLEET_STOP_CAPABILITY),
+        ("matter-plug-a", POWER_SET_CAPABILITY),
+    }
+    assert next(
+        command for command in dispatched if command.targetNodeId == "sphero-a"
+    ).parameters.model_dump(mode="json") == {"direction": "stop"}
+    assert next(
+        command for command in dispatched if command.targetNodeId == "matter-plug-a"
+    ).parameters.model_dump(mode="json") == {"on": False}
+    assert [item.stage.value for item in result.command_lifecycle].count("DISPATCHED") == 3
+
+
+@pytest.mark.asyncio
+async def test_exact_role_debounce_is_independent_for_each_selected_output() -> None:
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(repository, clock=lambda: NOW)
+        dispatched: list[FabricResolvedCommand] = []
+
+        async def dispatch(
+            command: FabricResolvedCommand,
+            _node: IntegrationNode,
+        ) -> FabricDispatchOutcome:
+            dispatched.append(command)
+            return FabricDispatchOutcome(accepted=True)
+
+        fabric.set_dispatcher(dispatch)
+        manifest, nodes = _plugin_and_nodes()
+        fabric.register_plugin_and_nodes(manifest, nodes)
+        pack = load_builtin_course_pack("glasses-device-control")
+        fabric.install_course_pack(pack, actor_id="instructor-a")
+        session = fabric.create_session(
+            CreateInteractionSessionRequest.model_validate(
+                {
+                    "coursePackId": pack.coursePackId,
+                    "coursePackVersion": pack.version,
+                    "siteId": "local-site",
+                    "roomId": "local-room",
+                    "mode": "simulation",
+                }
+            ),
+            actor_id="instructor-a",
+        )
+        for role, node_id in (
+            ("glasses_input_1", "g2-a"),
+            ("power_output_1", "matter-plug-a"),
+            ("power_output_2", "matter-plug-b"),
+        ):
+            fabric.assign_role(session.sessionId, role, node_id, actor_id="instructor-a")
+        fabric.transition_session(session.sessionId, "start", actor_id="instructor-a")
+
+        for sequence, role in enumerate(
+            ("power_output_1", "power_output_2", "power_output_1"),
+            start=1,
+        ):
+            await fabric.ingest_event(
+                _event(
+                    session.sessionId,
+                    action="power_on",
+                    target="assigned_output",
+                    target_role=role,
+                    sequence=sequence,
+                )
+            )
+
+    assert [command.targetNodeId for command in dispatched] == [
+        "matter-plug-a",
+        "matter-plug-b",
+    ]
+
+
+def test_demo_debounce_respects_the_capability_catalog_rate_limit() -> None:
+    descriptor = capability_descriptor("ground_demonstration_start", "consume")
+    maximum_rate_hz = descriptor["maximumRateHz"]
+    assert maximum_rate_hz == 0.5
+    assert isinstance(maximum_rate_hz, int | float)
+    minimum_debounce_ms = int(1_000 / maximum_rate_hz)
+    course = load_builtin_course_pack("glasses-device-control")
+
+    demo_flows = [
+        flow
+        for flow in course.flows
+        if flow.flowId in {"glasses-ground-demo", "glasses-exact-ground-demo"}
+    ]
+
+    assert len(demo_flows) == 2
+    assert all((flow.trigger.debounceMs or 0) >= minimum_debounce_ms for flow in demo_flows)
+
+
+def test_start_only_fleet_controller_cannot_be_assigned_to_takeoff_role() -> None:
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(repository, clock=lambda: NOW)
+        manifest, nodes = _plugin_and_nodes()
+        start_only_fleet = next(
+            node for node in nodes if node.nodeId == "tello-fleet-a"
+        ).model_copy(
+            update={
+                "consumedCapabilities": [
+                    capability
+                    for capability in next(
+                        node for node in nodes if node.nodeId == "tello-fleet-a"
+                    ).consumedCapabilities
+                    if capability.name == FLEET_START_CAPABILITY
+                ]
+            }
+        )
+        fabric.register_plugin_and_nodes(
+            manifest,
+            (
+                *(node for node in nodes if node.nodeId != "tello-fleet-a"),
+                start_only_fleet,
+            ),
+        )
+        pack = load_builtin_course_pack("glasses-device-control")
+        fabric.install_course_pack(pack, actor_id="instructor-a")
+        session = fabric.create_session(
+            CreateInteractionSessionRequest.model_validate(
+                {
+                    "coursePackId": pack.coursePackId,
+                    "coursePackVersion": pack.version,
+                    "siteId": "local-site",
+                    "roomId": "local-room",
+                    "mode": "simulation",
+                }
+            ),
+            actor_id="instructor-a",
+        )
+
+        with pytest.raises(FabricConflictError) as caught:
+            fabric.assign_role(
+                session.sessionId,
+                "fleet_sequence_controller",
+                start_only_fleet.nodeId,
+                actor_id="instructor-a",
+            )
+
+    assert caught.value.code == "CAPABILITY_MISMATCH"
+
+
+@pytest.mark.asyncio
+async def test_physical_light_only_output_requires_arming_and_then_routes_light() -> None:
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(repository, clock=lambda: NOW, allow_physical=True)
+        dispatched: list[FabricResolvedCommand] = []
+
+        async def dispatch(
+            command: FabricResolvedCommand,
+            _node: IntegrationNode,
+        ) -> FabricDispatchOutcome:
+            dispatched.append(command)
+            return FabricDispatchOutcome(accepted=True)
+
+        fabric.set_dispatcher(dispatch)
+        manifest, nodes = _plugin_and_nodes(physical=True)
+        selected = tuple(node for node in nodes if node.nodeId in {"g2-a", "dot-a"})
+        fabric.register_plugin_and_nodes(manifest, selected)
+        pack = load_builtin_course_pack("glasses-device-control")
+        fabric.install_course_pack(pack, actor_id="instructor-a")
+        session = fabric.create_session(
+            CreateInteractionSessionRequest.model_validate(
+                {
+                    "coursePackId": pack.coursePackId,
+                    "coursePackVersion": pack.version,
+                    "siteId": "local-site",
+                    "roomId": "local-room",
+                    "mode": "physical",
+                }
+            ),
+            actor_id="instructor-a",
+        )
+        for role, node_id in (
+            ("glasses_input_1", "g2-a"),
+            ("ground_output_1", "dot-a"),
+        ):
+            fabric.assign_role(session.sessionId, role, node_id, actor_id="instructor-a")
+
+        assert fabric.can_start_unarmed(session.sessionId) is False
+        with pytest.raises(FabricPolicyError) as caught:
+            fabric.transition_session(session.sessionId, "start", actor_id="instructor-a")
+        assert caught.value.code == "SESSION_NOT_ARMED"
+
+        fabric.transition_session(session.sessionId, "arm", actor_id="instructor-a")
+        fabric.transition_session(session.sessionId, "start", actor_id="instructor-a")
+        await fabric.ingest_event(_event(session.sessionId, action="light"))
+
+    assert [(command.targetNodeId, command.action) for command in dispatched] == [
+        ("dot-a", LIGHT_CAPABILITY)
+    ]
+
+
+@pytest.mark.asyncio
+async def test_payload_selected_role_cannot_escape_the_course_allowlist() -> None:
+    with SQLiteFabricRepository(":memory:") as repository:
+        fabric = InteractionFabric(repository, clock=lambda: NOW)
+        dispatched: list[FabricResolvedCommand] = []
+
+        async def dispatch(
+            command: FabricResolvedCommand,
+            _node: IntegrationNode,
+        ) -> FabricDispatchOutcome:
+            dispatched.append(command)
+            return FabricDispatchOutcome(accepted=True)
+
+        fabric.set_dispatcher(dispatch)
+        manifest, nodes = _plugin_and_nodes()
+        fabric.register_plugin_and_nodes(manifest, nodes)
+        pack = load_builtin_course_pack("glasses-device-control")
+        fabric.install_course_pack(pack, actor_id="instructor-a")
+        session = fabric.create_session(
+            CreateInteractionSessionRequest.model_validate(
+                {
+                    "coursePackId": pack.coursePackId,
+                    "coursePackVersion": pack.version,
+                    "siteId": "local-site",
+                    "roomId": "local-room",
+                    "mode": "simulation",
+                }
+            ),
+            actor_id="instructor-a",
+        )
+        for role, node_id in (
+            ("glasses_input_1", "g2-a"),
+            ("ground_output_1", "sphero-a"),
+        ):
+            fabric.assign_role(session.sessionId, role, node_id, actor_id="instructor-a")
+        fabric.transition_session(session.sessionId, "start", actor_id="instructor-a")
+
+        result = await fabric.ingest_event(
+            _event(
+                session.sessionId,
+                action="forward",
+                target="assigned_output",
+                target_role="glasses_input_1",
+            )
+        )
+
+    assert dispatched == []
+    assert result.command_lifecycle == ()

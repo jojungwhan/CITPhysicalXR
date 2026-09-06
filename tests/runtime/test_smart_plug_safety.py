@@ -21,6 +21,18 @@ from cit_runtime.fabric_repository import SQLiteFabricRepository
 NOW = datetime(2026, 8, 21, 3, 0, 0, tzinfo=UTC)
 
 
+def test_smart_plug_course_exposes_eight_independent_control_roles() -> None:
+    course = smart_plug_course_pack()
+
+    assert course.version == "1.1.0"
+    assert [role.role for role in course.roles] == [
+        "classroom_plug",
+        *(f"classroom_plug_{number}" for number in range(2, 9)),
+    ]
+    assert course.roles[0].optional is False
+    assert all(role.optional for role in course.roles[1:])
+
+
 def request(session_id: str, *, on: object) -> FabricCommandRequest:
     return FabricCommandRequest.model_validate(
         {
@@ -68,12 +80,13 @@ async def setup_physical_plug(
         electrical_telemetry=True,
     )
     fabric.register_plugin_and_nodes(build_manifest(), (node,))
-    fabric.install_course_pack(smart_plug_course_pack(), actor_id="instructor-a")
+    course = smart_plug_course_pack()
+    fabric.install_course_pack(course, actor_id="instructor-a")
     session = fabric.create_session(
         CreateInteractionSessionRequest.model_validate(
             {
                 "coursePackId": "smart-plug-control",
-                "coursePackVersion": "1.0.0",
+                "coursePackVersion": course.version,
                 "siteId": "local-site",
                 "roomId": "local-room",
                 "mode": "physical",

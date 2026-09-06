@@ -16,6 +16,7 @@ from cit_runtime.fabric_discovery import (
     FabricDiscoverySessionTarget,
     FabricRememberedConnection,
     LegoConnectionConfiguration,
+    MatterSetupCodeRegistry,
     MatterWifiConfiguration,
     SpheroBoltConnectionConfiguration,
     SpheroOllieConnectionConfiguration,
@@ -70,6 +71,12 @@ class RecordingRunner:
         raise NotImplementedError
 
     async def commission_matter(self, setup_code: str) -> str:
+        raise NotImplementedError
+
+    async def list_matter_setup_codes(self) -> MatterSetupCodeRegistry:
+        return MatterSetupCodeRegistry()
+
+    async def rename_matter_plug(self, matter_node_id: str, name: str) -> MatterSetupCodeRegistry:
         raise NotImplementedError
 
     async def connect_lego(self, configuration: LegoConnectionConfiguration) -> str:
