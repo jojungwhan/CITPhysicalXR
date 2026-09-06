@@ -40,6 +40,11 @@ import {
   canRunFabricDiscoveryConnection,
   discoveryLinkLabel,
 } from "./fabric-discovery.js";
+import {
+  allDemonstrationNodeIds,
+  selectedDemonstrationNodes,
+  toggledDemonstrationNodeIds,
+} from "./fabric-demonstration.js";
 import { consumeConsoleTicket } from "./fabric-console-access.js";
 import {
   awaitFabricCommandBatch,
@@ -113,6 +118,7 @@ import {
   currentSmartPlugNodes,
   smartPlugControlPlan,
   smartPlugStateFromHealth,
+  setupCodeMappingForMatterNode,
 } from "./fabric-smart-plug.js";
 import {
   latestSensorReadings,
@@ -137,6 +143,7 @@ import {
 } from "./fabric-i18n.js";
 import { LOCALES, readSavedLocale, saveLocale, type Locale } from "./i18n.js";
 import { FabricBrainDemoPanel } from "./FabricBrainDemoPanel.js";
+import { FabricDemonstrationSelector } from "./FabricDemonstrationSelector.js";
 import { FabricDeviceIoPanel } from "./FabricDeviceIoPanel.js";
 import { FabricDronePanel } from "./FabricDronePanel.js";
 import {
@@ -188,6 +195,8 @@ type IntegrationActionFeedback = FabricDiscoveryActionFeedback & {
   integrationId: string;
 };
 
+type FabricUseMode = "demonstration" | "lesson";
+
 export function FabricConsole() {
   const [locale, setLocaleState] = useState<Locale>(readSavedLocale);
   const t = useMemo(() => fabricTranslatorFor(locale), [locale]);
@@ -217,6 +226,9 @@ export function FabricConsole() {
   const [audit, setAudit] = useState<FabricAuditRecord[]>([]);
   const [selectedCourseKey, setSelectedCourseKey] = useState("");
   const [selectedSessionId, setSelectedSessionId] = useState("");
+  const [useMode, setUseMode] = useState<FabricUseMode>("demonstration");
+  const [demonstrationSelection, setDemonstrationSelection] =
+    useState<ReadonlySet<string> | null>(null);
   const [sessionStartPolicy, setSessionStartPolicy] =
     useState<FabricSessionStartPolicy | null>(null);
   const [roleSelections, setRoleSelections] = useState<Record<string, string>>(
@@ -341,6 +353,24 @@ export function FabricConsole() {
     () => nodes.filter(isAvailableFabricNode),
     [nodes],
   );
+  const selectedDemonstrationNodeIds = useMemo(
+    () => demonstrationSelection ?? allDemonstrationNodeIds(availableNodes),
+    [availableNodes, demonstrationSelection],
+  );
+  const directlyControlledNodes = useMemo(
+    () =>
+      useMode === "demonstration"
+        ? selectedDemonstrationNodes(
+            availableNodes,
+            selectedDemonstrationNodeIds,
+          )
+        : availableNodes,
+    [availableNodes, selectedDemonstrationNodeIds, useMode],
+  );
+  const directlyControlledNodeIds = useMemo(
+    () => allDemonstrationNodeIds(directlyControlledNodes),
+    [directlyControlledNodes],
+  );
   const offlineNodeCount = nodes.length - availableNodes.length;
   const knownSmartPlugNodes = useMemo(
     () => nodes.filter(isSmartPlugNode),
@@ -354,16 +384,34 @@ export function FabricConsole() {
     () => smartPlugControlPlan(currentKnownSmartPlugNodes),
     [currentKnownSmartPlugNodes],
   );
+  const displayedSmartPlugControls = useMemo(
+    () =>
+      useMode === "demonstration"
+        ? smartPlugControlPlan(
+            currentKnownSmartPlugNodes.filter(
+              (node) =>
+                isAvailableFabricNode(node) &&
+                directlyControlledNodeIds.has(node.nodeId),
+            ),
+          )
+        : plannedSmartPlugControls,
+    [
+      currentKnownSmartPlugNodes,
+      directlyControlledNodeIds,
+      plannedSmartPlugControls,
+      useMode,
+    ],
+  );
   const displayedSmartPlugNodes = useMemo(
-    () => plannedSmartPlugControls.map(({ node }) => node),
-    [plannedSmartPlugControls],
+    () => displayedSmartPlugControls.map(({ node }) => node),
+    [displayedSmartPlugControls],
   );
   const controlledSmartPlugControls = useMemo(
     () =>
-      plannedSmartPlugControls.filter(({ node }) =>
+      displayedSmartPlugControls.filter(({ node }) =>
         isAvailableFabricNode(node),
       ),
-    [plannedSmartPlugControls],
+    [displayedSmartPlugControls],
   );
   const controlledSmartPlugNodes = useMemo(
     () => controlledSmartPlugControls.map(({ node }) => node),
@@ -378,8 +426,8 @@ export function FabricConsole() {
     [controlledSmartPlugNodes, sessions],
   );
   const spheroNodes = useMemo(
-    () => availableNodes.filter(isSpheroNode),
-    [availableNodes],
+    () => directlyControlledNodes.filter(isSpheroNode),
+    [directlyControlledNodes],
   );
   const preferredSpheroSession = useMemo(
     () =>
@@ -408,8 +456,8 @@ export function FabricConsole() {
       ? preferredSpheroSession
       : undefined;
   const telloNodes = useMemo(
-    () => availableNodes.filter(isTelloNode),
-    [availableNodes],
+    () => directlyControlledNodes.filter(isTelloNode),
+    [directlyControlledNodes],
   );
   const controlledTelloNodes = useMemo(
     () => telloNodes.slice(0, 8),
@@ -445,13 +493,13 @@ export function FabricConsole() {
   const assignedWonderRobots = useMemo(
     () =>
       (selectedSession?.roleBindings ?? []).flatMap((binding) => {
-        const node = availableNodes.find(
+        const node = directlyControlledNodes.find(
           (candidate) =>
             candidate.nodeId === binding.nodeId && isWonderNode(candidate),
         );
         return node === undefined ? [] : [{ role: binding.role, node }];
       }),
-    [availableNodes, selectedSession?.roleBindings],
+    [directlyControlledNodes, selectedSession?.roleBindings],
   );
   const assignedSpheroRobots = useMemo(
     () =>
@@ -471,8 +519,10 @@ export function FabricConsole() {
         (binding) => binding.nodeId,
       ) ?? [],
     );
-    return availableNodes.filter((node) => assignedNodeIds.has(node.nodeId));
-  }, [availableNodes, synchronizedMotionSession?.roleBindings]);
+    return directlyControlledNodes.filter((node) =>
+      assignedNodeIds.has(node.nodeId),
+    );
+  }, [directlyControlledNodes, synchronizedMotionSession?.roleBindings]);
   const synchronizedInputs = useMemo(
     () => synchronizedInputKinds(synchronizedInputNodes),
     [synchronizedInputNodes],
@@ -480,7 +530,7 @@ export function FabricConsole() {
   const brainDemoBinding = selectedSession?.roleBindings.find(
     (binding) => binding.role === "brain_flight_demo",
   );
-  const brainDemoController = availableNodes.find(
+  const brainDemoController = directlyControlledNodes.find(
     (node) =>
       node.nodeId === brainDemoBinding?.nodeId &&
       isBrainDemoControllerNode(node),
@@ -490,8 +540,8 @@ export function FabricConsole() {
     [brainDemoController?.nodeId, events],
   );
   const fleetSequenceControllerNodes = useMemo(
-    () => availableNodes.filter(isFleetSequenceControllerNode),
-    [availableNodes],
+    () => directlyControlledNodes.filter(isFleetSequenceControllerNode),
+    [directlyControlledNodes],
   );
   const fleetControlSession = useMemo(
     () =>
@@ -527,7 +577,7 @@ export function FabricConsole() {
       plannedControlAssignments(
         displayedSmartPlugNodes,
         smartPlugControlSession,
-        (index) => plannedSmartPlugControls[index]?.role ?? "classroom_plug",
+        (index) => displayedSmartPlugControls[index]?.role ?? "classroom_plug",
         isSmartPlugRole,
       ).map(({ role, node }) => ({
         role,
@@ -538,13 +588,13 @@ export function FabricConsole() {
       })),
     [
       displayedSmartPlugNodes,
+      displayedSmartPlugControls,
       events,
-      plannedSmartPlugControls,
       smartPlugControlSession?.roleBindings,
     ],
   );
   const selectedSmartPlug = assignedSmartPlugs.find(({ node }) =>
-    isAvailableFabricNode(node),
+    directlyControlledNodeIds.has(node.nodeId),
   )?.node;
   const sensorReadings = useMemo(() => latestSensorReadings(events), [events]);
   const canTurnSmartPlugOff =
@@ -920,6 +970,7 @@ export function FabricConsole() {
     setSynchronizedMotionEnabled(false);
     setIncludeTelloInSynchronizedMotion(false);
     setSynchronizedMotionSessionId("");
+    setDemonstrationSelection(null);
     physicalModeDefaulted.current = false;
     setNotice(t("notice.signedOut"));
   };
@@ -1158,7 +1209,7 @@ export function FabricConsole() {
     }
 
     const errors: unknown[] = [];
-    const hasWearableProjection = availableNodes.some(
+    const hasWearableProjection = directlyControlledNodes.some(
       (node) => node.pluginId === "cit.agent-mesh-bridge",
     );
     if (hasWearableProjection) {
@@ -1173,7 +1224,7 @@ export function FabricConsole() {
       }
     }
 
-    const hasMindWave = availableNodes.some(
+    const hasMindWave = directlyControlledNodes.some(
       (node) => node.metadata.model === "mindwave-mobile2",
     );
     if (hasMindWave) {
@@ -1259,7 +1310,7 @@ export function FabricConsole() {
       ) {
         throw new Error(t("error.noSynchronizedMotors"));
       }
-      const hasInput = availableNodes.some(
+      const hasInput = directlyControlledNodes.some(
         (node) =>
           node.pluginId === "cit.agent-mesh-bridge" ||
           node.metadata.model === "mindwave-mobile2",
@@ -2500,7 +2551,13 @@ export function FabricConsole() {
       case "matter-smart-plugs":
         return (
           <FabricSmartPlugPanel
-            plugs={assignedSmartPlugs}
+            plugs={
+              useMode === "demonstration"
+                ? assignedSmartPlugs.filter(({ node }) =>
+                    connectedNodeIds.has(node.nodeId),
+                  )
+                : assignedSmartPlugs
+            }
             setupCodes={matterSetupCodes}
             sessionState={smartPlugControlSession?.state ?? ""}
             sessionMode={smartPlugControlSession?.mode}
@@ -2637,15 +2694,22 @@ export function FabricConsole() {
             return node === undefined ? [] : [node];
           },
         );
+        const visibleConnectedNodes =
+          useMode === "demonstration"
+            ? selectedDemonstrationNodes(
+                connectedNodes,
+                selectedDemonstrationNodeIds,
+              )
+            : connectedNodes;
         return (
           <FabricDiscoveryCard
             key={integration.integrationId}
             integration={integration}
-            connectedNodes={connectedNodes}
+            connectedNodes={visibleConnectedNodes}
             readings={sensorReadings}
             inlineControls={inlineControlsForIntegration(
               integration,
-              connectedNodes,
+              visibleConnectedNodes,
             )}
             locale={locale}
             t={t}
@@ -2734,17 +2798,71 @@ export function FabricConsole() {
           </div>
         )}
 
-        <FabricSetupProgress
-          ariaLabel={t("guide.progress")}
-          currentStep={guide.step}
-          steps={[
-            { label: t("guide.step.find"), targetId: "device-discovery" },
-            { label: t("guide.step.choose"), targetId: "lesson-setup" },
-            { label: t("guide.step.assign"), targetId: "device-setup" },
-            { label: t("guide.step.safety"), targetId: "lesson-safety" },
-            { label: t("guide.step.teach"), targetId: "live-controls" },
-          ]}
-        />
+        <section
+          className="fabric-panel fabric-use-mode"
+          aria-labelledby="fabric-use-mode-title"
+        >
+          <PanelHeading eyebrow={t("mode.eyebrow")} title={t("mode.title")} />
+          <div
+            className="fabric-use-mode-choices"
+            role="group"
+            aria-label={t("mode.title")}
+          >
+            <button
+              type="button"
+              className={useMode === "demonstration" ? "is-selected" : ""}
+              aria-pressed={useMode === "demonstration"}
+              onClick={() => setUseMode("demonstration")}
+            >
+              <strong>{t("mode.demonstration")}</strong>
+              <small>{t("mode.demonstrationHelp")}</small>
+            </button>
+            <button
+              type="button"
+              className={useMode === "lesson" ? "is-selected" : ""}
+              aria-pressed={useMode === "lesson"}
+              onClick={() => setUseMode("lesson")}
+            >
+              <strong>{t("mode.lesson")}</strong>
+              <small>{t("mode.lessonHelp")}</small>
+            </button>
+          </div>
+        </section>
+
+        {useMode === "lesson" ? (
+          <FabricSetupProgress
+            ariaLabel={t("guide.progress")}
+            currentStep={guide.step}
+            steps={[
+              { label: t("guide.step.find"), targetId: "device-discovery" },
+              { label: t("guide.step.choose"), targetId: "lesson-setup" },
+              { label: t("guide.step.assign"), targetId: "device-setup" },
+              { label: t("guide.step.safety"), targetId: "lesson-safety" },
+              { label: t("guide.step.teach"), targetId: "live-controls" },
+            ]}
+          />
+        ) : (
+          <FabricDemonstrationSelector
+            nodes={availableNodes}
+            selectedNodeIds={selectedDemonstrationNodeIds}
+            nodeName={(node) =>
+              setupCodeMappingForMatterNode(node, matterSetupCodes)?.name ??
+              node.displayName
+            }
+            onSelectAll={() => setDemonstrationSelection(null)}
+            onClear={() => setDemonstrationSelection(new Set())}
+            onToggle={(nodeId, selected) =>
+              setDemonstrationSelection((current) =>
+                toggledDemonstrationNodeIds(
+                  current ?? allDemonstrationNodeIds(availableNodes),
+                  nodeId,
+                  selected,
+                ),
+              )
+            }
+            t={t}
+          />
+        )}
 
         <section
           className="fabric-panel fabric-discovery-panel"
@@ -2957,7 +3075,10 @@ export function FabricConsole() {
           )}
         </section>
 
-        <section className="fabric-grid fabric-setup-grid">
+        <section
+          className="fabric-grid fabric-setup-grid"
+          hidden={useMode !== "lesson"}
+        >
           <article
             className="fabric-panel fabric-session-builder"
             id="lesson-setup"
@@ -3226,6 +3347,7 @@ export function FabricConsole() {
         <section
           className={`fabric-panel fabric-safety-panel ${selectedSession?.armed ? "is-armed" : "is-safe"}`}
           id="lesson-safety"
+          hidden={useMode !== "lesson"}
         >
           <div className="fabric-safety-summary">
             <span className="fabric-safety-icon" aria-hidden="true">
@@ -3328,7 +3450,11 @@ export function FabricConsole() {
           </div>
         </section>
 
-        <section className="fabric-panel fabric-test-panel" id="live-controls">
+        <section
+          className="fabric-panel fabric-test-panel"
+          id="live-controls"
+          hidden={useMode !== "lesson"}
+        >
           <PanelHeading eyebrow={t("test.step5")} title={t("test.title")} />
           <div className="fabric-test-actions">
             {(selectedCourse?.flows.length ?? 0) > 0 && (

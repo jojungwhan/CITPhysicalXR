@@ -123,6 +123,128 @@ main.fabric-main {
   padding: 8px 0 30px;
 }
 
+.fabric-console [hidden] {
+  display: none !important;
+}
+
+.fabric-use-mode {
+  display: grid;
+  margin-top: 8px;
+  gap: 8px;
+  border-color: rgb(158 234 100 / 22%);
+  background:
+    radial-gradient(circle at 0 0, rgb(158 234 100 / 8%), transparent 34%),
+    #111914;
+}
+
+.fabric-use-mode-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 8px;
+}
+
+.fabric-use-mode-choices button {
+  display: grid;
+  min-height: 68px;
+  padding: 10px 12px;
+  align-content: center;
+  gap: 4px;
+  border-color: rgb(255 255 255 / 10%);
+  text-align: left;
+}
+
+.fabric-use-mode-choices button strong,
+.fabric-use-mode-choices button small {
+  display: block;
+}
+
+.fabric-use-mode-choices button small {
+  color: #93a198;
+  line-height: 1.35;
+}
+
+.fabric-use-mode-choices button.is-selected {
+  border-color: rgb(158 234 100 / 58%);
+  background: rgb(158 234 100 / 12%);
+  box-shadow: inset 3px 0 0 var(--fabric-green);
+}
+
+.fabric-demonstration-selector {
+  margin-top: 8px;
+  border-color: rgb(117 199 255 / 22%);
+  background: #101a20;
+}
+
+.fabric-demonstration-selector > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fabric-demonstration-selector > header > strong {
+  flex: none;
+  padding: 4px 9px;
+  border-radius: 99px;
+  color: #b9dfff;
+  background: rgb(117 199 255 / 10%);
+  font-size: 0.74rem;
+}
+
+.fabric-demonstration-actions {
+  display: flex;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.fabric-demonstration-devices {
+  display: grid;
+  margin-top: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 6px;
+}
+
+.fabric-demonstration-devices label {
+  display: grid;
+  min-width: 0;
+  padding: 8px 9px;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgb(255 255 255 / 9%);
+  border-radius: 9px;
+  background: rgb(0 0 0 / 13%);
+  cursor: pointer;
+}
+
+.fabric-demonstration-devices input {
+  width: 17px;
+  height: 17px;
+  margin: 0;
+  accent-color: var(--fabric-green);
+}
+
+.fabric-demonstration-devices span,
+.fabric-demonstration-devices strong,
+.fabric-demonstration-devices small {
+  display: block;
+  min-width: 0;
+}
+
+.fabric-demonstration-devices strong,
+.fabric-demonstration-devices small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fabric-demonstration-devices small {
+  margin-top: 2px;
+  color: #87968c;
+  font-size: 0.72rem;
+}
+
 .fabric-setup-progress {
   margin: 5px 0;
   padding: 5px clamp(6px, 2vw, 14px);

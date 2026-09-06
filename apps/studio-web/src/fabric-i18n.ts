@@ -18,6 +18,28 @@ const EN = {
   "document.title": "CIT Classroom Control",
   "common.moreInfo": "More information",
 
+  "mode.eyebrow": "Choose how to use CIT",
+  "mode.title": "Direct demonstration or class lesson",
+  "mode.demonstration": "Direct demonstration",
+  "mode.demonstrationHelp":
+    "Select connected devices immediately; no lesson choice is required.",
+  "mode.lesson": "Class lesson",
+  "mode.lessonHelp":
+    "Choose a course and assign roles for a structured class session.",
+
+  "demonstration.eyebrow": "Direct device selection",
+  "demonstration.title": "Demonstration devices",
+  "demonstration.help":
+    "All connected devices are selected by default. Clear the selection or choose only the devices needed for this demonstration.",
+  "demonstration.safety":
+    "Selection alone never starts movement or turns on an output. Each direct control keeps its existing safety confirmation and bounded session.",
+  "demonstration.selectAll": "Select all connected devices",
+  "demonstration.clear": "Clear selection",
+  "demonstration.selected": "{selected} of {count} selected",
+  "demonstration.none":
+    "No devices are connected yet. Find or connect devices below.",
+  "demonstration.toggle": "Select {device} for demonstration",
+
   "g2.guide.title": "What the glasses connection can do",
   "g2.guide.input":
     "Send voice or button input to the assigned Codex or Claude session.",
@@ -1177,6 +1199,26 @@ const KO: Record<FabricMessageKey, string> = {
   "language.label": "화면 언어",
   "document.title": "CIT 수업 제어",
   "common.moreInfo": "자세히",
+
+  "mode.eyebrow": "CIT 사용 목적",
+  "mode.title": "바로 데모 또는 수업 준비",
+  "mode.demonstration": "바로 데모",
+  "mode.demonstrationHelp": "수업을 고르지 않고 연결된 장치를 바로 선택합니다.",
+  "mode.lesson": "수업 준비",
+  "mode.lessonHelp": "수업을 선택하고 역할을 배정해 단계별로 준비합니다.",
+
+  "demonstration.eyebrow": "장치 직접 선택",
+  "demonstration.title": "데모 장치",
+  "demonstration.help":
+    "연결된 모든 장치가 기본으로 선택됩니다. 선택을 해제하거나 이번 데모에 필요한 장치만 고를 수 있습니다.",
+  "demonstration.safety":
+    "장치를 선택해도 움직이거나 출력이 켜지지 않습니다. 각 직접 제어에는 기존 안전 확인과 제한된 세션이 그대로 적용됩니다.",
+  "demonstration.selectAll": "연결된 장치 모두 선택",
+  "demonstration.clear": "모두 선택 해제",
+  "demonstration.selected": "{count}개 중 {selected}개 선택",
+  "demonstration.none":
+    "아직 연결된 장치가 없습니다. 아래에서 장치를 찾거나 연결하세요.",
+  "demonstration.toggle": "{device} 데모 선택",
 
   "g2.guide.title": "안경 연결로 할 수 있는 일",
   "g2.guide.input":
