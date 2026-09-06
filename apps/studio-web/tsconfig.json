@@ -20,6 +20,9 @@
       "@citxr/blockly-cit": ["../../packages/blockly-cit/src/index.ts"],
       "@citxr/project-format": ["../../packages/project-format/src/index.ts"],
       "@citxr/protocol": ["../../packages/protocol-ts/src/index.ts"],
+      "@citxr/protocol/flow-target": [
+        "../../packages/protocol-ts/src/flow-target.ts"
+      ],
       "@citxr/student-runtime-web": [
         "../../packages/student-runtime-web/src/index.ts"
       ]

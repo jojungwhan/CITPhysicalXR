@@ -1,4 +1,7 @@
-import { flowTargetRoles, type CoursePack } from "@citxr/protocol";
+import type { CoursePack } from "@citxr/protocol";
+// The protocol root's runtime exports initialize AJV. Keep this value import on
+// the CSP-safe helper subpath so the eager /fabric bundle needs no unsafe-eval.
+import { flowTargetRoles } from "@citxr/protocol/flow-target";
 
 export interface FabricParallelOutput {
   flowId: string;
