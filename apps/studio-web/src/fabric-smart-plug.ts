@@ -1,5 +1,12 @@
 export const POWER_SET_CAPABILITY = "power.switch.set";
 export const POWER_STATE_CAPABILITY = "power.switch.state";
+export const SMART_PLUG_SELECTION_STORAGE_KEY =
+  "citxr.fabric.smartPlugSelection.v1";
+
+type SmartPlugSelectionStorage = Pick<
+  Storage,
+  "getItem" | "setItem" | "removeItem"
+>;
 
 interface SmartPlugNodeCapabilities {
   consumedCapabilities: readonly { name: string }[];
@@ -64,6 +71,70 @@ export const isSmartPlugRole = (role: string): boolean =>
   /^classroom_plug(?:_[2-8])?$/.test(role);
 
 const MAX_SMART_PLUG_CONTROLS = 8;
+
+const validSavedSmartPlugNodeId = (value: unknown): value is string =>
+  typeof value === "string" && value.length > 0 && value.length <= 256;
+
+const browserLocalStorage = (): SmartPlugSelectionStorage | undefined => {
+  if (typeof window === "undefined") return undefined;
+  try {
+    return window.localStorage;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Restore this browser's selected plug identities without trusting storage. */
+export function readSmartPlugSelection(
+  storage: SmartPlugSelectionStorage | undefined = browserLocalStorage(),
+): ReadonlySet<string> {
+  if (storage === undefined) return new Set();
+  try {
+    const saved = storage.getItem(SMART_PLUG_SELECTION_STORAGE_KEY);
+    if (saved === null) return new Set();
+    const parsed: unknown = JSON.parse(saved);
+    if (!Array.isArray(parsed)) return new Set();
+    return new Set(
+      parsed
+        .filter(validSavedSmartPlugNodeId)
+        .slice(0, MAX_SMART_PLUG_CONTROLS),
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+/** Save only UI selection; no plug credential or power state is stored. */
+export function saveSmartPlugSelection(
+  nodeIds: Iterable<string>,
+  storage: SmartPlugSelectionStorage | undefined = browserLocalStorage(),
+): void {
+  if (storage === undefined) return;
+  const normalized = Array.from(new Set(nodeIds))
+    .filter(validSavedSmartPlugNodeId)
+    .slice(0, MAX_SMART_PLUG_CONTROLS);
+  try {
+    if (normalized.length === 0) {
+      storage.removeItem(SMART_PLUG_SELECTION_STORAGE_KEY);
+    } else {
+      storage.setItem(
+        SMART_PLUG_SELECTION_STORAGE_KEY,
+        JSON.stringify(normalized),
+      );
+    }
+  } catch {
+    // Browser privacy settings or a full quota must not break plug controls.
+  }
+}
+
+export function retainKnownSmartPlugSelection(
+  selectedNodeIds: ReadonlySet<string>,
+  knownNodeIds: ReadonlySet<string>,
+): ReadonlySet<string> {
+  return new Set(
+    Array.from(selectedNodeIds).filter((nodeId) => knownNodeIds.has(nodeId)),
+  );
+}
 
 /** Build the exact bounded role plan shared by the visible controls and session. */
 export function smartPlugControlPlan<T extends SmartPlugNodeIdentity>(

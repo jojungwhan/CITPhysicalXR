@@ -10,6 +10,9 @@ import {
 import { isAvailableFabricNode } from "./fabric-node-io.js";
 import {
   formatMatterSetupCode,
+  readSmartPlugSelection,
+  retainKnownSmartPlugSelection,
+  saveSmartPlugSelection,
   setupCodeMappingForMatterNode,
   type MatterSetupCodeMapping,
   type SmartPlugState,
@@ -58,7 +61,7 @@ export function FabricSmartPlugPanel({
     () => new Set(),
   );
   const [selectedNodeIds, setSelectedNodeIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
+    readSmartPlugSelection,
   );
   const [editingMatterNodeId, setEditingMatterNodeId] = useState<
     string | undefined
@@ -74,9 +77,9 @@ export function FabricSmartPlugPanel({
     () => plugs.filter(({ node }) => isAvailableFabricNode(node)),
     [plugs],
   );
-  const availableNodeIds = useMemo(
-    () => new Set(availablePlugs.map(({ node }) => node.nodeId)),
-    [availablePlugs],
+  const knownNodeIds = useMemo(
+    () => new Set(plugs.map(({ node }) => node.nodeId)),
+    [plugs],
   );
   const selectedPlugs = availablePlugs.filter(({ node }) =>
     selectedNodeIds.has(node.nodeId),
@@ -85,13 +88,16 @@ export function FabricSmartPlugPanel({
     availablePlugs.length > 0 && selectedPlugs.length === availablePlugs.length;
 
   useEffect(() => {
+    if (plugs.length === 0) return;
     setSelectedNodeIds((current) => {
-      const next = new Set(
-        Array.from(current).filter((nodeId) => availableNodeIds.has(nodeId)),
-      );
+      const next = retainKnownSmartPlugSelection(current, knownNodeIds);
       return next.size === current.size ? current : next;
     });
-  }, [availableNodeIds]);
+  }, [knownNodeIds, plugs.length]);
+
+  useEffect(() => {
+    saveSmartPlugSelection(selectedNodeIds);
+  }, [selectedNodeIds]);
 
   useEffect(() => {
     if (selectAllRef.current !== null) {
@@ -224,7 +230,7 @@ export function FabricSmartPlugPanel({
               <label className="fabric-plug-select-one">
                 <input
                   type="checkbox"
-                  checked={selectedNodeIds.has(node.nodeId)}
+                  checked={available && selectedNodeIds.has(node.nodeId)}
                   aria-label={t("plug.selectOne", { name })}
                   disabled={!available || busy}
                   onChange={(event) => {

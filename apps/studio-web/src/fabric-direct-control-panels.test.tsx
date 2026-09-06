@@ -8,6 +8,10 @@ import { FabricSpheroSetup } from "./FabricSpheroSetup.js";
 import { FabricDronePanel } from "./FabricDronePanel.js";
 import type { FabricDiscoveryCandidate } from "./fabric-client.js";
 import { fabricTranslatorFor } from "./fabric-i18n.js";
+import {
+  saveSmartPlugSelection,
+  SMART_PLUG_SELECTION_STORAGE_KEY,
+} from "./fabric-smart-plug.js";
 
 const physicalNode = (overrides: Partial<IntegrationNode>): IntegrationNode =>
   ({
@@ -18,6 +22,15 @@ const physicalNode = (overrides: Partial<IntegrationNode>): IntegrationNode =>
     metadata: {},
     ...overrides,
   }) as IntegrationNode;
+
+const memoryStorage = () => {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+  };
+};
 
 const flightCapability = (
   name: string,
@@ -205,6 +218,49 @@ describe("Fabric direct device controls", () => {
       expect(html).toContain(`교실 플러그 ${number}`);
       expect(html).toContain(`aria-label="교실 플러그 ${number} 선택"`);
       expect(html).toContain(`aria-label="교실 플러그 ${number}: 켜기"`);
+    }
+  });
+
+  it("restores checked plugs by node identity after a reload", () => {
+    const storage = memoryStorage();
+    saveSmartPlugSelection(["plug-2"], storage);
+    vi.stubGlobal("window", { localStorage: storage });
+
+    try {
+      const html = renderToStaticMarkup(
+        <FabricSmartPlugPanel
+          plugs={[1, 2].map((number) => ({
+            role: number === 1 ? "classroom_plug" : `classroom_plug_${number}`,
+            node: physicalNode({
+              nodeId: `plug-${number}`,
+              displayName: "Smart Wi-Fi Plug",
+            }),
+            state: { on: false, observedAt: "2026-09-06T12:00:00Z" },
+          }))}
+          sessionState="active"
+          sessionMode="physical"
+          sessionArmed
+          busy={false}
+          canSubmit
+          canManageSession
+          requiredRolesReady
+          onPower={vi.fn()}
+          onGroupPower={vi.fn()}
+          t={t}
+        />,
+      );
+
+      const firstPlugCheckbox = html.match(
+        /<input[^>]*aria-label="교실 플러그 1 선택"[^>]*>/,
+      )?.[0];
+      const secondPlugCheckbox = html.match(
+        /<input[^>]*aria-label="교실 플러그 2 선택"[^>]*>/,
+      )?.[0];
+      expect(firstPlugCheckbox).not.toContain("checked");
+      expect(secondPlugCheckbox).toContain("checked");
+    } finally {
+      vi.unstubAllGlobals();
+      storage.removeItem(SMART_PLUG_SELECTION_STORAGE_KEY);
     }
   });
 
