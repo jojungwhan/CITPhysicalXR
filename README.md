@@ -187,6 +187,20 @@ The plug must actually run Matter firmware; branding alone is not enough. See
 `docs/operations/matter-smart-plug-windows.md` for installation, real-hardware
 testing, and moving the setup to another Windows computer.
 
+## Protected Creality 3D-printer workflow
+
+Classroom Control has a separate 3D-printer workspace for the K1 Max at
+`172.30.1.55`. It stages STL/3MF locally, invokes the installed Creality Print
+CLI only for explicit local slicing, and keeps download, upload-only, and print
+start as distinct actions. The printer never joins lesson, demonstration, or
+**Select all** fan-out. A current-print lock is enabled on every start and, while
+locked, panel refreshes make no printer network request.
+
+Live monitoring and writes remain off until an owner verifies an exposed,
+documented Moonraker endpoint after the existing print has finished. If none is
+available, download the reviewed G-code and use Creality Print manually. See
+`docs/operations/creality-k1-max.md`.
+
 ## Tello and MindWave through the latest Brain2Devices
 
 The external source is pinned once in `config/external-sources.yaml` to
@@ -343,6 +357,10 @@ Platform paths are stored separately and never translated between Windows and Li
   headset, smart plug, or aircraft was connected or commanded in this change.
   Tello, MindWave, LEGO, Sphero BOLT, RoboMaster/Leap, and smart-plug paths therefore still
   have software/simulator evidence only.
+- The Creality panel and Moonraker boundary have fake-transport evidence only.
+  The current printer was deliberately not contacted; model generation,
+  documented endpoint availability, slicing profile, and live transfer still
+  require owner-supervised acceptance after the current print finishes.
 - The business installer places Pybricks Bluetooth dependencies in the local
   hardware environment. Their optional transitive licence metadata remains a
   documented distribution concern; it does not weaken the runtime boundary or

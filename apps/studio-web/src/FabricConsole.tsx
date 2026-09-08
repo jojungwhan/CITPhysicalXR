@@ -25,6 +25,9 @@ import {
   type FabricIntegrationDiscovery,
   type FabricMediaPairing,
   type FabricMediaSource,
+  type FabricPrinterGcodeArtifact,
+  type FabricPrinterSnapshot,
+  type FabricPrinterStartIntent,
   type FabricRememberedConnections,
   type LegoConnectionConfiguration,
   type MatterSetupCodeEntry,
@@ -42,6 +45,8 @@ import {
 } from "./fabric-discovery.js";
 import {
   allDemonstrationNodeIds,
+  readDemonstrationSelection,
+  saveDemonstrationSelection,
   selectedDemonstrationNodes,
   toggledDemonstrationNodeIds,
 } from "./fabric-demonstration.js";
@@ -157,6 +162,7 @@ import { FabricInstallationPanel } from "./FabricInstallationPanel.js";
 import { FabricLegoSetup } from "./FabricLegoSetup.js";
 import { FabricLeapPanel } from "./FabricLeapPanel.js";
 import { FabricMatterSetup } from "./FabricMatterSetup.js";
+import { FabricPrinterPanel } from "./FabricPrinterPanel.js";
 import { FabricSpheroPanel } from "./FabricSpheroPanel.js";
 import { FabricSpheroSetup } from "./FabricSpheroSetup.js";
 import { FabricSetupProgress } from "./FabricSetupProgress.js";
@@ -214,6 +220,7 @@ export function FabricConsole() {
     useState<FabricRememberedConnections | null>(null);
   const [installation, setInstallation] =
     useState<FabricInstallationInfo | null>(null);
+  const [printer, setPrinter] = useState<FabricPrinterSnapshot | null>(null);
   const [coursePacks, setCoursePacks] = useState<CoursePack[]>([]);
   const [sessions, setSessions] = useState<InteractionSession[]>([]);
   const [events, setEvents] = useState<StoredFabricEvent[]>([]);
@@ -228,7 +235,7 @@ export function FabricConsole() {
   const [selectedSessionId, setSelectedSessionId] = useState("");
   const [useMode, setUseMode] = useState<FabricUseMode>("demonstration");
   const [demonstrationSelection, setDemonstrationSelection] =
-    useState<ReadonlySet<string> | null>(null);
+    useState<ReadonlySet<string> | null>(readDemonstrationSelection);
   const [sessionStartPolicy, setSessionStartPolicy] =
     useState<FabricSessionStartPolicy | null>(null);
   const [roleSelections, setRoleSelections] = useState<Record<string, string>>(
@@ -357,6 +364,10 @@ export function FabricConsole() {
     () => demonstrationSelection ?? allDemonstrationNodeIds(availableNodes),
     [availableNodes, demonstrationSelection],
   );
+
+  useEffect(() => {
+    saveDemonstrationSelection(demonstrationSelection);
+  }, [demonstrationSelection]);
   const directlyControlledNodes = useMemo(
     () =>
       useMode === "demonstration"
@@ -651,6 +662,13 @@ export function FabricConsole() {
               throw caught;
             })
           : Promise.resolve(null);
+        const printerPromise = client
+          .getPrinterSnapshot()
+          .catch((caught: unknown) => {
+            if (caught instanceof FabricApiError && caught.status === 404)
+              return null;
+            throw caught;
+          });
         const [
           nextNodes,
           nextDiscovery,
@@ -659,6 +677,7 @@ export function FabricConsole() {
           nextMediaSources,
           nextRememberedConnections,
           nextInstallation,
+          nextPrinter,
         ] = await Promise.all([
           client.listNodes(),
           client.getDiscovery(),
@@ -667,6 +686,7 @@ export function FabricConsole() {
           canReadMedia ? client.listMediaSources() : Promise.resolve([]),
           rememberedPromise,
           installationPromise,
+          printerPromise,
         ]);
         setNodes(nextNodes);
         setDiscovery(nextDiscovery);
@@ -675,6 +695,7 @@ export function FabricConsole() {
         setMediaSources(nextMediaSources);
         setRememberedConnections(nextRememberedConnections);
         setInstallation(nextInstallation);
+        setPrinter(nextPrinter);
         const nextFleetControllerIds = nextNodes
           .filter(
             (node) =>
@@ -956,6 +977,7 @@ export function FabricConsole() {
     setDiscovery(null);
     setRememberedConnections(null);
     setInstallation(null);
+    setPrinter(null);
     setCoursePacks([]);
     setSessions([]);
     setSessionStartPolicy(null);
@@ -970,7 +992,6 @@ export function FabricConsole() {
     setSynchronizedMotionEnabled(false);
     setIncludeTelloInSynchronizedMotion(false);
     setSynchronizedMotionSessionId("");
-    setDemonstrationSelection(null);
     physicalModeDefaulted.current = false;
     setNotice(t("notice.signedOut"));
   };
@@ -1009,6 +1030,72 @@ export function FabricConsole() {
       setNotice(
         t("notice.siteTemplateDownloaded", { site: siteId, room: roomId }),
       );
+    });
+
+  const verifyPrinterIdle = () =>
+    runAction("busy.printerVerify", async () => {
+      const result = await client.verifyPrinterIdle();
+      setPrinter(result.snapshot);
+      setNotice(t("notice.printerIdle"));
+    });
+
+  const stagePrinterModel = (file: File) =>
+    runAction("busy.printerStage", async () => {
+      await client.stagePrinterSource(file);
+      setNotice(t("notice.printerStaged", { name: file.name }));
+    });
+
+  const slicePrinterModel = (sourceId: string, profileId: string) =>
+    runAction("busy.printerSlice", async () => {
+      const result = await client.slicePrinterSource(sourceId, profileId);
+      setPrinter(result.snapshot);
+      setNotice(t("notice.printerSliced"));
+    });
+
+  const downloadPrinterGcode = (artifact: FabricPrinterGcodeArtifact) =>
+    runAction("busy.printerDownload", async () => {
+      const downloaded = await client.downloadPrinterArtifact(
+        artifact.artifactId,
+      );
+      if (
+        downloaded.sha256 !== undefined &&
+        downloaded.sha256 !== artifact.sha256
+      ) {
+        throw new Error("Printer artifact checksum mismatch.");
+      }
+      saveBlobAsFile(downloaded.blob, artifact.fileName);
+      setNotice(t("notice.printerDownloaded"));
+    });
+
+  const uploadPrinterGcode = (artifactId: string) =>
+    runAction("busy.printerUpload", async () => {
+      const result = await client.uploadPrinterArtifact(artifactId);
+      setPrinter(result.snapshot);
+      setNotice(t("notice.printerUploaded"));
+    });
+
+  const preparePrinterStart = async (
+    artifactId: string,
+  ): Promise<FabricPrinterStartIntent | undefined> => {
+    let intent: FabricPrinterStartIntent | undefined;
+    const prepared = await runAction("busy.printerPrepareStart", async () => {
+      intent = await client.preparePrinterStart(artifactId);
+    });
+    return prepared ? intent : undefined;
+  };
+
+  const startPrinterGcode = (artifactId: string, confirmationToken: string) =>
+    runAction("busy.printerStart", async () => {
+      const result = await client.startPrinterArtifact(
+        artifactId,
+        confirmationToken,
+        {
+          plateClearConfirmed: true,
+          profileConfirmed: true,
+        },
+      );
+      setPrinter(result.snapshot);
+      setNotice(t("notice.printerStarted"));
     });
 
   const createSession = () =>
@@ -2863,6 +2950,20 @@ export function FabricConsole() {
             t={t}
           />
         )}
+
+        <FabricPrinterPanel
+          printer={printer}
+          busy={busy !== null}
+          canManage={canSubmitCommands}
+          onVerifyIdle={verifyPrinterIdle}
+          onStage={stagePrinterModel}
+          onSlice={slicePrinterModel}
+          onDownload={downloadPrinterGcode}
+          onUpload={uploadPrinterGcode}
+          onPrepareStart={preparePrinterStart}
+          onStart={startPrinterGcode}
+          t={t}
+        />
 
         <section
           className="fabric-panel fabric-discovery-panel"

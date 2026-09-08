@@ -30,6 +30,19 @@ def test_shared_launcher_uses_one_use_fragment_ticket_without_printing_a_token()
     assert '"Open"' in launcher
 
 
+def test_shared_launcher_allows_owned_browser_to_save_ui_state_before_forced_fallback() -> None:
+    launcher = _launcher("interaction-fabric-console.ps1")
+    stop_browser = launcher.split("function Stop-OwnedTutorBrowser", 1)[1].split(
+        "function Start-OwnedTutorBrowser", 1
+    )[0]
+
+    graceful_close = stop_browser.index("CloseMainWindow()")
+    graceful_wait = stop_browser.index("Wait-Until")
+    forced_fallback = stop_browser.index("Stop-Process")
+
+    assert graceful_close < graceful_wait < forced_fallback
+
+
 @pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows UI")
 def test_shared_launcher_replaces_its_owned_browser_window(tmp_path: Path) -> None:
     """Opening Classroom Control twice leaves one isolated CIT browser process."""

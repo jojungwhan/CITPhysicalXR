@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   allDemonstrationNodeIds,
+  DEMONSTRATION_SELECTION_STORAGE_KEY,
+  readDemonstrationSelection,
+  saveDemonstrationSelection,
   selectedDemonstrationNodes,
   toggledDemonstrationNodeIds,
 } from "./fabric-demonstration.js";
@@ -41,6 +44,25 @@ describe("direct demonstration device selection", () => {
     expect([...removed]).toEqual(["tello-1"]);
   });
 
+  it("restores an explicit device subset, including selecting none", () => {
+    const storage = memoryStorage();
+
+    expect(readDemonstrationSelection(storage)).toBeNull();
+
+    saveDemonstrationSelection(new Set(["matter-13-ep1", "sphero-1"]), storage);
+    expect([...(readDemonstrationSelection(storage) ?? [])]).toEqual([
+      "matter-13-ep1",
+      "sphero-1",
+    ]);
+
+    saveDemonstrationSelection(new Set(), storage);
+    expect(storage.getItem(DEMONSTRATION_SELECTION_STORAGE_KEY)).toBe("[]");
+    expect(readDemonstrationSelection(storage)?.size).toBe(0);
+
+    saveDemonstrationSelection(null, storage);
+    expect(readDemonstrationSelection(storage)).toBeNull();
+  });
+
   it("reindexes a selected plug subset onto the required first control role", () => {
     const plugs = ["plug-a", "plug-b", "plug-c"].map((nodeId) => ({
       nodeId,
@@ -56,3 +78,12 @@ describe("direct demonstration device selection", () => {
     ).toEqual([["classroom_plug", "plug-c"]]);
   });
 });
+
+const memoryStorage = () => {
+  const values = new Map<string, string>();
+  return {
+    getItem: (key: string) => values.get(key) ?? null,
+    setItem: (key: string, value: string) => values.set(key, value),
+    removeItem: (key: string) => values.delete(key),
+  };
+};

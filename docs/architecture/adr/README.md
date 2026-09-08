@@ -38,3 +38,4 @@ ADRs are immutable decision snapshots. A superseding decision adds a new ADR and
 - [0034 — Wearable smart-plug control through exact Fabric roles (superseded in part)](0034-wearable-smart-plug-control.md)
 - [0035 — Canonical turn-on-all demonstration (superseded in part)](0035-canonical-turn-on-all-demonstration.md)
 - [0036 — Capability-gated wearable routing](0036-capability-gated-wearable-routing.md)
+- [0037 — Bounded, separately confirmed 3D-printer jobs](0037-bounded-3d-printer-jobs.md)

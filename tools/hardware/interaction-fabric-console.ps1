@@ -214,10 +214,37 @@ function Get-OwnedTutorBrowserProcesses {
 
 function Stop-OwnedTutorBrowser {
   $owned = @(Get-OwnedTutorBrowserProcesses)
+  $gracefulCloseRequested = $false
   foreach ($process in $owned) {
+    try {
+      $browserProcess = Get-Process -Id ([int]$process.ProcessId) -ErrorAction Stop
+      if (
+        $browserProcess.MainWindowHandle -ne [IntPtr]::Zero -and
+        $browserProcess.CloseMainWindow()
+      ) {
+        $gracefulCloseRequested = $true
+      }
+    } catch {
+      # The process may already have followed its browser host out.
+    }
+  }
+
+  if ($gracefulCloseRequested) {
+    try {
+      Wait-Until {
+        @(Get-OwnedTutorBrowserProcesses).Count -eq 0
+      } "The previous Classroom Control window did not close gracefully" 5
+      return
+    } catch {
+      Write-Verbose "The prior Classroom Control window needs a forced fallback"
+    }
+  }
+
+  $remaining = @(Get-OwnedTutorBrowserProcesses)
+  foreach ($process in $remaining) {
     Stop-Process -Id ([int]$process.ProcessId) -Force -ErrorAction SilentlyContinue
   }
-  if ($owned.Count -gt 0) {
+  if ($remaining.Count -gt 0) {
     Wait-Until {
       @(Get-OwnedTutorBrowserProcesses).Count -eq 0
     } "The previous Classroom Control window did not close" 10

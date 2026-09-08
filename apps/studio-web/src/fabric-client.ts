@@ -297,6 +297,107 @@ export interface FabricInstallationDownload {
   sha256?: string;
 }
 
+export type FabricPrinterState =
+  | "current_print_locked"
+  | "unconfigured"
+  | "standby"
+  | "printing"
+  | "paused"
+  | "error"
+  | "complete"
+  | "cancelled"
+  | "starting"
+  | "offline"
+  | "unknown";
+
+export interface FabricPrinterTemperature {
+  actualCelsius: number;
+  targetCelsius: number;
+}
+
+export interface FabricPrinterJob {
+  filename: string;
+  progressPercent?: number;
+  elapsedSeconds?: number;
+}
+
+export interface FabricPrinterProfile {
+  profileId: string;
+  displayName: string;
+  printerModel: string;
+  nozzleDiameterMm: number;
+  filament: string;
+  process: string;
+  available: boolean;
+}
+
+export interface FabricPrinterSourceArtifact {
+  artifactId: string;
+  fileName: string;
+  mediaType: string;
+  sizeBytes: number;
+  sha256: string;
+  createdAt: string;
+}
+
+export interface FabricPrinterGcodeArtifact {
+  artifactId: string;
+  fileName: string;
+  sizeBytes: number;
+  sha256: string;
+  createdAt: string;
+  sourceArtifactId: string;
+  profileId: string;
+  remoteFileName?: string;
+  uploadedAt?: string;
+  startAttemptedAt?: string;
+}
+
+export interface FabricPrinterSnapshot {
+  schemaVersion: "1.0";
+  printerId: string;
+  displayName: string;
+  model: string;
+  address: string;
+  transport: string;
+  state: FabricPrinterState;
+  lastCheckedAt?: string;
+  currentJob?: FabricPrinterJob;
+  nozzle?: FabricPrinterTemperature;
+  bed?: FabricPrinterTemperature;
+  operations: {
+    stageSource: boolean;
+    verifyIdle: boolean;
+    slice: boolean;
+    upload: boolean;
+    start: boolean;
+    lockReasonCode?:
+      | "current_print"
+      | "monitoring_not_configured"
+      | "remote_writes_disabled"
+      | "not_standby";
+    lockReason?: string;
+  };
+  profiles: FabricPrinterProfile[];
+  sources: FabricPrinterSourceArtifact[];
+  gcodeArtifacts: FabricPrinterGcodeArtifact[];
+}
+
+export interface FabricPrinterStartIntent {
+  artifactId: string;
+  confirmationToken: string;
+  expiresAt: string;
+  remoteFileName: string;
+  sha256: string;
+  profileId: string;
+}
+
+export interface FabricPrinterActionResult {
+  accepted: boolean;
+  message: string;
+  snapshot: FabricPrinterSnapshot;
+}
+
 interface FabricErrorBody {
   code?: unknown;
   message?: unknown;
@@ -398,6 +499,123 @@ export class FabricClient {
 
   getInstallationInfo(): Promise<FabricInstallationInfo> {
     return this.#request("/api/v1/fabric/installation");
+  }
+
+  getPrinterSnapshot(): Promise<FabricPrinterSnapshot> {
+    return this.#request("/api/v1/fabric/printer");
+  }
+
+  verifyPrinterIdle(): Promise<FabricPrinterActionResult> {
+    return this.#request("/api/v1/fabric/printer/verify-idle", {
+      method: "POST",
+    });
+  }
+
+  async stagePrinterSource(file: File): Promise<FabricPrinterSourceArtifact> {
+    if (this.#credential === undefined) {
+      throw new Error("Enter a CIT Fabric credential before connecting.");
+    }
+    const suffix = file.name.slice(file.name.lastIndexOf(".")).toLowerCase();
+    if (
+      ![".stl", ".3mf"].includes(suffix) ||
+      file.size < 1 ||
+      file.size > 64 * 1024 * 1024 ||
+      file.name.length > 160 ||
+      file.name.includes("/") ||
+      file.name.includes("\\") ||
+      Array.from(file.name).some((character) => {
+        const codePoint = character.codePointAt(0) ?? 0;
+        return codePoint < 32 || codePoint === 127;
+      })
+    ) {
+      throw new Error("Choose an STL or 3MF model no larger than 64 MiB.");
+    }
+    const response = await this.#fetch(
+      `${this.#baseUrl}/api/v1/fabric/printer/sources`,
+      {
+        method: "POST",
+        cache: "no-store",
+        credentials: "omit",
+        headers: {
+          Accept: "application/json",
+          Authorization: `Bearer ${this.#credential}`,
+          "Content-Type": suffix === ".stl" ? "model/stl" : "model/3mf",
+          "X-CIT-Filename": encodeURIComponent(file.name),
+        },
+        body: file,
+      },
+    );
+    return this.#readResponse<FabricPrinterSourceArtifact>(response);
+  }
+
+  slicePrinterSource(
+    sourceId: string,
+    profileId: string,
+  ): Promise<FabricPrinterActionResult> {
+    return this.#request(
+      `/api/v1/fabric/printer/sources/${encodeURIComponent(sourceId)}/slice`,
+      {
+        method: "POST",
+        body: JSON.stringify({ profileId }),
+      },
+    );
+  }
+
+  uploadPrinterArtifact(
+    artifactId: string,
+  ): Promise<FabricPrinterActionResult> {
+    return this.#request(
+      `/api/v1/fabric/printer/artifacts/${encodeURIComponent(artifactId)}/upload`,
+      { method: "POST" },
+    );
+  }
+
+  preparePrinterStart(artifactId: string): Promise<FabricPrinterStartIntent> {
+    return this.#request(
+      `/api/v1/fabric/printer/artifacts/${encodeURIComponent(artifactId)}/start-intent`,
+      { method: "POST" },
+    );
+  }
+
+  startPrinterArtifact(
+    artifactId: string,
+    confirmationToken: string,
+    confirmations: {
+      plateClearConfirmed: true;
+      profileConfirmed: true;
+    },
+  ): Promise<FabricPrinterActionResult> {
+    return this.#request(
+      `/api/v1/fabric/printer/artifacts/${encodeURIComponent(artifactId)}/start`,
+      {
+        method: "POST",
+        body: JSON.stringify({ confirmationToken, ...confirmations }),
+      },
+    );
+  }
+
+  async downloadPrinterArtifact(
+    artifactId: string,
+  ): Promise<FabricInstallationDownload> {
+    if (this.#credential === undefined) {
+      throw new Error("Enter a CIT Fabric credential before connecting.");
+    }
+    const response = await this.#fetch(
+      `${this.#baseUrl}/api/v1/fabric/printer/artifacts/${encodeURIComponent(artifactId)}/download`,
+      {
+        cache: "no-store",
+        credentials: "omit",
+        headers: {
+          Accept: "text/x-gcode,application/octet-stream",
+          Authorization: `Bearer ${this.#credential}`,
+        },
+      },
+    );
+    if (!response.ok) await this.#readResponse<never>(response);
+    return {
+      blob: await response.blob(),
+      ...optionalString("sha256", response.headers.get("x-cit-sha256")),
+    };
   }
 
   async downloadInstallationArtifact(
