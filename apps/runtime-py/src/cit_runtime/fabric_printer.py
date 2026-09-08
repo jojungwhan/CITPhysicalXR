@@ -14,7 +14,6 @@ import os
 import re
 import secrets
 import subprocess
-import sys
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -496,7 +495,7 @@ class CrealityPrintCliSlicer:
             )
         await asyncio.to_thread(output_directory.mkdir, parents=True, exist_ok=False)
         settings = f"{profile.printer_settings};{profile.process_settings}"
-        creation_flags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+        creation_flags = int(getattr(subprocess, "CREATE_NO_WINDOW", 0))
         process = await asyncio.create_subprocess_exec(
             str(self._executable),
             "--slice",
