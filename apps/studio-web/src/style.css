@@ -4491,6 +4491,332 @@ main.fabric-main {
   color: #8f9d94;
 }
 
+.fabric-printer-panel {
+  margin-top: 8px;
+  overflow: hidden;
+  scroll-margin-top: 72px;
+  border-color: rgb(117 199 255 / 24%);
+  background:
+    radial-gradient(circle at 100% 0, rgb(117 199 255 / 9%), transparent 32%),
+    #101820;
+}
+
+.fabric-printer-panel.is-current_print_locked {
+  border-color: rgb(255 157 98 / 34%);
+  background:
+    radial-gradient(circle at 100% 0, rgb(255 157 98 / 8%), transparent 32%),
+    #171613;
+}
+
+.fabric-printer-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.fabric-printer-heading h2 {
+  margin: 2px 0 0;
+  color: #f0f6f1;
+}
+
+.fabric-printer-state {
+  padding: 5px 9px;
+  border: 1px solid rgb(117 199 255 / 28%);
+  border-radius: 99px;
+  color: #b9dfff;
+  background: rgb(117 199 255 / 9%);
+  font-size: 0.75rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.fabric-printer-state.is-current_print_locked,
+.fabric-printer-state.is-printing,
+.fabric-printer-state.is-paused,
+.fabric-printer-state.is-error {
+  border-color: rgb(255 157 98 / 34%);
+  color: #ffd6bd;
+  background: rgb(255 157 98 / 10%);
+}
+
+.fabric-printer-identity {
+  display: grid;
+  margin-top: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 6px;
+}
+
+.fabric-printer-identity > div {
+  display: grid;
+  min-width: 0;
+  padding: 7px 9px;
+  gap: 2px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 8px;
+  background: rgb(0 0 0 / 16%);
+}
+
+.fabric-printer-identity strong,
+.fabric-printer-identity span {
+  overflow-wrap: anywhere;
+  color: #e8f2eb;
+}
+
+.fabric-printer-identity small {
+  color: #87978d;
+  font-size: 0.7rem;
+}
+
+.fabric-printer-current-job {
+  display: grid;
+  margin-top: 7px;
+  padding: 8px 9px;
+  grid-template-columns: auto minmax(0, 1fr) minmax(100px, 0.4fr);
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgb(117 199 255 / 18%);
+  border-radius: 8px;
+  background: rgb(117 199 255 / 5%);
+}
+
+.fabric-printer-current-job span {
+  overflow: hidden;
+  color: #b7c7bc;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fabric-printer-current-job progress {
+  width: 100%;
+}
+
+.fabric-printer-safety {
+  display: flex;
+  margin-top: 8px;
+  padding: 8px 9px;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgb(158 234 100 / 22%);
+  border-radius: 9px;
+  background: rgb(158 234 100 / 6%);
+}
+
+.fabric-printer-safety.is-locked {
+  border-color: rgb(255 157 98 / 27%);
+  background: rgb(255 157 98 / 6%);
+}
+
+.fabric-printer-safety > span {
+  flex: 0 0 auto;
+}
+
+.fabric-printer-safety > div {
+  display: grid;
+  min-width: 0;
+  margin-right: auto;
+  gap: 2px;
+}
+
+.fabric-printer-safety strong {
+  color: #ecf5ef;
+}
+
+.fabric-printer-safety small {
+  color: #98a79e;
+  line-height: 1.35;
+}
+
+.fabric-printer-safety .fabric-info-disclosure {
+  flex: 0 0 auto;
+}
+
+.fabric-printer-verify {
+  display: grid;
+  width: min(100%, 420px);
+  margin-top: 8px;
+  text-align: left;
+}
+
+.fabric-printer-verify small {
+  margin-top: 2px;
+  color: #94a39a;
+}
+
+.fabric-printer-workflow {
+  display: grid;
+  margin: 10px 0 0;
+  padding: 0;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 7px;
+  list-style: none;
+}
+
+.fabric-printer-workflow > li {
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid rgb(255 255 255 / 8%);
+  border-radius: 9px;
+  background: rgb(0 0 0 / 13%);
+}
+
+.fabric-printer-step-heading {
+  display: flex;
+  min-height: 36px;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.fabric-printer-step-heading > span {
+  display: grid;
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 50%;
+  color: #0c1710;
+  background: var(--fabric-green);
+  font-size: 0.72rem;
+  font-weight: 900;
+}
+
+.fabric-printer-step-heading > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.fabric-printer-step-heading strong {
+  color: #e9f3eb;
+}
+
+.fabric-printer-step-heading small {
+  color: #8e9d94;
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.fabric-printer-file-form,
+.fabric-printer-slice-controls {
+  display: grid;
+  margin-top: 8px;
+  gap: 6px;
+}
+
+.fabric-printer-file-form input[type="file"] {
+  min-width: 0;
+  padding: 6px;
+  font-size: 0.73rem;
+}
+
+.fabric-printer-select {
+  min-width: 0;
+  margin-top: 7px;
+}
+
+.fabric-printer-select span {
+  color: #91a198;
+  font-size: 0.7rem;
+}
+
+.fabric-printer-empty {
+  margin: 9px 0 0;
+  color: #819087;
+  font-size: 0.76rem;
+}
+
+.fabric-printer-artifacts {
+  display: grid;
+  margin: 8px 0 0;
+  padding: 0;
+  gap: 6px;
+  list-style: none;
+}
+
+.fabric-printer-artifacts > li {
+  display: grid;
+  min-width: 0;
+  padding: 7px;
+  gap: 7px;
+  border: 1px solid rgb(117 199 255 / 13%);
+  border-radius: 7px;
+  background: rgb(117 199 255 / 4%);
+}
+
+.fabric-printer-artifacts > li > div:first-child {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.fabric-printer-artifacts strong,
+.fabric-printer-artifacts small,
+.fabric-printer-artifacts span {
+  overflow-wrap: anywhere;
+}
+
+.fabric-printer-artifacts small,
+.fabric-printer-artifacts span {
+  color: #8f9e95;
+  font-size: 0.68rem;
+}
+
+.fabric-printer-artifact-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.fabric-printer-artifact-actions button {
+  padding: 5px 7px;
+  font-size: 0.7rem;
+}
+
+.fabric-printer-start-button,
+.fabric-printer-confirm-start {
+  border-color: rgb(255 157 98 / 45%) !important;
+  color: #ffe1d0 !important;
+  background: rgb(255 157 98 / 10%) !important;
+}
+
+.fabric-printer-start-confirmation {
+  margin-top: 8px;
+  padding: 10px;
+  border: 1px solid rgb(255 157 98 / 38%);
+  border-radius: 9px;
+  background: rgb(255 157 98 / 7%);
+}
+
+.fabric-printer-start-confirmation h3 {
+  margin: 0 0 5px;
+  color: #ffe6d8;
+}
+
+.fabric-printer-start-confirmation > p {
+  margin: 0 0 8px;
+  color: #bdc9c1;
+  overflow-wrap: anywhere;
+}
+
+.fabric-printer-start-confirmation label {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+}
+
+.fabric-printer-start-confirmation input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
+.fabric-printer-start-confirmation > div {
+  display: flex;
+  margin-top: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .fabric-spinner {
   width: 28px;
   height: 28px;
@@ -4532,6 +4858,14 @@ main.fabric-main {
 }
 
 @media (max-width: 800px) {
+  .fabric-printer-workflow {
+    grid-template-columns: 1fr;
+  }
+
+  .fabric-printer-current-job {
+    grid-template-columns: 1fr;
+  }
+
   .fabric-grid,
   .fabric-stream-grid,
   .fabric-test-actions,

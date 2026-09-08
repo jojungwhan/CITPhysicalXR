@@ -42,6 +42,12 @@ from .fabric_media import (
     configured_vision_detector,
 )
 from .fabric_media_api import install_fabric_media_api
+from .fabric_printer import (
+    CrealityPrinterService,
+    configured_creality_printer,
+    disabled_creality_printer,
+)
+from .fabric_printer_api import install_fabric_printer_api
 from .fabric_repository import SQLiteFabricRepository
 
 
@@ -112,6 +118,7 @@ def create_fabric_app(
     vision_detector: VisionDetector | None = None,
     media_ingress_origin: str | None = None,
     installation_directory: str | Path | None = None,
+    printer_service: CrealityPrinterService | None = None,
 ) -> FastAPI:
     """Create one independently authenticated Interaction Fabric process."""
 
@@ -132,6 +139,9 @@ def create_fabric_app(
     configured_media = media_registry or FabricMediaRegistry()
     configured_detector = vision_detector or configured_vision_detector()
     configured_installation = FabricInstallationCatalog.load(installation_directory)
+    configured_printer = printer_service or disabled_creality_printer(
+        (Path.cwd() / ".cit-printer-staging").resolve()
+    )
 
     repository: SQLiteFabricRepository | None = None
     fabric: InteractionFabric | None = None
@@ -162,6 +172,9 @@ def create_fabric_app(
 
     def active_discovery() -> FabricDiscoveryService:
         return configured_discovery
+
+    def active_printer() -> CrealityPrinterService:
+        return configured_printer
 
     async def dispatch(
         command: FabricResolvedCommand,
@@ -296,10 +309,22 @@ def create_fabric_app(
                     status_code=400,
                     content={"code": "INVALID_CONTENT_LENGTH", "message": "Invalid request"},
                 )
-            if body_size > 1_048_576:
+            request_limit = (
+                64 * 1024 * 1024
+                if request.url.path == "/api/v1/fabric/printer/sources"
+                else 1_048_576
+            )
+            if body_size > request_limit:
                 return JSONResponse(
                     status_code=413,
-                    content={"code": "REQUEST_TOO_LARGE", "message": "Request exceeds 1 MiB"},
+                    content={
+                        "code": "REQUEST_TOO_LARGE",
+                        "message": (
+                            "Printer model exceeds 64 MiB"
+                            if request_limit > 1_048_576
+                            else "Request exceeds 1 MiB"
+                        ),
+                    },
                 )
         response = await call_next(request)
         response.headers["Content-Security-Policy"] = (
@@ -337,6 +362,13 @@ def create_fabric_app(
         get_repository=active_repository,
         clock=wall_clock,
         media_ingress_origin=media_ingress_origin,
+    )
+    install_fabric_printer_api(
+        app,
+        get_printer=active_printer,
+        get_auth=active_auth,
+        get_repository=active_repository,
+        clock=wall_clock,
     )
 
     @app.get("/api/v1/fabric/healthz")
@@ -497,6 +529,10 @@ def create_persistent_fabric_app() -> FastAPI:
         ),
         physical_actuation_enabled=physical_setting == "true",
     )
+    printer = configured_creality_printer(
+        data_directory,
+        allow_physical=physical_setting == "true",
+    )
     return create_fabric_app(
         database_path=data_directory / "interaction-fabric.sqlite3",
         fabric_bootstrap_identities=(bootstrap,),
@@ -507,4 +543,5 @@ def create_persistent_fabric_app() -> FastAPI:
         discovery_service=discovery,
         media_ingress_origin=configured_media_ingress,
         installation_directory=installation_directory,
+        printer_service=printer,
     )

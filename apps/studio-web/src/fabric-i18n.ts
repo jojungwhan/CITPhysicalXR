@@ -208,6 +208,16 @@ const EN = {
   "notice.noObjects": "No configured objects were recognized in {source}.",
   "notice.objects":
     "Recognized {labels} in {source}. Review the boxes before choosing any device action.",
+  "notice.printerIdle":
+    "The printer reported standby; the current-print lock was released.",
+  "notice.printerStaged":
+    "{name} was added locally. Nothing was sent to the printer.",
+  "notice.printerSliced":
+    "G-code was prepared locally. Nothing was sent to the printer.",
+  "notice.printerDownloaded":
+    "The reviewed G-code was downloaded for manual handoff.",
+  "notice.printerUploaded": "G-code was uploaded only; printing did not start.",
+  "notice.printerStarted": "The printer confirmed the print start.",
 
   "busy.authenticating": "Authenticating",
   "busy.downloadingInstaller": "Downloading and verifying Windows setup",
@@ -251,6 +261,13 @@ const EN = {
   "busy.fleetStart": "Starting the armed fleet sequence",
   "busy.fleetStop": "Stopping and landing the selected fleet",
   "busy.vision": "Recognizing objects in {name}",
+  "busy.printerVerify": "Checking documented printer status",
+  "busy.printerStage": "Adding model locally",
+  "busy.printerSlice": "Preparing G-code locally",
+  "busy.printerDownload": "Downloading reviewed G-code",
+  "busy.printerUpload": "Uploading G-code without starting",
+  "busy.printerPrepareStart": "Preparing final print confirmation",
+  "busy.printerStart": "Sending the one-time print start",
 
   "error.selectCourse": "Select an installed course pack.",
   "error.glassesControlSession":
@@ -723,6 +740,73 @@ const EN = {
   "plug.offState": "OFF",
   "plug.help":
     "Choose On or Off directly. CIT prepares the local control session automatically; use only an approved classroom load.",
+
+  "printer.eyebrow": "Fabrication device",
+  "printer.title": "3D printer",
+  "printer.loading": "Loading the protected printer workspace…",
+  "printer.transport": "Connection",
+  "printer.transportUnverified": "Not verified",
+  "printer.nozzle": "Nozzle",
+  "printer.bed": "Bed",
+  "printer.currentJob": "Current job",
+  "printer.progress": "Print progress",
+  "printer.currentPrintProtected": "Current print protected",
+  "printer.separateActions": "Prepare, upload, and start remain separate",
+  "printer.readyHelp":
+    "The printer is ready for the next explicitly confirmed step.",
+  "printer.lockReason.currentPrint":
+    "The current print is protected. Verify standby after it finishes.",
+  "printer.lockReason.monitoringNotConfigured":
+    "Documented Moonraker monitoring has not been configured.",
+  "printer.lockReason.remoteWritesDisabled":
+    "Remote upload and print start are disabled.",
+  "printer.lockReason.notStandby":
+    "Remote writes require standby; current state is {state}.",
+  "printer.safetyHelp":
+    "CIT never turns an STL directly into an unattended print. The selected printer, nozzle, material, process, build plate, orientation, and supports must be reviewed first.",
+  "printer.noFanout":
+    "Print start is never included in Select all, lesson fan-out, demonstration fan-out, or automatic retry.",
+  "printer.verifyIdle": "Print finished — verify standby",
+  "printer.verifyIdleHelp":
+    "Use only after checking the printer physically; this performs a read-only status request.",
+  "printer.stageTitle": "Add a model locally",
+  "printer.stageHelp":
+    "STL or 3MF, up to 64 MiB. Nothing is sent to the printer.",
+  "printer.chooseModel": "Choose an STL or 3MF model",
+  "printer.addModel": "Add model",
+  "printer.model": "Staged model",
+  "printer.sliceTitle": "Prepare reviewed G-code",
+  "printer.sliceHelp":
+    "Creality Print runs locally with one exact printer, process, and filament profile.",
+  "printer.profile": "Print profile",
+  "printer.noProfile": "No verified profile installed",
+  "printer.prepareGcode": "Prepare G-code",
+  "printer.outputTitle": "Choose the delivery step",
+  "printer.outputHelp":
+    "Download, upload only, and start are independent actions.",
+  "printer.noGcode": "No reviewed G-code has been prepared yet.",
+  "printer.localOnly": "Local only — not uploaded",
+  "printer.uploadedAs": "Uploaded as {name}; not started",
+  "printer.download": "Download G-code",
+  "printer.uploadOnly": "Upload only",
+  "printer.startPrint": "Start print",
+  "printer.confirmTitle": "Final physical confirmation",
+  "printer.confirmPlate": "The build plate is clear, installed, and ready.",
+  "printer.confirmMaterial":
+    "The selected printer generation, 0.4 mm nozzle, Generic PLA, and profile match the physical printer.",
+  "printer.cancel": "Cancel",
+  "printer.confirmStart": "Confirm and start this print",
+  "printer.state.current_print_locked": "Locked — current print",
+  "printer.state.unconfigured": "Setup required",
+  "printer.state.standby": "Standby",
+  "printer.state.printing": "Printing",
+  "printer.state.paused": "Paused",
+  "printer.state.error": "Printer error",
+  "printer.state.complete": "Last job complete",
+  "printer.state.cancelled": "Last job cancelled",
+  "printer.state.starting": "Starting",
+  "printer.state.offline": "Offline",
+  "printer.state.unknown": "State unknown",
 
   "nodes.eyebrow": "Device status",
   "nodes.title": "Everything connected to this classroom",
@@ -1384,6 +1468,17 @@ const KO: Record<FabricMessageKey, string> = {
   "notice.noObjects": "{source} 영상에서 설정된 물체를 찾지 못했습니다.",
   "notice.objects":
     "{source} 영상에서 {labels}을(를) 찾았습니다. 장치 동작을 선택하기 전에 표시 상자를 확인하세요.",
+  "notice.printerIdle":
+    "프린터가 대기 상태임을 확인해 현재 출력 보호 잠금을 해제했습니다.",
+  "notice.printerStaged":
+    "{name}을(를) 이 PC에 추가했습니다. 프린터로 전송하지 않았습니다.",
+  "notice.printerSliced":
+    "G-code를 이 PC에서 준비했습니다. 프린터로 전송하지 않았습니다.",
+  "notice.printerDownloaded":
+    "수동 전달용으로 검토한 G-code를 다운로드했습니다.",
+  "notice.printerUploaded":
+    "G-code만 업로드했습니다. 출력은 시작하지 않았습니다.",
+  "notice.printerStarted": "프린터가 출력 시작을 확인했습니다.",
   "busy.authenticating": "인증하는 중",
   "busy.downloadingInstaller": "Windows 설치 파일을 받고 검증하는 중",
   "busy.downloadingSiteTemplate": "인증 정보 없는 사이트 설정 준비 중",
@@ -1426,6 +1521,13 @@ const KO: Record<FabricMessageKey, string> = {
   "busy.fleetStart": "준비된 드론 순차 비행 시작 중",
   "busy.fleetStop": "선택한 드론 정지 및 착륙 중",
   "busy.vision": "{name}에서 물체 인식 중",
+  "busy.printerVerify": "문서화된 프린터 상태 확인 중",
+  "busy.printerStage": "모델을 이 PC에 추가하는 중",
+  "busy.printerSlice": "G-code를 이 PC에서 준비하는 중",
+  "busy.printerDownload": "검토한 G-code 다운로드 중",
+  "busy.printerUpload": "출력 시작 없이 G-code 업로드 중",
+  "busy.printerPrepareStart": "마지막 출력 확인 준비 중",
+  "busy.printerStart": "일회성 출력 시작 요청 중",
   "error.selectCourse": "설치된 수업을 선택하세요.",
   "error.glassesControlSession":
     "먼저 ‘안경으로 장치 제어’ 수업을 설정하고 선택하세요.",
@@ -1873,6 +1975,73 @@ const KO: Record<FabricMessageKey, string> = {
   "plug.offState": "꺼짐",
   "plug.help":
     "켜기 또는 끄기를 바로 선택하세요. CIT가 로컬 제어 세션을 자동으로 준비하며 승인된 교실 부하만 사용해야 합니다.",
+
+  "printer.eyebrow": "제작 장치",
+  "printer.title": "3D 프린터",
+  "printer.loading": "보호된 프린터 작업 공간을 불러오는 중…",
+  "printer.transport": "연결",
+  "printer.transportUnverified": "확인되지 않음",
+  "printer.nozzle": "노즐",
+  "printer.bed": "베드",
+  "printer.currentJob": "현재 작업",
+  "printer.progress": "출력 진행률",
+  "printer.currentPrintProtected": "현재 출력 보호 중",
+  "printer.separateActions": "준비 · 업로드 · 출력 시작을 각각 확인",
+  "printer.readyHelp": "다음 단계를 명시적으로 확인한 뒤 실행할 수 있습니다.",
+  "printer.lockReason.currentPrint":
+    "현재 출력이 끝난 뒤 대기 상태를 확인할 때까지 보호합니다.",
+  "printer.lockReason.monitoringNotConfigured":
+    "문서화된 Moonraker 모니터링이 아직 설정되지 않았습니다.",
+  "printer.lockReason.remoteWritesDisabled":
+    "원격 업로드와 출력 시작이 비활성화되어 있습니다.",
+  "printer.lockReason.notStandby":
+    "원격 작업에는 대기 상태가 필요합니다. 현재 상태: {state}",
+  "printer.safetyHelp":
+    "CIT는 STL을 검토 없이 바로 출력하지 않습니다. 프린터, 노즐, 재료, 공정, 빌드 플레이트, 방향과 서포트를 먼저 확인해야 합니다.",
+  "printer.noFanout":
+    "출력 시작은 전체 선택, 수업 일괄 실행, 데모 일괄 실행 또는 자동 재시도에 포함되지 않습니다.",
+  "printer.verifyIdle": "출력 완료 — 대기 상태 확인",
+  "printer.verifyIdleHelp":
+    "프린터를 직접 확인한 뒤에만 사용하세요. 읽기 전용 상태 요청만 수행합니다.",
+  "printer.stageTitle": "모델을 이 PC에 추가",
+  "printer.stageHelp": "64 MiB 이하 STL 또는 3MF · 프린터로 전송하지 않음",
+  "printer.chooseModel": "STL 또는 3MF 모델 선택",
+  "printer.addModel": "모델 추가",
+  "printer.model": "준비한 모델",
+  "printer.sliceTitle": "검토할 G-code 준비",
+  "printer.sliceHelp":
+    "Creality Print가 정확한 프린터·공정·필라멘트 프로필로 이 PC에서만 실행됩니다.",
+  "printer.profile": "출력 프로필",
+  "printer.noProfile": "확인된 프로필이 설치되어 있지 않음",
+  "printer.prepareGcode": "G-code 준비",
+  "printer.outputTitle": "전달 단계 선택",
+  "printer.outputHelp":
+    "다운로드, 업로드만, 출력 시작은 서로 독립된 작업입니다.",
+  "printer.noGcode": "아직 검토할 G-code가 없습니다.",
+  "printer.localOnly": "이 PC에만 있음 · 업로드하지 않음",
+  "printer.uploadedAs": "{name}(으)로 업로드됨 · 시작하지 않음",
+  "printer.download": "G-code 다운로드",
+  "printer.uploadOnly": "업로드만",
+  "printer.startPrint": "출력 시작",
+  "printer.confirmTitle": "마지막 현장 확인",
+  "printer.confirmPlate":
+    "빌드 플레이트가 비어 있고 올바르게 장착되어 있습니다.",
+  "printer.confirmMaterial":
+    "선택한 프린터 세대, 0.4 mm 노즐, Generic PLA와 프로필이 실제 프린터와 일치합니다.",
+  "printer.cancel": "취소",
+  "printer.confirmStart": "확인 후 이 출력 시작",
+  "printer.state.current_print_locked": "잠김 · 현재 출력 중",
+  "printer.state.unconfigured": "설정 필요",
+  "printer.state.standby": "대기",
+  "printer.state.printing": "출력 중",
+  "printer.state.paused": "일시 정지",
+  "printer.state.error": "프린터 오류",
+  "printer.state.complete": "이전 출력 완료",
+  "printer.state.cancelled": "이전 출력 취소됨",
+  "printer.state.starting": "시작 중",
+  "printer.state.offline": "오프라인",
+  "printer.state.unknown": "상태 알 수 없음",
+
   "nodes.eyebrow": "장치 상태",
   "nodes.title": "이 교실에 연결된 모든 장치",
   "nodes.directorySummary": "입력 · 출력 · 연결 상태",

@@ -71,6 +71,78 @@ describe("Fabric client credentials", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it("stages a model locally with a canonical type and encoded Unicode filename", async () => {
+    const artifact = {
+      artifactId: "a".repeat(32),
+      fileName: "교실 모형.3mf",
+      mediaType: "model/3mf",
+      sizeBytes: 4,
+      sha256: "b".repeat(64),
+      createdAt: "2026-09-08T12:00:00Z",
+    };
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify(artifact), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+    const token = "cit-instructor-" + "p".repeat(40);
+    client.setCredential(token);
+    const file = new File(
+      [new Uint8Array([0x50, 0x4b, 0x03, 0x04])],
+      "교실 모형.3mf",
+      {
+        type: "application/vnd.ms-package.3dmanufacturing-3dmodel+xml",
+      },
+    );
+
+    await expect(client.stagePrinterSource(file)).resolves.toEqual(artifact);
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    const headers = new Headers(init?.headers);
+    expect(url).toBe(
+      "https://runtime.example.test/api/v1/fabric/printer/sources",
+    );
+    expect(headers.get("Authorization")).toBe(`Bearer ${token}`);
+    expect(headers.get("Content-Type")).toBe("model/3mf");
+    expect(headers.get("X-CIT-Filename")).toBe(
+      encodeURIComponent("교실 모형.3mf"),
+    );
+    expect(init?.body).toBe(file);
+  });
+
+  it("starts only one exact printer artifact with explicit physical confirmations", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(
+          JSON.stringify({ accepted: true, message: "started", snapshot: {} }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+    client.setCredential("cit-instructor-" + "q".repeat(40));
+    const artifactId = "c".repeat(32);
+    const confirmationToken = "one-time-printer-token-" + "d".repeat(32);
+
+    await client.startPrinterArtifact(artifactId, confirmationToken, {
+      plateClearConfirmed: true,
+      profileConfirmed: true,
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] ?? [];
+    expect(url).toBe(
+      `https://runtime.example.test/api/v1/fabric/printer/artifacts/${artifactId}/start`,
+    );
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      confirmationToken,
+      plateClearConfirmed: true,
+      profileConfirmed: true,
+    });
+  });
+
   it("uses fixed same-origin discovery routes and a structured grounded confirmation", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(
