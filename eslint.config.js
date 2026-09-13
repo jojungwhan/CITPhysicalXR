@@ -8,7 +8,9 @@ export default tseslint.config(
     ignores: [
       "**/.venv/**",
       "**/.playwright-cli/**",
+      "**/.gradle/**",
       "**/artifacts/**",
+      "**/build/**",
       "**/dist/**",
       "**/node_modules/**",
       "**/output/**",

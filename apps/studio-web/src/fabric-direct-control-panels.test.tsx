@@ -142,6 +142,51 @@ describe("Fabric direct device controls", () => {
     );
   });
 
+  it("renders an Android-first remote with explicit all and per-plug power actions", () => {
+    const html = renderToStaticMarkup(
+      <FabricSmartPlugPanel
+        plugs={[
+          {
+            role: "classroom_plug",
+            node: physicalNode({ nodeId: "plug-1", displayName: "P110M" }),
+            state: { on: false, observedAt: "2026-09-09T12:00:00Z" },
+          },
+          {
+            role: "classroom_plug_2",
+            node: physicalNode({ nodeId: "plug-2", displayName: "P110M" }),
+            state: { on: true, observedAt: "2026-09-09T12:00:00Z" },
+          },
+        ]}
+        remoteMode
+        showFullControlCenter={false}
+        onShowFullControlCenterChange={vi.fn()}
+        sessionState="active"
+        sessionMode="physical"
+        sessionArmed
+        busy={false}
+        canSubmit
+        canManageSession
+        requiredRolesReady
+        onPower={vi.fn()}
+        onGroupPower={vi.fn()}
+        t={t}
+      />,
+    );
+
+    expect(html).toContain(
+      'class="fabric-smart-plug-panel fabric-android-plug-remote"',
+    );
+    expect(html).toContain("스마트 플러그 원격 제어");
+    expect(html).toContain("2개 중 2개 연결됨");
+    expect(html).toContain(">모든 플러그 켜기</button>");
+    expect(html).toContain(">모든 플러그 끄기</button>");
+    expect(html.match(/class="fabric-plug-remote-on"/g)).toHaveLength(2);
+    expect(html.match(/class="fabric-plug-remote-off"/g)).toHaveLength(2);
+    expect(html).toContain('aria-label="교실 플러그 1: 켜기"');
+    expect(html).toContain('aria-label="교실 플러그 1: 끄기"');
+    expect(html).toContain("전체 제어 센터 보기");
+  });
+
   it("marks unobserved smart-plug state without overflowing the row", () => {
     const html = renderToStaticMarkup(
       <FabricSmartPlugPanel

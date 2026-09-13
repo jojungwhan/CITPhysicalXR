@@ -37,8 +37,7 @@ For CIT-owned, cloud-independent setup:
 3. Power-cycle the plug. Its Matter setup mode remains available for 15 minutes
    after power-up; power-cycle it again if that window expires.
 4. Keep the Windows computer on the classroom LAN with local IPv6 and mDNS.
-   Commission the plug onto the configured **2.4 GHz Wi-Fi** from Classroom
-   Control.
+   Commission the plug onto the configured **2.4 GHz Wi-Fi** from Control Tower.
 
 The generic Matter adapter always exposes bounded on/off and verified state for
 a standard `0x010A` endpoint. A P110M with firmware that exposes the standard
@@ -88,7 +87,7 @@ for those signed packages. The installer then:
 5. asks once for the classroom Wi-Fi name and password;
 6. sends the password to the controller through process stdin, not a command
    line or Fabric message; and
-7. installs **CIT Classroom Control** on the Desktop and Start menu.
+7. installs **CIT Control Tower** on the Desktop and Start menu.
 
 Use `-SkipWifiConfiguration` only if commissioning Ethernet devices or if a
 technician will configure Wi-Fi later. No Wi-Fi password is stored in the site
@@ -109,7 +108,7 @@ pnpm hardware:install-business:windows -- -Mode Status
    load's own switch off.
 3. Factory-reset the Matter plug if necessary, then hold its pairing button
    until the pairing indicator flashes.
-4. Open **CIT Classroom Control** from the Desktop.
+4. Open **CIT Control Tower** from the Desktop.
 5. Choose **Find devices**.
 6. On **Matter smart plugs**, complete
    the three numbered steps. If step 1 says **Required**, enter the classroom's
@@ -140,6 +139,31 @@ Windows Noble connection path and does not contact a vendor service. The
 launcher also selects the active physical LAN interface for Matter traffic, so
 overlay adapters such as VPNs do not take precedence over the classroom LAN.
 
+## Sleep and resume recovery
+
+Matter devices cannot remain connected while the Windows host is asleep. For an
+always-available classroom, disable automatic sleep while plugged in and do not
+choose **Sleep** from Windows while Control Tower is serving devices. An
+application cannot override a user-requested sleep.
+
+If the computer does sleep, the running adapters probe their Matter endpoints
+without waiting for a lesson command. A single read failure is tolerated; three
+consecutive failures close the affected adapter so the persistent remembered-
+device supervisor can recover it. Recovery waits for the physical LAN and a
+preferred IPv6 link-local address, replaces the Matter controller, BLE proxy,
+and adapters, then reconnects every reachable plug in the off safe state. It
+does not erase the commissioned Matter fabric or require a factory reset.
+
+To request the same recovery manually while Control Tower is running:
+
+```powershell
+pnpm hardware:matter:windows -- -Mode Recover -SkipBuild -NoOpenConsole
+```
+
+Each process launch preserves four prior logs. The current attempt uses the
+normal `.log` name; `.log.1` is the immediately preceding attempt through
+`.log.4` for the oldest retained attempt.
+
 ## Move or extend the setup
 
 For another Windows computer at the business location:
@@ -147,7 +171,7 @@ For another Windows computer at the business location:
 1. install CIT with a new room ID;
 2. connect that computer to the same local network;
 3. remove each plug from the old Matter fabric or factory-reset it; and
-4. add it from the new computer's Classroom Control page.
+4. add it from the new computer's Control Tower page.
 
 Do not copy `%LOCALAPPDATA%\CITPhysicalXR\matter`, Fabric DPAPI files, or private
 controller keys between Windows accounts/computers. They are machine/operator
@@ -175,6 +199,10 @@ be powered and reachable.
   or factory-reset the plug, then retry.
 - **Commissioned but offline:** check power and that Windows and the plug can
   communicate on the local network; client isolation blocks Matter.
+- **Offline after Windows resumes:** leave Control Tower running while the LAN
+  regains IPv6. Automatic recovery will rebuild the local Matter transport. If
+  it does not, keep the loads off, run the manual `-Mode Recover` command above,
+  and inspect the current and rotated controller/adapter logs.
 - **Adapter failure:** keep the load off and run
   `pnpm hardware:matter:windows -- -Mode Status`. `available=True` confirms the
   commissioned Matter endpoint is reachable; **Running Fabric adapters** is

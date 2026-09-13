@@ -19,10 +19,14 @@ import {
   FabricApiError,
   FabricClient,
   type FabricAuditRecord,
+  type FabricAndroidControllerSnapshot,
+  type FabricCameraImportSnapshot,
   type FabricDiscoveryCandidate,
   type FabricDiscoveryReport,
   type FabricInstallationInfo,
   type FabricIntegrationDiscovery,
+  type FabricLanAccessSnapshot,
+  type FabricUnlockAutomationSnapshot,
   type FabricMediaPairing,
   type FabricMediaSource,
   type FabricPrinterGcodeArtifact,
@@ -50,7 +54,7 @@ import {
   selectedDemonstrationNodes,
   toggledDemonstrationNodeIds,
 } from "./fabric-demonstration.js";
-import { consumeConsoleTicket } from "./fabric-console-access.js";
+import { consumeConsoleAccess } from "./fabric-console-access.js";
 import {
   awaitFabricCommandBatch,
   awaitFabricCommandTerminal,
@@ -121,6 +125,9 @@ import {
   preferredSmartPlugControlSession,
   POWER_SET_CAPABILITY,
   currentSmartPlugNodes,
+  readSmartPlugSelection,
+  retainKnownSmartPlugSelection,
+  saveSmartPlugSelection,
   smartPlugControlPlan,
   smartPlugStateFromHealth,
   setupCodeMappingForMatterNode,
@@ -148,6 +155,7 @@ import {
 } from "./fabric-i18n.js";
 import { LOCALES, readSavedLocale, saveLocale, type Locale } from "./i18n.js";
 import { FabricBrainDemoPanel } from "./FabricBrainDemoPanel.js";
+import { FabricCameraImportPanel } from "./FabricCameraImportPanel.js";
 import { FabricDemonstrationSelector } from "./FabricDemonstrationSelector.js";
 import { FabricDeviceIoPanel } from "./FabricDeviceIoPanel.js";
 import { FabricDronePanel } from "./FabricDronePanel.js";
@@ -163,6 +171,7 @@ import { FabricLegoSetup } from "./FabricLegoSetup.js";
 import { FabricLeapPanel } from "./FabricLeapPanel.js";
 import { FabricMatterSetup } from "./FabricMatterSetup.js";
 import { FabricPrinterPanel } from "./FabricPrinterPanel.js";
+import { FabricQuickControls } from "./FabricQuickControls.js";
 import { FabricSpheroPanel } from "./FabricSpheroPanel.js";
 import { FabricSpheroSetup } from "./FabricSpheroSetup.js";
 import { FabricSetupProgress } from "./FabricSetupProgress.js";
@@ -203,6 +212,11 @@ type IntegrationActionFeedback = FabricDiscoveryActionFeedback & {
 
 type FabricUseMode = "demonstration" | "lesson";
 
+interface FabricInstallPromptEvent extends Event {
+  prompt(): Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
 export function FabricConsole() {
   const [locale, setLocaleState] = useState<Locale>(readSavedLocale);
   const t = useMemo(() => fabricTranslatorFor(locale), [locale]);
@@ -221,6 +235,24 @@ export function FabricConsole() {
   const [installation, setInstallation] =
     useState<FabricInstallationInfo | null>(null);
   const [printer, setPrinter] = useState<FabricPrinterSnapshot | null>(null);
+  const [cameraImports, setCameraImports] = useState<
+    FabricCameraImportSnapshot[]
+  >([]);
+  const [androidController, setAndroidController] =
+    useState<FabricAndroidControllerSnapshot | null>(null);
+  const [lanAccess, setLanAccess] = useState<FabricLanAccessSnapshot | null>(
+    null,
+  );
+  const [unlockAutomation, setUnlockAutomation] =
+    useState<FabricUnlockAutomationSnapshot | null>(null);
+  const [installPrompt, setInstallPrompt] =
+    useState<FabricInstallPromptEvent | null>(null);
+  const [controlSettingsOpen, setControlSettingsOpen] = useState(false);
+  const [showAndroidFullControlCenter, setShowAndroidFullControlCenter] =
+    useState(false);
+  const [selectedSmartPlugNodeIds, setSelectedSmartPlugNodeIds] = useState<
+    ReadonlySet<string>
+  >(readSmartPlugSelection);
   const [coursePacks, setCoursePacks] = useState<CoursePack[]>([]);
   const [sessions, setSessions] = useState<InteractionSession[]>([]);
   const [events, setEvents] = useState<StoredFabricEvent[]>([]);
@@ -320,6 +352,14 @@ export function FabricConsole() {
   const canManageSessions = hasPermission(principal, "fabric.sessions.manage");
   const canAssignRoles = hasPermission(principal, "fabric.roles.assign");
   const canSubmitCommands = hasPermission(principal, "fabric.commands.submit");
+  const canOpenAndroidController = hasPermission(
+    principal,
+    "fabric.console.open_android",
+  );
+  const isAndroidController = principal?.actorType === "android_controller";
+  const canManageLanAccess =
+    hasPermission(principal, "fabric.lan_access.manage") &&
+    isLoopbackBrowserLocation();
   const canReadMedia = hasPermission(principal, "fabric.media.read");
   const canPairMedia = hasPermission(principal, "fabric.media.manage");
   const canAnalyzeVision = hasPermission(principal, "fabric.vision.analyze");
@@ -391,24 +431,46 @@ export function FabricConsole() {
     () => currentSmartPlugNodes(knownSmartPlugNodes, matterSetupCodes),
     [knownSmartPlugNodes, matterSetupCodes],
   );
+  const currentKnownSmartPlugNodeIds = useMemo(
+    () => new Set(currentKnownSmartPlugNodes.map((node) => node.nodeId)),
+    [currentKnownSmartPlugNodes],
+  );
+
+  useEffect(() => {
+    if (currentKnownSmartPlugNodes.length === 0) return;
+    setSelectedSmartPlugNodeIds((current) => {
+      const next = retainKnownSmartPlugSelection(
+        current,
+        currentKnownSmartPlugNodeIds,
+      );
+      return next.size === current.size ? current : next;
+    });
+  }, [currentKnownSmartPlugNodeIds, currentKnownSmartPlugNodes.length]);
+
+  useEffect(() => {
+    saveSmartPlugSelection(selectedSmartPlugNodeIds);
+  }, [selectedSmartPlugNodeIds]);
   const plannedSmartPlugControls = useMemo(
     () => smartPlugControlPlan(currentKnownSmartPlugNodes),
     [currentKnownSmartPlugNodes],
   );
   const displayedSmartPlugControls = useMemo(
     () =>
-      useMode === "demonstration"
-        ? smartPlugControlPlan(
-            currentKnownSmartPlugNodes.filter(
-              (node) =>
-                isAvailableFabricNode(node) &&
-                directlyControlledNodeIds.has(node.nodeId),
-            ),
-          )
-        : plannedSmartPlugControls,
+      isAndroidController
+        ? plannedSmartPlugControls
+        : useMode === "demonstration"
+          ? smartPlugControlPlan(
+              currentKnownSmartPlugNodes.filter(
+                (node) =>
+                  isAvailableFabricNode(node) &&
+                  directlyControlledNodeIds.has(node.nodeId),
+              ),
+            )
+          : plannedSmartPlugControls,
     [
       currentKnownSmartPlugNodes,
       directlyControlledNodeIds,
+      isAndroidController,
       plannedSmartPlugControls,
       useMode,
     ],
@@ -604,6 +666,19 @@ export function FabricConsole() {
       smartPlugControlSession?.roleBindings,
     ],
   );
+  const selectedAvailableSmartPlugs = useMemo(
+    () =>
+      assignedSmartPlugs.filter(
+        ({ node }) =>
+          isAvailableFabricNode(node) &&
+          selectedSmartPlugNodeIds.has(node.nodeId),
+      ),
+    [assignedSmartPlugs, selectedSmartPlugNodeIds],
+  );
+  const selectedAvailableSmartPlugRoles = useMemo(
+    () => selectedAvailableSmartPlugs.map(({ role }) => role),
+    [selectedAvailableSmartPlugs],
+  );
   const selectedSmartPlug = assignedSmartPlugs.find(({ node }) =>
     directlyControlledNodeIds.has(node.nodeId),
   )?.node;
@@ -619,6 +694,22 @@ export function FabricConsole() {
       (smartPlugControlSession?.state === "active" &&
         (smartPlugControlSession.mode !== "physical" ||
           smartPlugControlSession.armed === true)));
+  const canUseOrPrepareSmartPlugSession =
+    (smartPlugControlSession?.state ?? "") !== "" ||
+    canPrepareSmartPlugControls;
+  const canTurnSelectedSmartPlugsOff =
+    canSubmitCommands &&
+    busy === null &&
+    selectedAvailableSmartPlugs.length > 0 &&
+    controlledSmartPlugNodes.length > 0 &&
+    canUseOrPrepareSmartPlugSession;
+  const smartPlugControlsAlreadyReady =
+    smartPlugControlSession?.state === "active" &&
+    (smartPlugControlSession.mode !== "physical" ||
+      smartPlugControlSession.armed === true);
+  const canTurnSelectedSmartPlugsOn =
+    canTurnSelectedSmartPlugsOff &&
+    (smartPlugControlsAlreadyReady || canPrepareSmartPlugControls);
   const requiredRoles = useMemo(
     () =>
       selectedCourse?.roles
@@ -669,6 +760,46 @@ export function FabricConsole() {
               return null;
             throw caught;
           });
+        const cameraImportPromise = client
+          .getCameraImportSnapshots()
+          .catch((caught: unknown) => {
+            if (caught instanceof FabricApiError && caught.status === 404) {
+              return client
+                .getCameraImportSnapshot()
+                .then((snapshot) => [snapshot])
+                .catch((fallbackCaught: unknown) => {
+                  if (
+                    fallbackCaught instanceof FabricApiError &&
+                    fallbackCaught.status === 404
+                  ) {
+                    return [];
+                  }
+                  throw fallbackCaught;
+                });
+            }
+            throw caught;
+          });
+        const androidControllerPromise = client
+          .getAndroidController()
+          .catch((caught: unknown) => {
+            if (caught instanceof FabricApiError && caught.status === 404)
+              return null;
+            throw caught;
+          });
+        const lanAccessPromise = canManageLanAccess
+          ? client.getLanAccess().catch((caught: unknown) => {
+              if (caught instanceof FabricApiError && caught.status === 404)
+                return null;
+              throw caught;
+            })
+          : Promise.resolve(null);
+        const unlockAutomationPromise = canManageLanAccess
+          ? client.getUnlockAutomation().catch((caught: unknown) => {
+              if (caught instanceof FabricApiError && caught.status === 404)
+                return null;
+              throw caught;
+            })
+          : Promise.resolve(null);
         const [
           nextNodes,
           nextDiscovery,
@@ -678,6 +809,10 @@ export function FabricConsole() {
           nextRememberedConnections,
           nextInstallation,
           nextPrinter,
+          nextCameraImport,
+          nextAndroidController,
+          nextLanAccess,
+          nextUnlockAutomation,
         ] = await Promise.all([
           client.listNodes(),
           client.getDiscovery(),
@@ -687,6 +822,10 @@ export function FabricConsole() {
           rememberedPromise,
           installationPromise,
           printerPromise,
+          cameraImportPromise,
+          androidControllerPromise,
+          lanAccessPromise,
+          unlockAutomationPromise,
         ]);
         setNodes(nextNodes);
         setDiscovery(nextDiscovery);
@@ -696,6 +835,10 @@ export function FabricConsole() {
         setRememberedConnections(nextRememberedConnections);
         setInstallation(nextInstallation);
         setPrinter(nextPrinter);
+        setCameraImports(nextCameraImport);
+        setAndroidController(nextAndroidController);
+        setLanAccess(nextLanAccess);
+        setUnlockAutomation(nextUnlockAutomation);
         const nextFleetControllerIds = nextNodes
           .filter(
             (node) =>
@@ -776,6 +919,7 @@ export function FabricConsole() {
     [
       canReadInstallation,
       canReadMedia,
+      canManageLanAccess,
       client,
       principal,
       selectedSessionId,
@@ -793,19 +937,36 @@ export function FabricConsole() {
   useLayoutEffect(() => {
     if (ticketAttempted.current) return;
     ticketAttempted.current = true;
-    const ticket = consumeConsoleTicket(window.location, window.history);
-    if (ticket === undefined) return;
+    const handoff = consumeConsoleAccess(window.location, window.history);
     setAutoConnecting(true);
     setError(null);
-    void client
-      .connectWithConsoleTicket(ticket)
+    const connection =
+      handoff === undefined
+        ? client.resumeAndroidSession()
+        : client.connectWithConsoleTicket(handoff.ticket, {
+            persistAndroidSession: handoff.persistAndroidSession,
+          });
+    void connection
       .then((identity) => {
         setPrincipal(identity);
-        setNotice(t("notice.secureOpen"));
+        setNotice(
+          t(
+            identity.actorType === "android_controller"
+              ? "notice.secureOpenAndroid"
+              : "notice.secureOpen",
+          ),
+        );
       })
       .catch((caught: unknown) => {
+        if (
+          handoff === undefined &&
+          caught instanceof FabricApiError &&
+          (caught.status === 401 || caught.status === 404)
+        ) {
+          return;
+        }
         setError(describeFabricError(caught, t));
-        setShowAccessCode(true);
+        if (handoff !== undefined) setShowAccessCode(true);
       })
       .finally(() => setAutoConnecting(false));
   }, [client, t]);
@@ -819,6 +980,20 @@ export function FabricConsole() {
   }, [t]);
 
   useEffect(() => saveLocale(locale), [locale]);
+
+  useEffect(() => {
+    const rememberInstallPrompt = (event: Event) => {
+      event.preventDefault();
+      setInstallPrompt(event as FabricInstallPromptEvent);
+    };
+    const clearInstallPrompt = () => setInstallPrompt(null);
+    window.addEventListener("beforeinstallprompt", rememberInstallPrompt);
+    window.addEventListener("appinstalled", clearInstallPrompt);
+    return () => {
+      window.removeEventListener("beforeinstallprompt", rememberInstallPrompt);
+      window.removeEventListener("appinstalled", clearInstallPrompt);
+    };
+  }, []);
 
   useEffect(() => {
     if (principal === null) return;
@@ -968,6 +1143,9 @@ export function FabricConsole() {
   };
 
   const signOut = () => {
+    void client.endAndroidSession().catch(() => {
+      // Local sign-out still completes if the USB bridge disappeared first.
+    });
     client.clearCredential();
     clearAircraftGroundedConfirmation();
     clearFlightSafetyConfirmation();
@@ -978,6 +1156,10 @@ export function FabricConsole() {
     setRememberedConnections(null);
     setInstallation(null);
     setPrinter(null);
+    setCameraImports([]);
+    setAndroidController(null);
+    setLanAccess(null);
+    setUnlockAutomation(null);
     setCoursePacks([]);
     setSessions([]);
     setSessionStartPolicy(null);
@@ -1038,6 +1220,121 @@ export function FabricConsole() {
       setPrinter(result.snapshot);
       setNotice(t("notice.printerIdle"));
     });
+
+  const startCameraImport = (cameraId: string) =>
+    runAction("busy.cameraImportStart", async () => {
+      const result = await client.startNamedCameraImport(cameraId);
+      setCameraImports((current) =>
+        current.map((camera) =>
+          camera.cameraId === result.snapshot.cameraId
+            ? result.snapshot
+            : camera,
+        ),
+      );
+      setNotice(
+        t("notice.cameraImportStarted", {
+          camera: result.snapshot.displayName,
+        }),
+      );
+    });
+
+  const openCameraImportDestination = (cameraId: string) =>
+    runAction("busy.cameraImportOpenDestination", async () => {
+      await client.openNamedCameraImportDestination(cameraId);
+      setNotice(t("notice.cameraImportDestinationOpened"));
+    });
+
+  const openAndroidController = () =>
+    runAction("busy.openingAndroid", async () => {
+      const result = await client.openAndroidController();
+      setAndroidController(result.snapshot);
+      setNotice(t("notice.androidOpened"));
+    });
+
+  const addLanAccessDevice = (displayName: string, macAddress: string) =>
+    runAction("busy.savingLanAccess", async () => {
+      const result = await client.addLanAccessDevice(displayName, macAddress);
+      setLanAccess(result.snapshot);
+      setNotice(t("notice.lanDeviceAllowed", { name: displayName.trim() }));
+    });
+
+  const removeLanAccessDevice = (macAddress: string) =>
+    runAction("busy.savingLanAccess", async () => {
+      const deviceName =
+        lanAccess?.devices.find((device) => device.macAddress === macAddress)
+          ?.displayName ?? macAddress;
+      const result = await client.removeLanAccessDevice(macAddress);
+      setLanAccess(result.snapshot);
+      setNotice(t("notice.lanDeviceRemoved", { name: deviceName }));
+    });
+
+  const enrollUsbAndroidLanAccess = () =>
+    runAction("busy.savingLanAccess", async () => {
+      const result = await client.enrollUsbAndroidLanAccess();
+      setLanAccess(result.snapshot);
+      setNotice(t("notice.lanAndroidAllowed"));
+    });
+
+  const copyLanAccessLink = (macAddress: string) =>
+    runAction("busy.creatingLanAccessLink", async () => {
+      if (navigator.clipboard === undefined) {
+        throw new Error(t("error.clipboard"));
+      }
+      const result = await client.createLanAccessLink(macAddress);
+      await navigator.clipboard.writeText(result.accessUrl);
+      setNotice(t("notice.lanAccessLinkCopied"));
+    });
+
+  const configureUnlockAutomation = (enabled: boolean, selectionOnly = false) =>
+    runAction("busy.savingUnlockAutomation", async () => {
+      const selectedNodeIds =
+        !enabled && !selectionOnly
+          ? (unlockAutomation?.selectedNodeIds ?? [])
+          : currentKnownSmartPlugNodes
+              .filter((node) => selectedSmartPlugNodeIds.has(node.nodeId))
+              .map((node) => node.nodeId);
+      const result = await client.configureUnlockAutomation(
+        enabled,
+        selectedNodeIds,
+      );
+      setUnlockAutomation(result.snapshot);
+      setNotice(
+        t(
+          selectionOnly
+            ? "notice.unlockSelectionSaved"
+            : enabled
+              ? "notice.unlockAutomationEnabled"
+              : "notice.unlockAutomationDisabled",
+          { count: selectedNodeIds.length },
+        ),
+      );
+    });
+
+  const installAndPairUnlockCompanion = () =>
+    runAction("busy.pairingUnlockCompanion", async () => {
+      const result = await client.installAndPairUnlockCompanion(
+        androidController?.phoneModel ?? "Control Tower phone",
+      );
+      setUnlockAutomation(result.snapshot);
+      setLanAccess(await client.getLanAccess());
+      setNotice(t("notice.unlockCompanionPaired"));
+    });
+
+  const removeUnlockCompanion = () =>
+    runAction("busy.savingUnlockAutomation", async () => {
+      const result = await client.removeUnlockCompanion();
+      setUnlockAutomation(result.snapshot);
+      setNotice(t("notice.unlockCompanionRemoved"));
+    });
+
+  const installFabricPwa = () => {
+    if (installPrompt === null) return;
+    void runAction("busy.installingPwa", async () => {
+      await installPrompt.prompt();
+      await installPrompt.userChoice;
+      setInstallPrompt(null);
+    });
+  };
 
   const stagePrinterModel = (file: File) =>
     runAction("busy.printerStage", async () => {
@@ -2636,6 +2933,7 @@ export function FabricConsole() {
     const connectedNodeIds = new Set(connectedNodes.map((node) => node.nodeId));
     switch (integration.integrationId) {
       case "matter-smart-plugs":
+        if (isAndroidController) return null;
         return (
           <FabricSmartPlugPanel
             plugs={
@@ -2646,6 +2944,8 @@ export function FabricConsole() {
                 : assignedSmartPlugs
             }
             setupCodes={matterSetupCodes}
+            selectedNodeIds={selectedSmartPlugNodeIds}
+            onSelectedNodeIdsChange={setSelectedSmartPlugNodeIds}
             sessionState={smartPlugControlSession?.state ?? ""}
             sessionMode={smartPlugControlSession?.mode}
             sessionArmed={smartPlugControlSession?.armed === true}
@@ -2832,7 +3132,9 @@ export function FabricConsole() {
   );
 
   return (
-    <div className="fabric-console">
+    <div
+      className={`fabric-console${isAndroidController ? " is-android-controller" : ""}${showAndroidFullControlCenter ? " is-android-full-view" : ""}`}
+    >
       <header className="fabric-header">
         <div>
           <p className="eyebrow">{t("header.eyebrow")}</p>
@@ -2854,7 +3156,13 @@ export function FabricConsole() {
         <div className="fabric-identity">
           <span className="status-dot status-ok" />
           <div>
-            <strong>{t("header.connected")}</strong>
+            <strong>
+              {t(
+                isAndroidController
+                  ? "header.androidConnected"
+                  : "header.connected",
+              )}
+            </strong>
             <small title={principal.identityId}>{t("header.tutor")}</small>
           </div>
           <button type="button" onClick={signOut}>
@@ -2883,6 +3191,33 @@ export function FabricConsole() {
           <div className="fabric-error" role="alert">
             {error}
           </div>
+        )}
+
+        {isAndroidController && (
+          <FabricSmartPlugPanel
+            plugs={assignedSmartPlugs}
+            setupCodes={matterSetupCodes}
+            selectedNodeIds={selectedSmartPlugNodeIds}
+            onSelectedNodeIdsChange={setSelectedSmartPlugNodeIds}
+            sessionState={smartPlugControlSession?.state ?? ""}
+            sessionMode={smartPlugControlSession?.mode}
+            sessionArmed={smartPlugControlSession?.armed === true}
+            busy={busy !== null}
+            canSubmit={canSubmitCommands}
+            canManageSession={
+              canManageSessions &&
+              (smartPlugControlSession !== undefined || canAssignRoles)
+            }
+            canRename={canConnectDevices}
+            requiredRolesReady={controlledSmartPlugNodes.length > 0}
+            onPower={(role, on) => void setSmartPlugPower(role, on)}
+            onGroupPower={(roles, on) => void setSmartPlugGroupPower(roles, on)}
+            onRename={renameMatterPlug}
+            remoteMode
+            showFullControlCenter={showAndroidFullControlCenter}
+            onShowFullControlCenterChange={setShowAndroidFullControlCenter}
+            t={t}
+          />
         )}
 
         <section
@@ -2949,6 +3284,31 @@ export function FabricConsole() {
             }
             t={t}
           />
+        )}
+
+        {cameraImports.length === 0 ? (
+          <FabricCameraImportPanel
+            camera={null}
+            busy={busy !== null}
+            canManage={canSubmitCommands}
+            onStart={() => Promise.resolve(false)}
+            onOpenDestination={() => Promise.resolve(false)}
+            t={t}
+          />
+        ) : (
+          cameraImports.map((camera) => (
+            <FabricCameraImportPanel
+              key={camera.cameraId}
+              camera={camera}
+              busy={busy !== null}
+              canManage={canSubmitCommands}
+              onStart={() => startCameraImport(camera.cameraId)}
+              onOpenDestination={() =>
+                openCameraImportDestination(camera.cameraId)
+              }
+              t={t}
+            />
+          ))
         )}
 
         <FabricPrinterPanel
@@ -3971,6 +4331,40 @@ export function FabricConsole() {
           )}
         </details>
       </main>
+      <FabricQuickControls
+        selectedPlugCount={selectedAvailableSmartPlugs.length}
+        canTurnOnSelected={canTurnSelectedSmartPlugsOn}
+        canTurnOffSelected={canTurnSelectedSmartPlugsOff}
+        busy={busy !== null}
+        settingsOpen={controlSettingsOpen}
+        cameras={cameraImports}
+        canManageCamera={canSubmitCommands}
+        onTurnOnSelected={() =>
+          void setSmartPlugGroupPower(selectedAvailableSmartPlugRoles, true)
+        }
+        onTurnOffSelected={() =>
+          void setSmartPlugGroupPower(selectedAvailableSmartPlugRoles, false)
+        }
+        onSettingsOpenChange={setControlSettingsOpen}
+        onOpenCameraDestination={openCameraImportDestination}
+        androidController={androidController}
+        canOpenAndroidController={canOpenAndroidController}
+        lanAccess={lanAccess}
+        canManageLanAccess={canManageLanAccess}
+        unlockAutomation={unlockAutomation}
+        canInstallPwa={installPrompt !== null}
+        onOpenAndroidController={() => void openAndroidController()}
+        onAddLanAccessDevice={addLanAccessDevice}
+        onRemoveLanAccessDevice={removeLanAccessDevice}
+        onEnrollUsbAndroidLanAccess={enrollUsbAndroidLanAccess}
+        onCopyLanAccessLink={copyLanAccessLink}
+        onConfigureUnlockAutomation={configureUnlockAutomation}
+        onInstallAndPairUnlockCompanion={installAndPairUnlockCompanion}
+        onRemoveUnlockCompanion={removeUnlockCompanion}
+        onInstallPwa={installFabricPwa}
+        androidMode={isAndroidController}
+        t={t}
+      />
     </div>
   );
 }
@@ -4839,6 +5233,12 @@ const replaceSession = (
 
 const hasPermission = (principal: FabricPrincipal | null, permission: string) =>
   principal?.permissions.includes(permission) === true;
+
+const isLoopbackBrowserLocation = () =>
+  typeof window !== "undefined" &&
+  ["127.0.0.1", "localhost", "::1", "[::1]"].includes(
+    window.location.hostname.toLocaleLowerCase(),
+  );
 
 const metadataNumber = (
   node: IntegrationNode,

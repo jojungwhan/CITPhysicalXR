@@ -39,3 +39,4 @@ ADRs are immutable decision snapshots. A superseding decision adds a new ADR and
 - [0035 — Canonical turn-on-all demonstration (superseded in part)](0035-canonical-turn-on-all-demonstration.md)
 - [0036 — Capability-gated wearable routing](0036-capability-gated-wearable-routing.md)
 - [0037 — Bounded, separately confirmed 3D-printer jobs](0037-bounded-3d-printer-jobs.md)
+- [0038 — Signed local phone-unlock smart-plug automation](0038-signed-phone-unlock-smart-plug-automation.md)

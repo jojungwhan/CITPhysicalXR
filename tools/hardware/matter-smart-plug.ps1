@@ -2,7 +2,7 @@
 
 [CmdletBinding()]
 param(
-  [ValidateSet("ControllerStart", "ConfigureWifi", "Commission", "ListSetupCodes", "Rename", "Start", "Status", "Stop")]
+  [ValidateSet("ControllerStart", "ConfigureWifi", "Commission", "ListSetupCodes", "Rename", "Recover", "Start", "Status", "Stop")]
   [string]$Mode = "Start",
   [ValidateRange(1024, 65535)]
   [int]$FabricPort = 8766,
@@ -69,6 +69,31 @@ $controllerStartupAttempts = 3
 
 function Assert-Path([string]$Path, [string]$Description) {
   if (-not (Test-Path -LiteralPath $Path)) { throw "$Description was not found at $Path" }
+}
+
+function Rotate-LogFile(
+  [string]$Path,
+  [ValidateRange(1, 20)]
+  [int]$ArchiveCount = 4
+) {
+  $allowedRoot = [IO.Path]::GetFullPath($logRoot + [IO.Path]::DirectorySeparatorChar)
+  $fullPath = [IO.Path]::GetFullPath($Path)
+  if (-not $fullPath.StartsWith($allowedRoot, [StringComparison]::OrdinalIgnoreCase)) {
+    throw "Refusing to rotate a log outside the Matter log directory."
+  }
+  $oldest = "$fullPath.$ArchiveCount"
+  if (Test-Path -LiteralPath $oldest -PathType Leaf) {
+    [IO.File]::Delete($oldest)
+  }
+  for ($index = $ArchiveCount - 1; $index -ge 1; $index--) {
+    $source = "$fullPath.$index"
+    if (Test-Path -LiteralPath $source -PathType Leaf) {
+      [IO.File]::Move($source, "$fullPath.$($index + 1)", $true)
+    }
+  }
+  if (Test-Path -LiteralPath $fullPath -PathType Leaf) {
+    [IO.File]::Move($fullPath, "$fullPath.1", $true)
+  }
 }
 
 function Resolve-Executable([string]$Name) {
@@ -305,9 +330,18 @@ function Stop-ExactProcess([object]$ProcessId, [string]$Marker, [string]$Descrip
   Wait-Process -Id $numericId -Timeout 15 -ErrorAction SilentlyContinue
 }
 
-function Wait-Until([scriptblock]$Condition, [string]$FailureMessage, [int]$TimeoutSeconds = 45) {
+function Wait-Until(
+  [scriptblock]$Condition,
+  [string]$FailureMessage,
+  [int]$TimeoutSeconds = 45,
+  [scriptblock]$AbortCondition = $null,
+  [string]$AbortMessage = ""
+) {
   $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
   do {
+    if ($null -ne $AbortCondition -and (& $AbortCondition)) {
+      throw $(if ($AbortMessage) { $AbortMessage } else { $FailureMessage })
+    }
     if (& $Condition) { return }
     Start-Sleep -Milliseconds 250
   } while ([DateTimeOffset]::UtcNow -lt $deadline)
@@ -356,7 +390,7 @@ function Build-Systems {
   Invoke-External (Resolve-Executable "pnpm.cmd") @("build") $repositoryRoot
 }
 
-function Resolve-MatterPrimaryInterface {
+function Resolve-MatterPrimaryInterface([switch]$Quiet) {
   try {
     $candidates = foreach ($adapter in @(Get-NetAdapter -Physical -ErrorAction Stop)) {
       if ($adapter.Status -ne "Up") { continue }
@@ -374,9 +408,40 @@ function Resolve-MatterPrimaryInterface {
     $selected = $candidates | Sort-Object Metric, Name | Select-Object -First 1
     if ($null -ne $selected) { return [string]$selected.Name }
   } catch {
-    Write-Warning "Could not resolve the primary physical LAN interface; Matter will auto-select it."
+    if (-not $Quiet) {
+      Write-Warning "Could not resolve the primary physical LAN interface; Matter will auto-select it."
+    }
   }
   return ""
+}
+
+function Wait-MatterNetworkReady([int]$TimeoutSeconds = 45) {
+  $deadline = [DateTimeOffset]::UtcNow.AddSeconds($TimeoutSeconds)
+  do {
+    $interfaceName = Resolve-MatterPrimaryInterface -Quiet
+    if ($interfaceName) {
+      try {
+        $linkLocalAddresses = @(
+          Get-NetIPAddress `
+            -AddressFamily IPv6 `
+            -InterfaceAlias $interfaceName `
+            -ErrorAction Stop |
+            Where-Object {
+              $_.AddressState -eq "Preferred" -and
+              ([string]$_.IPAddress).StartsWith("fe80:", [StringComparison]::OrdinalIgnoreCase)
+            }
+        )
+        if ($linkLocalAddresses.Count -gt 0) {
+          Write-Host "Matter network ready on $interfaceName with preferred IPv6 link-local addressing."
+          return $interfaceName
+        }
+      } catch {
+        # Windows can briefly report the adapter before its IPv6 addresses after resume.
+      }
+    }
+    Start-Sleep -Milliseconds 500
+  } while ([DateTimeOffset]::UtcNow -lt $deadline)
+  throw "The primary physical LAN and its IPv6 link-local address did not recover within $TimeoutSeconds seconds."
 }
 
 function Test-MatterHealth {
@@ -442,6 +507,10 @@ function Start-BleProxy([hashtable]$State) {
   Stop-BleProxy $State
   $proxyExecutable = Join-Path $repositoryRoot ".venv\Scripts\matter-ble-proxy.exe"
   Assert-Path $proxyExecutable "Pinned Windows Matter BLE proxy"
+  $proxyStdoutPath = Join-Path $logRoot "matter-ble-proxy.stdout.log"
+  $proxyStderrPath = Join-Path $logRoot "matter-ble-proxy.stderr.log"
+  Rotate-LogFile $proxyStdoutPath
+  Rotate-LogFile $proxyStderrPath
   $process = Start-Process `
     -FilePath $proxyExecutable `
     -ArgumentList @(
@@ -450,8 +519,8 @@ function Start-BleProxy([hashtable]$State) {
     ) `
     -WorkingDirectory $repositoryRoot `
     -WindowStyle Hidden `
-    -RedirectStandardOutput (Join-Path $logRoot "matter-ble-proxy.stdout.log") `
-    -RedirectStandardError (Join-Path $logRoot "matter-ble-proxy.stderr.log") `
+    -RedirectStandardOutput $proxyStdoutPath `
+    -RedirectStandardError $proxyStderrPath `
     -PassThru
   $State.bleProxyPid = $process.Id
   Save-State $State
@@ -465,7 +534,30 @@ function Start-BleProxy([hashtable]$State) {
   }
 }
 
-function Start-Controller([hashtable]$State) {
+function Stop-MatterTransport([hashtable]$State) {
+  Stop-BleProxy $State
+  $listenerId = Get-ListeningProcessId $MatterPort
+  if ($null -ne $listenerId) {
+    if (-not (Test-ExactProcess $listenerId $controllerMarker)) {
+      throw "Port $MatterPort is occupied by a service that is not the pinned CIT Matter controller."
+    }
+    Stop-ExactProcess $listenerId $controllerMarker "Matter controller"
+  }
+  if ($State.ContainsKey("controllerLauncherPid")) {
+    Stop-ExactProcess $State.controllerLauncherPid $controllerMarker "Matter controller launcher"
+  }
+  foreach ($key in @("controllerPid", "controllerLauncherPid", "bleMode")) {
+    $State.Remove($key)
+  }
+  Save-State $State
+  if ($null -ne $listenerId) {
+    Wait-Until {
+      $null -eq (Get-ListeningProcessId $MatterPort)
+    } "The previous Matter controller did not release port $MatterPort" 30
+  }
+}
+
+function Start-Controller([hashtable]$State, [string]$InterfaceName = "") {
   $desiredBleMode = if ($DisableBluetooth) { "disabled" } else { "proxy" }
   $listenerId = Get-ListeningProcessId $MatterPort
   if ($null -ne $listenerId) {
@@ -506,7 +598,7 @@ function Start-Controller([hashtable]$State) {
     DISABLE_THREAD_DIAGNOSTICS = "true"
     LOG_LEVEL = "warning"
   }
-  $primaryInterface = Resolve-MatterPrimaryInterface
+  $primaryInterface = if ($InterfaceName) { $InterfaceName } else { Resolve-MatterPrimaryInterface }
   if ($primaryInterface) {
     $controllerEnvironment.PRIMARY_INTERFACE = $primaryInterface
   }
@@ -517,8 +609,8 @@ function Start-Controller([hashtable]$State) {
   $controllerStderrPath = Join-Path $logRoot "matter-controller.stderr.log"
   $controllerReady = $false
   for ($attempt = 1; $attempt -le $controllerStartupAttempts; $attempt++) {
-    [IO.File]::WriteAllText($controllerStdoutPath, "", [Text.UTF8Encoding]::new($false))
-    [IO.File]::WriteAllText($controllerStderrPath, "", [Text.UTF8Encoding]::new($false))
+    Rotate-LogFile $controllerStdoutPath
+    Rotate-LogFile $controllerStderrPath
     $process = Start-Process `
       -FilePath $node `
       -ArgumentList @("node_modules/matter-server/dist/esm/MatterServer.js") `
@@ -623,14 +715,14 @@ function Get-MatterInventory {
 }
 
 function Assert-Fabric([string]$Bootstrap) {
-  Assert-Path $bootstrapSecretPath "Shared Fabric credential; start Classroom Control first"
+  Assert-Path $bootstrapSecretPath "Shared Fabric credential; start Control Tower first"
   if (-not (Get-ListeningProcessId $FabricPort)) {
-    throw "Shared Fabric is not listening on port $FabricPort; start Classroom Control first."
+    throw "Shared Fabric is not listening on port $FabricPort; start Control Tower first."
   }
   $null = Invoke-JsonApi -Method GET -Uri "$fabricOrigin/api/v1/fabric/auth/whoami" -Credential $Bootstrap
   $health = Invoke-RestMethod -Uri "$fabricOrigin/api/v1/fabric/healthz" -TimeoutSec 5
   if ($health.physicalActuation -ne "enabled") {
-    throw "Matter plug connection requires Classroom Control with physical devices enabled."
+    throw "Matter plug connection requires Control Tower with physical devices enabled."
   }
 }
 
@@ -648,7 +740,7 @@ function Get-LatestSmartPlugCourse([string]$Bootstrap) {
     Sort-Object { [version]$_.version } -Descending |
     Select-Object -First 1
   if ($null -eq $coursePack) {
-    throw "The smart-plug control course is not installed in Classroom Control."
+    throw "The smart-plug control course is not installed in Control Tower."
   }
   return $coursePack
 }
@@ -704,13 +796,17 @@ function Start-OneAdapter([hashtable]$Plug, [string]$Credential, [string]$Sessio
     CIT_MATTER_VENDOR_NAME = $(if ($Plug.vendorName) { [string]$Plug.vendorName } else { "Matter" })
     CIT_MATTER_PRODUCT_NAME = $(if ($Plug.productName) { [string]$Plug.productName } else { "On/Off Plug-in Unit" })
   }
+  $adapterStdoutPath = Join-Path $logRoot "$($Plug.nodeId).stdout.log"
+  $adapterStderrPath = Join-Path $logRoot "$($Plug.nodeId).stderr.log"
+  Rotate-LogFile $adapterStdoutPath
+  Rotate-LogFile $adapterStderrPath
   return Start-Process `
     -FilePath $runtimePython `
     -ArgumentList @("-m", "cit_matter_smart_plug") `
     -WorkingDirectory $repositoryRoot `
     -WindowStyle Hidden `
-    -RedirectStandardOutput (Join-Path $logRoot "$($Plug.nodeId).stdout.log") `
-    -RedirectStandardError (Join-Path $logRoot "$($Plug.nodeId).stderr.log") `
+    -RedirectStandardOutput $adapterStdoutPath `
+    -RedirectStandardError $adapterStderrPath `
     -Environment $adapterEnvironment `
     -PassThru
 }
@@ -746,7 +842,7 @@ function Start-Adapters([hashtable]$State, [string]$Bootstrap) {
   $inventory = Get-MatterInventory
   $plugs = @($inventory.plugs | Where-Object { $_.available })
   if ($plugs.Count -eq 0) {
-    throw "No available commissioned Matter smart plugs were found. Add a plug from Classroom Control."
+    throw "No available commissioned Matter smart plugs were found. Add a plug from Control Tower."
   }
   $coursePack = Get-LatestSmartPlugCourse $Bootstrap
   $records = [Collections.Generic.List[hashtable]]::new()
@@ -770,7 +866,12 @@ function Start-Adapters([hashtable]$State, [string]$Bootstrap) {
           $_.nodeId -eq [string]$plug.nodeId -and $_.connectionState -eq "connected"
         }).Count -eq 1
       } catch { return $false }
-    } "Matter smart-plug adapter $($plug.nodeId) did not register; inspect $logRoot" 60
+    } "Matter smart-plug adapter $($plug.nodeId) did not register; inspect $logRoot" 60 {
+      $process.HasExited
+    } (
+      "CIT_MATTER_ERROR|MATTER_ADAPTER_START_FAILED|" +
+      "Matter smart-plug adapter $($plug.nodeId) exited before registration; inspect $logRoot."
+    )
     $null = Invoke-JsonApi -Method PUT -Uri "$fabricOrigin/api/v1/fabric/sessions/$($session.sessionId)/roles/classroom_plug" -Credential $Bootstrap -Body @{
       nodeId = [string]$plug.nodeId
     }
@@ -785,7 +886,14 @@ function Start-Adapters([hashtable]$State, [string]$Bootstrap) {
         })
       return $connected.Count -ge $records.Count
     } catch { return $false }
-  } "Matter smart-plug adapters did not register; inspect $logRoot" 60
+  } "Matter smart-plug adapters did not register; inspect $logRoot" 60 {
+    @($records | Where-Object {
+        -not (Test-ExactProcess $_.adapterPid $adapterMarker)
+      }).Count -gt 0
+  } (
+    "CIT_MATTER_ERROR|MATTER_ADAPTER_START_FAILED|" +
+    "A Matter smart-plug adapter exited during registration; inspect $logRoot."
+  )
   Write-Host "READY $($records.Count) cloud-free Matter plug endpoint(s) connected and forced to the off safe state."
 }
 
@@ -875,18 +983,25 @@ $bootstrap = if (Test-Path -LiteralPath $bootstrapSecretPath) {
 
 if ($Mode -eq "Stop") {
   Stop-Adapters $state $bootstrap
-  Stop-BleProxy $state
-  if ($state.ContainsKey("controllerPid")) {
-    Stop-ExactProcess $state.controllerPid $controllerMarker "Matter controller"
-  }
-  if ($state.ContainsKey("controllerLauncherPid")) {
-    Stop-ExactProcess $state.controllerLauncherPid $controllerMarker "Matter controller launcher"
-  }
-  foreach ($key in @("controllerPid", "controllerLauncherPid", "bleMode")) {
-    $state.Remove($key)
-  }
-  Save-State $state
+  Stop-MatterTransport $state
   Write-Host "Stopped CIT Matter adapters and the local controller. Commissioned fabric data remains."
+  exit 0
+}
+
+if ($Mode -eq "Recover") {
+  Assert-Fabric $bootstrap
+  $primaryInterface = Wait-MatterNetworkReady
+  Stop-Adapters $state $bootstrap
+  Stop-MatterTransport $state
+  Start-Controller $state $primaryInterface
+  Start-Adapters $state $bootstrap
+  Show-Status $state
+  if (-not $NoOpenConsole) {
+    & (Join-Path $repositoryRoot "tools\hardware\interaction-fabric-console.ps1") `
+      -Mode Open `
+      -FabricPort $FabricPort `
+      -StateRoot $SharedFabricRoot
+  }
   exit 0
 }
 

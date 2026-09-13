@@ -15,8 +15,87 @@ const EN = {
   "language.label": "Interface language",
   "language.ko": "한국어",
   "language.en": "English",
-  "document.title": "CIT Classroom Control",
+  "document.title": "CIT Control Tower",
   "common.moreInfo": "More information",
+  "quickControls.label": "Quick controls",
+  "quickControls.sonyFolder": "Sony folder",
+  "quickControls.djiFolder": "Nano folder",
+  "quickControls.socialContent": "Social content",
+  "quickControls.settings": "Settings",
+  "quickControls.closeSettings": "Close settings",
+  "settings.eyebrow": "Control center",
+  "settings.title": "Settings",
+  "settings.intro":
+    "Technical locations and background options stay here until you need them.",
+  "settings.cameraImport": "Camera import",
+  "settings.smartPlugs": "Smart plugs",
+  "settings.smartPlugSelection":
+    "The {count} checked plug selection is saved in this browser.",
+  "settings.unlockAutomation": "Phone unlock automation",
+  "settings.unlockAutomationHelp":
+    "A paired Android phone sends one signed event after a genuine secure-screen unlock. Control Tower then turns on only the Matter plugs saved below.",
+  "settings.unlockAutomationOffline":
+    "The phone and this PC must be on the same local Wi-Fi. Missed events are not queued or retried, and no cloud service is used.",
+  "settings.unlockPhone": "Paired phone",
+  "settings.unlockNotPaired": "Not paired",
+  "settings.unlockConfiguredPlugs": "Saved unlock targets",
+  "settings.unlockPlugCount": "{count} plug(s)",
+  "settings.unlockToggle": "Turn on saved plugs when this phone unlocks",
+  "settings.unlockSaveSelection": "Save currently checked plugs",
+  "settings.unlockInstallPair": "Install and pair companion",
+  "settings.unlockRemovePhone": "Unpair phone",
+  "settings.unlockInstallHelp":
+    "USB is required only for the one-time app install and pairing. When pairing completes, disconnect USB; unlock events travel over local Wi-Fi.",
+  "settings.unlockLast.succeeded":
+    "Last unlock: {accepted} of {count} saved plugs accepted the turn-on command.",
+  "settings.unlockLast.failed":
+    "Last unlock: the command did not complete ({accepted} of {count} accepted). Check Control Tower and plug connectivity.",
+  "settings.unlockLast.disabled":
+    "Last unlock was received, but this automation was disabled.",
+  "settings.unlockLast.cooldown":
+    "Last unlock was ignored because a recent unlock already ran the automation.",
+  "settings.androidController": "Android control screen",
+  "settings.androidHelp":
+    "USB keeps this control screen connected to the PC even when the phone joins a Sony or DJI camera Wi-Fi network.",
+  "settings.androidPhone": "Connected phone",
+  "settings.androidOpen": "Open on Android",
+  "settings.androidInstall": "Install on this phone",
+  "settings.androidInstallHelp":
+    "Installation is optional. The control screen already works in Chrome; installing adds a home-screen icon.",
+  "settings.androidState.checking": "Checking USB connection",
+  "settings.androidState.unavailable": "USB phone not connected",
+  "settings.androidState.unauthorized": "USB debugging authorization required",
+  "settings.androidState.ambiguous": "Choose one dedicated USB phone",
+  "settings.androidState.ready": "USB bridge ready",
+  "settings.androidState.failed": "USB bridge needs attention",
+  "settings.lanAccess": "Local Wi-Fi access",
+  "settings.lanAccessHelp":
+    "Control Tower checks each same-network device against this MAC list, then still requires a signed-in session. Copy access link creates a one-use link that expires in 90 seconds. MAC addresses can be imitated, so never expose this port to the internet.",
+  "settings.lanAddress": "Address for allowed devices",
+  "settings.lanAddressUnavailable": "Local-network address unavailable",
+  "settings.lanEnabled": "MAC allowlist enabled",
+  "settings.lanDisabled": "Local-network access is not enabled",
+  "settings.lanEnrollAndroid": "Allow and open USB phone",
+  "settings.lanEnrollAndroidHelp":
+    "Reads this Wi-Fi network's private MAC from the USB phone, then opens a one-use signed-in LAN session. If Android's privacy address changes, allow it again.",
+  "settings.lanNoDevices": "No Wi-Fi devices are allowed yet.",
+  "settings.lanDeviceName": "Device name",
+  "settings.lanMacAddress": "Wi-Fi MAC address",
+  "settings.lanAdd": "Allow device",
+  "settings.lanCopyLink": "Copy access link",
+  "settings.lanRemove": "Remove",
+  "settings.lanRemoveNamed": "Remove {name} from local Wi-Fi access",
+
+  "androidRemote.eyebrow": "Android remote",
+  "androidRemote.title": "Smart plug remote control",
+  "androidRemote.connectionSummary": "{available} of {total} plugs connected",
+  "androidRemote.allControls": "All smart plug controls",
+  "androidRemote.turnOnAll": "Turn on every plug",
+  "androidRemote.turnOffAll": "Turn off every plug",
+  "androidRemote.showAll": "Show full control center",
+  "androidRemote.plugOnly": "Show plug remote only",
+  "androidRemote.noPlugs":
+    "No smart plugs are available. Open the full control center to connect one.",
 
   "mode.eyebrow": "Choose how to use CIT",
   "mode.title": "Direct demonstration or class lesson",
@@ -63,9 +142,9 @@ const EN = {
   "lesson.glassesControl.prepare":
     "Choose Physical devices, then set up this lesson first.",
 
-  "login.eyebrow": "Classroom device control",
+  "login.eyebrow": "CIT Control Tower",
   "login.opening": "Opening your classroom…",
-  "login.welcome": "Welcome to CIT Classroom Control",
+  "login.welcome": "Welcome to CIT Control Tower",
   "login.connectingLead":
     "Securely connecting to the devices on this computer.",
   "login.welcomeLead":
@@ -74,7 +153,7 @@ const EN = {
   "login.launcherCompleting": "The launcher is completing local sign-in.",
   "login.useButton": "Use the CIT button",
   "login.useButtonHelp":
-    "Open CIT Classroom Control from the Windows Desktop or Start menu, then choose Start classroom devices. CIT will reopen this page and sign you in automatically.",
+    "Open CIT Control Tower from the Windows Desktop or Start menu, then choose Start classroom devices. CIT will reopen this page and sign you in automatically.",
   "login.continueBrowser": "Continue in the browser",
   "login.continueBrowserHelp":
     "Choose a lesson, connect devices, check safety, and teach. No account or device password is needed.",
@@ -85,15 +164,16 @@ const EN = {
     "Use this recovery option only if automatic opening failed. Ask the classroom technician for a temporary access code.",
   "login.accessLabel": "Access code",
   "login.accessPlaceholder": "Paste access code",
-  "login.continue": "Continue to classroom controls",
+  "login.continue": "Continue to Control Tower",
   "login.accessMemory":
     "The code stays in this tab only and is cleared when you sign out or reload.",
   "login.needHelp":
     "Need help? Ask the classroom technician to start the local CIT service. Device credentials never belong in this box.",
 
-  "header.eyebrow": "CIT classroom",
-  "header.title": "Classroom Control",
+  "header.eyebrow": "CIT",
+  "header.title": "Control Tower",
   "header.connected": "Connected locally",
+  "header.androidConnected": "Connected to the PC by USB",
   "header.tutor": "Tutor controls",
   "header.signOut": "Sign out",
   "header.stopAll": "Stop all devices",
@@ -110,7 +190,7 @@ const EN = {
   "installation.internetBody":
     "The installer obtains pinned Microsoft, OpenJS, Python, npm, PyPI, and Git prerequisites. It can be carried by USB, but it is not a fully offline installer.",
   "installation.noCloud":
-    "After setup, classroom control remains local-first. CIT does not require a Tuya, Gosund, or Tapo cloud account.",
+    "After setup, Control Tower remains local-first. CIT does not require a Tuya, Gosund, or Tapo cloud account.",
   "installation.step1.title": "Download both setup files",
   "installation.step1.body":
     "Save the Windows setup ZIP and the small site template from this page. The template contains only the site and room names.",
@@ -122,7 +202,7 @@ const EN = {
     "Double-click the installer, approve prerequisites, and enter the new classroom Wi-Fi password only in the local prompt.",
   "installation.step4.title": "Open, find, and pair devices",
   "installation.step4.body":
-    "Use the installed CIT Classroom Control button, find devices, complete any Windows Bluetooth pairing, and factory-reset then recommission Matter plugs at the new site.",
+    "Use the installed CIT Control Tower button, find devices, complete any Windows Bluetooth pairing, and factory-reset then recommission Matter plugs at the new site.",
   "installation.loadingTitle": "Checking the local setup package",
   "installation.loadingBody":
     "CIT is validating the release metadata before showing the download.",
@@ -153,8 +233,10 @@ const EN = {
     "The downloaded setup did not match its SHA-256 checksum. Nothing was saved; ask the technician to rebuild it.",
 
   "notice.ready": "Ready to set up your classroom.",
-  "notice.secureOpen": "Classroom controls opened securely on this computer.",
-  "notice.connected": "Classroom controls connected on this computer.",
+  "notice.secureOpen": "Control Tower opened securely on this computer.",
+  "notice.secureOpenAndroid":
+    "Smart plug remote opened securely through this phone's USB connection.",
+  "notice.connected": "Control Tower connected on this computer.",
   "notice.signedOut":
     "Signed out. Reopen the console from the CIT launcher to return.",
   "notice.installerDownloaded":
@@ -218,6 +300,26 @@ const EN = {
     "The reviewed G-code was downloaded for manual handoff.",
   "notice.printerUploaded": "G-code was uploaded only; printing did not start.",
   "notice.printerStarted": "The printer confirmed the print start.",
+  "notice.cameraImportStarted":
+    "{camera} automatic import started. Progress updates here without camera or phone taps.",
+  "notice.cameraImportDestinationOpened":
+    "Camera import folder opened in Windows File Explorer.",
+  "notice.androidOpened": "Opened Control Tower on the USB Android phone.",
+  "notice.lanDeviceAllowed": "Allowed {name} on the local Wi-Fi network.",
+  "notice.lanDeviceRemoved": "Removed {name} from local Wi-Fi access.",
+  "notice.lanAndroidAllowed":
+    "Allowed the connected Android phone and opened its Wi-Fi control screen.",
+  "notice.lanAccessLinkCopied":
+    "Copied a one-use Wi-Fi access link. Open it on the allowed device within 90 seconds.",
+  "notice.unlockAutomationEnabled":
+    "Phone-unlock automation is enabled for {count} saved plug(s).",
+  "notice.unlockAutomationDisabled": "Phone-unlock automation is disabled.",
+  "notice.unlockSelectionSaved":
+    "Saved {count} checked plug(s) as the phone-unlock targets.",
+  "notice.unlockCompanionPaired":
+    "The Android companion is paired. USB may now be disconnected.",
+  "notice.unlockCompanionRemoved":
+    "The Android companion was unpaired and unlock automation was disabled.",
 
   "busy.authenticating": "Authenticating",
   "busy.downloadingInstaller": "Downloading and verifying Windows setup",
@@ -268,6 +370,14 @@ const EN = {
   "busy.printerUpload": "Uploading G-code without starting",
   "busy.printerPrepareStart": "Preparing final print confirmation",
   "busy.printerStart": "Sending the one-time print start",
+  "busy.cameraImportStart": "Starting automatic camera import",
+  "busy.cameraImportOpenDestination": "Opening the camera import folder",
+  "busy.openingAndroid": "Opening Control Tower on Android",
+  "busy.savingLanAccess": "Saving local Wi-Fi access",
+  "busy.creatingLanAccessLink": "Creating one-use Wi-Fi access link",
+  "busy.savingUnlockAutomation": "Saving phone-unlock automation",
+  "busy.pairingUnlockCompanion": "Installing and pairing Android companion",
+  "busy.installingPwa": "Installing Control Tower",
 
   "error.selectCourse": "Select an installed course pack.",
   "error.glassesControlSession":
@@ -332,7 +442,7 @@ const EN = {
     "Assign the bounded fleet sequence controller first.",
   "error.startSequence": "Start the lesson before arming the sequence.",
   "error.auth":
-    "That access code is invalid or expired. Reopen Classroom Control from the CIT launcher.",
+    "That access code is invalid or expired. Reopen Control Tower from the CIT launcher.",
   "error.physicalDisabled":
     "Real-device control is locked by the local runtime. Restart CIT with physical devices enabled, or use a simulator.",
   "error.sessionInactive": "Start the lesson before using that device.",
@@ -367,9 +477,9 @@ const EN = {
   "error.matterAttestationFailed":
     "The plug answered, but its Matter device identity could not be verified. Check that it is certified and its firmware is current.",
   "error.matterControllerUnavailable":
-    "The local Matter controller connection was lost. Restart Classroom Control, then try again.",
+    "The local Matter controller connection was lost. Restart Control Tower, then try again.",
   "error.matterCommissioningUnavailable":
-    "Matter setup is not available in this runtime. Restart Classroom Control with the Matter launcher installed.",
+    "Matter setup is not available in this runtime. Restart Control Tower with the Matter launcher installed.",
   "error.matterCommissioningFailed":
     "Matter setup failed at an unknown controller stage. Refresh device status and try again; the setup code was not logged.",
   "error.requestFailed": "The Fabric request failed.",
@@ -707,7 +817,7 @@ const EN = {
     "The latest normalized LEGO, robot, smart-plug electrical, biosignal, and battery readings appear automatically when an adapter publishes them.",
   "sensor.none": "No sensor readings have arrived in the selected lesson yet.",
 
-  "plug.eyebrow": "Lesson control",
+  "plug.eyebrow": "Control Tower",
   "plug.title": "Classroom plugs",
   "plug.noneAssigned": "No classroom plugs assigned",
   "plug.compatible": "{count} compatible device(s) connected",
@@ -807,6 +917,73 @@ const EN = {
   "printer.state.starting": "Starting",
   "printer.state.offline": "Offline",
   "printer.state.unknown": "State unknown",
+
+  "cameraImport.eyebrow": "Camera media",
+  "cameraImport.genericTitle": "Automatic camera import",
+  "cameraImport.title": "{camera} automatic import",
+  "cameraImport.loading": "Checking the dedicated Android companion…",
+  "cameraImport.camera": "Camera",
+  "cameraImport.cameraBattery": "Camera battery",
+  "cameraImport.phone": "Android companion",
+  "cameraImport.phoneBattery": "Phone battery",
+  "cameraImport.phoneConnected": "Connected by USB",
+  "cameraImport.phoneDisconnected": "USB phone not connected",
+  "cameraImport.onPhone": "Completed phone copies",
+  "cameraImport.fileSummary": "{count} files · {size}",
+  "cameraImport.schedule": "Automatic schedule",
+  "cameraImport.scheduleEnabled": "Every {minutes} min",
+  "cameraImport.scheduleDisabled": "Disabled",
+  "cameraImport.batteryUnknown": "Unavailable",
+  "cameraImport.batteryLevel": "{level}% remaining",
+  "cameraImport.batteryCharging": "{level}% · charging",
+  "cameraImport.batteryWarning": "{level}% · low",
+  "cameraImport.batteryBlocked": "{level}% · sync deferred",
+  "cameraImport.batteryDeferredTitle": "Low battery · sync deferred",
+  "cameraImport.batteryDeferredBody":
+    "CIT will check again on the next automatic interval after charging starts or the battery reaches 20%.",
+  "cameraImport.setupTitle": "One-time camera pairing required",
+  "cameraImport.setupBody":
+    "Enable Bluetooth and Cnct. during Power OFF on the ZV-E10, then approve its Imaging Edge Mobile pairing once. Recurring imports are touch-free after that.",
+  "cameraImport.djiSetupTitle": "Finish DJI Mimo setup once",
+  "cameraImport.djiSetupBody":
+    "Unlock the dedicated phone, review DJI Mimo's terms and permissions, activate Osmo Nano if requested, then approve its first Bluetooth/Wi-Fi connection once.",
+  "cameraImport.phoneUnlockTitle": "Unlock the dedicated phone once",
+  "cameraImport.phoneUnlockBody":
+    "Unlock its pattern once; it will stay awake while powered by USB. For unattended recovery after a restart or cable disconnect, change this spare phone's screen lock to Swipe or None.",
+  "cameraImport.progress": "Camera import progress",
+  "cameraImport.progressCount": "{completed} of {total}",
+  "cameraImport.verified": "PC copies verified",
+  "cameraImport.result":
+    "{verified} verified · {copied} new · {skipped} already present · {size}",
+  "cameraImport.start": "Import new originals now",
+  "cameraImport.running": "Automatic import running…",
+  "cameraImport.destination": "Verified destination",
+  "cameraImport.openDestination": "Open folder",
+  "cameraImport.automationHelp":
+    "One action wakes or reconnects the paired camera, operates Imaging Edge Mobile, selects missing media, transfers originals, copies them over USB, and verifies SHA-256.",
+  "cameraImport.djiAutomationHelp":
+    "After one-time setup, one action opens DJI Mimo, reconnects a powered and available Osmo Nano, selects only named missing media, downloads originals, copies them over USB, and verifies SHA-256.",
+  "cameraImport.scheduleHelp":
+    "The control-center runtime repeats this workflow every {minutes} minutes while the PC is awake. Overlapping runs are skipped, and unavailable devices are retried on the next interval.",
+  "cameraImport.pairingHelp":
+    "Sony requires one physical camera approval for the initial Bluetooth trust pairing. The first-generation ZV-E10 is not supported by Sony Camera Remote SDK, so this security step cannot be bypassed.",
+  "cameraImport.djiPairingHelp":
+    "DJI documents phone transfer over Bluetooth and Wi-Fi but does not promise remote wake from every power state. Keep Osmo Nano powered and available; the first live run will confirm this Mimo version's controls.",
+  "cameraImport.batteryHelp":
+    "Battery preflight warns below 30%. Below 20% without charging, CIT defers before selecting media and retries on the next automatic interval. If the companion app does not expose the camera level, CIT shows Unavailable and continues based on the phone preflight.",
+  "cameraImport.safetyHelp":
+    "CIT never deletes files from the camera or phone and never overwrites a different PC file. Interrupted PC copies remain temporary until checksum verification succeeds.",
+  "cameraImport.state.unavailable": "Phone unavailable",
+  "cameraImport.state.ready": "Ready",
+  "cameraImport.state.deferred": "Low battery · waiting",
+  "cameraImport.state.setup_required": "Pair once",
+  "cameraImport.state.connecting": "Connecting",
+  "cameraImport.state.inventory": "Checking new files",
+  "cameraImport.state.transferring": "Camera → phone",
+  "cameraImport.state.copying": "Phone → PC",
+  "cameraImport.state.verifying": "Verifying",
+  "cameraImport.state.completed": "Verified",
+  "cameraImport.state.failed": "Needs attention",
 
   "nodes.eyebrow": "Device status",
   "nodes.title": "Everything connected to this classroom",
@@ -1281,8 +1458,87 @@ export type FabricMessageKey = keyof typeof EN;
 const KO: Record<FabricMessageKey, string> = {
   ...EN,
   "language.label": "화면 언어",
-  "document.title": "CIT 수업 제어",
+  "document.title": "CIT Control Tower",
   "common.moreInfo": "자세히",
+  "quickControls.label": "빠른 제어",
+  "quickControls.sonyFolder": "Sony 폴더",
+  "quickControls.djiFolder": "Nano 폴더",
+  "quickControls.socialContent": "소셜 콘텐츠",
+  "quickControls.settings": "설정",
+  "quickControls.closeSettings": "설정 닫기",
+  "settings.eyebrow": "제어 센터",
+  "settings.title": "설정",
+  "settings.intro":
+    "기술 정보와 백그라운드 옵션은 필요할 때만 여기에서 확인할 수 있습니다.",
+  "settings.cameraImport": "카메라 가져오기",
+  "settings.smartPlugs": "스마트 플러그",
+  "settings.smartPlugSelection":
+    "체크한 플러그 {count}개가 이 브라우저에 저장되어 있습니다.",
+  "settings.unlockAutomation": "휴대전화 잠금 해제 자동화",
+  "settings.unlockAutomationHelp":
+    "페어링한 Android 휴대전화가 보안 화면이 실제로 잠금 해제될 때 서명된 이벤트 한 번을 보냅니다. Control Tower는 아래에 저장한 Matter 플러그만 켭니다.",
+  "settings.unlockAutomationOffline":
+    "휴대전화와 이 PC가 같은 로컬 Wi-Fi에 있어야 합니다. 놓친 이벤트는 저장하거나 재시도하지 않으며 클라우드를 사용하지 않습니다.",
+  "settings.unlockPhone": "페어링한 휴대전화",
+  "settings.unlockNotPaired": "페어링 안 됨",
+  "settings.unlockConfiguredPlugs": "저장된 잠금 해제 대상",
+  "settings.unlockPlugCount": "플러그 {count}개",
+  "settings.unlockToggle": "이 휴대전화 잠금 해제 시 저장된 플러그 켜기",
+  "settings.unlockSaveSelection": "현재 체크한 플러그 저장",
+  "settings.unlockInstallPair": "컴패니언 설치 및 페어링",
+  "settings.unlockRemovePhone": "휴대전화 페어링 해제",
+  "settings.unlockInstallHelp":
+    "USB는 앱을 한 번 설치하고 페어링할 때만 필요합니다. 페어링이 끝나면 USB를 분리하세요. 이후 잠금 해제 이벤트는 로컬 Wi-Fi로 전달됩니다.",
+  "settings.unlockLast.succeeded":
+    "최근 잠금 해제: 저장된 플러그 {count}개 중 {accepted}개의 켜기 명령을 수락했습니다.",
+  "settings.unlockLast.failed":
+    "최근 잠금 해제: 명령을 완료하지 못했습니다({count}개 중 {accepted}개 수락). Control Tower와 플러그 연결을 확인하세요.",
+  "settings.unlockLast.disabled":
+    "최근 잠금 해제 이벤트를 받았지만 자동화가 꺼져 있어 실행하지 않았습니다.",
+  "settings.unlockLast.cooldown":
+    "최근 잠금 해제는 직전 자동화 실행 후 대기 시간 중이어서 건너뛰었습니다.",
+  "settings.androidController": "Android 제어 화면",
+  "settings.androidHelp":
+    "휴대전화가 Sony 또는 DJI 카메라 Wi-Fi로 바뀌어도 USB가 이 제어 화면과 PC의 연결을 유지합니다.",
+  "settings.androidPhone": "연결된 휴대전화",
+  "settings.androidOpen": "Android에서 열기",
+  "settings.androidInstall": "이 휴대전화에 설치",
+  "settings.androidInstallHelp":
+    "설치는 선택 사항입니다. Chrome에서 바로 사용할 수 있으며, 설치하면 홈 화면 아이콘이 추가됩니다.",
+  "settings.androidState.checking": "USB 연결 확인 중",
+  "settings.androidState.unavailable": "USB 휴대전화 연결 안 됨",
+  "settings.androidState.unauthorized": "USB 디버깅 승인 필요",
+  "settings.androidState.ambiguous": "전용 USB 휴대전화 한 대를 선택하세요",
+  "settings.androidState.ready": "USB 연결 준비됨",
+  "settings.androidState.failed": "USB 연결 확인 필요",
+  "settings.lanAccess": "로컬 Wi-Fi 접근",
+  "settings.lanAccessHelp":
+    "Control Tower가 같은 네트워크의 장치를 이 MAC 목록과 확인한 뒤 로그인도 계속 요구합니다. 접속 링크 복사는 90초 뒤 만료되는 일회용 링크를 만듭니다. MAC 주소는 위조할 수 있으므로 이 포트를 인터넷에 공개하지 마세요.",
+  "settings.lanAddress": "허용된 장치용 주소",
+  "settings.lanAddressUnavailable": "로컬 네트워크 주소를 사용할 수 없음",
+  "settings.lanEnabled": "MAC 허용 목록 사용 중",
+  "settings.lanDisabled": "로컬 네트워크 접근이 켜져 있지 않음",
+  "settings.lanEnrollAndroid": "USB 휴대전화 허용하고 열기",
+  "settings.lanEnrollAndroidHelp":
+    "USB 휴대전화에서 현재 Wi-Fi의 비공개 MAC을 읽은 뒤 일회용 로그인으로 LAN 화면을 엽니다. Android의 비공개 주소가 바뀌면 다시 허용하세요.",
+  "settings.lanNoDevices": "아직 허용된 Wi-Fi 장치가 없습니다.",
+  "settings.lanDeviceName": "장치 이름",
+  "settings.lanMacAddress": "Wi-Fi MAC 주소",
+  "settings.lanAdd": "장치 허용",
+  "settings.lanCopyLink": "접속 링크 복사",
+  "settings.lanRemove": "삭제",
+  "settings.lanRemoveNamed": "{name}의 로컬 Wi-Fi 접근 삭제",
+
+  "androidRemote.eyebrow": "Android 원격 제어",
+  "androidRemote.title": "스마트 플러그 원격 제어",
+  "androidRemote.connectionSummary": "{total}개 중 {available}개 연결됨",
+  "androidRemote.allControls": "모든 스마트 플러그 제어",
+  "androidRemote.turnOnAll": "모든 플러그 켜기",
+  "androidRemote.turnOffAll": "모든 플러그 끄기",
+  "androidRemote.showAll": "전체 제어 센터 보기",
+  "androidRemote.plugOnly": "플러그 원격 화면만 보기",
+  "androidRemote.noPlugs":
+    "사용 가능한 스마트 플러그가 없습니다. 전체 제어 센터에서 연결하세요.",
 
   "mode.eyebrow": "CIT 사용 목적",
   "mode.title": "바로 데모 또는 수업 준비",
@@ -1326,9 +1582,9 @@ const KO: Record<FabricMessageKey, string> = {
   "lesson.glassesControl.connect": "G2 / Meta 연결",
   "lesson.glassesControl.prepare":
     "실물 장치를 선택하고 먼저 이 수업을 설정하세요.",
-  "login.eyebrow": "교실 장치 제어",
+  "login.eyebrow": "CIT Control Tower",
   "login.opening": "교실을 여는 중…",
-  "login.welcome": "CIT 수업 제어에 오신 것을 환영합니다",
+  "login.welcome": "CIT Control Tower에 오신 것을 환영합니다",
   "login.connectingLead": "이 컴퓨터의 교실 장치에 안전하게 연결하고 있습니다.",
   "login.welcomeLead":
     "한 화면에서 수업을 준비하고, 장치를 연결하고, 안전을 확인한 뒤 수업을 진행하세요.",
@@ -1337,7 +1593,7 @@ const KO: Record<FabricMessageKey, string> = {
     "실행기가 이 컴퓨터에서 안전하게 로그인하고 있습니다.",
   "login.useButton": "CIT 버튼 사용",
   "login.useButtonHelp":
-    "Windows 바탕 화면이나 시작 메뉴에서 CIT 수업 제어를 열고 ‘교실 장치 시작’을 선택하세요. CIT가 이 페이지를 다시 열고 자동으로 로그인합니다.",
+    "Windows 바탕 화면이나 시작 메뉴에서 CIT Control Tower를 열고 ‘교실 장치 시작’을 선택하세요. CIT가 이 페이지를 다시 열고 자동으로 로그인합니다.",
   "login.continueBrowser": "브라우저에서 계속",
   "login.continueBrowserHelp":
     "수업을 고르고 장치를 연결한 뒤 안전을 확인하고 수업을 진행하세요. 별도 계정이나 장치 비밀번호는 필요하지 않습니다.",
@@ -1348,14 +1604,15 @@ const KO: Record<FabricMessageKey, string> = {
     "자동 열기가 실패했을 때만 사용하는 복구 방법입니다. 교실 기술 담당자에게 임시 접속 코드를 요청하세요.",
   "login.accessLabel": "접속 코드",
   "login.accessPlaceholder": "접속 코드 붙여 넣기",
-  "login.continue": "교실 제어로 계속",
+  "login.continue": "Control Tower로 계속",
   "login.accessMemory":
     "코드는 이 탭의 메모리에만 보관되며 로그아웃하거나 새로고침하면 지워집니다.",
   "login.needHelp":
     "도움이 필요하면 교실 기술 담당자에게 로컬 CIT 서비스를 시작해 달라고 요청하세요. 장치 비밀번호나 인증 정보는 이 입력란에 넣지 마세요.",
-  "header.eyebrow": "CIT 교실",
-  "header.title": "수업 제어",
+  "header.eyebrow": "CIT",
+  "header.title": "Control Tower",
   "header.connected": "이 컴퓨터에 연결됨",
+  "header.androidConnected": "USB로 PC에 연결됨",
   "header.tutor": "강사 제어",
   "header.signOut": "로그아웃",
   "header.stopAll": "모든 장치 정지",
@@ -1371,7 +1628,7 @@ const KO: Record<FabricMessageKey, string> = {
   "installation.internetBody":
     "설치 프로그램은 고정된 Microsoft, OpenJS, Python, npm, PyPI 및 Git 필수 항목을 받습니다. USB로 옮길 수 있지만 완전한 오프라인 설치 파일은 아닙니다.",
   "installation.noCloud":
-    "설치 후 교실 제어는 로컬 우선으로 작동합니다. CIT에는 Tuya, Gosund 또는 Tapo 클라우드 계정이 필요하지 않습니다.",
+    "설치 후 Control Tower는 로컬 우선으로 작동합니다. CIT에는 Tuya, Gosund 또는 Tapo 클라우드 계정이 필요하지 않습니다.",
   "installation.step1.title": "설치 파일 2개 받기",
   "installation.step1.body":
     "이 페이지에서 Windows 설치 ZIP과 작은 사이트 설정 파일을 모두 저장하세요. 설정 파일에는 사이트와 교실 이름만 들어 있습니다.",
@@ -1383,7 +1640,7 @@ const KO: Record<FabricMessageKey, string> = {
     "설치 파일을 더블클릭하고 필수 프로그램 설치를 승인한 뒤, 새 교실 Wi-Fi 비밀번호는 로컬 입력창에만 입력하세요.",
   "installation.step4.title": "열기, 찾기, 장치 연결",
   "installation.step4.body":
-    "설치된 CIT Classroom Control 버튼을 열어 장치를 찾고, 필요한 Windows Bluetooth 페어링을 완료하세요. 새 장소의 Matter 플러그는 공장 초기화한 뒤 다시 등록하세요.",
+    "설치된 CIT Control Tower 버튼을 열어 장치를 찾고, 필요한 Windows Bluetooth 페어링을 완료하세요. 새 장소의 Matter 플러그는 공장 초기화한 뒤 다시 등록하세요.",
   "installation.loadingTitle": "로컬 설치 패키지 확인 중",
   "installation.loadingBody":
     "다운로드를 표시하기 전에 CIT가 릴리스 정보를 검증하고 있습니다.",
@@ -1412,10 +1669,12 @@ const KO: Record<FabricMessageKey, string> = {
   "installation.checksumFailed":
     "받은 설치 파일의 SHA-256 검사값이 맞지 않습니다. 파일을 저장하지 않았으니 기술 담당자에게 다시 빌드해 달라고 요청하세요.",
   "notice.ready": "교실을 준비할 수 있습니다.",
-  "notice.secureOpen": "이 컴퓨터에서 수업 제어를 안전하게 열었습니다.",
-  "notice.connected": "이 컴퓨터의 수업 제어에 연결했습니다.",
+  "notice.secureOpen": "이 컴퓨터에서 Control Tower를 안전하게 열었습니다.",
+  "notice.secureOpenAndroid":
+    "이 휴대전화의 USB 연결로 스마트 플러그 원격 제어를 안전하게 열었습니다.",
+  "notice.connected": "이 컴퓨터의 Control Tower에 연결했습니다.",
   "notice.signedOut":
-    "로그아웃했습니다. 다시 들어오려면 CIT 실행기에서 수업 제어를 여세요.",
+    "로그아웃했습니다. 다시 들어오려면 CIT 실행기에서 Control Tower를 여세요.",
   "notice.installerDownloaded":
     "Windows 설치 파일을 받고 검증했습니다. 사이트 설정 파일과 함께 새 컴퓨터로 옮기세요.",
   "notice.siteTemplateDownloaded":
@@ -1479,6 +1738,27 @@ const KO: Record<FabricMessageKey, string> = {
   "notice.printerUploaded":
     "G-code만 업로드했습니다. 출력은 시작하지 않았습니다.",
   "notice.printerStarted": "프린터가 출력 시작을 확인했습니다.",
+  "notice.cameraImportStarted":
+    "{camera} 자동 가져오기를 시작했습니다. 카메라나 휴대전화 조작 없이 여기에서 진행 상태를 확인할 수 있습니다.",
+  "notice.cameraImportDestinationOpened":
+    "카메라 가져오기 폴더를 Windows 파일 탐색기에서 열었습니다.",
+  "notice.androidOpened":
+    "USB Android 휴대전화에서 Control Tower를 열었습니다.",
+  "notice.lanDeviceAllowed": "{name}의 로컬 Wi-Fi 접근을 허용했습니다.",
+  "notice.lanDeviceRemoved": "{name}의 로컬 Wi-Fi 접근을 삭제했습니다.",
+  "notice.lanAndroidAllowed":
+    "연결된 Android 휴대전화를 허용하고 Wi-Fi 제어 화면을 열었습니다.",
+  "notice.lanAccessLinkCopied":
+    "일회용 Wi-Fi 접속 링크를 복사했습니다. 90초 안에 허용된 장치에서 여세요.",
+  "notice.unlockAutomationEnabled":
+    "저장된 플러그 {count}개에 휴대전화 잠금 해제 자동화를 켰습니다.",
+  "notice.unlockAutomationDisabled": "휴대전화 잠금 해제 자동화를 껐습니다.",
+  "notice.unlockSelectionSaved":
+    "체크한 플러그 {count}개를 휴대전화 잠금 해제 대상으로 저장했습니다.",
+  "notice.unlockCompanionPaired":
+    "Android 컴패니언을 페어링했습니다. 이제 USB를 분리해도 됩니다.",
+  "notice.unlockCompanionRemoved":
+    "Android 컴패니언 페어링을 해제하고 잠금 해제 자동화를 껐습니다.",
   "busy.authenticating": "인증하는 중",
   "busy.downloadingInstaller": "Windows 설치 파일을 받고 검증하는 중",
   "busy.downloadingSiteTemplate": "인증 정보 없는 사이트 설정 준비 중",
@@ -1528,6 +1808,14 @@ const KO: Record<FabricMessageKey, string> = {
   "busy.printerUpload": "출력 시작 없이 G-code 업로드 중",
   "busy.printerPrepareStart": "마지막 출력 확인 준비 중",
   "busy.printerStart": "일회성 출력 시작 요청 중",
+  "busy.cameraImportStart": "카메라 자동 가져오기 시작 중",
+  "busy.cameraImportOpenDestination": "카메라 가져오기 폴더 여는 중",
+  "busy.openingAndroid": "Android에서 Control Tower를 여는 중",
+  "busy.savingLanAccess": "로컬 Wi-Fi 접근을 저장하는 중",
+  "busy.creatingLanAccessLink": "일회용 Wi-Fi 접속 링크를 만드는 중",
+  "busy.savingUnlockAutomation": "휴대전화 잠금 해제 자동화 저장 중",
+  "busy.pairingUnlockCompanion": "Android 컴패니언 설치 및 페어링 중",
+  "busy.installingPwa": "Control Tower를 설치하는 중",
   "error.selectCourse": "설치된 수업을 선택하세요.",
   "error.glassesControlSession":
     "먼저 ‘안경으로 장치 제어’ 수업을 설정하고 선택하세요.",
@@ -1589,7 +1877,7 @@ const KO: Record<FabricMessageKey, string> = {
   "error.fleetController": "먼저 제한된 순차 드론 컨트롤러를 배정하세요.",
   "error.startSequence": "순차 비행을 준비하기 전에 수업을 시작하세요.",
   "error.auth":
-    "접속 코드가 올바르지 않거나 만료되었습니다. CIT 실행기에서 수업 제어를 다시 여세요.",
+    "접속 코드가 올바르지 않거나 만료되었습니다. CIT 실행기에서 Control Tower를 다시 여세요.",
   "error.physicalDisabled":
     "로컬 런타임에서 실제 장치 제어가 잠겨 있습니다. 실제 장치를 사용하도록 CIT를 다시 시작하거나 시뮬레이터를 사용하세요.",
   "error.sessionInactive": "이 장치를 사용하기 전에 수업을 시작하세요.",
@@ -1623,9 +1911,9 @@ const KO: Record<FabricMessageKey, string> = {
   "error.matterAttestationFailed":
     "플러그가 응답했지만 Matter 장치 신원을 확인하지 못했습니다. 정품 인증 장치와 최신 펌웨어인지 확인하세요.",
   "error.matterControllerUnavailable":
-    "로컬 Matter 컨트롤러 연결이 끊어졌습니다. Classroom Control을 다시 시작한 뒤 다시 시도하세요.",
+    "로컬 Matter 컨트롤러 연결이 끊어졌습니다. Control Tower를 다시 시작한 뒤 다시 시도하세요.",
   "error.matterCommissioningUnavailable":
-    "이 런타임에서는 Matter 설정을 사용할 수 없습니다. Matter 실행기가 설치된 상태로 Classroom Control을 다시 시작하세요.",
+    "이 런타임에서는 Matter 설정을 사용할 수 없습니다. Matter 실행기가 설치된 상태로 Control Tower를 다시 시작하세요.",
   "error.matterCommissioningFailed":
     "알 수 없는 컨트롤러 단계에서 Matter 설정에 실패했습니다. 장치 상태를 새로고침한 뒤 다시 시도하세요. 설정 코드는 기록되지 않았습니다.",
   "error.requestFailed": "Fabric 요청에 실패했습니다.",
@@ -1646,7 +1934,7 @@ const KO: Record<FabricMessageKey, string> = {
     "교실을 확인하고 비상 정지 버튼을 보이게 둔 다음 수업을 시작하세요.",
   "guide.teach.title": "수업 진행 중",
   "guide.teach.description":
-    "장치가 준비되었습니다. 아래 수업 제어를 사용하고 수업이 끝나면 세션을 종료하세요.",
+    "장치가 준비되었습니다. 아래 Control Tower 제어를 사용하고 수업이 끝나면 세션을 종료하세요.",
   "guide.ready.title": "모두 준비되었습니다",
   "guide.ready.description":
     "요약을 확인한 뒤 학생들이 준비되면 수업을 시작하세요.",
@@ -1852,7 +2140,7 @@ const KO: Record<FabricMessageKey, string> = {
   "test.runningHelp":
     "수업이 진행 중입니다. 오늘 활동에 맞는 확인 기능만 사용하세요.",
   "test.waitingHelp":
-    "4단계에서 수업을 시작하면 수업 제어를 사용할 수 있습니다.",
+    "4단계에서 수업을 시작하면 장치 제어를 사용할 수 있습니다.",
   "test.input": "학생 입력 확인",
   "test.inputHelp": "제스처, 버튼 또는 음성 입력을 요청하세요",
   "test.agent": "코딩 도우미 확인",
@@ -1862,7 +2150,7 @@ const KO: Record<FabricMessageKey, string> = {
   "test.robotStop": "로봇 정지 확인",
   "test.robotStopHelp": "로봇이 안전 정지 명령을 받는지 확인",
   "test.running": "수업 진행 중",
-  "test.waiting": "수업 제어 대기 중",
+  "test.waiting": "장치 제어 대기 중",
   "test.inProgress": "진행 중인 장치 동작 {count}개",
   "test.agentPrompt": "CIT Fabric 연결 확인을 짧게 답변해 주세요.",
   "test.displayMessage": "CIT Fabric 화면 연결 시험",
@@ -1909,7 +2197,7 @@ const KO: Record<FabricMessageKey, string> = {
   "media.droneAdvisory":
     "드론 인식은 참고 정보입니다. 제한된 드론 제어에는 배정되고 활성화된 비행 수업을 사용하세요. 영상 인식으로 드론을 활성화하거나 비행시킬 수 없습니다.",
   "media.noMappedAction":
-    "이 물체 종류에는 장치 동작이 연결되어 있지 않습니다. 사용할 수 있다면 배정된 수업 제어를 사용하세요.",
+    "이 물체 종류에는 장치 동작이 연결되어 있지 않습니다. 사용할 수 있다면 배정된 장치 제어를 사용하세요.",
   "leap.eyebrow": "Leap Motion",
   "leap.title": "실시간 손 감지",
   "leap.intro":
@@ -1942,7 +2230,7 @@ const KO: Record<FabricMessageKey, string> = {
   "sensor.intro":
     "어댑터가 보내는 최신 LEGO, 로봇, 스마트 플러그 전력, 생체 신호 및 배터리 측정값을 자동으로 표시합니다.",
   "sensor.none": "선택한 수업에 아직 센서 값이 들어오지 않았습니다.",
-  "plug.eyebrow": "수업 제어",
+  "plug.eyebrow": "Control Tower",
   "plug.title": "교실 플러그",
   "plug.noneAssigned": "배정된 교실 플러그 없음",
   "plug.compatible": "호환 장치 {count}개 연결됨",
@@ -2041,6 +2329,73 @@ const KO: Record<FabricMessageKey, string> = {
   "printer.state.starting": "시작 중",
   "printer.state.offline": "오프라인",
   "printer.state.unknown": "상태 알 수 없음",
+
+  "cameraImport.eyebrow": "카메라 미디어",
+  "cameraImport.genericTitle": "카메라 자동 가져오기",
+  "cameraImport.title": "{camera} 자동 가져오기",
+  "cameraImport.loading": "전용 Android 휴대전화를 확인하는 중…",
+  "cameraImport.camera": "카메라",
+  "cameraImport.cameraBattery": "카메라 배터리",
+  "cameraImport.phone": "Android 연결 기기",
+  "cameraImport.phoneBattery": "휴대전화 배터리",
+  "cameraImport.phoneConnected": "USB로 연결됨",
+  "cameraImport.phoneDisconnected": "USB 휴대전화 연결 안 됨",
+  "cameraImport.onPhone": "휴대전화의 완료 파일",
+  "cameraImport.fileSummary": "{count}개 · {size}",
+  "cameraImport.schedule": "자동 실행 주기",
+  "cameraImport.scheduleEnabled": "{minutes}분마다",
+  "cameraImport.scheduleDisabled": "사용 안 함",
+  "cameraImport.batteryUnknown": "확인 불가",
+  "cameraImport.batteryLevel": "{level}% 남음",
+  "cameraImport.batteryCharging": "{level}% · 충전 중",
+  "cameraImport.batteryWarning": "{level}% · 낮음",
+  "cameraImport.batteryBlocked": "{level}% · 동기화 대기",
+  "cameraImport.batteryDeferredTitle": "배터리 부족 · 동기화 대기",
+  "cameraImport.batteryDeferredBody":
+    "충전을 시작하거나 배터리가 20% 이상이 되면 다음 자동 주기에 다시 확인합니다.",
+  "cameraImport.setupTitle": "최초 한 번 카메라 페어링 필요",
+  "cameraImport.setupBody":
+    "ZV-E10에서 Bluetooth와 전원 끔 중 연결을 켠 뒤 Imaging Edge Mobile 페어링을 한 번 승인하세요. 이후 반복 가져오기는 완전 자동입니다.",
+  "cameraImport.djiSetupTitle": "DJI Mimo 최초 설정 완료 필요",
+  "cameraImport.djiSetupBody":
+    "전용 휴대전화의 잠금을 풀고 DJI Mimo 약관과 권한을 직접 확인한 뒤, 요청되면 Osmo Nano를 활성화하고 최초 Bluetooth/Wi-Fi 연결을 한 번 승인하세요.",
+  "cameraImport.phoneUnlockTitle": "전용 휴대전화 잠금 해제 필요",
+  "cameraImport.phoneUnlockBody":
+    "패턴 잠금을 한 번 해제하면 USB 전원이 연결된 동안 화면 켜짐을 유지합니다. 재부팅이나 케이블 분리 뒤에도 무인 복구하려면 이 예비 휴대전화의 화면 잠금을 스와이프 또는 없음으로 한 번 변경하세요.",
+  "cameraImport.progress": "카메라 가져오기 진행률",
+  "cameraImport.progressCount": "{total}개 중 {completed}개",
+  "cameraImport.verified": "PC 복사 검증 완료",
+  "cameraImport.result":
+    "{verified}개 검증 · 새 파일 {copied}개 · 기존 파일 {skipped}개 · {size}",
+  "cameraImport.start": "지금 새 원본 가져오기",
+  "cameraImport.running": "자동 가져오는 중…",
+  "cameraImport.destination": "검증 완료 저장 위치",
+  "cameraImport.openDestination": "폴더 열기",
+  "cameraImport.automationHelp":
+    "한 번 누르면 페어링된 카메라를 깨우거나 재연결하고, Imaging Edge Mobile 조작·새 파일 선택·원본 전송·USB 복사·SHA-256 검증까지 자동 실행합니다.",
+  "cameraImport.djiAutomationHelp":
+    "최초 설정 후 한 번 누르면 DJI Mimo를 열고, 전원이 켜져 있고 사용 가능한 Osmo Nano를 재연결해 이름이 확인된 새 미디어만 선택한 뒤 원본 다운로드·USB 복사·SHA-256 검증까지 실행합니다.",
+  "cameraImport.scheduleHelp":
+    "PC가 켜져 있고 제어 센터가 실행되는 동안 {minutes}분마다 같은 작업을 자동 반복합니다. 작업이 겹치면 건너뛰고, 장치를 사용할 수 없으면 다음 주기에 다시 시도합니다.",
+  "cameraImport.pairingHelp":
+    "Sony 보안 정책상 최초 Bluetooth 신뢰 페어링은 카메라에서 한 번 승인해야 합니다. 1세대 ZV-E10은 Sony Camera Remote SDK 지원 대상이 아니므로 이 보안 절차를 우회할 수 없습니다.",
+  "cameraImport.djiPairingHelp":
+    "DJI는 Bluetooth와 Wi-Fi를 통한 휴대전화 전송을 문서화하지만 모든 전원 상태에서 원격 깨우기를 보장하지는 않습니다. Osmo Nano의 전원을 켜 사용 가능한 상태로 두세요. 최초 실제 실행에서 현재 Mimo 버전의 제어 화면을 확인합니다.",
+  "cameraImport.batteryHelp":
+    "배터리가 30% 미만이면 경고합니다. 충전 중이 아닌 상태에서 20% 미만이면 미디어 선택 전에 동기화를 연기하고 다음 자동 주기에 다시 확인합니다. 앱이 카메라 잔량을 제공하지 않으면 확인 불가로 표시하고 휴대전화 사전 점검 결과를 기준으로 계속합니다.",
+  "cameraImport.safetyHelp":
+    "CIT는 카메라나 휴대전화 파일을 삭제하지 않고, 내용이 다른 PC 파일을 덮어쓰지 않습니다. 중단된 PC 복사는 해시 검증 전까지 임시 파일로만 유지됩니다.",
+  "cameraImport.state.unavailable": "휴대전화 연결 필요",
+  "cameraImport.state.ready": "준비됨",
+  "cameraImport.state.deferred": "배터리 부족 · 대기",
+  "cameraImport.state.setup_required": "최초 페어링 필요",
+  "cameraImport.state.connecting": "연결 중",
+  "cameraImport.state.inventory": "새 파일 확인 중",
+  "cameraImport.state.transferring": "카메라 → 휴대전화",
+  "cameraImport.state.copying": "휴대전화 → PC",
+  "cameraImport.state.verifying": "검증 중",
+  "cameraImport.state.completed": "검증 완료",
+  "cameraImport.state.failed": "확인 필요",
 
   "nodes.eyebrow": "장치 상태",
   "nodes.title": "이 교실에 연결된 모든 장치",

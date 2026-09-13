@@ -29,6 +29,8 @@ const UNKNOWN_STATE_MARK = "--";
 export function FabricSmartPlugPanel({
   plugs,
   setupCodes = [],
+  selectedNodeIds: controlledSelectedNodeIds,
+  onSelectedNodeIdsChange,
   sessionState,
   sessionMode,
   sessionArmed,
@@ -40,10 +42,15 @@ export function FabricSmartPlugPanel({
   onPower,
   onGroupPower,
   onRename,
+  remoteMode = false,
+  showFullControlCenter = false,
+  onShowFullControlCenterChange,
   t,
 }: {
   plugs: FabricSmartPlugAssignment[];
   setupCodes?: readonly MatterSetupCodeMapping[];
+  selectedNodeIds?: ReadonlySet<string>;
+  onSelectedNodeIdsChange?: (nodeIds: ReadonlySet<string>) => void;
   sessionState: string;
   sessionMode: "simulation" | "physical" | undefined;
   sessionArmed: boolean;
@@ -55,14 +62,18 @@ export function FabricSmartPlugPanel({
   onPower: (role: string, on: boolean) => void;
   onGroupPower: (roles: readonly string[], on: boolean) => void;
   onRename?: (matterNodeId: string, name: string) => Promise<boolean>;
+  remoteMode?: boolean;
+  showFullControlCenter?: boolean;
+  onShowFullControlCenterChange?: (show: boolean) => void;
   t: FabricTranslate;
 }) {
   const [pendingRoles, setPendingRoles] = useState<ReadonlySet<string>>(
     () => new Set(),
   );
-  const [selectedNodeIds, setSelectedNodeIds] = useState<ReadonlySet<string>>(
-    readSmartPlugSelection,
-  );
+  const [localSelectedNodeIds, setLocalSelectedNodeIds] = useState<
+    ReadonlySet<string>
+  >(readSmartPlugSelection);
+  const selectedNodeIds = controlledSelectedNodeIds ?? localSelectedNodeIds;
   const [editingMatterNodeId, setEditingMatterNodeId] = useState<
     string | undefined
   >(undefined);
@@ -87,17 +98,30 @@ export function FabricSmartPlugPanel({
   const allAvailableSelected =
     availablePlugs.length > 0 && selectedPlugs.length === availablePlugs.length;
 
-  useEffect(() => {
-    if (plugs.length === 0) return;
-    setSelectedNodeIds((current) => {
-      const next = retainKnownSmartPlugSelection(current, knownNodeIds);
-      return next.size === current.size ? current : next;
-    });
-  }, [knownNodeIds, plugs.length]);
+  const updateSelectedNodeIds = (
+    update:
+      | ReadonlySet<string>
+      | ((current: ReadonlySet<string>) => ReadonlySet<string>),
+  ) => {
+    const next =
+      typeof update === "function" ? update(selectedNodeIds) : update;
+    if (controlledSelectedNodeIds === undefined) {
+      setLocalSelectedNodeIds(next);
+    }
+    onSelectedNodeIdsChange?.(next);
+  };
 
   useEffect(() => {
-    saveSmartPlugSelection(selectedNodeIds);
-  }, [selectedNodeIds]);
+    if (plugs.length === 0) return;
+    const next = retainKnownSmartPlugSelection(selectedNodeIds, knownNodeIds);
+    if (next.size !== selectedNodeIds.size) updateSelectedNodeIds(next);
+  }, [knownNodeIds, plugs.length, selectedNodeIds]);
+
+  useEffect(() => {
+    if (controlledSelectedNodeIds === undefined) {
+      saveSmartPlugSelection(selectedNodeIds);
+    }
+  }, [controlledSelectedNodeIds, selectedNodeIds]);
 
   useEffect(() => {
     if (selectAllRef.current !== null) {
@@ -117,14 +141,76 @@ export function FabricSmartPlugPanel({
     sessionState === "active" && (sessionMode !== "physical" || sessionArmed);
   const canTurnOn = canTurnOff && (controlsAlreadyReady || canManageSession);
 
-  if (plugs.length === 0) return null;
+  if (plugs.length === 0 && !remoteMode) return null;
 
   return (
     <section
-      className="fabric-smart-plug-panel"
+      className={`fabric-smart-plug-panel${remoteMode ? " fabric-android-plug-remote" : ""}`}
       id="smart-plug-controls"
       aria-label={t("plug.title")}
     >
+      {remoteMode && (
+        <header className="fabric-android-plug-header">
+          <div>
+            <p className="eyebrow">{t("androidRemote.eyebrow")}</p>
+            <h2>{t("androidRemote.title")}</h2>
+            <p>
+              {t("androidRemote.connectionSummary", {
+                available: availablePlugs.length,
+                total: plugs.length,
+              })}
+            </p>
+          </div>
+          {onShowFullControlCenterChange !== undefined && (
+            <button
+              className="fabric-android-view-toggle"
+              type="button"
+              aria-pressed={showFullControlCenter}
+              onClick={() =>
+                onShowFullControlCenterChange(!showFullControlCenter)
+              }
+            >
+              {t(
+                showFullControlCenter
+                  ? "androidRemote.plugOnly"
+                  : "androidRemote.showAll",
+              )}
+            </button>
+          )}
+        </header>
+      )}
+      {remoteMode && (
+        <div
+          className="fabric-android-all-plug-actions"
+          role="group"
+          aria-label={t("androidRemote.allControls")}
+        >
+          <button
+            className="fabric-android-all-on"
+            type="button"
+            disabled={!canTurnOn || availablePlugs.length === 0}
+            onClick={() => {
+              const roles = availablePlugs.map(({ role }) => role);
+              setPendingRoles(new Set(roles));
+              onGroupPower(roles, true);
+            }}
+          >
+            {t("androidRemote.turnOnAll")}
+          </button>
+          <button
+            className="fabric-android-all-off"
+            type="button"
+            disabled={!canTurnOff || availablePlugs.length === 0}
+            onClick={() => {
+              const roles = availablePlugs.map(({ role }) => role);
+              setPendingRoles(new Set(roles));
+              onGroupPower(roles, false);
+            }}
+          >
+            {t("androidRemote.turnOffAll")}
+          </button>
+        </div>
+      )}
       <div
         className="fabric-plug-group-controls"
         role="group"
@@ -137,7 +223,7 @@ export function FabricSmartPlugPanel({
             checked={allAvailableSelected}
             disabled={busy || availablePlugs.length === 0}
             onChange={(event) => {
-              setSelectedNodeIds(
+              updateSelectedNodeIds(
                 event.target.checked
                   ? new Set(availablePlugs.map(({ node }) => node.nodeId))
                   : new Set(),
@@ -178,6 +264,11 @@ export function FabricSmartPlugPanel({
           </button>
         </div>
       </div>
+      {remoteMode && plugs.length === 0 && (
+        <p className="fabric-android-plug-empty">
+          {t("androidRemote.noPlugs")}
+        </p>
+      )}
       <ul className="fabric-smart-plug-list">
         {plugs.map(({ role, node, state }) => {
           const available = isAvailableFabricNode(node);
@@ -234,7 +325,7 @@ export function FabricSmartPlugPanel({
                   aria-label={t("plug.selectOne", { name })}
                   disabled={!available || busy}
                   onChange={(event) => {
-                    setSelectedNodeIds((current) => {
+                    updateSelectedNodeIds((current) => {
                       const next = new Set(current);
                       if (event.target.checked) next.add(node.nodeId);
                       else next.delete(node.nodeId);
@@ -352,20 +443,53 @@ export function FabricSmartPlugPanel({
                     ? UNKNOWN_STATE_MARK
                     : t(state.on ? "plug.onState" : "plug.offState")}
               </span>
-              <button
-                className={`fabric-power-toggle ${!available ? "fabric-power-unavailable" : turnOn ? "fabric-power-on" : "fabric-power-off"}${pending ? " is-pending" : ""}`}
-                type="button"
-                aria-label={`${name}: ${action}`}
-                {...(!available ? { title: unavailableHelp } : {})}
-                disabled={!available || (turnOn ? !canTurnOn : !canTurnOff)}
-                onClick={() => {
-                  if (!available) return;
-                  setPendingRoles(new Set([role]));
-                  onPower(role, turnOn);
-                }}
-              >
-                {action}
-              </button>
+              {remoteMode ? (
+                <div className="fabric-plug-remote-actions">
+                  <button
+                    className="fabric-plug-remote-on"
+                    type="button"
+                    aria-label={`${name}: ${t("plug.turnOn")}`}
+                    {...(!available ? { title: unavailableHelp } : {})}
+                    disabled={!available || !canTurnOn}
+                    onClick={() => {
+                      if (!available) return;
+                      setPendingRoles(new Set([role]));
+                      onPower(role, true);
+                    }}
+                  >
+                    {t("plug.turnOn")}
+                  </button>
+                  <button
+                    className="fabric-plug-remote-off"
+                    type="button"
+                    aria-label={`${name}: ${t("plug.turnOff")}`}
+                    {...(!available ? { title: unavailableHelp } : {})}
+                    disabled={!available || !canTurnOff}
+                    onClick={() => {
+                      if (!available) return;
+                      setPendingRoles(new Set([role]));
+                      onPower(role, false);
+                    }}
+                  >
+                    {t("plug.turnOff")}
+                  </button>
+                </div>
+              ) : (
+                <button
+                  className={`fabric-power-toggle ${!available ? "fabric-power-unavailable" : turnOn ? "fabric-power-on" : "fabric-power-off"}${pending ? " is-pending" : ""}`}
+                  type="button"
+                  aria-label={`${name}: ${action}`}
+                  {...(!available ? { title: unavailableHelp } : {})}
+                  disabled={!available || (turnOn ? !canTurnOn : !canTurnOff)}
+                  onClick={() => {
+                    if (!available) return;
+                    setPendingRoles(new Set([role]));
+                    onPower(role, turnOn);
+                  }}
+                >
+                  {action}
+                </button>
+              )}
             </li>
           );
         })}

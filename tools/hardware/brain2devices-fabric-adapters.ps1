@@ -168,7 +168,7 @@ function Stop-ExactProcess([object]$ProcessId, [string]$RequiredFragment) {
 
 function Show-Preflight {
   Assert-Path $runtimePython "CIT runtime Python"
-  Assert-Path $bootstrapSecretPath "Shared Fabric credential; open Classroom Control first"
+  Assert-Path $bootstrapSecretPath "Shared Fabric credential; open Control Tower first"
   if (-not $Simulation) {
     Assert-Path $ExternalPython "Brain2Devices Python"
     Assert-Path (Join-Path $Brain2DevicesRoot "src\brain2devices\hardware\protocols.py") "Brain2Devices ports"

@@ -11,6 +11,17 @@ import {
 } from "./fabric-i18n.js";
 
 describe("Fabric classroom i18n", () => {
+  it("uses the Control Tower product name in both languages", () => {
+    for (const locale of ["en", "ko"] as const) {
+      const messages = fabricCatalog(locale);
+      expect(messages["document.title"]).toBe("CIT Control Tower");
+      expect(messages["header.title"]).toBe("Control Tower");
+    }
+    expect(Object.values(fabricCatalog("ko")).join(" ")).not.toContain(
+      "수업 제어",
+    );
+  });
+
   it("ships a complete non-placeholder Korean catalog", () => {
     const english = fabricCatalog("en");
     const korean = fabricCatalog("ko");
@@ -19,6 +30,11 @@ describe("Fabric classroom i18n", () => {
     const intentionallyShared = new Set([
       "language.ko",
       "language.en",
+      "document.title",
+      "login.eyebrow",
+      "header.eyebrow",
+      "header.title",
+      "plug.eyebrow",
       "leap.eyebrow",
       "matter.placeholder",
     ]);

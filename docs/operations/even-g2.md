@@ -1,4 +1,4 @@
-# Even Realities G2 in Classroom Control
+# Even Realities G2 in Control Tower
 
 ## Connect
 
@@ -6,7 +6,7 @@
    phone's network connection active.
 2. Keep Tailscale connected and open the provisioned CIT glasses prototype in
    Even Hub.
-3. In Classroom Control, open the Even Realities G2 card and choose **Scan this
+3. In Control Tower, open the Even Realities G2 card and choose **Scan this
    device again**. This is available even when the first classroom scan missed
    G2.
 4. Choose **Connect G2**, wear the glasses, and make one voice or button
@@ -92,7 +92,7 @@ course ID and version recorded by the active session. After upgrading, create
 or migrate the device-control session to `glasses-device-control` 1.3.0; older
 sessions remain fail-closed rather than inheriting newer controls implicitly.
 
-Classroom Control does not currently offer an arbitrary-text composer for a
+Control Tower does not currently offer an arbitrary-text composer for a
 physical G2. The current Fabric adapter acknowledges display text already
 projected by Agent Mesh; it does not pretend that an unrelated Fabric message
 was delivered.

@@ -210,4 +210,4 @@ if ($DeviceSerial) {
 & $adb -s $target install -r $apkPath
 if ($LASTEXITCODE -ne 0) { throw "adb could not install the Meta camera companion" }
 Write-Host "READY installed the Meta-enabled CIT glasses companion on $target"
-Write-Host "Tutors now pair it from Classroom Control; they do not need this script or its credentials."
+Write-Host "Tutors now pair it from Control Tower; they do not need this script or its credentials."

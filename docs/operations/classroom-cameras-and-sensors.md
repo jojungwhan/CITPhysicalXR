@@ -1,6 +1,6 @@
 # Classroom cameras, object recognition, and sensors
 
-The tutor uses one **CIT Classroom Control** page. Its **Live cameras and object
+The tutor uses one **CIT Control Tower** page. Its **Live cameras and object
 recognition** section creates one tile per authenticated local camera publisher;
 its **Classroom readings** section creates cards from the latest normalized
 `sensor.*`, `telemetry.*`, and `biosignal.*` lesson events.
@@ -31,7 +31,7 @@ validated semantic event in the selected lesson.
 
 ## Tutor workflow
 
-1. Open **CIT Classroom Control** from the Windows Desktop or Start menu and
+1. Open **CIT Control Tower** from the Windows Desktop or Start menu and
    choose **Start classroom devices**. This enables scoped phone-camera access
    and prepares local YOLO while leaving all devices disarmed.
 2. Choose **Find devices**. This is passive and does not start a camera or move
@@ -92,7 +92,7 @@ Requirements:
 - Windows Defender Firewall allowed for the CIT/Python runtime on **Private
   networks** only. Do not enable it on Public networks.
 
-From the **CIT Classroom Control** Windows launcher choose **One-time setup:
+From the **CIT Control Tower** Windows launcher choose **One-time setup:
 Meta glasses camera**. The visible technician window verifies package access,
 builds the optional companion, finds the authorized USB phone, and installs it.
 No tutor needs to type a command.
@@ -157,7 +157,7 @@ be repackaged as sensor cards.
 - **Waiting:** the source registered but no frame arrived in the last five
   seconds. The last valid image remains visible for diagnosis.
 - **Recognition unavailable:** local YOLO preparation failed, commonly because
-  the first model download had no internet access. Restart Classroom Control
+  the first model download had no internet access. Restart Control Tower
   once the technician network is available.
 - **Meta Maven 401:** the GitHub token does not have usable `read:packages`
   access. No glasses code can be compiled until that external package grant is

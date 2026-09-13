@@ -15,6 +15,7 @@ dependencies = [
   "cit-safety-core",
   "fastapi==0.141.1",
   "jsonschema[format-nongpl]==4.26.0",
+  "pyftpdlib==2.2.0",
   "pyyaml==6.0.3",
   # uvicorn without the "standard" extra: websockets is the only extra the
   # runtime needs, and uvloop/httptools/watchfiles add licence and build

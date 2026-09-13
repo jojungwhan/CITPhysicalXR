@@ -332,12 +332,21 @@ def test_fabric_console_serves_static_images_from_the_same_origin(
     studio_path = tmp_path / "studio"
     (studio_path / "assets").mkdir(parents=True)
     (studio_path / "device-images").mkdir()
+    (studio_path / "icons").mkdir()
     (studio_path / "index.html").write_text("<!doctype html><title>Fabric</title>")
     (studio_path / "favicon.svg").write_text(
         '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"/>',
         encoding="utf-8",
     )
     (studio_path / "device-images" / "test-device.webp").write_bytes(b"RIFF-test-WEBP")
+    (studio_path / "fabric.webmanifest").write_text(
+        '{"name":"CIT Control Tower","start_url":"/fabric"}',
+        encoding="utf-8",
+    )
+    (studio_path / "fabric-sw.js").write_text(
+        "self.addEventListener('fetch', () => {});", encoding="utf-8"
+    )
+    (studio_path / "icons" / "cit-control-192.png").write_bytes(b"PNG-test")
 
     with TestClient(
         create_fabric_app(
@@ -351,12 +360,22 @@ def test_fabric_console_serves_static_images_from_the_same_origin(
         console = client.get("/fabric")
         favicon = client.get("/favicon.svg")
         device_image = client.get("/device-images/test-device.webp")
+        manifest = client.get("/fabric.webmanifest")
+        service_worker = client.get("/fabric-sw.js")
+        icon = client.get("/icons/cit-control-192.png")
 
     assert console.status_code == 200
     assert favicon.status_code == 200
     assert favicon.headers["content-type"].startswith("image/svg+xml")
     assert device_image.status_code == 200
     assert device_image.headers["content-type"].startswith("image/webp")
+    assert manifest.status_code == 200
+    assert manifest.headers["content-type"].startswith("application/manifest+json")
+    assert service_worker.status_code == 200
+    assert service_worker.headers["cache-control"] == "no-cache"
+    assert service_worker.headers["service-worker-allowed"] == "/"
+    assert icon.status_code == 200
+    assert icon.headers["content-type"].startswith("image/png")
 
 
 def test_scoped_observer_token_is_hash_only_and_cannot_mutate(tmp_path: Path) -> None:

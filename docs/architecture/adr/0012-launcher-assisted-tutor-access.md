@@ -30,7 +30,7 @@ The ticket store is process-local, matching the local single-worker runtime.
 
 ## Consequences
 
-Tutors normally use the installed **CIT Classroom Control** Windows button and
+Tutors normally use the installed **CIT Control Tower** Windows button and
 arrive signed in. They do not type the launcher command. Capturing an unused
 link provides only a short redemption window; capturing a redeemed link
 provides no authority. Restarting the runtime invalidates outstanding tickets.

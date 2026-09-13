@@ -39,6 +39,11 @@ LICENSE_TEXT_EXPRESSIONS_TO_SPDX = {
     "Apache-2.0 AND MIT": {"Apache-2.0", "MIT"},
     "MPL-2.0 AND MIT": {"MIT", "MPL-2.0"},
 }
+BUNDLED_LICENSE_FALLBACKS = {
+    # pyftpdlib 2.2.0's wheel omits licence metadata but includes its MIT text
+    # under the PEP 639 dist-info licences directory.
+    ("pyftpdlib", "2.2.0"): ("licenses/LICENSE", "MIT License", "MIT"),
+}
 
 
 def expression_identifiers(expression: str) -> set[str]:
@@ -69,6 +74,28 @@ def detected_licences(metadata: importlib.metadata.PackageMetadata) -> set[str]:
             if mapped:
                 detected.add(mapped)
     return detected
+
+
+def bundled_licences(
+    distribution: importlib.metadata.Distribution,
+    name: str,
+    version: str,
+) -> set[str]:
+    fallback = BUNDLED_LICENSE_FALLBACKS.get((name, version))
+    if fallback is None:
+        return set()
+    relative_path, expected_heading, spdx = fallback
+    for package_file in distribution.files or []:
+        package_path = str(package_file).replace("\\", "/")
+        if not package_path.endswith(f".dist-info/{relative_path}"):
+            continue
+        license_text = Path(distribution.locate_file(package_file)).read_text(
+            encoding="utf-8", errors="replace"
+        )
+        license_lines = license_text.strip().splitlines()
+        if license_lines and license_lines[0] == expected_heading:
+            return {spdx}
+    return set()
 
 
 lock: dict[str, object] = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
@@ -115,6 +142,8 @@ for package in packages:
         continue
     metadata = distribution.metadata
     licences = detected_licences(metadata)
+    if not licences:
+        licences = bundled_licences(distribution, name, version)
     if not licences:
         errors.append(f"{name}=={version}: licence could not be normalized")
     elif not licences <= ALLOWED:

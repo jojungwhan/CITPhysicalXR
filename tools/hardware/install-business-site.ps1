@@ -323,12 +323,12 @@ Save-SiteProfile
 if ($LASTEXITCODE -ne 0) { throw "The local Matter controller did not start." }
 Configure-MatterWifi
 & $shortcutInstaller -Mode Install
-if ($LASTEXITCODE -ne 0) { throw "The Classroom Control shortcut was not installed." }
+if ($LASTEXITCODE -ne 0) { throw "The Control Tower shortcut was not installed." }
 
 Write-Host ""
 Write-Host "CIT business-site installation is ready."
 Write-Host "No proprietary smart-plug account, cloud API, device ID, or local key was configured."
-Write-Host "Tutors can now use the CIT Classroom Control desktop button, choose Find devices, and add Matter plugs by their printed setup code."
+Write-Host "Tutors can now use the CIT Control Tower desktop button, choose Find devices, and add Matter plugs by their printed setup code."
 Write-Host "Use only plugs whose product label explicitly includes Matter."
 
 if ($OpenAfterInstall) {

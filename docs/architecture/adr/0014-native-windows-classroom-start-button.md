@@ -1,4 +1,4 @@
-# ADR-0014: Bootstrap Classroom Control with a native Windows button
+# ADR-0014: Bootstrap Control Tower with a native Windows button
 
 - Status: accepted
 - Date: 2026-08-22
@@ -13,14 +13,14 @@ executes arbitrary local processes would create an unnecessary shell boundary.
 
 ## Decision
 
-Install a current-user **CIT Classroom Control** shortcut on the Windows
+Install a current-user **CIT Control Tower** shortcut on the Windows
 Desktop and Start menu. It opens a small native WinForms launcher with one
 state-aware primary button:
 
 - **Start classroom devices** when the local host is offline;
 - **Enable classroom devices** when a simulation-only Fabric requires a
   confirmed safe restart; or
-- **Open Classroom Control** when the device host is ready.
+- **Open Control Tower** when the device host is ready.
 
 The launcher invokes only the repository-owned `classroom-devices.ps1` with a
 fixed mode, fixed loopback port, fixed state root, and the physical-adapter flag
@@ -30,7 +30,7 @@ does not arm a session, move a robot, fly a drone, switch an outlet, start an
 agent session, or connect an unverified candidate. The existing one-use console
 ticket performs browser sign-in.
 
-Classroom Control is hosted in a dedicated Edge or Chrome app window with a
+Control Tower is hosted in a dedicated Edge or Chrome app window with a
 profile owned by the Fabric state root. Before opening a freshly signed-in
 window, the launcher closes only processes carrying that exact profile marker.
 This preserves a single tutor window without closing unrelated browser tabs.

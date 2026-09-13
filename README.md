@@ -83,7 +83,7 @@ robots, simulators, IoT devices, Codex, and Claude all use the same capability
 registry; vendor implementations remain isolated behind authenticated adapter
 WebSockets.
 
-On the tutor computer, open **CIT Classroom Control** from the Windows Desktop
+On the tutor computer, open **CIT Control Tower** from the Windows Desktop
 or Start menu and choose **Start classroom devices**. The native launcher signs
 the current Windows user into the local tutor console automatically, uses port
 `8766`, preserves or starts the existing Brain2Devices helper on `8765`, and
@@ -92,7 +92,7 @@ enables physical adapters while leaving every device and lesson disarmed.
 If an older glasses-only Fabric already owns port `8766`, run
 `pnpm hardware:glasses:windows -- -Mode Stop` once before this migration.
 
-The button opens **CIT Classroom Control** automatically. Follow the five
+The button opens **CIT Control Tower** automatically. Follow the five
 on-screen steps: find devices, choose a lesson, assign devices, complete the
 safety check, then teach. The discovery cards distinguish **Connected**,
 **Found**, **Computer ready**, and **Setup needed** instead of treating a USB/network
@@ -110,6 +110,13 @@ reduced live Leap hand view while all physical device HIL remains separate
 hardware gates. See
 `docs/operations/classroom-cameras-and-sensors.md` for the exact support matrix
 instead of assuming a discovered device already has a live feed.
+
+Control Tower can also pair one dedicated Android phone for a local, signed
+locked-to-unlocked trigger. USB is used only for the one-time companion install
+and provisioning; normal events travel over the same private Wi-Fi and can turn
+on only the exact Matter plugs separately saved and enabled by the local
+operator. Missed events are never queued. See
+`docs/operations/unified-fabric-console.md`.
 
 Source-checkout maintainers install the Desktop and Start menu shortcut once
 with `pnpm hardware:install-button:windows`. This is installation work, not a
@@ -134,7 +141,7 @@ prebuilt artifact; an HTTP request can never invoke a shell or build.
 Source-checkout technicians can still use the guided business installer
 directly. The simplest fallback is to double-click
 `install-cit-business-site.cmd`; it installs PowerShell 7 when needed, uses the
-initial names `business-site` / `classroom-a`, and opens Classroom Control when
+initial names `business-site` / `classroom-a`, and opens Control Tower when
 setup finishes.
 
 Technicians can choose different logical names in PowerShell 7:
@@ -173,7 +180,7 @@ simulator and software tests are not reported as physical evidence.
 ## Cloud-free Matter smart plugs
 
 New sites should use a Wi-Fi plug that explicitly carries the Matter logo and a
-Matter setup code. The **Matter smart plugs** card in Classroom Control
+Matter setup code. The **Matter smart plugs** card in Control Tower
 commissions it into the CIT-owned
 local fabric and exposes `power.switch.set { on: boolean }` and
 `power.switch.state`. Tapo P110M is explicitly guided in the UI and needs no
@@ -189,7 +196,7 @@ testing, and moving the setup to another Windows computer.
 
 ## Protected Creality 3D-printer workflow
 
-Classroom Control has a separate 3D-printer workspace for the K1 Max at
+Control Tower has a separate 3D-printer workspace for the K1 Max at
 `172.30.1.55`. It stages STL/3MF locally, invokes the installed Creality Print
 CLI only for explicit local slicing, and keeps download, upload-only, and print
 start as distinct actions. The printer never joins lesson, demonstration, or
@@ -218,7 +225,7 @@ node. A third independent compatibility plugin exposes only the upstream
 one-shot demo arm/stop/status contract through deterministic Fabric safety,
 explicit lesson arming, instructor priority, and the on-screen flight checks.
 
-Tutors do not run the commands below. Open **CIT Classroom Control**, choose
+Tutors do not run the commands below. Open **CIT Control Tower**, choose
 **Start classroom devices**, then **Find devices**. Use the Tello or MindWave
 card's connect button. The software-only technician equivalent is:
 

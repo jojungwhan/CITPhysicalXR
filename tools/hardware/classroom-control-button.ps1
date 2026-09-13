@@ -37,9 +37,9 @@ function Get-ClassroomHostState {
       return [ordered]@{
         state = "ready"
         heading = "Classroom devices are ready"
-        detail = "The local device host is running, including scoped phone-camera access. Devices and lessons remain disarmed until you enable them in Classroom Control."
+        detail = "The local device host is running, including scoped phone-camera access. Devices and lessons remain disarmed until you enable them in Control Tower."
         primaryAction = "Open"
-        primaryLabel = "Open Classroom Control"
+        primaryLabel = "Open Control Tower"
       }
     }
     if ($health.physicalActuation -eq "enabled") {
@@ -61,7 +61,7 @@ function Get-ClassroomHostState {
   } catch {
     return [ordered]@{
       state = "offline"
-      heading = "Classroom Control is not running"
+      heading = "Control Tower is not running"
       detail = "Choose Start classroom devices. CIT will prepare the local services and open the tutor screen automatically."
       primaryAction = "Start"
       primaryLabel = "Start classroom devices"
@@ -75,7 +75,7 @@ if ($Mode -eq "Describe") {
 }
 
 if (-not $IsWindows) {
-  throw "The CIT Classroom Control button currently requires Windows 11."
+  throw "The CIT Control Tower button currently requires Windows 11."
 }
 if (-not (Test-Path -LiteralPath $deviceLauncher -PathType Leaf)) {
   throw "The fixed classroom device launcher is missing."
@@ -87,7 +87,7 @@ Add-Type -AssemblyName System.Drawing
 [Windows.Forms.Application]::EnableVisualStyles()
 
 $form = [Windows.Forms.Form]::new()
-$form.Text = "CIT Classroom Control"
+$form.Text = "CIT Control Tower"
 $form.StartPosition = "CenterScreen"
 $form.ClientSize = [Drawing.Size]::new(660, 510)
 $form.MinimumSize = [Drawing.Size]::new(676, 549)
@@ -97,7 +97,7 @@ $form.Font = [Drawing.Font]::new("Segoe UI", 10)
 $form.MaximizeBox = $false
 
 $brand = [Windows.Forms.Label]::new()
-$brand.Text = "CIT CLASSROOM"
+$brand.Text = "CIT CONTROL TOWER"
 $brand.Location = [Drawing.Point]::new(42, 32)
 $brand.Size = [Drawing.Size]::new(560, 24)
 $brand.Font = [Drawing.Font]::new("Segoe UI Semibold", 10)
@@ -225,7 +225,7 @@ function Start-FixedClassroomAction(
   $primaryButton.Enabled = $false
   $refreshButton.Enabled = $false
   $primaryButton.Text = if ($Action -eq "Open") { "Opening…" } else { "Starting safely…" }
-  $statusHeading.Text = if ($Action -eq "Open") { "Opening Classroom Control" } else { "Preparing local device services" }
+  $statusHeading.Text = if ($Action -eq "Open") { "Opening Control Tower" } else { "Preparing local device services" }
   $statusDetail.Text = "This usually takes a few seconds. Keep this window open until the browser appears."
   [Windows.Forms.Application]::DoEvents()
 
@@ -329,7 +329,7 @@ $primaryButton.Add_Click({
       [Windows.Forms.MessageBox]::Show(
         $form,
         $_.Exception.Message,
-        "CIT could not open Classroom Control",
+        "CIT could not open Control Tower",
         [Windows.Forms.MessageBoxButtons]::OK,
         [Windows.Forms.MessageBoxIcon]::Error
       ) | Out-Null

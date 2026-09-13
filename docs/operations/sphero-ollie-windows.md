@@ -1,13 +1,13 @@
 # Sphero Ollie — Windows hardware guide
 
-## Tutor setup in Classroom Control
+## Tutor setup in Control Tower
 
 No Sphero account or cloud service is needed. Do not pair Ollie in Windows
 Bluetooth Settings; CIT connects directly over local BLE.
 
 1. Charge Ollie, switch it on, and read its exact `2B-XXXX` advertised name.
 2. Close Sphero Edu and any other program currently connected to the robot.
-3. Open **CIT Classroom Control**, start classroom devices, then choose
+3. Open **CIT Control Tower**, start classroom devices, then choose
    **Find devices**.
 4. In **Sphero Ollie**, choose the exact `2B-XXXX` robot. Connection starts
    sensor monitoring only and sends no movement. Vendor-safe startup may clear

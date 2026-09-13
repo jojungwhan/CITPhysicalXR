@@ -1,0 +1,28 @@
+{
+  "id": "/fabric",
+  "name": "CIT Control Tower",
+  "short_name": "Control Tower",
+  "description": "Local classroom and demonstration device control",
+  "lang": "ko-KR",
+  "start_url": "/fabric",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone"],
+  "orientation": "any",
+  "background_color": "#0c110e",
+  "theme_color": "#101814",
+  "icons": [
+    {
+      "src": "/icons/cit-control-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/cit-control-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

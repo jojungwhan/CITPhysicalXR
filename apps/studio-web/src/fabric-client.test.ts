@@ -580,6 +580,35 @@ describe("Fabric client credentials", () => {
     );
   });
 
+  it("addresses one configured camera import by its encoded identifier", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockImplementation(() =>
+      Promise.resolve(
+        new Response(
+          JSON.stringify({
+            accepted: true,
+            message: "started",
+            snapshot: {},
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      ),
+    );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+    client.setCredential("cit-instructor-" + "n".repeat(40));
+
+    await client.startNamedCameraImport("dji-osmo-nano-android");
+    await client.openNamedCameraImportDestination("dji-osmo-nano-android");
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://runtime.example.test/api/v1/fabric/camera-imports/dji-osmo-nano-android/start",
+    );
+    expect(fetchMock.mock.calls[0]?.[1]?.method).toBe("POST");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "https://runtime.example.test/api/v1/fabric/camera-imports/dji-osmo-nano-android/open-destination",
+    );
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("POST");
+  });
+
   it("redeems a launcher ticket once without sending it as a bearer credential", async () => {
     const accessToken = "cit-tutor-" + "c".repeat(40);
     const fetchMock = vi
@@ -616,10 +645,223 @@ describe("Fabric client credentials", () => {
       "https://runtime.example.test/api/v1/fabric/auth/console-tickets/redeem",
     );
     expect(new Headers(redeemInit?.headers).has("Authorization")).toBe(false);
+    expect(redeemInit?.credentials).toBe("omit");
     expect(JSON.parse(String(redeemInit?.body))).toEqual({ ticket });
     const [, identityInit] = fetchMock.mock.calls[1] ?? [];
     expect(new Headers(identityInit?.headers).get("Authorization")).toBe(
       `Bearer ${accessToken}`,
     );
+  });
+
+  it("restores Android auth into memory through the path-scoped cookie", async () => {
+    const accessToken = "cit-android-" + "r".repeat(40);
+    const principal = {
+      identityId: "android-controller-a",
+      actorType: "android_controller",
+      roles: ["instructor"],
+      permissions: ["fabric.nodes.read"],
+      expiresAt: "2026-09-09T15:00:00Z",
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            accessToken,
+            expiresAt: principal.expiresAt,
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(principal), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+
+    await expect(client.resumeAndroidSession()).resolves.toEqual(principal);
+
+    const [resumeUrl, resumeInit] = fetchMock.mock.calls[0] ?? [];
+    expect(resumeUrl).toBe(
+      "https://runtime.example.test/api/v1/fabric/auth/android-session/resume",
+    );
+    expect(resumeInit?.method).toBe("POST");
+    expect(resumeInit?.credentials).toBe("include");
+    expect(new Headers(resumeInit?.headers).has("Authorization")).toBe(false);
+    const [, identityInit] = fetchMock.mock.calls[1] ?? [];
+    expect(new Headers(identityInit?.headers).get("Authorization")).toBe(
+      `Bearer ${accessToken}`,
+    );
+    expect(identityInit?.credentials).toBe("omit");
+  });
+
+  it("accepts an Android ticket cookie only when the launcher marked the handoff", async () => {
+    const accessToken = "cit-android-" + "a".repeat(40);
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            accessToken,
+            expiresAt: "2026-09-09T15:00:00Z",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            identityId: "android-controller-a",
+            actorType: "android_controller",
+            roles: ["instructor"],
+            permissions: ["fabric.nodes.read"],
+            expiresAt: "2026-09-09T15:00:00Z",
+          }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+
+    await client.connectWithConsoleTicket("m".repeat(43), {
+      persistAndroidSession: true,
+    });
+
+    expect(fetchMock.mock.calls[0]?.[1]?.credentials).toBe("include");
+    expect(JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body))).toEqual({
+      ticket: "m".repeat(43),
+    });
+  });
+
+  it("reads and opens the USB Android controller through fixed routes", async () => {
+    const snapshot = {
+      schemaVersion: "1.0",
+      state: "ready",
+      phoneConnected: true,
+      phoneModel: "SM-N971N",
+      usbReverseReady: true,
+      operations: { openController: true },
+      message: "ready",
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify(snapshot), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }),
+      )
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({ accepted: true, message: "opened", snapshot }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        ),
+      );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+    client.setCredential("cit-instructor-" + "u".repeat(40));
+
+    await expect(client.getAndroidController()).resolves.toEqual(snapshot);
+    await expect(client.openAndroidController()).resolves.toMatchObject({
+      accepted: true,
+    });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "https://runtime.example.test/api/v1/fabric/android-controller",
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "https://runtime.example.test/api/v1/fabric/android-controller/open",
+    );
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("POST");
+  });
+
+  it("manages LAN devices only through fixed allowlist routes", async () => {
+    const snapshot = {
+      schemaVersion: "1.0",
+      enabled: true,
+      lanOrigin: "http://172.30.1.4:8766",
+      devices: [],
+      operations: { manage: true, enrollUsbAndroid: true },
+    };
+    const result = { accepted: true, message: "updated", snapshot };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(snapshot))
+      .mockResolvedValueOnce(Response.json(result))
+      .mockResolvedValueOnce(Response.json(result))
+      .mockResolvedValueOnce(Response.json(result))
+      .mockResolvedValueOnce(
+        Response.json({
+          schemaVersion: "1.0",
+          accessUrl:
+            "http://192.168.50.10:8766/fabric#android-console-ticket=one-use",
+          expiresAt: "2026-09-10T03:01:30Z",
+        }),
+      );
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+    client.setCredential("cit-instructor-" + "w".repeat(40));
+
+    await client.getLanAccess();
+    await client.addLanAccessDevice("Spare phone", "02:11:22:33:44:55");
+    await client.removeLanAccessDevice("02:11:22:33:44:55");
+    await client.enrollUsbAndroidLanAccess();
+    await client.createLanAccessLink("02:11:22:33:44:55");
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "https://runtime.example.test/api/v1/fabric/lan-access",
+      "https://runtime.example.test/api/v1/fabric/lan-access/devices",
+      "https://runtime.example.test/api/v1/fabric/lan-access/devices/02%3A11%3A22%3A33%3A44%3A55",
+      "https://runtime.example.test/api/v1/fabric/lan-access/enroll-usb-android",
+      "https://runtime.example.test/api/v1/fabric/lan-access/devices/02%3A11%3A22%3A33%3A44%3A55/access-link",
+    ]);
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      displayName: "Spare phone",
+      macAddress: "02:11:22:33:44:55",
+    });
+    expect(fetchMock.mock.calls[2]?.[1]?.method).toBe("DELETE");
+    expect(fetchMock.mock.calls[4]?.[1]?.method).toBe("POST");
+  });
+
+  it("manages unlock automation only through fixed local administration routes", async () => {
+    const snapshot = {
+      schemaVersion: "1.0",
+      enabled: false,
+      selectedNodeIds: ["plug-19", "plug-22"],
+      cooldownSeconds: 15,
+      operations: { manage: true, installAndPair: true },
+    };
+    const result = { accepted: true, message: "updated", snapshot };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json(snapshot))
+      .mockResolvedValueOnce(Response.json(result))
+      .mockResolvedValueOnce(Response.json(result))
+      .mockResolvedValueOnce(Response.json(result));
+    const client = new FabricClient("https://runtime.example.test", fetchMock);
+    client.setCredential("cit-instructor-" + "x".repeat(40));
+
+    await client.getUnlockAutomation();
+    await client.configureUnlockAutomation(true, ["plug-19", "plug-22"]);
+    await client.installAndPairUnlockCompanion("SM-N971N");
+    await client.removeUnlockCompanion();
+
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([
+      "https://runtime.example.test/api/v1/fabric/unlock-automation",
+      "https://runtime.example.test/api/v1/fabric/unlock-automation/configuration",
+      "https://runtime.example.test/api/v1/fabric/unlock-automation/companion/pair-usb",
+      "https://runtime.example.test/api/v1/fabric/unlock-automation/companion",
+    ]);
+    expect(fetchMock.mock.calls[1]?.[1]?.method).toBe("PUT");
+    expect(JSON.parse(String(fetchMock.mock.calls[1]?.[1]?.body))).toEqual({
+      enabled: true,
+      selectedNodeIds: ["plug-19", "plug-22"],
+    });
+    expect(fetchMock.mock.calls[2]?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(fetchMock.mock.calls[2]?.[1]?.body))).toEqual({
+      displayName: "SM-N971N",
+    });
+    expect(fetchMock.mock.calls[3]?.[1]?.method).toBe("DELETE");
+    expect(JSON.stringify(fetchMock.mock.calls)).not.toContain("secret");
   });
 });

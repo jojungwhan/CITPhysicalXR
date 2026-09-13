@@ -23,16 +23,16 @@ The original no-`SharedFabricRoot` behavior remains available as a standalone
 compatibility path, but it should not be used when multiple integration types
 need to appear together.
 
-The shared Fabric and component launchers open **CIT Classroom Control** with
+The shared Fabric and component launchers open **CIT Control Tower** with
 automatic local sign-in. Choose **Glasses and coding assistant**, connect the
 display/glasses and coding assistant roles, complete the safety check, and
-start the lesson. Use the **CIT Classroom Control** Windows Desktop or Start
+start the lesson. Use the **CIT Control Tower** Windows Desktop or Start
 menu button to reopen the screen without restarting either service.
 
 Prefer `-AgentMeshSessionId <exact-id>` over `-SelectMostRecentAgentSession` when the intended G2 or Meta session is already known. `-ProvisionWearables` invokes Agent Mesh's existing phone/G2 provisioner and therefore requires one authorized Android phone attached through ADB. Without that switch, a previously provisioned G2 or Meta phone bridge can reconnect normally.
 
 For the ordered-drone lesson, tutors do not run that command. Connect one or more
-Tellos in Classroom Control first (two or more for a multi-drone exercise),
+Tellos in Control Tower first (two or more for a multi-drone exercise),
 choose **Find devices**, then choose **Connect**
 on the G2/Meta card. The fixed launcher detects the existing bounded fleet
 session, restarts the bridge against that exact session if necessary, and binds

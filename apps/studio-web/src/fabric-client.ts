@@ -398,6 +398,178 @@ export interface FabricPrinterActionResult {
   snapshot: FabricPrinterSnapshot;
 }
 
+export type FabricCameraImportState =
+  | "unavailable"
+  | "ready"
+  | "deferred"
+  | "setup_required"
+  | "connecting"
+  | "inventory"
+  | "transferring"
+  | "copying"
+  | "verifying"
+  | "completed"
+  | "failed";
+
+export type FabricCameraBatteryCondition =
+  "unknown" | "ok" | "warning" | "blocked";
+
+export interface FabricCameraImportBattery {
+  levelPercent?: number;
+  charging?: boolean;
+  condition: FabricCameraBatteryCondition;
+}
+
+export interface FabricCameraImportProgress {
+  stage: string;
+  message: string;
+  completedItems: number;
+  totalItems?: number;
+  bytesOnPhone: number;
+}
+
+export interface FabricCameraImportResult {
+  copiedFiles: number;
+  skippedFiles: number;
+  verifiedFiles: number;
+  copiedBytes: number;
+  totalBytes: number;
+  completedAt: string;
+}
+
+export interface FabricCameraImportSnapshot {
+  schemaVersion: "1.0";
+  cameraId: string;
+  displayName: string;
+  state: FabricCameraImportState;
+  destination: string;
+  phoneConnected: boolean;
+  phoneModel?: string;
+  appInstalled: boolean;
+  bluetoothEnabled: boolean;
+  cameraWifiConnected: boolean;
+  phoneBattery?: FabricCameraImportBattery;
+  cameraBattery?: FabricCameraImportBattery;
+  setupRequired: boolean;
+  filesOnPhone: number;
+  bytesOnPhone: number;
+  automaticEnabled: boolean;
+  automaticIntervalSeconds?: number;
+  nextAutomaticRunAt?: string;
+  lastAutomaticAttemptAt?: string;
+  operations: {
+    startImport: boolean;
+    openDestination: boolean;
+  };
+  progress?: FabricCameraImportProgress;
+  lastResult?: FabricCameraImportResult;
+  errorCode?: string;
+  message?: string;
+}
+
+export interface FabricCameraImportActionResult {
+  accepted: boolean;
+  message: string;
+  snapshot: FabricCameraImportSnapshot;
+}
+
+export interface FabricCameraDestinationActionResult {
+  opened: boolean;
+  destination: string;
+  message: string;
+}
+
+export type FabricAndroidControllerState =
+  | "checking"
+  | "unavailable"
+  | "unauthorized"
+  | "ambiguous"
+  | "ready"
+  | "failed";
+
+export interface FabricAndroidControllerSnapshot {
+  schemaVersion: "1.0";
+  state: FabricAndroidControllerState;
+  phoneConnected: boolean;
+  phoneModel?: string;
+  usbReverseReady: boolean;
+  operations: {
+    openController: boolean;
+  };
+  lastCheckedAt?: string;
+  errorCode?: string;
+  message: string;
+}
+
+export interface FabricAndroidControllerActionResult {
+  accepted: boolean;
+  message: string;
+  snapshot: FabricAndroidControllerSnapshot;
+}
+
+export interface FabricLanAccessDevice {
+  displayName: string;
+  macAddress: string;
+  addedAt: string;
+}
+
+export interface FabricLanAccessSnapshot {
+  schemaVersion: "1.0";
+  enabled: boolean;
+  lanOrigin?: string;
+  devices: FabricLanAccessDevice[];
+  operations: {
+    manage: boolean;
+    enrollUsbAndroid: boolean;
+  };
+}
+
+export interface FabricLanAccessActionResult {
+  accepted: boolean;
+  message: string;
+  snapshot: FabricLanAccessSnapshot;
+}
+
+export interface FabricLanAccessLinkResult {
+  schemaVersion: "1.0";
+  accessUrl: string;
+  expiresAt: string;
+}
+
+export interface FabricUnlockAutomationCompanion {
+  deviceId: string;
+  displayName: string;
+  pairedAt: string;
+  lastSeenAt?: string;
+}
+
+export interface FabricUnlockAutomationLastResult {
+  outcome: "succeeded" | "failed" | "disabled" | "cooldown";
+  occurredAt: string;
+  requestedCount: number;
+  acceptedCount: number;
+  message: string;
+}
+
+export interface FabricUnlockAutomationSnapshot {
+  schemaVersion: "1.0";
+  enabled: boolean;
+  selectedNodeIds: string[];
+  cooldownSeconds: number;
+  companion?: FabricUnlockAutomationCompanion;
+  lastResult?: FabricUnlockAutomationLastResult;
+  operations: {
+    manage: boolean;
+    installAndPair: boolean;
+  };
+}
+
+export interface FabricUnlockAutomationActionResult {
+  accepted: boolean;
+  message: string;
+  snapshot: FabricUnlockAutomationSnapshot;
+}
+
 interface FabricErrorBody {
   code?: unknown;
   message?: unknown;
@@ -460,7 +632,10 @@ export class FabricClient {
     return this.#request("/api/v1/fabric/auth/whoami");
   }
 
-  async connectWithConsoleTicket(ticket: string): Promise<FabricPrincipal> {
+  async connectWithConsoleTicket(
+    ticket: string,
+    options: { persistAndroidSession?: boolean } = {},
+  ): Promise<FabricPrincipal> {
     const normalized = ticket.trim();
     if (
       normalized !== ticket ||
@@ -474,7 +649,8 @@ export class FabricClient {
       {
         method: "POST",
         cache: "no-store",
-        credentials: "omit",
+        credentials:
+          options.persistAndroidSession === true ? "include" : "omit",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
@@ -493,6 +669,43 @@ export class FabricClient {
     }
   }
 
+  async resumeAndroidSession(): Promise<FabricPrincipal> {
+    const response = await this.#fetch(
+      `${this.#baseUrl}/api/v1/fabric/auth/android-session/resume`,
+      {
+        method: "POST",
+        cache: "no-store",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      },
+    );
+    const resumed = await this.#readResponse<ConsoleTicketRedemption>(response);
+    this.setCredential(resumed.accessToken);
+    try {
+      return await this.whoAmI();
+    } catch (caught) {
+      this.clearCredential();
+      throw caught;
+    }
+  }
+
+  async endAndroidSession(): Promise<void> {
+    try {
+      const response = await this.#fetch(
+        `${this.#baseUrl}/api/v1/fabric/auth/android-session/end`,
+        {
+          method: "POST",
+          cache: "no-store",
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        },
+      );
+      await this.#readResponse<void>(response);
+    } finally {
+      this.clearCredential();
+    }
+  }
+
   listNodes(): Promise<IntegrationNode[]> {
     return this.#request("/api/v1/fabric/nodes");
   }
@@ -503,6 +716,122 @@ export class FabricClient {
 
   getPrinterSnapshot(): Promise<FabricPrinterSnapshot> {
     return this.#request("/api/v1/fabric/printer");
+  }
+
+  getCameraImportSnapshot(): Promise<FabricCameraImportSnapshot> {
+    return this.#request("/api/v1/fabric/camera-import");
+  }
+
+  getCameraImportSnapshots(): Promise<FabricCameraImportSnapshot[]> {
+    return this.#request("/api/v1/fabric/camera-imports");
+  }
+
+  getAndroidController(): Promise<FabricAndroidControllerSnapshot> {
+    return this.#request("/api/v1/fabric/android-controller");
+  }
+
+  openAndroidController(): Promise<FabricAndroidControllerActionResult> {
+    return this.#request("/api/v1/fabric/android-controller/open", {
+      method: "POST",
+    });
+  }
+
+  getLanAccess(): Promise<FabricLanAccessSnapshot> {
+    return this.#request("/api/v1/fabric/lan-access");
+  }
+
+  addLanAccessDevice(
+    displayName: string,
+    macAddress: string,
+  ): Promise<FabricLanAccessActionResult> {
+    return this.#request("/api/v1/fabric/lan-access/devices", {
+      method: "POST",
+      body: JSON.stringify({ displayName, macAddress }),
+    });
+  }
+
+  removeLanAccessDevice(
+    macAddress: string,
+  ): Promise<FabricLanAccessActionResult> {
+    return this.#request(
+      `/api/v1/fabric/lan-access/devices/${encodeURIComponent(macAddress)}`,
+      { method: "DELETE" },
+    );
+  }
+
+  enrollUsbAndroidLanAccess(): Promise<FabricLanAccessActionResult> {
+    return this.#request("/api/v1/fabric/lan-access/enroll-usb-android", {
+      method: "POST",
+    });
+  }
+
+  createLanAccessLink(macAddress: string): Promise<FabricLanAccessLinkResult> {
+    return this.#request(
+      `/api/v1/fabric/lan-access/devices/${encodeURIComponent(macAddress)}/access-link`,
+      { method: "POST" },
+    );
+  }
+
+  getUnlockAutomation(): Promise<FabricUnlockAutomationSnapshot> {
+    return this.#request("/api/v1/fabric/unlock-automation");
+  }
+
+  configureUnlockAutomation(
+    enabled: boolean,
+    selectedNodeIds: string[],
+  ): Promise<FabricUnlockAutomationActionResult> {
+    return this.#request("/api/v1/fabric/unlock-automation/configuration", {
+      method: "PUT",
+      body: JSON.stringify({ enabled, selectedNodeIds }),
+    });
+  }
+
+  installAndPairUnlockCompanion(
+    displayName: string,
+  ): Promise<FabricUnlockAutomationActionResult> {
+    return this.#request(
+      "/api/v1/fabric/unlock-automation/companion/pair-usb",
+      {
+        method: "POST",
+        body: JSON.stringify({ displayName }),
+      },
+    );
+  }
+
+  removeUnlockCompanion(): Promise<FabricUnlockAutomationActionResult> {
+    return this.#request("/api/v1/fabric/unlock-automation/companion", {
+      method: "DELETE",
+    });
+  }
+
+  startCameraImport(): Promise<FabricCameraImportActionResult> {
+    return this.#request("/api/v1/fabric/camera-import/start", {
+      method: "POST",
+    });
+  }
+
+  startNamedCameraImport(
+    cameraId: string,
+  ): Promise<FabricCameraImportActionResult> {
+    return this.#request(
+      `/api/v1/fabric/camera-imports/${encodeURIComponent(cameraId)}/start`,
+      { method: "POST" },
+    );
+  }
+
+  openCameraImportDestination(): Promise<FabricCameraDestinationActionResult> {
+    return this.#request("/api/v1/fabric/camera-import/open-destination", {
+      method: "POST",
+    });
+  }
+
+  openNamedCameraImportDestination(
+    cameraId: string,
+  ): Promise<FabricCameraDestinationActionResult> {
+    return this.#request(
+      `/api/v1/fabric/camera-imports/${encodeURIComponent(cameraId)}/open-destination`,
+      { method: "POST" },
+    );
   }
 
   verifyPrinterIdle(): Promise<FabricPrinterActionResult> {

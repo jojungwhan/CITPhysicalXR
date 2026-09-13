@@ -27,6 +27,7 @@ from .contract import (
 from .matter_client import ElectricalMeasurements
 
 LOGGER = logging.getLogger(__name__)
+MAX_CONSECUTIVE_STATE_POLL_FAILURES = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,7 +86,7 @@ class FabricMatterBridge:
         self._last_electrical: ElectricalMeasurements | None = None
         self._electrical_telemetry_available = False
         self._last_error: str | None = None
-        self._state_publication_enabled = asyncio.Event()
+        self._consecutive_state_poll_failures = 0
         self._state_publication_session_id: str | None = None
 
     async def run(self) -> None:
@@ -219,7 +220,6 @@ class FabricMatterBridge:
             self._last_state = state
             self._last_error = None
             self._state_publication_session_id = str(command.sessionId)
-            self._state_publication_enabled.set()
             await client.publish_lifecycle(
                 command,
                 "SUCCEEDED",
@@ -251,15 +251,11 @@ class FabricMatterBridge:
 
     async def _publish_state_changes(self, client: FabricAdapterClient) -> None:
         while self.configuration.activation_file.is_file():
-            try:
-                await asyncio.wait_for(self._state_publication_enabled.wait(), timeout=0.1)
-                break
-            except TimeoutError:
-                pass
-        while self.configuration.activation_file.is_file():
             await asyncio.sleep(self.configuration.poll_interval_seconds)
             try:
                 state = await self._backend.read_state()
+                self._consecutive_state_poll_failures = 0
+                self._last_error = None
                 session_id = self._state_publication_session_id
                 if state != self._last_state:
                     self._last_state = state
@@ -277,16 +273,21 @@ class FabricMatterBridge:
                         session_id=session_id,
                     )
             except (SmartPlugError, OSError) as error:
-                # A controller read can time out on a momentary RF or mDNS
-                # stall. Keep polling: dropping the adapter here would leave
-                # the plug disconnected until someone relaunched it by hand.
+                self._consecutive_state_poll_failures += 1
                 self._last_error = str(error)[:500]
                 LOGGER.warning(
-                    "Matter state poll failed node_id=%s error_type=%s error=%s",
+                    "Matter state poll failed node_id=%s consecutive_failures=%s "
+                    "error_type=%s error=%s",
                     self.configuration.node_id,
+                    self._consecutive_state_poll_failures,
                     type(error).__name__,
                     self._last_error,
                 )
+                if self._consecutive_state_poll_failures >= MAX_CONSECUTIVE_STATE_POLL_FAILURES:
+                    raise SmartPlugError(
+                        "Matter state polling failed repeatedly; stopping adapter for "
+                        "supervised transport recovery"
+                    ) from error
 
     async def _publish_state(
         self,

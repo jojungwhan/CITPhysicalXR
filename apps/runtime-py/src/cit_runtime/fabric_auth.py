@@ -19,12 +19,14 @@ FABRIC_PERMISSIONS = frozenset(
         "fabric.auth.revoke",
         "fabric.commands.read",
         "fabric.commands.submit",
+        "fabric.console.open_android",
         "fabric.course.manage",
         "fabric.course.read",
         "fabric.discovery.connect",
         "fabric.events.publish",
         "fabric.events.read",
         "fabric.installation.read",
+        "fabric.lan_access.manage",
         "fabric.media.manage",
         "fabric.media.publish",
         "fabric.media.read",
@@ -42,10 +44,12 @@ INSTRUCTOR_PERMISSIONS = frozenset(
         "fabric.audit.read",
         "fabric.commands.read",
         "fabric.commands.submit",
+        "fabric.console.open_android",
         "fabric.course.read",
         "fabric.discovery.connect",
         "fabric.events.read",
         "fabric.installation.read",
+        "fabric.lan_access.manage",
         "fabric.media.manage",
         "fabric.media.read",
         "fabric.nodes.read",
@@ -126,10 +130,12 @@ class FabricPrincipal:
 @dataclass(frozen=True, slots=True)
 class FabricConsoleGrant:
     identity_id: str
+    actor_type: str
     permissions: tuple[str, ...]
     site_id: str | None
     room_id: str | None
     ticket_expires_at: datetime
+    persistent_session: bool
 
 
 class FabricAuthenticationError(PermissionError):
@@ -252,22 +258,28 @@ class FabricAuthService:
         room_id: str | None,
         at: datetime,
         ttl: timedelta = timedelta(seconds=90),
+        actor_type: str = "instructor",
+        persistent_session: bool = False,
     ) -> tuple[str, datetime]:
         """Create a short-lived, one-use handoff from the local launcher."""
 
         if ttl < timedelta(seconds=15) or ttl > timedelta(minutes=5):
             raise ValueError("Console ticket TTL must be between 15 seconds and five minutes")
         timestamp = _aware_utc(at)
+        if actor_type not in {"instructor", "android_controller"}:
+            raise ValueError("Console ticket actor type is invalid")
         self._validate_identity_values(roles=("instructor",), permissions=permissions)
         self._drop_expired_console_tickets(at=timestamp)
         ticket = secrets.token_urlsafe(32)
         ticket_expires_at = timestamp + ttl
         self._console_tickets[self._hash_console_ticket(ticket)] = FabricConsoleGrant(
             identity_id=identity_id,
+            actor_type=actor_type,
             permissions=permissions,
             site_id=site_id,
             room_id=room_id,
             ticket_expires_at=ticket_expires_at,
+            persistent_session=persistent_session,
         )
         return ticket, ticket_expires_at
 

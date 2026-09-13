@@ -7,7 +7,7 @@ Status: software path implemented; physical Bluetooth validation pending.
 1. Charge Dash or Dot and switch it on near the tutor computer.
 2. Close Wonder, Blockly, or another app connected to that robot. BLE normally
    permits only one active controller.
-3. Open **CIT Classroom Control** from the Windows CIT button and choose
+3. Open **CIT Control Tower** from the Windows CIT button and choose
    **Start classroom devices**.
 4. Choose **Find devices**. In **Wonder Workshop Dash and Dot**, match the
    printed/classroom robot to its exact visible name and signal level.

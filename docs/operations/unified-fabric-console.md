@@ -21,9 +21,9 @@ pnpm hardware:glasses:windows -- -Mode Stop
 ```
 
 Do not kill the Python PID directly; the component launcher also restores its
-temporary Agent Mesh changes. Then double-click **CIT Classroom Control** on
+temporary Agent Mesh changes. Then double-click **CIT Control Tower** on
 the Windows Desktop or choose it from the Start menu. Choose **Start classroom
-devices**. The launcher opens one dedicated Classroom Control app window and
+devices**. The launcher opens one dedicated Control Tower app window and
 signs this Windows user in automatically. No credential or command needs to be
 copied or pasted. Use the same button again to replace the previous CIT-owned
 window with a freshly signed-in one without restarting Fabric or any adapter.
@@ -36,6 +36,81 @@ clears it on reload or sign-out. The administrator bootstrap remains
 current-user DPAPI protected under
 `%LOCALAPPDATA%\CITPhysicalXR\interaction-fabric`; it is never printed, copied
 to the browser, or stored in the repository.
+
+## Allow selected local Wi-Fi devices
+
+Control Tower does not require an IPTIME/router allowlist. When local-network
+access is enabled, the Windows firewall rule admits only Private-profile,
+local-subnet TCP traffic to this computer's exact Control Tower address and
+port. Control Tower then resolves each same-link IPv4 client through the local
+ARP table and rejects it unless its canonical MAC address appears in the app's
+allowlist. Bearer/session authentication is still required after that check;
+MAC filtering is defense in depth and must never be treated as internet-safe
+authentication.
+
+On the tutor computer, open **Settings > Local Wi-Fi access**. Add a named MAC
+address manually, or connect the dedicated Android phone by USB and choose
+**Allow and open USB phone**. The latter reads Android's private, per-network
+Wi-Fi MAC over the authorized ADB connection, stores it in the local runtime
+state, and opens an exact LAN URL with a short-lived one-use session ticket. If
+Android changes that privacy address, enroll it again. Android and
+other remote sessions cannot view or change this list; management is accepted
+only from a loopback tutor console with the dedicated permission.
+
+For another listed phone, tablet, or computer, choose **Copy access link** and
+open the copied URL on that exact allowed device within 90 seconds. The URL
+contains a one-use ticket, creates the limited remote-control session, and is
+removed from the address bar before device data loads. Do not reuse the local
+administrator recovery credential on a remote device.
+
+Windows needs administrator approval once for the narrow inbound rule. If the
+launcher reports that setup is required, run the following from an elevated
+PowerShell window, substituting the private IPv4 address assigned to the Control
+Tower computer when necessary:
+
+```powershell
+pnpm hardware:fabric:windows -- -Mode ConfigureLanFirewall -FabricPort 8766 -LanAddress 192.168.1.10
+```
+
+The rule uses `LocalSubnet`, the exact local address, TCP port 8766, and the
+Private profile. It does not change the router and does not expose the service
+through a WAN interface. Routed/VPN clients and IPv6 LAN clients fail closed
+because the MAC gate supports only directly reachable IPv4 neighbors.
+
+## Turn on selected plugs when the dedicated phone unlocks
+
+This is a local Wi-Fi automation; the phone does not remain connected by USB.
+Control Tower must be running with physical devices and scoped local-network
+access enabled, and the phone must use the same directly reachable private
+Wi-Fi as this PC.
+
+1. Connect the dedicated Android phone by USB once and approve USB debugging.
+2. In the PC's **Settings > Phone unlock automation**, choose **Install and
+   pair companion**. Control Tower builds/installs its small native companion,
+   provisions a unique signing identity, and adds the phone's current
+   per-network Wi-Fi MAC to the application allowlist. The server keeps the
+   automation off after pairing.
+3. On the main smart-plug panel, check only the outlets that may turn on. Return
+   to settings and choose **Save currently checked plugs**. Browser checkbox
+   persistence and the background automation target are deliberately separate.
+4. Enable **Turn on saved plugs when this phone unlocks**. Read the saved target
+   count before enabling it.
+5. Confirm that the phone shows the ongoing Control Tower unlock-monitoring
+   notification. You may then disconnect USB. Locking and securely unlocking
+   the phone sends one signed event over local Wi-Fi.
+
+The companion starts itself after a phone reboot when Android permits it. On a
+Samsung phone, open the companion's **Battery settings** button and exempt it
+from sleep/background restrictions if the monitoring notification disappears.
+The app requires a secure device lock and ignores a screen wake that was not a
+real locked-to-unlocked transition.
+
+Events are not queued or retried. If the PC is off, Control Tower is stopped,
+the phone is on a Sony/DJI Wi-Fi Direct network, or any saved plug is offline,
+nothing is switched later. Reconnect the phone to the Control Tower Wi-Fi and
+unlock again only after checking the saved targets. Use **Unpair phone** before
+replacing the dedicated phone; the next one-time pairing resets only the
+Control Tower Companion app's old local credentials.
 
 ## Tutor workflow
 
@@ -81,7 +156,7 @@ send semantic voice or button requests to an assigned Codex or Claude session
 and show normalized completion text. Telegram is not installed on the glasses:
 install it on the paired phone and enable Telegram in **Even app > Settings >
 Notification**. The existing Agent Mesh deployment can also project its
-dedicated Telegram-bot feed. Classroom Control does not currently provide an
+dedicated Telegram-bot feed. Control Tower does not currently provide an
 arbitrary-text G2 composer; its physical G2 display route preserves agent
 completions and configured notifications.
 
@@ -192,7 +267,7 @@ printed setup code. See `device-discovery.md`.
 ## Physical devices
 
 Simulation is the default. To run physical adapters, use the installed **CIT
-Classroom Control** Windows button and choose **Enable classroom devices**. The
+Control Tower** Windows button and choose **Enable classroom devices**. The
 button safely restarts the shared Fabric with physical dispatch and scoped
 phone-camera access; tutors do not type an `-AllowPhysical` command.
 

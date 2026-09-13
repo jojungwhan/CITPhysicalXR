@@ -367,7 +367,7 @@ class UltralyticsWorldDetector:
             raise FabricMediaError(
                 "VISION_MODEL_UNAVAILABLE",
                 "The local object-recognition model is not ready; restart "
-                "Classroom Control after technician setup",
+                "Control Tower after technician setup",
                 status_code=503,
             ) from error
         result = next(iter(results), None)

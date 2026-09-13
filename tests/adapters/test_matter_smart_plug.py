@@ -15,6 +15,7 @@ from cit_matter_smart_plug import (
     ElectricalMeasurements,
     MatterSmartPlug,
     MatterSmartPlugConfiguration,
+    SmartPlugError,
     build_manifest,
     build_node,
     discover_plug_endpoints,
@@ -570,7 +571,6 @@ def test_transient_matter_read_failure_does_not_stop_the_state_loop(
             backend=backend,
         )
         bridge._state_publication_session_id = "session-a"
-        bridge._state_publication_enabled.set()
         reads_before = matter_client.reads
         matter_client.fail_next = True
 
@@ -585,5 +585,75 @@ def test_transient_matter_read_failure_does_not_stop_the_state_loop(
         activation_file.unlink()
         await asyncio.wait_for(state_task, timeout=3)
         await backend.close()
+
+    asyncio.run(scenario())
+
+
+def test_repeated_matter_read_failures_stop_the_adapter_for_supervised_recovery(
+    tmp_path: Path,
+) -> None:
+    class OfflineMatterClient(FakeMatterClient):
+        def __init__(self) -> None:
+            super().__init__()
+            self.offline = False
+
+        async def read_on_off(self, node_id: int, endpoint_id: int) -> bool:
+            if self.offline:
+                raise MatterServerError("operational socket is unavailable")
+            return await super().read_on_off(node_id, endpoint_id)
+
+    class RecordingFabricClient:
+        async def publish_event(self, **event: object) -> None:
+            del event
+
+    async def scenario() -> None:
+        activation_file = tmp_path / "matter-active.flag"
+        activation_file.write_text("connected\n", encoding="ascii")
+        matter_client = OfflineMatterClient()
+        backend = MatterSmartPlug(
+            MatterSmartPlugConfiguration(
+                server_url="ws://127.0.0.1:5580/ws",
+                matter_node_id=7,
+                endpoint_id=1,
+            ),
+            client=matter_client,
+        )
+        await backend.start()
+        matter_client.offline = True
+        bridge = FabricMatterBridge(
+            BridgeConfiguration(
+                connection=FabricConnectionConfiguration(
+                    adapter_url="ws://127.0.0.1:8766/api/v1/adapters/connect",
+                    adapter_token="test-adapter-token",
+                    fabric_origin="http://127.0.0.1:8766",
+                    session_id="session-a",
+                    site_id="site-a",
+                    room_id="room-a",
+                ),
+                host_id="host-a",
+                node_id="matter-7-ep1",
+                activation_file=activation_file,
+                matter_node_id=7,
+                endpoint_id=1,
+                display_name="Test plug",
+                vendor_name="Matter",
+                product_name="On/Off Plug-in Unit",
+                poll_interval_seconds=1,
+            ),
+            backend=backend,
+        )
+
+        state_task = asyncio.create_task(
+            bridge._publish_state_changes(RecordingFabricClient())  # type: ignore[arg-type]
+        )
+        try:
+            with pytest.raises(SmartPlugError, match="supervised transport recovery"):
+                await asyncio.wait_for(state_task, timeout=4.5)
+        finally:
+            activation_file.unlink(missing_ok=True)
+            if not state_task.done():
+                state_task.cancel()
+                await asyncio.gather(state_task, return_exceptions=True)
+            await backend.close()
 
     asyncio.run(scenario())
