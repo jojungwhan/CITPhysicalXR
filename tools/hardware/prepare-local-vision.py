@@ -1,4 +1,4 @@
-"""Prepare the fixed, local YOLO-World model used by Classroom Control.
+"""Prepare the fixed, local YOLO-World model used by Control Tower.
 
 This setup step downloads code only through the locked Python environment and
 downloads the fixed public model assets once. It never opens or analyzes a

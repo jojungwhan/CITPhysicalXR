@@ -48,6 +48,7 @@ class RecordingRunner:
 
     def __init__(self) -> None:
         self.actions: list[tuple[str, bool]] = []
+        self.recovery_actions: list[str] = []
         self.scans = 0
 
     async def scan(self) -> FabricDiscoveryReport:
@@ -60,8 +61,11 @@ class RecordingRunner:
         *,
         confirm_grounded: bool,
         session_target: FabricDiscoverySessionTarget | None = None,
+        recovery: bool = False,
     ) -> str:
         self.actions.append((action_id, confirm_grounded))
+        if recovery:
+            self.recovery_actions.append(action_id)
         raise FabricDiscoveryError(
             "DISCOVERY_ACTION_NOT_ALLOWED",
             "The adapter is still unavailable.",
@@ -122,6 +126,20 @@ def test_supervisor_attempts_every_remembered_non_aircraft_profile() -> None:
 
     assert runner.actions == [(action_id, False) for action_id in SAFE_REMEMBERED_ACTIONS]
     assert runner.scans == 0
+
+
+def test_supervisor_requests_transport_recovery_for_a_dropped_matter_plug() -> None:
+    runner = RecordingRunner()
+    service = FabricDiscoveryService(runner, clock=lambda: NOW)
+
+    asyncio.run(
+        service.supervise_remembered_reconnects(
+            (_remembered(PLUG_ACTION),),
+            nodes=lambda: (),
+        )
+    )
+
+    assert runner.recovery_actions == [PLUG_ACTION]
 
 
 def test_supervisor_never_confirms_grounded_aircraft() -> None:
@@ -199,8 +217,11 @@ class RecoveringRunner(RecordingRunner):
         *,
         confirm_grounded: bool,
         session_target: FabricDiscoverySessionTarget | None = None,
+        recovery: bool = False,
     ) -> str:
         self.actions.append((action_id, confirm_grounded))
+        if recovery:
+            self.recovery_actions.append(action_id)
         if len(self.actions) >= self._succeed_from:
             return "Connection started; no actuation command was sent."
         raise FabricDiscoveryError(

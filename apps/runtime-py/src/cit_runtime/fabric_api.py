@@ -20,6 +20,7 @@ from cit_protocol import (
     to_wire,
 )
 from fastapi import (
+    Cookie,
     Depends,
     FastAPI,
     Header,
@@ -71,6 +72,9 @@ from .fabric_persistence import FABRIC_PAGE_LIMIT, FabricIdentityRecord
 from .fabric_repository import SQLiteFabricRepository
 
 _IDENTIFIER_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]*$"
+_ANDROID_SESSION_COOKIE = "citxr_android_session"
+_ANDROID_SESSION_PATH = "/api/v1/fabric/auth/android-session"
+_CONSOLE_SESSION_TTL = timedelta(hours=12)
 
 
 class IssueIdentityRequest(BaseModel):
@@ -213,7 +217,11 @@ def install_fabric_api(
             principal: Annotated[FabricPrincipal, Depends(principal_from_header)],
         ) -> FabricPrincipal:
             get_auth().require(principal, permission)
-            if principal.actor_type in {"instructor", "administrator"}:
+            if principal.actor_type in {
+                "instructor",
+                "administrator",
+                "android_controller",
+            }:
                 # An open console polls this API continuously. Treat that as a
                 # tutor attending the room so a lesson can stay armed for a
                 # full teaching block instead of the unattended window.
@@ -309,20 +317,32 @@ def install_fabric_api(
     @app.post("/api/v1/fabric/auth/console-tickets/redeem")
     async def redeem_console_ticket(
         request: RedeemConsoleTicketRequest,
+        response: Response,
     ) -> dict[str, object]:
         redeemed_at = current_time()
         grant = get_auth().redeem_console_ticket(request.ticket, at=redeemed_at)
         record, credential = get_auth().issue(
             identity_id=grant.identity_id,
-            actor_type="instructor",
+            actor_type=grant.actor_type,
             roles=("instructor",),
             permissions=grant.permissions,
             site_id=grant.site_id,
             room_id=grant.room_id,
             session_id=None,
-            ttl=timedelta(hours=12),
+            ttl=_CONSOLE_SESSION_TTL,
             at=redeemed_at,
         )
+        if grant.persistent_session:
+            response.set_cookie(
+                key=_ANDROID_SESSION_COOKIE,
+                value=credential,
+                max_age=int(_CONSOLE_SESSION_TTL.total_seconds()),
+                expires=record.expires_at,
+                path=_ANDROID_SESSION_PATH,
+                secure=False,
+                httponly=True,
+                samesite="strict",
+            )
         get_repository().record_fabric_audit(
             actor_id=grant.identity_id,
             action="fabric.console.connect",
@@ -331,12 +351,61 @@ def install_fabric_api(
             outcome="succeeded",
             correlation_id=None,
             occurred_at=redeemed_at,
-            details={"singleUse": True},
+            details={
+                "singleUse": True,
+                "persistentSession": grant.persistent_session,
+            },
         )
         return {
             "accessToken": credential,
             "expiresAt": record.expires_at,
         }
+
+    @app.post("/api/v1/fabric/auth/android-session/resume")
+    async def resume_android_session(
+        android_session: Annotated[
+            str | None,
+            Cookie(alias=_ANDROID_SESSION_COOKIE),
+        ] = None,
+    ) -> dict[str, object]:
+        if android_session is None:
+            raise FabricAuthenticationError("An Android controller session is required")
+        principal = get_auth().authenticate(android_session, at=current_time())
+        if principal.actor_type != "android_controller":
+            raise FabricAuthenticationError("Android controller session is invalid")
+        return {
+            "accessToken": android_session,
+            "expiresAt": principal.expires_at,
+        }
+
+    @app.post(
+        "/api/v1/fabric/auth/android-session/end",
+        status_code=204,
+        response_class=Response,
+    )
+    async def end_android_session(
+        android_session: Annotated[
+            str | None,
+            Cookie(alias=_ANDROID_SESSION_COOKIE),
+        ] = None,
+    ) -> Response:
+        if android_session is not None:
+            try:
+                principal = get_auth().authenticate(android_session, at=current_time())
+            except FabricAuthenticationError:
+                pass
+            else:
+                if principal.actor_type == "android_controller":
+                    get_auth().revoke(principal.identity_id, at=current_time())
+        response = Response(status_code=204)
+        response.delete_cookie(
+            key=_ANDROID_SESSION_COOKIE,
+            path=_ANDROID_SESSION_PATH,
+            secure=False,
+            httponly=True,
+            samesite="strict",
+        )
+        return response
 
     @app.post(
         "/api/v1/fabric/auth/identities",

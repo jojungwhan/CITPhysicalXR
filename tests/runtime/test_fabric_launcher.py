@@ -30,6 +30,36 @@ def test_shared_launcher_uses_one_use_fragment_ticket_without_printing_a_token()
     assert '"Open"' in launcher
 
 
+def test_shared_launcher_opens_the_usb_android_controller_without_exposing_a_ticket() -> None:
+    launcher = _launcher("interaction-fabric-console.ps1")
+
+    assert '"OpenAndroid"' in launcher
+    assert "/api/v1/fabric/android-controller/open" in launcher
+    assert "Open-AndroidController" in launcher
+    assert "adb reverse" not in launcher
+    assert "Write-Host $ticket" not in launcher
+
+
+def test_shared_launcher_scopes_lan_firewall_and_enables_app_mac_allowlisting() -> None:
+    launcher = _launcher("interaction-fabric-console.ps1")
+
+    assert '"ConfigureLanFirewall"' in launcher
+    assert "CITXR_LAN_MAC_ACCESS" in launcher
+    assert "New-NetFirewallRule" in launcher
+    assert "-Profile Private" in launcher
+    assert "-Direction Inbound" in launcher
+    assert "-Protocol TCP" in launcher
+    assert "-LocalAddress $Address" in launcher
+    assert "-LocalPort $FabricPort" in launcher
+    assert "$CameraFtpPort = 2121" in launcher
+    assert '$CameraFtpPassivePorts = "32100-32109"' in launcher
+    assert "-LocalPort $CameraFtpPort" in launcher
+    assert "-LocalPort $CameraFtpPassivePorts" in launcher
+    assert "-RemoteAddress LocalSubnet" in launcher
+    assert "application MAC allowlisting is disabled" in launcher
+    assert "IPTIME" not in launcher.upper()
+
+
 def test_shared_launcher_allows_owned_browser_to_save_ui_state_before_forced_fallback() -> None:
     launcher = _launcher("interaction-fabric-console.ps1")
     stop_browser = launcher.split("function Stop-OwnedTutorBrowser", 1)[1].split(
@@ -45,7 +75,7 @@ def test_shared_launcher_allows_owned_browser_to_save_ui_state_before_forced_fal
 
 @pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows UI")
 def test_shared_launcher_replaces_its_owned_browser_window(tmp_path: Path) -> None:
-    """Opening Classroom Control twice leaves one isolated CIT browser process."""
+    """Opening Control Tower twice leaves one isolated CIT browser process."""
 
     class TicketHandler(BaseHTTPRequestHandler):
         def do_POST(self) -> None:
@@ -233,7 +263,7 @@ def test_classroom_launcher_isolates_optional_brain2devices_failure() -> None:
 
     assert "try {\n    & $brainLauncher @brainParameters\n  } catch {" in launcher
     assert "The optional Brain2Devices integration is unavailable" in launcher
-    assert 'Write-Host "READY. In Classroom Control, choose Find devices."' in launcher
+    assert 'Write-Host "READY. In Control Tower, choose Find devices."' in launcher
 
 
 def test_lego_launcher_uses_exact_profile_input_and_unarmed_monitoring() -> None:
@@ -304,8 +334,68 @@ def test_matter_controller_retries_windows_reserved_operational_ports() -> None:
     assert '"listen EACCES: permission denied"' in launcher
     assert "Stop-ExactProcess $process.Id $controllerMarker" in launcher
     assert "Stop-ExactProcess $State.controllerLauncherPid $controllerMarker" in launcher
-    assert "Stop-ExactProcess $state.controllerLauncherPid $controllerMarker" in launcher
+    assert "Stop-MatterTransport $state" in launcher
     assert "Matter controller selected a Windows-reserved operational port" in launcher
+
+
+def test_matter_recovery_waits_for_ipv6_and_rebuilds_only_runtime_processes() -> None:
+    launcher = _launcher("matter-smart-plug.ps1")
+
+    assert '"Recover"' in launcher.splitlines()[4]
+    assert "function Wait-MatterNetworkReady" in launcher
+    assert "-AddressFamily IPv6" in launcher
+    assert '$_.AddressState -eq "Preferred"' in launcher
+    assert '.StartsWith("fe80:", [StringComparison]::OrdinalIgnoreCase)' in launcher
+    assert "function Stop-MatterTransport" in launcher
+
+    recovery = launcher.index('if ($Mode -eq "Recover")')
+    expected_steps = (
+        "Assert-Fabric $bootstrap",
+        "$primaryInterface = Wait-MatterNetworkReady",
+        "Stop-Adapters $state $bootstrap",
+        "Stop-MatterTransport $state",
+        "Start-Controller $state $primaryInterface",
+        "Start-Adapters $state $bootstrap",
+    )
+    positions = [launcher.index(step, recovery) for step in expected_steps]
+    assert positions == sorted(positions)
+    assert "Remove-Item -LiteralPath $controllerStorage" not in launcher
+
+
+def test_matter_adapter_registration_aborts_as_soon_as_the_child_exits() -> None:
+    launcher = _launcher("matter-smart-plug.ps1")
+
+    wait_start = launcher.index("function Wait-Until")
+    wait_end = launcher.index("function Invoke-JsonApi", wait_start)
+    wait_function = launcher[wait_start:wait_end]
+    assert "[scriptblock]$AbortCondition" in wait_function
+    assert "if ($null -ne $AbortCondition -and (& $AbortCondition))" in wait_function
+    assert wait_function.index("& $AbortCondition") < wait_function.index("Start-Sleep")
+
+    adapter_start = launcher.index("function Start-Adapters")
+    adapter_end = launcher.index("function Show-Status", adapter_start)
+    adapter_function = launcher[adapter_start:adapter_end]
+    assert "$process.HasExited" in adapter_function
+    assert "MATTER_ADAPTER_START_FAILED" in adapter_function
+
+
+def test_matter_process_logs_are_rotated_before_each_launch() -> None:
+    launcher = _launcher("matter-smart-plug.ps1")
+
+    assert "function Rotate-LogFile" in launcher
+    assert "[ValidateRange(1, 20)]" in launcher
+    assert ".StartsWith($allowedRoot, [StringComparison]::OrdinalIgnoreCase)" in launcher
+
+    ble_start = launcher.index("function Start-BleProxy")
+    controller_start = launcher.index("function Start-Controller")
+    adapter_start = launcher.index("function Start-OneAdapter")
+    stop_adapters = launcher.index("function Stop-Adapters")
+    assert "Rotate-LogFile $proxyStdoutPath" in launcher[ble_start:controller_start]
+    assert "Rotate-LogFile $proxyStderrPath" in launcher[ble_start:controller_start]
+    assert "Rotate-LogFile $controllerStdoutPath" in launcher[controller_start:adapter_start]
+    assert "Rotate-LogFile $controllerStderrPath" in launcher[controller_start:adapter_start]
+    assert "Rotate-LogFile $adapterStdoutPath" in launcher[adapter_start:stop_adapters]
+    assert "Rotate-LogFile $adapterStderrPath" in launcher[adapter_start:stop_adapters]
 
 
 @pytest.mark.skipif(os.name != "nt" or shutil.which("pwsh") is None, reason="Windows launcher")
@@ -410,7 +500,7 @@ def test_classroom_start_button_runs_only_the_fixed_disarmed_host_launcher() -> 
     assert "physical outputs will remain disarmed" in button
     assert "$event.Cancel = $true" in button
     assert "WScript.Shell" in installer
-    assert "CIT Classroom Control.lnk" in installer
+    assert "CIT Control Tower.lnk" in installer
 
     console = (REPOSITORY_ROOT / "apps" / "studio-web" / "src" / "FabricConsole.tsx").read_text(
         encoding="utf-8"
@@ -494,6 +584,11 @@ def test_classroom_button_installer_creates_user_shortcuts_in_exact_roots(
     installer = REPOSITORY_ROOT / "tools" / "hardware" / "install-classroom-control-button.ps1"
     desktop = tmp_path / "desktop"
     programs = tmp_path / "programs"
+    legacy_start_menu = programs / "CIT Classroom"
+    desktop.mkdir(parents=True)
+    legacy_start_menu.mkdir(parents=True)
+    (desktop / "CIT Classroom Control.lnk").write_text("legacy")
+    (legacy_start_menu / "CIT Classroom Control.lnk").write_text("legacy")
     completed = subprocess.run(
         [
             "pwsh",
@@ -514,8 +609,10 @@ def test_classroom_button_installer_creates_user_shortcuts_in_exact_roots(
         timeout=10,
     )
 
-    assert (desktop / "CIT Classroom Control.lnk").is_file()
-    assert (programs / "CIT Classroom" / "CIT Classroom Control.lnk").is_file()
+    assert (desktop / "CIT Control Tower.lnk").is_file()
+    assert (programs / "CIT" / "CIT Control Tower.lnk").is_file()
+    assert not (desktop / "CIT Classroom Control.lnk").exists()
+    assert not (programs / "CIT Classroom" / "CIT Classroom Control.lnk").exists()
     assert "Desktop and Start menu" in completed.stdout
     assert completed.stderr == ""
 

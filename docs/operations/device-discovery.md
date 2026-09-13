@@ -1,12 +1,12 @@
 # Find and connect classroom devices
 
 Use this workflow on the Windows tutor computer. It brings the supported
-hardware checklist into **CIT Classroom Control** without scanning for secrets
+hardware checklist into **CIT Control Tower** without scanning for secrets
 or enabling physical outputs.
 
 ## Start the device host
 
-1. Double-click **CIT Classroom Control** on the Windows Desktop or choose it
+1. Double-click **CIT Control Tower** on the Windows Desktop or choose it
    from the Start menu.
 2. Choose **Start classroom devices**. If a simulation-only host is already
    running, choose **Enable classroom devices** and confirm the safe restart.
@@ -137,7 +137,7 @@ leaves that one-shot arm waiting for an approved input.
 1. Pair the headset in Windows Bluetooth settings.
 2. Install and start ThinkGear Connector, select its outgoing COM port, and
    confirm `localhost:13854` is listening.
-3. Open Classroom Control and choose **Find devices**.
+3. Open Control Tower and choose **Find devices**.
 4. Choose **Connect headset**. Adjust the forehead and ear contacts until the
    vendor signal-quality value is stable.
 

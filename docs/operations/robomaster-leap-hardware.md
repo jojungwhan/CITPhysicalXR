@@ -28,7 +28,7 @@ It uses the real upstream `DryRunRobot` and `CommandPump`, but a generated
 semantic gesture pulse. `Verify` should report at least one gesture event, one
 bounded robot-command event, and one `SUCCEEDED` lifecycle.
 
-The Windows **CIT Classroom Control** button and the robot launcher open the
+The Windows **CIT Control Tower** button and the robot launcher open the
 same dedicated app screen with automatic local sign-in. Reopening replaces the
 previous CIT-owned window, so adapter connections do not accumulate browser
 tabs. Normal browser windows are untouched, and the adapter is not restarted.

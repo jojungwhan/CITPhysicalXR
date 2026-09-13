@@ -3,7 +3,7 @@
 This runbook covers the independent CIT Tello and MindWave adapters, the
 separate bounded MindWave demo and ordered-fleet controllers, and the Tello
 media publisher that wrap the existing Brain2Devices hardware implementation.
-Tutors use only **CIT Classroom Control**; the commands below are technician
+Tutors use only **CIT Control Tower**; the commands below are technician
 diagnostics.
 
 ## Pinned source and installation
@@ -33,7 +33,7 @@ into CIT.
 
 ## Tutor workflow
 
-1. Open **CIT Classroom Control** and choose **Start classroom devices**.
+1. Open **CIT Control Tower** and choose **Start classroom devices**.
 2. Choose **Find devices**.
 3. For MindWave, pair the headset, start ThinkGear Connector on
    `127.0.0.1:13854`, then choose **Connect headset**.

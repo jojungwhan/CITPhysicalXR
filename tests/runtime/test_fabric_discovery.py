@@ -89,7 +89,9 @@ class FakeDiscoveryRunner:
         *,
         confirm_grounded: bool,
         session_target: FabricDiscoverySessionTarget | None = None,
+        recovery: bool = False,
     ) -> str:
+        del recovery
         self.actions.append((action_id, confirm_grounded))
         if session_target is not None:
             self.session_targets.append(session_target)
@@ -480,6 +482,45 @@ def test_fixed_adapter_connection_actions_use_disarmed_launchers(
         tmp_path / "glasses-agent",
         tmp_path / "glasses-agent",
         tmp_path / "robomaster-leap",
+    ]
+
+
+def test_matter_recovery_uses_the_dedicated_transport_rebuild_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = PowerShellDiscoveryRunner(
+        script_path=Path(__file__).resolve().parents[2]
+        / "tools"
+        / "hardware"
+        / "find-classroom-devices.ps1",
+        state_root=tmp_path / "fabric",
+        brain2devices_root=tmp_path / "brain",
+        robomaster_root=tmp_path / "robot",
+        agent_mesh_root=tmp_path / "agent-mesh",
+        fabric_port=9876,
+        powershell_path="pwsh",
+    )
+    launches: list[tuple[str, tuple[str, ...]]] = []
+
+    async def capture_launcher(script_name: str, *arguments: str) -> None:
+        launches.append((script_name, arguments))
+
+    monkeypatch.setattr(runner, "_run_launcher", capture_launcher)
+
+    async def connect() -> None:
+        await runner.perform("cit.matter-smart-plug.connect", confirm_grounded=False)
+        await runner.perform(
+            "cit.matter-smart-plug.connect",
+            confirm_grounded=False,
+            recovery=True,
+        )
+
+    asyncio.run(connect())
+
+    assert [arguments[arguments.index("-Mode") + 1] for _, arguments in launches] == [
+        "Start",
+        "Recover",
     ]
 
 

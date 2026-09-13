@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config xmlns:tools="http://schemas.android.com/tools">
+    <!--
+      Control Tower currently serves its same-link private IPv4 endpoint over HTTP. The request
+      carries no bearer secret: it is timestamped, sequenced, and HMAC-signed, and Java validation
+      rejects non-private or alternate origins. TLS remains accepted whenever the server enables it.
+    -->
+    <base-config
+        cleartextTrafficPermitted="true"
+        tools:ignore="InsecureBaseConfiguration" />
+</network-security-config>

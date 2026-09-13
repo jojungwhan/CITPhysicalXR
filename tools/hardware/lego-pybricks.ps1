@@ -212,7 +212,7 @@ if ($Mode -eq "Status") {
 }
 
 Assert-Path $runtimePython "CIT runtime Python"
-Assert-Path $bootstrapSecretPath "Shared Fabric credential; open Classroom Control first"
+Assert-Path $bootstrapSecretPath "Shared Fabric credential; open Control Tower first"
 $health = Invoke-RestMethod -Uri "$fabricOrigin/api/v1/fabric/healthz" -TimeoutSec 5
 if (-not $Simulation -and $health.physicalActuation -ne "enabled") {
   throw "Enable classroom devices in the CIT button before connecting a real LEGO hub"

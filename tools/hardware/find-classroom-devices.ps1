@@ -1316,7 +1316,7 @@ $integrations.Add((New-Integration `
     "Use a plug whose packaging or label explicitly shows the Matter logo and setup code.",
     "Connect this Windows computer to the classroom network and confirm a Bluetooth Low Energy adapter is ready.",
     "Put the plug in pairing mode near this computer.",
-    "Enter the printed Matter setup code in Classroom Control; no vendor app or account is required."
+    "Enter the printed Matter setup code in Control Tower; no vendor app or account is required."
   ) `
   -ActionId $(if ($availableMatterPlugs.Count -gt 0) { "cit.matter-smart-plug.connect" } else { "" }) `
   -ActionLabel $(if ($availableMatterPlugs.Count -gt 0) { "Connect commissioned plugs" } else { "" }) `

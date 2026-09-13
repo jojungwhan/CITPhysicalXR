@@ -2,7 +2,7 @@
 
 [CmdletBinding()]
 param(
-  [ValidateSet("Preflight", "Start", "Open", "Status", "CopyCredential", "Stop")]
+  [ValidateSet("Preflight", "Start", "Open", "OpenAndroid", "Status", "CopyCredential", "ConfigureLanFirewall", "Stop")]
   [string]$Mode = "Start",
   [ValidateRange(1024, 65535)]
   [int]$FabricPort = 8766,
@@ -52,6 +52,11 @@ $bootstrapSecretPath = Join-Path $secretRoot "fabric-bootstrap.dpapi"
 $fabricOrigin = "http://127.0.0.1:$FabricPort"
 $fabricProcessMarker = "cit_runtime.fabric_service:create_persistent_fabric_app"
 $browserProfileRoot = Join-Path $StateRoot "browser-profile"
+$lanFirewallRuleName = "CIT-Control-Tower-TCP-$FabricPort"
+$CameraFtpPort = 2121
+$CameraFtpPassivePorts = "32100-32109"
+$cameraFtpFirewallRuleName = "CIT-Control-Tower-Camera-FTP-$CameraFtpPort"
+$cameraFtpPassiveFirewallRuleName = "CIT-Control-Tower-Camera-FTP-Passive"
 
 function Test-PrivateIPv4([string]$Address) {
   $parsed = $null
@@ -95,6 +100,92 @@ function Resolve-LanAddress {
   return [string]$fallback.IPAddress
 }
 
+function Test-Administrator {
+  $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+  $principal = [Security.Principal.WindowsPrincipal]::new($identity)
+  return $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Test-ScopedLanFirewallRule(
+  [string]$Name,
+  [string]$Address,
+  [string]$LocalPort
+) {
+  $rule = Get-NetFirewallRule -Name $Name -ErrorAction SilentlyContinue
+  if ($null -eq $rule) { return $false }
+  $portFilter = $rule | Get-NetFirewallPortFilter -ErrorAction SilentlyContinue
+  $addressFilter = $rule | Get-NetFirewallAddressFilter -ErrorAction SilentlyContinue
+  if ($null -eq $portFilter -or $null -eq $addressFilter) { return $false }
+  return $rule.Enabled -eq "True" -and
+    $rule.Direction -eq "Inbound" -and
+    $rule.Action -eq "Allow" -and
+    $rule.Profile -eq "Private" -and
+    [string]$portFilter.Protocol -eq "TCP" -and
+    [string]$portFilter.LocalPort -eq $LocalPort -and
+    @($addressFilter.LocalAddress) -contains $Address -and
+    @($addressFilter.RemoteAddress) -contains "LocalSubnet"
+}
+
+function Test-LanFirewallRule([string]$Address) {
+  return (Test-ScopedLanFirewallRule $lanFirewallRuleName $Address ([string]$FabricPort)) -and
+    (Test-ScopedLanFirewallRule $cameraFtpFirewallRuleName $Address ([string]$CameraFtpPort)) -and
+    (Test-ScopedLanFirewallRule $cameraFtpPassiveFirewallRuleName $Address $CameraFtpPassivePorts)
+}
+
+function Install-LanFirewallRule([string]$Address) {
+  if (-not (Test-Administrator)) {
+    throw "Administrator approval is required to configure the scoped Control Tower firewall rule"
+  }
+  Get-NetFirewallRule -Name @(
+    $lanFirewallRuleName,
+    $cameraFtpFirewallRuleName,
+    $cameraFtpPassiveFirewallRuleName
+  ) -ErrorAction SilentlyContinue |
+    Remove-NetFirewallRule -ErrorAction Stop
+  New-NetFirewallRule `
+    -Name $lanFirewallRuleName `
+    -DisplayName "CIT Control Tower (local Wi-Fi TCP $FabricPort)" `
+    -Group "CIT Control Tower" `
+    -Description "Allows local-subnet clients to reach Control Tower; the app separately enforces its MAC allowlist and login." `
+    -Enabled True `
+    -Profile Private `
+    -Direction Inbound `
+    -Action Allow `
+    -Protocol TCP `
+    -LocalAddress $Address `
+    -LocalPort $FabricPort `
+    -RemoteAddress LocalSubnet | Out-Null
+  New-NetFirewallRule `
+    -Name $cameraFtpFirewallRuleName `
+    -DisplayName "CIT Control Tower camera FTP (TCP $CameraFtpPort)" `
+    -Group "CIT Control Tower" `
+    -Description "Allows the paired phone to upload camera media over authenticated FTP on the local subnet." `
+    -Enabled True `
+    -Profile Private `
+    -Direction Inbound `
+    -Action Allow `
+    -Protocol TCP `
+    -LocalAddress $Address `
+    -LocalPort $CameraFtpPort `
+    -RemoteAddress LocalSubnet | Out-Null
+  New-NetFirewallRule `
+    -Name $cameraFtpPassiveFirewallRuleName `
+    -DisplayName "CIT Control Tower camera FTP passive data ($CameraFtpPassivePorts)" `
+    -Group "CIT Control Tower" `
+    -Description "Allows verified camera media data channels from the paired phone on the local subnet." `
+    -Enabled True `
+    -Profile Private `
+    -Direction Inbound `
+    -Action Allow `
+    -Protocol TCP `
+    -LocalAddress $Address `
+    -LocalPort $CameraFtpPassivePorts `
+    -RemoteAddress LocalSubnet | Out-Null
+  if (-not (Test-LanFirewallRule $Address)) {
+    throw "The scoped Control Tower firewall rule could not be verified"
+  }
+}
+
 function Assert-Path([string]$Path, [string]$Description) {
   if (-not (Test-Path -LiteralPath $Path)) {
     throw "$Description was not found at $Path"
@@ -120,6 +211,55 @@ function Invoke-External(
     }
   } finally {
     Pop-Location
+  }
+}
+
+function Build-UnlockCompanion {
+  $companionRoot = Join-Path $repositoryRoot "apps\control-tower-companion"
+  $wrapper = Join-Path $companionRoot "gradlew.bat"
+  $apk = Join-Path $companionRoot "app\build\outputs\apk\debug\app-debug.apk"
+  if (-not (Test-Path -LiteralPath $wrapper -PathType Leaf)) { return }
+
+  $sourcePaths = @(
+    Join-Path $companionRoot "settings.gradle"
+    Join-Path $companionRoot "build.gradle"
+    Join-Path $companionRoot "app\build.gradle"
+    Join-Path $companionRoot "app\proguard-rules.pro"
+  )
+  $sourcePaths += @(
+    Get-ChildItem -LiteralPath (Join-Path $companionRoot "app\src") -File -Recurse |
+      Select-Object -ExpandProperty FullName
+  )
+  $newestSource = $sourcePaths |
+    Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } |
+    ForEach-Object { (Get-Item -LiteralPath $_).LastWriteTimeUtc } |
+    Sort-Object -Descending |
+    Select-Object -First 1
+  if (
+    (Test-Path -LiteralPath $apk -PathType Leaf) -and
+    $null -ne $newestSource -and
+    (Get-Item -LiteralPath $apk).LastWriteTimeUtc -ge $newestSource
+  ) {
+    return
+  }
+
+  $androidSdk = if ($env:ANDROID_HOME) {
+    [IO.Path]::GetFullPath($env:ANDROID_HOME)
+  } else {
+    Join-Path $env:LOCALAPPDATA "Android\Sdk"
+  }
+  if (-not (Test-Path -LiteralPath (Join-Path $androidSdk "platforms\android-36"))) {
+    Write-Warning "Android SDK platform 36 is unavailable; phone-unlock companion pairing will stay disabled."
+    return
+  }
+  try {
+    Invoke-External $wrapper @(
+      "--no-daemon",
+      ":app:testDebugUnitTest",
+      ":app:assembleDebug"
+    ) $companionRoot
+  } catch {
+    Write-Warning "Control Tower Companion could not be built: $($_.Exception.Message)"
   }
 }
 
@@ -177,7 +317,7 @@ function Get-ProcessCommandLine([int]$ProcessId) {
 function Resolve-TutorBrowserExecutable {
   if ($BrowserExecutable) {
     $resolved = [IO.Path]::GetFullPath($BrowserExecutable)
-    Assert-Path $resolved "Classroom Control browser"
+    Assert-Path $resolved "Control Tower browser"
     return $resolved
   }
 
@@ -195,7 +335,7 @@ function Resolve-TutorBrowserExecutable {
     Where-Object { $_ -and (Test-Path -LiteralPath $_ -PathType Leaf) } |
     Select-Object -First 1
   if (-not $browser) {
-    throw "Microsoft Edge or Google Chrome is required for the single Classroom Control window"
+    throw "Microsoft Edge or Google Chrome is required for the single Control Tower window"
   }
   return [IO.Path]::GetFullPath([string]$browser)
 }
@@ -233,10 +373,10 @@ function Stop-OwnedTutorBrowser {
     try {
       Wait-Until {
         @(Get-OwnedTutorBrowserProcesses).Count -eq 0
-      } "The previous Classroom Control window did not close gracefully" 5
+      } "The previous Control Tower window did not close gracefully" 5
       return
     } catch {
-      Write-Verbose "The prior Classroom Control window needs a forced fallback"
+      Write-Verbose "The prior Control Tower window needs a forced fallback"
     }
   }
 
@@ -247,7 +387,7 @@ function Stop-OwnedTutorBrowser {
   if ($remaining.Count -gt 0) {
     Wait-Until {
       @(Get-OwnedTutorBrowserProcesses).Count -eq 0
-    } "The previous Classroom Control window did not close" 10
+    } "The previous Control Tower window did not close" 10
   }
 }
 
@@ -344,6 +484,10 @@ function Show-Preflight {
   Write-Host "PASS one console will accept input, output, bidirectional, simulator, and coding-agent nodes"
   Write-Host "Physical adapter dispatch: $(if ($AllowPhysical) { 'explicitly enabled; sessions remain disarmed by default' } else { 'disabled' })"
   Write-Host "Phone camera ingress: $(if ($AllowLanMedia) { "enabled at http://$(Resolve-LanAddress):$FabricPort" } else { 'loopback only' })"
+  if ($AllowLanMedia) {
+    $resolvedAddress = Resolve-LanAddress
+    Write-Host "LAN firewall: $(if (Test-LanFirewallRule $resolvedAddress) { 'scoped rule ready' } else { 'administrator setup required' })"
+  }
 }
 
 function Build-Systems {
@@ -352,7 +496,7 @@ function Build-Systems {
   try {
     # The classroom button prepares the optional local YOLO runtime as part of
     # the same guided startup. It never captures or analyzes a camera frame;
-    # inference remains an explicit tutor action in Classroom Control.
+    # inference remains an explicit tutor action in Control Tower.
     Invoke-External $uv @(
       "sync", "--all-packages", "--frozen", "--inexact",
       "--extra", "vision",
@@ -377,6 +521,7 @@ function Build-Systems {
   }
   Invoke-External (Resolve-Executable "pnpm.cmd") @("install", "--frozen-lockfile") $repositoryRoot
   Invoke-External (Resolve-Executable "pnpm.cmd") @("build") $repositoryRoot
+  Build-UnlockCompanion
 }
 
 function Ensure-BootstrapCredential {
@@ -393,6 +538,17 @@ function Start-Fabric([hashtable]$State, [string]$Credential) {
   $mediaIngressOrigin = if ($resolvedLanAddress) {
     "http://$resolvedLanAddress`:$FabricPort"
   } else { "" }
+  if ($resolvedLanAddress -and -not (Test-LanFirewallRule $resolvedLanAddress)) {
+    if (Test-Administrator) {
+      Install-LanFirewallRule $resolvedLanAddress
+    } else {
+      Write-Warning (
+        "LAN clients remain blocked by Windows Firewall until an administrator runs: " +
+        "pwsh -NoProfile -File `"$PSCommandPath`" -Mode ConfigureLanFirewall " +
+        "-FabricPort $FabricPort -StateRoot `"$StateRoot`" -LanAddress $resolvedLanAddress"
+      )
+    }
+  }
   $listenerId = Get-ListeningProcessId $FabricPort
   if ($null -ne $listenerId) {
     try {
@@ -405,7 +561,13 @@ function Start-Fabric([hashtable]$State, [string]$Credential) {
         $health.PSObject.Properties.Name -contains "mediaIngress" -and
         $health.mediaIngress -eq "enabled"
       if ($AllowLanMedia -and -not $mediaIngressEnabled) {
-        throw "local-network camera ingress is disabled; restart Classroom Control"
+        throw "local-network camera ingress is disabled; restart Control Tower"
+      }
+      $lanMacAccessEnabled =
+        $health.PSObject.Properties.Name -contains "lanMacAccess" -and
+        $health.lanMacAccess -eq $true
+      if ($AllowLanMedia -and -not $lanMacAccessEnabled) {
+        throw "application MAC allowlisting is disabled; restart Control Tower"
       }
       if ($Brain2DevicesRoot) {
         $runningBrainRoot = if ($State.ContainsKey("brain2devicesRoot")) {
@@ -415,7 +577,7 @@ function Start-Fabric([hashtable]$State, [string]$Credential) {
             $Brain2DevicesRoot,
             [StringComparison]::OrdinalIgnoreCase
           )) {
-          throw "Brain2Devices discovery source changed; restart Classroom Control"
+          throw "Brain2Devices discovery source changed; restart Control Tower"
         }
       }
     } catch {
@@ -449,6 +611,7 @@ function Start-Fabric([hashtable]$State, [string]$Credential) {
     CITXR_ALLOWED_HOSTS = $allowedHosts
     CITXR_FABRIC_BOOTSTRAP_TOKEN = $Credential
     CITXR_ALLOW_PHYSICAL_FABRIC = if ($AllowPhysical) { "true" } else { "false" }
+    CITXR_LAN_MAC_ACCESS = if ($AllowLanMedia) { "true" } else { "false" }
     CITXR_DISCOVERY_STATE_ROOT = $StateRoot
     CITXR_VISION_MODEL = (Join-Path $StateRoot "vision\yolov8s-worldv2.pt")
     YOLO_AUTOINSTALL = "false"
@@ -538,7 +701,7 @@ function Show-Status([hashtable]$State, [string]$Credential) {
 function Open-TutorConsole([string]$Credential) {
   if (-not $Credential) { throw "No classroom access is available; start CIT first" }
   if (-not (Get-ListeningProcessId $FabricPort)) {
-    throw "CIT Classroom Control is not running; use -Mode Start first"
+    throw "CIT Control Tower is not running; use -Mode Start first"
   }
   $consoleUrl = "$fabricOrigin/fabric"
   $automaticSignIn = $false
@@ -556,10 +719,47 @@ function Open-TutorConsole([string]$Credential) {
   }
   Start-OwnedTutorBrowser $consoleUrl
   if ($automaticSignIn) {
-    Write-Host "Opened Classroom Control with automatic local sign-in."
+    Write-Host "Opened Control Tower with automatic local sign-in."
     Write-Host "The access link expires quickly and can be used only once."
   } else {
     Write-Host "The page will show the access-code fallback."
+  }
+}
+
+function Open-AndroidController(
+  [string]$Credential,
+  [switch]$Optional
+) {
+  if (-not $Credential) {
+    if ($Optional) {
+      Write-Host "Android controller: unavailable because CIT has not been started"
+      return
+    }
+    throw "No Android classroom access is available; start CIT first"
+  }
+  if (-not (Get-ListeningProcessId $FabricPort)) {
+    if ($Optional) {
+      Write-Host "Android controller: unavailable because Control Tower is offline"
+      return
+    }
+    throw "CIT Control Tower is not running; use -Mode Start first"
+  }
+  try {
+    $opened = Invoke-JsonApi `
+      -Method POST `
+      -Uri "$fabricOrigin/api/v1/fabric/android-controller/open" `
+      -Credential $Credential
+    if (-not $opened.accepted) {
+      throw "CIT did not confirm the Android controller launch"
+    }
+    Write-Host "Opened Control Tower on the authorized USB Android phone."
+    Write-Host "Its loopback bridge remains available while the phone changes Wi-Fi networks."
+  } catch {
+    if ($Optional) {
+      Write-Warning "Android controller was not opened: $($_.Exception.Message)"
+      return
+    }
+    throw
   }
 }
 
@@ -593,6 +793,14 @@ if ($Mode -eq "Preflight") {
   exit 0
 }
 
+if ($Mode -eq "ConfigureLanFirewall") {
+  $resolvedLanAddress = Resolve-LanAddress
+  Install-LanFirewallRule $resolvedLanAddress
+  Write-Host "Configured the scoped Control Tower firewall rule for http://$resolvedLanAddress`:$FabricPort."
+  Write-Host "Control Tower still requires both an allowed MAC address and an authenticated session."
+  exit 0
+}
+
 $state = Load-State
 $credential = if (Test-Path -LiteralPath $bootstrapSecretPath) {
   Read-ProtectedSecret $bootstrapSecretPath
@@ -604,6 +812,10 @@ if ($Mode -eq "Status") {
 }
 if ($Mode -eq "Open") {
   Open-TutorConsole $credential
+  exit 0
+}
+if ($Mode -eq "OpenAndroid") {
+  Open-AndroidController $credential
   exit 0
 }
 if ($Mode -eq "CopyCredential") {
@@ -631,4 +843,7 @@ if ($AllowLanMedia) {
 }
 Write-Host "Attach integrations with -SharedFabricRoot `"$StateRoot`" -FabricPort $FabricPort"
 Write-Host "Reopen tutor controls with: pnpm hardware:fabric:windows -- -Mode Open -FabricPort $FabricPort -StateRoot `"$StateRoot`""
-if (-not $NoOpenConsole) { Open-TutorConsole $credential }
+if (-not $NoOpenConsole) {
+  Open-TutorConsole $credential
+  Open-AndroidController $credential -Optional
+}

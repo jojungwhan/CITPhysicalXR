@@ -1,4 +1,4 @@
-# Creality K1 Max from Classroom Control
+# Creality K1 Max from Control Tower
 
 The 3D-printer panel is safe to open during an existing print. Its default
 **Current print protected** state performs no network request to
@@ -29,7 +29,7 @@ Only perform this setup after the printer is physically idle:
 2. Confirm that this printer explicitly exposes a documented Moonraker HTTP
    endpoint and record its port. Do not enable the feature based only on an open
    proprietary Creality port.
-3. Stop Classroom Control normally. In the launcher environment, set:
+3. Stop Control Tower normally. In the launcher environment, set:
 
    ```powershell
    $env:CITXR_CREALITY_ADDRESS = "172.30.1.55"
@@ -37,7 +37,7 @@ Only perform this setup after the printer is physically idle:
    $env:CITXR_CREALITY_MONITORING = "true"
    ```
 
-4. Start Classroom Control. Inspect the printer physically, then select
+4. Start Control Tower. Inspect the printer physically, then select
    **Print finished — verify standby**. This makes one read-only state check.
    Anything other than Moonraker `standby` keeps the workflow locked.
 

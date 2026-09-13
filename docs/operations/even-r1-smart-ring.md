@@ -1,4 +1,4 @@
-# Even R1 smart-ring classroom control
+# Even R1 smart-ring control
 
 ## What this integration does
 
@@ -19,7 +19,7 @@ R1/G2 relationship after both are connected:
 1. Charge and power G2 and R1.
 2. In the Even app, connect G2, add R1, and confirm that R1 controls the glasses.
 3. Open the provisioned CIT plugin in Even Hub on the phone.
-4. Open **CIT Classroom Control** and choose **Find devices**.
+4. Open **CIT Control Tower** and choose **Find devices**.
 5. On **Even R1 smart ring**, choose **Connect R1 input**.
 6. Tap or scroll the ring once. Choose **Find devices** again if the R1 card has
    not changed to Connected.

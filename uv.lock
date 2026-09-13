@@ -8,11 +8,14 @@ resolution-markers = [
     "python_full_version >= '3.12' and platform_system == 'Linux' and sys_platform == 'win32'",
     "python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform == 'win32'",
-    "(python_full_version < '3.12' and platform_system == 'Linux' and sys_platform != 'win32') or (platform_system == 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32')",
-    "(python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform != 'win32') or (platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32')",
+    "python_full_version < '3.12' and platform_system == 'Linux' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and platform_system == 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version < '3.12' and platform_system == 'Darwin' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and platform_system == 'Darwin' and sys_platform == 'win32'",
-    "(python_full_version < '3.12' and platform_system == 'Darwin' and sys_platform != 'win32') or (platform_system == 'Darwin' and sys_platform != 'emscripten' and sys_platform != 'win32')",
+    "python_full_version < '3.12' and platform_system == 'Darwin' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and platform_system == 'Darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 
 [manifest]
@@ -665,6 +668,7 @@ dependencies = [
     { name = "cit-safety-core" },
     { name = "fastapi" },
     { name = "jsonschema", extra = ["format-nongpl"] },
+    { name = "pyftpdlib" },
     { name = "pyyaml" },
     { name = "uvicorn" },
     { name = "websockets" },
@@ -685,6 +689,7 @@ requires-dist = [
     { name = "clip", marker = "extra == 'vision'", git = "https://github.com/ultralytics/CLIP.git?rev=68dce32140994dfcb645a1320c4ebdc034fc19fd" },
     { name = "fastapi", specifier = "==0.141.1" },
     { name = "jsonschema", extras = ["format-nongpl"], specifier = "==4.26.0" },
+    { name = "pyftpdlib", specifier = "==2.2.0" },
     { name = "pyyaml", specifier = "==6.0.3" },
     { name = "ultralytics", marker = "extra == 'vision'", specifier = "==8.4.126" },
     { name = "uvicorn", specifier = "==0.52.3" },
@@ -1814,11 +1819,14 @@ resolution-markers = [
     "python_full_version >= '3.12' and platform_system == 'Linux' and sys_platform == 'win32'",
     "python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform == 'win32'",
-    "(python_full_version < '3.12' and platform_system == 'Linux' and sys_platform != 'win32') or (platform_system == 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32')",
-    "(python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform != 'win32') or (platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32')",
+    "python_full_version < '3.12' and platform_system == 'Linux' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and platform_system == 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32'",
+    "python_full_version < '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and platform_system != 'Darwin' and platform_system != 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32'",
     "python_full_version < '3.12' and platform_system == 'Darwin' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and platform_system == 'Darwin' and sys_platform == 'win32'",
-    "(python_full_version < '3.12' and platform_system == 'Darwin' and sys_platform != 'win32') or (platform_system == 'Darwin' and sys_platform != 'emscripten' and sys_platform != 'win32')",
+    "python_full_version < '3.12' and platform_system == 'Darwin' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and platform_system == 'Darwin' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/d0/ad/fed0499ce6a338d2a03ebae59cd15093910c8875328855781952abf6c2fe/numpy-2.4.6.tar.gz", hash = "sha256:f3a3570c4a2a16746ac2c31a7c7c7b0c186b95ce902e33db6f28094ed7387dda", size = 20735807 }
 wheels = [
@@ -1892,7 +1900,8 @@ source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version < '3.12' and platform_system == 'Linux' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and platform_system == 'Linux' and sys_platform == 'win32'",
-    "(python_full_version < '3.12' and platform_system == 'Linux' and sys_platform != 'win32') or (platform_system == 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32')",
+    "python_full_version < '3.12' and platform_system == 'Linux' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and platform_system == 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 dependencies = [
     { name = "nvidia-cuda-nvrtc", version = "13.0.88", source = { registry = "https://pypi.org/simple" }, marker = "(python_full_version < '3.12' and platform_system == 'Linux') or (platform_system == 'Linux' and sys_platform != 'emscripten')" },
@@ -1929,7 +1938,8 @@ source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
     "python_full_version < '3.12' and platform_system == 'Linux' and sys_platform == 'win32'",
     "python_full_version >= '3.12' and platform_system == 'Linux' and sys_platform == 'win32'",
-    "(python_full_version < '3.12' and platform_system == 'Linux' and sys_platform != 'win32') or (platform_system == 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32')",
+    "python_full_version < '3.12' and platform_system == 'Linux' and sys_platform != 'win32'",
+    "python_full_version >= '3.12' and platform_system == 'Linux' and sys_platform != 'emscripten' and sys_platform != 'win32'",
 ]
 wheels = [
     { url = "https://files.pythonhosted.org/packages/c3/68/483a78f5e8f31b08fb1bb671559968c0ca3a065ac7acabfc7cee55214fd6/nvidia_cuda_nvrtc-13.0.88-py3-none-manylinux2010_x86_64.manylinux_2_12_x86_64.whl", hash = "sha256:ad9b6d2ead2435f11cbb6868809d2adeeee302e9bb94bcf0539c7a40d80e8575", size = 90215200 },
@@ -2259,6 +2269,27 @@ wheels = [
 ]
 
 [[package]]
+name = "pyasynchat"
+version = "1.0.5"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyasyncore", marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ec/d2/b41df9021c12ca314146abcde7bdd3d9d37d44cc01559d7f13df459ee586/pyasynchat-1.0.5.tar.gz", hash = "sha256:36665473ae730dac51e6d7dad70f8295962120c830ab692f0a31efba32687e24", size = 9959 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/48/e8/e5ad498cb6a834c16af910e259926fd545dd7873a2da451f3a2bb228d7ee/pyasynchat-1.0.5-py3-none-any.whl", hash = "sha256:35b7859515693e479e8d95ebe9f32cbf4d6312ab7599ced39fc24699e51de46f", size = 7869 },
+]
+
+[[package]]
+name = "pyasyncore"
+version = "1.0.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4e/43/035dfe0cb01687c1940fdc008f46a43c41067e226e862df49327469764a0/pyasyncore-1.0.5.tar.gz", hash = "sha256:dd483d5103a6d59b66b86e0ca2334ad43dca732ff23a0ac5d63c88c52510542e", size = 15854 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/1f/ab/b10cee56269ae150763f3f83b3e9305a11f42f50b3dcd58eeb8f7988f0bb/pyasyncore-1.0.5-py3-none-any.whl", hash = "sha256:269bbc5252671827387636822841a1fb721ec6e858b23a3e12cf92eb1f97da2a", size = 10237 },
+]
+
+[[package]]
 name = "pybricksdev"
 version = "1.2.0"
 source = { registry = "https://pypi.org/simple" }
@@ -2379,6 +2410,16 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/4f/c3/66883a5cec183e7fba4d024b4cbbe61851a63750ef606b0afecc46d1f2bf/pydantic_core-2.46.4-pp311-pypy311_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:86e1a4418c6cd97d60c95c71164158eaf7324fae7b0923264016baa993eba6fc", size = 2361286 },
     { url = "https://files.pythonhosted.org/packages/4b/2d/69abac8f838090bbecd5df894befb2c2619e7996a98ddb949db9f3b93225/pydantic_core-2.46.4-pp311-pypy311_pp73-win_amd64.whl", hash = "sha256:d51026d73fcfd93610abc7b27789c26b313920fcfb20e27462d74a7f8b06e983", size = 2193071 },
 ]
+
+[[package]]
+name = "pyftpdlib"
+version = "2.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyasynchat", marker = "python_full_version >= '3.12'" },
+    { name = "pyasyncore", marker = "python_full_version >= '3.12'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f9/42/8751c5f58ae59b09e070da4fa322ae9693a340d2cc456b5a380b2c1ee47a/pyftpdlib-2.2.0.tar.gz", hash = "sha256:4ba0642078792df63dd3b2e9c8f838f2a3ecf428c7518d5921c0530d53512acf", size = 189150 }
 
 [[package]]
 name = "pygments"

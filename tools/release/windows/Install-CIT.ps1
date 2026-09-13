@@ -275,6 +275,6 @@ Write-Host "Installing the local CIT runtime and hardware adapters for $SiteId /
 if ($LASTEXITCODE -ne 0) { throw "CIT setup stopped with code $LASTEXITCODE." }
 
 Write-Host ""
-Write-Host "CIT Classroom Control is ready." -ForegroundColor Green
+Write-Host "CIT Control Tower is ready." -ForegroundColor Green
 Write-Host "Use the Desktop or Start-menu shortcut; the page opens with a short-lived local access ticket."
 Write-Host "For Matter plugs at this new site, factory-reset and commission each plug locally from the page."

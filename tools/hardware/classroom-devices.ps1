@@ -94,7 +94,7 @@ function Start-ClassroomDevices([bool]$RestartSimulationHost) {
     Write-Warning "The optional Brain2Devices integration is unavailable: $($_.Exception.Message)"
   }
 
-  Write-Host "READY. In Classroom Control, choose Find devices."
+  Write-Host "READY. In Control Tower, choose Find devices."
   Write-Host "CIT will show connected, found, ready, and setup-needed hardware separately."
   & $fabricLauncher -Mode Open -FabricPort $FabricPort -StateRoot $StateRoot
 }

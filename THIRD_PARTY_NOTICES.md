@@ -54,6 +54,7 @@ it is an SPDX licence.
 | Hatchling and build       | Python package builds            | `MIT`                  |
 | FastAPI and Starlette     | Local runtime API                | `MIT` / `BSD-3-Clause` |
 | uvicorn and websockets    | Local runtime transport          | `BSD-3-Clause`         |
+| pyftpdlib                 | Authenticated camera FTP ingress | `MIT`                  |
 | matter-ble-proxy          | Local Windows Matter BLE proxy   | `Apache-2.0`           |
 | aiohttp and multidict     | Transitive Matter BLE networking | `Apache-2.0` / `MIT`   |
 
@@ -64,12 +65,21 @@ metadata declares `Apache-2.0 AND MIT` and ships Apache-2.0 plus vendored
 metadata values; both resulting SPDX identifiers remain subject to the same
 allowlist.
 
+## Android companion build tooling
+
+The optional Control Tower Companion is original Java/Android application code.
+Its pinned build uses Gradle 9.4.1 and Android Gradle Plugin 9.2.1 under
+`Apache-2.0`, Android SDK platform APIs under their applicable Android SDK
+licence, and JUnit 4.13.2 for local tests under `EPL-1.0`. The repository carries
+the standard Apache-2.0 Gradle wrapper bootstrap JAR and scripts; the wrapper
+downloads the checksum-pinned Gradle distribution when a local build is needed.
+
 ## Optional local vision runtime
 
 The root `vision` extra installs Ultralytics for tutor-requested YOLO-World
 inference. The resolved Ultralytics packages declare
 `AGPL-3.0-or-later` or `AGPL-3.0-only`; they are not relicensed as Apache 2.0
-and are loaded only when a tutor asks Classroom Control to recognize objects.
+and are loaded only when a tutor asks Control Tower to recognize objects.
 Its upstream source and licence are available from
 <https://github.com/ultralytics/ultralytics>. Camera frames stay in the
 runtime's replace-only memory slot and are not added to the semantic recorder.

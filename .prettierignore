@@ -2,6 +2,8 @@
 artifacts/
 output/
 .playwright-cli/
+.gradle/
+build/
 dist/
 node_modules/
 docs/PRD.md

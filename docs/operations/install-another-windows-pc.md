@@ -5,7 +5,7 @@ physical device still require their separate hardware acceptance checklists.
 
 ## Tutor workflow from the single page
 
-1. On the working tutor computer, open **CIT Classroom Control** from the
+1. On the working tutor computer, open **CIT Control Tower** from the
    Desktop or Start menu.
 2. Choose **Install another PC** in the header.
 3. Download **Windows setup ZIP** and **this site template**.
@@ -16,7 +16,7 @@ physical device still require their separate hardware acceptance checklists.
    `Install-CIT.cmd`, then double-click `Install-CIT.cmd`.
 6. Approve the prerequisite installers. Enter the new classroom Wi-Fi password
    only when the local PowerShell prompt requests it.
-7. When Classroom Control opens, choose **Find devices** and follow each card.
+7. When Control Tower opens, choose **Find devices** and follow each card.
 
 The JSON template contains only `schemaVersion`, `siteId`, and `roomId`. It
 never contains an access token, network secret, device credential, or path.
@@ -39,7 +39,7 @@ it. The normal business-site installer then:
 - restores exact `pnpm` and `uv` locks and builds the local UI/runtime;
 - prepares the independent Matter, Brain2Devices, LEGO, Sphero BOLT, and
   Dash/Dot boundaries;
-- creates the Desktop and Start-menu **CIT Classroom Control** shortcut;
+- creates the Desktop and Start-menu **CIT Control Tower** shortcut;
 - starts the local Matter controller and optionally asks for classroom Wi-Fi;
 - creates another verified transfer package so that computer can provision the
   next classroom computer.
@@ -109,7 +109,7 @@ pnpm release:windows:bundle
 ```
 
 Output is generated under `artifacts/windows-transfer/`, which is ignored by
-Git. Restart Classroom Control so the Fabric validates the new manifest during
+Git. Restart Control Tower so the Fabric validates the new manifest during
 startup. A dirty tree is rejected unless a developer explicitly uses
 `-AllowDirty`; such a development bundle must not be handed off as a release.
 

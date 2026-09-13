@@ -1,6 +1,6 @@
 # Sphero BOLT — Windows hardware guide
 
-## Tutor setup in Classroom Control
+## Tutor setup in Control Tower
 
 You do **not** pair BOLT in Windows Bluetooth Settings and do not need a Sphero
 account, app, or cloud service for CIT control.
@@ -9,7 +9,7 @@ account, app, or cloud service for CIT control.
    `SB-XXXX` name.
 2. Close Sphero Edu, Sphero Play, browser Bluetooth dialogs, or any other app
    connected to that robot. One BLE client can normally control it at a time.
-3. Open **CIT Classroom Control** from the Windows shortcut and choose
+3. Open **CIT Control Tower** from the Windows shortcut and choose
    **Start classroom devices**.
 4. Choose **Find devices**. In **Sphero BOLT**, choose the button showing the
    exact `SB-XXXX` ID on the robot you are holding. CIT does not select the

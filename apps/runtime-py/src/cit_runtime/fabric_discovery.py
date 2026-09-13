@@ -37,6 +37,7 @@ DISCOVERY_SCAN_TIMEOUT_SECONDS = 35.0
 DISCOVERY_ACTION_TIMEOUT_SECONDS = 120.0
 DISCOVERY_OUTPUT_SIZE_POLL_SECONDS = 0.05
 MATTER_LAUNCHER_ERROR_MARKER = "CIT_MATTER_ERROR|"
+MATTER_SMART_PLUG_CONNECTION_ACTION = "cit.matter-smart-plug.connect"
 SESSION_TARGET_ACTION_COURSE_PACKS: Mapping[str, frozenset[str]] = MappingProxyType(
     {
         "cit.glasses-device-control.connect": frozenset(
@@ -733,6 +734,7 @@ class DiscoveryRunner(Protocol):
         *,
         confirm_grounded: bool,
         session_target: FabricDiscoverySessionTarget | None = None,
+        recovery: bool = False,
     ) -> str: ...
 
     async def configure_matter_wifi(self, configuration: MatterWifiConfiguration) -> str: ...
@@ -836,6 +838,7 @@ class FabricDiscoveryService:
         *,
         confirm_grounded: bool,
         nodes: NodeProvider,
+        recovery: bool = False,
     ) -> FabricRememberedConnectionResult:
         outcomes: list[FabricRememberedConnectionOutcome] = []
         async with self._connection_lock:
@@ -874,10 +877,17 @@ class FabricDiscoveryService:
                     )
                     continue
                 try:
-                    message = await self._runner.perform(
-                        connection.actionId,
-                        confirm_grounded=confirm_grounded,
-                    )
+                    if recovery and connection.actionId == MATTER_SMART_PLUG_CONNECTION_ACTION:
+                        message = await self._runner.perform(
+                            connection.actionId,
+                            confirm_grounded=confirm_grounded,
+                            recovery=True,
+                        )
+                    else:
+                        message = await self._runner.perform(
+                            connection.actionId,
+                            confirm_grounded=confirm_grounded,
+                        )
                 except FabricDiscoveryError as error:
                     outcomes.append(
                         FabricRememberedConnectionOutcome(
@@ -941,6 +951,7 @@ class FabricDiscoveryService:
             tuple(due),
             confirm_grounded=False,
             nodes=nodes,
+            recovery=True,
         )
 
         for outcome in result.outcomes:
@@ -1085,8 +1096,9 @@ class UnavailableDiscoveryRunner:
         *,
         confirm_grounded: bool,
         session_target: FabricDiscoverySessionTarget | None = None,
+        recovery: bool = False,
     ) -> str:
-        del action_id, confirm_grounded, session_target
+        del action_id, confirm_grounded, session_target, recovery
         raise FabricDiscoveryError(
             "DISCOVERY_ACTION_UNAVAILABLE",
             "Local device connection actions are unavailable in this runtime",
@@ -1423,6 +1435,7 @@ class PowerShellDiscoveryRunner:
         *,
         confirm_grounded: bool,
         session_target: FabricDiscoverySessionTarget | None = None,
+        recovery: bool = False,
     ) -> str:
         launcher_action = self._launcher_actions.get(action_id)
         if launcher_action is not None:
@@ -1521,10 +1534,11 @@ class PowerShellDiscoveryRunner:
                     f"{input_name} joined the active fleet-control page as an input only. "
                     "It cannot bypass the tutor's one-shot arm and safety confirmations."
                 )
-            await self._run_launcher(
-                launcher_action.script_name,
-                *launcher_action.arguments,
-            )
+            arguments = launcher_action.arguments
+            if recovery and action_id == MATTER_SMART_PLUG_CONNECTION_ACTION:
+                mode_index = arguments.index("-Mode") + 1
+                arguments = (*arguments[:mode_index], "Recover", *arguments[mode_index + 1 :])
+            await self._run_launcher(launcher_action.script_name, *arguments)
             return launcher_action.success_message
         if action_id == "brain2devices.tello.connect-all":
             if not confirm_grounded:

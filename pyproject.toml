@@ -135,3 +135,9 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = ["cv2", "numpy"]
 ignore_missing_imports = true
+
+# pyftpdlib is the mandatory, narrowly scoped camera FTP receiver dependency,
+# but the project does not publish a py.typed marker or third-party stubs.
+[[tool.mypy.overrides]]
+module = ["pyftpdlib", "pyftpdlib.*"]
+ignore_missing_imports = true

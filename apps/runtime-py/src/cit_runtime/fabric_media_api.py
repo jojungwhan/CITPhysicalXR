@@ -138,7 +138,7 @@ def install_fabric_media_api(
         if media_ingress_origin is None:
             raise FabricMediaError(
                 "MEDIA_LAN_INGRESS_DISABLED",
-                "Restart Classroom Control with local-network camera access enabled",
+                "Restart Control Tower with local-network camera access enabled",
                 status_code=409,
             )
         get_auth().require(
