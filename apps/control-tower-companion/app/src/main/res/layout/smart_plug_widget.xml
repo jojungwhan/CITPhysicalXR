@@ -1,31 +1,92 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_toggle"
+    android:id="@+id/widget_controls"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@drawable/widget_background"
-    android:clickable="true"
     android:contentDescription="@string/toggle_widget_content_description"
-    android:focusable="true"
-    android:gravity="center"
+    android:gravity="center_vertical"
     android:orientation="vertical"
     android:padding="12dp">
 
-    <ImageView
-        android:layout_width="32dp"
-        android:layout_height="32dp"
-        android:contentDescription="@null"
-        android:src="@drawable/ic_power_toggle" />
+    <LinearLayout
+        android:id="@+id/widget_site_one"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_site_one_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#FFFFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/widget_site_one_on"
+            android:layout_width="56dp"
+            android:layout_height="44dp"
+            android:contentDescription="@string/power_on"
+            android:text="@string/power_on"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/widget_site_one_off"
+            android:layout_width="56dp"
+            android:layout_height="44dp"
+            android:contentDescription="@string/power_off"
+            android:text="@string/power_off"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/widget_site_two"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/widget_site_two_name"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#FFFFFFFF"
+            android:textSize="14sp"
+            android:textStyle="bold" />
+
+        <Button
+            android:id="@+id/widget_site_two_on"
+            android:layout_width="56dp"
+            android:layout_height="44dp"
+            android:contentDescription="@string/power_on"
+            android:text="@string/power_on"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/widget_site_two_off"
+            android:layout_width="56dp"
+            android:layout_height="44dp"
+            android:contentDescription="@string/power_off"
+            android:text="@string/power_off"
+            android:textSize="12sp" />
+    </LinearLayout>
 
     <TextView
         android:id="@+id/widget_status"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="6dp"
-        android:gravity="center"
-        android:maxLines="2"
+        android:layout_marginTop="4dp"
+        android:ellipsize="end"
+        android:maxLines="1"
         android:text="@string/widget_ready"
-        android:textColor="#FFFFFFFF"
-        android:textSize="14sp"
-        android:textStyle="bold" />
+        android:textColor="#CCFFFFFF"
+        android:textSize="12sp" />
 </LinearLayout>

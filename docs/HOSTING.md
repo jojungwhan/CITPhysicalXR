@@ -156,6 +156,16 @@ simulation. A physical session belongs on the machine the robot is next to,
 reached at `http://127.0.0.1:8791/`, which is what every milestone report means
 by "the working console is local".
 
+ADR-0039 adds one deliberately separate exception for owner-controlled Matter
+plugs: a physical site's dedicated local gateway may publish only
+`/api/v1/fabric/remote-plugs/{state,power}` with Tailscale Serve. That process
+stays bound to loopback, denies every other route on its Tailscale Host, accepts
+no caller-selected node ID, and requires a per-site signed/replay-protected
+request. It must never use this public Cloudflare route or Tailscale Funnel.
+This does not authorize remote robots, aircraft, printers, cameras, sessions,
+Studio access, or a general Fabric bearer API. See
+`docs/operations/remote-smart-plug-sites.md`.
+
 Concretely, on any runtime that a tunnel can reach:
 
 - never pass `--config` (that is what connects hubs),

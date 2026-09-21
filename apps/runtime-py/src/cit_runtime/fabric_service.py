@@ -11,10 +11,11 @@ from __future__ import annotations
 import asyncio
 import mimetypes
 import os
+import re
 import threading
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Mapping
 from contextlib import asynccontextmanager, suppress
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -61,14 +62,20 @@ from .fabric_printer import (
     disabled_creality_printer,
 )
 from .fabric_printer_api import install_fabric_printer_api
+from .fabric_remote_plug_api import install_fabric_remote_plug_api
 from .fabric_repository import SQLiteFabricRepository
 from .fabric_unlock_automation import (
+    RemotePlugSiteState,
     UnlockAutomationService,
     UnlockPowerResult,
+    configured_smart_plug_state,
+    set_configured_smart_plugs,
     toggle_configured_smart_plugs,
     turn_on_configured_smart_plugs,
 )
 from .fabric_unlock_automation_api import install_fabric_unlock_automation_api
+
+_FABRIC_IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 async def supervise_remembered_reconnects(
@@ -189,6 +196,12 @@ def create_fabric_app(
     configured_android_controller_service = android_controller_service
     configured_lan_access = lan_access_policy
     configured_unlock_automation = unlock_automation_service
+    remote_plug_host = (
+        urlsplit(configured_unlock_automation.remote_origin).hostname
+        if configured_unlock_automation is not None
+        and configured_unlock_automation.remote_origin is not None
+        else None
+    )
     configured_camera_ftp = camera_ftp_server
 
     repository: SQLiteFabricRepository | None = None
@@ -298,6 +311,34 @@ def create_fabric_app(
             actor_id,
             event_id,
             clock=wall_clock,
+        )
+
+    async def run_remote_smart_plug_power(
+        node_ids: tuple[str, ...],
+        actor_id: str,
+        event_id: str,
+        on: bool,
+    ) -> UnlockPowerResult:
+        return await set_configured_smart_plugs(
+            active_fabric(),
+            node_ids,
+            actor_id,
+            event_id,
+            on,
+            clock=wall_clock,
+        )
+
+    def read_remote_smart_plug_state(
+        node_ids: tuple[str, ...],
+    ) -> RemotePlugSiteState:
+        if configured_unlock_automation is None:
+            raise RuntimeError("Remote smart-plug access is not configured")
+        return configured_smart_plug_state(
+            active_fabric(),
+            node_ids,
+            site_id=configured_unlock_automation.site_id,
+            site_name=configured_unlock_automation.site_name,
+            at=wall_clock(),
         )
 
     async def maintenance_loop(interval: float) -> None:
@@ -423,7 +464,23 @@ def create_fabric_app(
                         ),
                     },
                 )
-        response = await call_next(request)
+        remote_plug_paths = {
+            "/api/v1/fabric/remote-plugs/power",
+            "/api/v1/fabric/remote-plugs/state",
+        }
+        response: Response
+        if (
+            remote_plug_host is not None
+            and request.url.hostname is not None
+            and request.url.hostname.casefold() == remote_plug_host.casefold()
+            and request.url.path not in remote_plug_paths
+        ):
+            response = JSONResponse(
+                status_code=404,
+                content={"code": "NOT_FOUND", "message": "Not found"},
+            )
+        else:
+            response = await call_next(request)
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; base-uri 'none'; object-src 'none'; "
             "frame-ancestors 'none'; form-action 'self'; connect-src 'self'; "
@@ -505,6 +562,14 @@ def create_fabric_app(
             android_controller=configured_android_controller_service,
             lan_access=configured_lan_access,
         )
+        install_fabric_remote_plug_api(
+            app,
+            service=configured_unlock_automation,
+            get_repository=active_repository,
+            clock=wall_clock,
+            state_reader=read_remote_smart_plug_state,
+            command_runner=run_remote_smart_plug_power,
+        )
 
     @app.get("/api/v1/fabric/healthz")
     async def health() -> dict[str, str | bool | None]:
@@ -516,6 +581,8 @@ def create_fabric_app(
         }
         if configured_lan_access is not None:
             result["lanMacAccess"] = configured_lan_access.enabled
+        if configured_unlock_automation is not None:
+            result["remotePlugAccess"] = configured_unlock_automation.remote_origin is not None
         return result
 
     if configured_studio is not None:
@@ -610,6 +677,18 @@ def create_persistent_fabric_app() -> FastAPI:
         or parsed_origin.fragment
     ):
         raise ValueError("CITXR_PUBLIC_ORIGIN must be an exact HTTP(S) origin")
+    remote_plug_origin = os.environ.get("CITXR_REMOTE_PLUG_ORIGIN")
+    parsed_remote_plug_origin = (
+        urlsplit(remote_plug_origin) if remote_plug_origin is not None else None
+    )
+    remote_site_id = os.environ.get("CITXR_REMOTE_SITE_ID", "local-site")
+    remote_site_name = os.environ.get("CITXR_REMOTE_SITE_NAME", "Control Tower")
+    matter_room_id = os.environ.get("CITXR_MATTER_ROOM_ID", "local-room")
+    if (
+        _FABRIC_IDENTIFIER.fullmatch(remote_site_id) is None
+        or _FABRIC_IDENTIFIER.fullmatch(matter_room_id) is None
+    ):
+        raise ValueError("CITXR_REMOTE_SITE_ID and CITXR_MATTER_ROOM_ID must be CIT identifiers")
     bootstrap_token = os.environ.get("CITXR_FABRIC_BOOTSTRAP_TOKEN")
     if bootstrap_token is None:
         raise ValueError("CITXR_FABRIC_BOOTSTRAP_TOKEN is required")
@@ -620,8 +699,38 @@ def create_persistent_fabric_app() -> FastAPI:
         roles=("administrator",),
         permissions=tuple(sorted(FABRIC_PERMISSIONS)),
     )
+    bootstrap_identities = [bootstrap]
+    if matter_adapter_token := os.environ.get("CITXR_MATTER_ADAPTER_TOKEN"):
+        bootstrap_identities.append(
+            FabricBootstrapIdentity(
+                identity_id="local-matter-gateway",
+                token=matter_adapter_token,
+                actor_type="adapter",
+                roles=("plugin.cit.matter-smart-plug",),
+                permissions=(
+                    "fabric.adapters.connect",
+                    "fabric.events.publish",
+                    "fabric.nodes.write",
+                ),
+                site_id=remote_site_id,
+                room_id=matter_room_id,
+                ttl=timedelta(days=3_650),
+            )
+        )
     default_hosts = ",".join(
-        dict.fromkeys((parsed_origin.hostname, "127.0.0.1", "localhost", "testserver"))
+        value
+        for value in dict.fromkeys(
+            (
+                parsed_origin.hostname,
+                parsed_remote_plug_origin.hostname
+                if parsed_remote_plug_origin is not None
+                else None,
+                "127.0.0.1",
+                "localhost",
+                "testserver",
+            )
+        )
+        if value is not None
     )
     allowed_hosts = tuple(
         value.strip()
@@ -736,6 +845,9 @@ def create_persistent_fabric_app() -> FastAPI:
     unlock_automation = UnlockAutomationService(
         state_path=data_directory / "unlock-automation.json",
         lan_origin=configured_media_ingress,
+        remote_origin=remote_plug_origin,
+        site_id=remote_site_id,
+        site_name=remote_site_name,
         companion_apk_path=companion_apk_path,
     )
     camera_operation_lock = threading.Lock()
@@ -771,7 +883,7 @@ def create_persistent_fabric_app() -> FastAPI:
         )
     return create_fabric_app(
         database_path=data_directory / "interaction-fabric.sqlite3",
-        fabric_bootstrap_identities=(bootstrap,),
+        fabric_bootstrap_identities=tuple(bootstrap_identities),
         fabric_allowed_origins=(public_origin.rstrip("/"),),
         allowed_hosts=allowed_hosts,
         allow_physical_fabric=physical_setting == "true",

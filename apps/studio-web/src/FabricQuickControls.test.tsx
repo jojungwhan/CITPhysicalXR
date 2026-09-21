@@ -71,6 +71,11 @@ const unlockAutomation: FabricUnlockAutomationSnapshot = {
     pairedAt: "2026-09-10T03:00:00Z",
     lastSeenAt: "2026-09-10T03:15:00Z",
   },
+  remoteAccess: {
+    siteId: "citcoding-academy",
+    displayName: "CIT Coding 학원",
+    origin: "https://cit-academy.example.ts.net",
+  },
   lastResult: {
     outcome: "succeeded",
     occurredAt: "2026-09-10T03:15:00Z",
@@ -175,6 +180,8 @@ describe("Fabric floating quick controls", () => {
     expect(html).toContain("Android 제어 화면");
     expect(html).toContain("SM-N971N");
     expect(html).toContain("USB 연결 준비됨");
+    expect(html).toContain("CIT Coding 학원");
+    expect(html).toContain("비공개 Tailscale HTTPS");
     expect(html).toContain(">Android에서 열기</button>");
     expect(html).toContain(">이 휴대전화에 설치</button>");
     expect(html).toContain("로컬 Wi-Fi 접근");

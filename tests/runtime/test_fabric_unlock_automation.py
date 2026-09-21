@@ -18,12 +18,17 @@ from cit_runtime.fabric_lan_access import LanMacAccessPolicy
 from cit_runtime.fabric_repository import SQLiteFabricRepository
 from cit_runtime.fabric_service import create_fabric_app
 from cit_runtime.fabric_unlock_automation import (
+    RemotePlugPowerRequest,
+    RemotePlugStateRequest,
     ToggleEventRequest,
     UnlockAutomationConfigurationRequest,
     UnlockAutomationError,
     UnlockAutomationService,
     UnlockEventRequest,
     UnlockPowerResult,
+    set_configured_smart_plugs,
+    sign_remote_power_event,
+    sign_remote_state_event,
     sign_toggle_event,
     sign_unlock_event,
     toggle_configured_smart_plugs,
@@ -100,6 +105,36 @@ def toggle_event(
         eventId=uuid4(),
         sequence=sequence,
         occurredAtEpochMs=int(at.timestamp() * 1_000),
+    )
+
+
+def remote_state_event(
+    device_id: str,
+    *,
+    sequence: int = 1,
+    at: datetime = NOW,
+) -> RemotePlugStateRequest:
+    return RemotePlugStateRequest(
+        deviceId=device_id,
+        eventId=uuid4(),
+        sequence=sequence,
+        occurredAtEpochMs=int(at.timestamp() * 1_000),
+    )
+
+
+def remote_power_event(
+    device_id: str,
+    *,
+    on: bool,
+    sequence: int = 1,
+    at: datetime = NOW,
+) -> RemotePlugPowerRequest:
+    return RemotePlugPowerRequest(
+        deviceId=device_id,
+        eventId=uuid4(),
+        sequence=sequence,
+        occurredAtEpochMs=int(at.timestamp() * 1_000),
+        on=on,
     )
 
 
@@ -280,6 +315,323 @@ async def test_signed_phone_toggle_is_domain_separated_and_shares_replay_sequenc
 
 
 @pytest.mark.asyncio
+async def test_remote_power_is_explicit_domain_separated_and_non_replayable(
+    tmp_path: Path,
+) -> None:
+    calls: list[tuple[tuple[str, ...], str, str, bool]] = []
+
+    async def run(
+        node_ids: tuple[str, ...],
+        actor_id: str,
+        event_id: str,
+        on: bool,
+    ) -> UnlockPowerResult:
+        calls.append((node_ids, actor_id, event_id, on))
+        return UnlockPowerResult(
+            requestedCount=len(node_ids),
+            acceptedCount=len(node_ids),
+            failedNodeIds=[],
+            on=on,
+            message=f"turned {'on' if on else 'off'}",
+        )
+
+    service = UnlockAutomationService(
+        state_path=tmp_path / "unlock.json",
+        lan_origin="http://192.168.50.10:8766",
+        remote_origin="https://academy.cit-example.ts.net",
+        site_id="citcoding-academy",
+        site_name="CIT Coding 학원",
+        clock=lambda: NOW,
+    )
+    pairing = service.create_pairing("Owner phone")
+    encoded_pairing = pairing.provisioning_uri.rsplit("/", maxsplit=1)[1]
+    decoded_pairing = json.loads(
+        base64.urlsafe_b64decode(encoded_pairing + "=" * (-len(encoded_pairing) % 4))
+    )
+    assert decoded_pairing == {
+        "schemaVersion": "2.0",
+        "origin": "http://192.168.50.10:8766",
+        "remoteOrigin": "https://academy.cit-example.ts.net",
+        "deviceId": pairing.device_id,
+        "secret": pairing.secret,
+        "name": "Owner phone",
+        "siteId": "citcoding-academy",
+        "siteName": "CIT Coding 학원",
+    }
+    service.commit_pairing(pairing)
+    service.configure(
+        UnlockAutomationConfigurationRequest(
+            enabled=False,
+            selectedNodeIds=["plug-a"],
+        ),
+        known_node_ids=("plug-a",),
+    )
+
+    state = remote_state_event(pairing.device_id)
+    assert service.authenticate_remote_state(
+        state,
+        sign_remote_state_event(state, pairing.secret),
+    ) == ("plug-a",)
+
+    power = remote_power_event(pairing.device_id, on=False, sequence=2)
+    tampered = power.model_copy(update={"on": True})
+    with pytest.raises(UnlockAutomationError) as wrong_desired_state:
+        await service.accept_remote_power(
+            tampered,
+            sign_remote_power_event(power, pairing.secret),
+            run,
+        )
+    assert wrong_desired_state.value.code == "UNLOCK_AUTOMATION_SIGNATURE_INVALID"
+
+    result = await service.accept_remote_power(
+        power,
+        sign_remote_power_event(power, pairing.secret),
+        run,
+    )
+    assert result.accepted is True
+    assert result.on is False
+    assert calls == [(("plug-a",), pairing.device_id, str(power.eventId), False)]
+
+    with pytest.raises(UnlockAutomationError) as replayed:
+        await service.accept_remote_power(
+            power,
+            sign_remote_power_event(power, pairing.secret),
+            run,
+        )
+    assert replayed.value.code == "UNLOCK_AUTOMATION_EVENT_REPLAYED"
+
+
+@pytest.mark.asyncio
+async def test_remote_phones_keep_independent_credentials_and_replay_counters(
+    tmp_path: Path,
+) -> None:
+    state_path = tmp_path / "unlock.json"
+    service = UnlockAutomationService(
+        state_path=state_path,
+        lan_origin=None,
+        remote_origin="https://academy.cit-example.ts.net",
+        clock=lambda: NOW,
+    )
+    first = service.create_pairing("Galaxy Note10")
+    service.commit_pairing(first)
+    service.configure(
+        UnlockAutomationConfigurationRequest(enabled=False, selectedNodeIds=["plug-a"]),
+        known_node_ids=("plug-a",),
+    )
+    first_event = remote_state_event(first.device_id, sequence=20)
+    service.authenticate_remote_state(
+        first_event, sign_remote_state_event(first_event, first.secret)
+    )
+    second = service.create_pairing("Z Flip4")
+    service.commit_pairing(second)
+    assert first.secret != second.secret
+
+    restored = UnlockAutomationService(
+        state_path=state_path,
+        lan_origin=None,
+        remote_origin="https://academy.cit-example.ts.net",
+        clock=lambda: NOW,
+    )
+    snapshot = restored.snapshot(can_manage=True, can_install_and_pair=False)
+    assert [phone.displayName for phone in snapshot.companions] == ["Galaxy Note10", "Z Flip4"]
+    assert snapshot.selectedNodeIds == ["plug-a"]
+    assert first.secret not in snapshot.model_dump_json()
+    assert second.secret not in snapshot.model_dump_json()
+    calls: list[str] = []
+
+    async def run(
+        node_ids: tuple[str, ...], actor_id: str, event_id: str, on: bool
+    ) -> UnlockPowerResult:
+        calls.append(actor_id)
+        return UnlockPowerResult(
+            requestedCount=len(node_ids),
+            acceptedCount=len(node_ids),
+            failedNodeIds=[],
+            on=on,
+            message="accepted",
+        )
+
+    for phone, sequence in ((second, 1), (first, 21)):
+        power = remote_power_event(phone.device_id, on=False, sequence=sequence)
+        result = await restored.accept_remote_power(
+            power, sign_remote_power_event(power, phone.secret), run
+        )
+        assert result.accepted
+        with pytest.raises(UnlockAutomationError, match="already processed"):
+            await restored.accept_remote_power(
+                power, sign_remote_power_event(power, phone.secret), run
+            )
+    assert calls == [second.device_id, first.device_id]
+    forged = remote_state_event(first.device_id, sequence=22)
+    with pytest.raises(UnlockAutomationError, match="signature is invalid"):
+        restored.authenticate_remote_state(forged, sign_remote_state_event(forged, second.secret))
+    local = event(second.device_id, sequence=2)
+
+    async def reject_local(
+        node_ids: tuple[str, ...], actor_id: str, event_id: str
+    ) -> UnlockPowerResult:
+        raise AssertionError("Additional phones must not trigger local unlock automation")
+
+    with pytest.raises(UnlockAutomationError, match="not paired"):
+        await restored.accept_event(local, sign_unlock_event(local, second.secret), reject_local)
+    restored.remove_companion()
+    assert restored.snapshot(can_manage=True, can_install_and_pair=False).companions == []
+    for phone in (first, second):
+        request = remote_state_event(phone.device_id, sequence=100)
+        with pytest.raises(UnlockAutomationError, match="not paired"):
+            restored.authenticate_remote_state(
+                request, sign_remote_state_event(request, phone.secret)
+            )
+
+
+def test_remote_pairing_limit_is_checked_again_when_committing(tmp_path: Path) -> None:
+    service = UnlockAutomationService(
+        state_path=tmp_path / "unlock.json",
+        lan_origin=None,
+        remote_origin="https://academy.cit-example.ts.net",
+        clock=lambda: NOW,
+    )
+    for index in range(7):
+        service.commit_pairing(service.create_pairing(f"Phone {index}"))
+    final_phone = service.create_pairing("Final phone")
+    competing_phone = service.create_pairing("Competing phone")
+    service.commit_pairing(final_phone)
+    with pytest.raises(UnlockAutomationError, match="eight"):
+        service.commit_pairing(competing_phone)
+    with pytest.raises(UnlockAutomationError, match="eight"):
+        service.create_pairing("One too many")
+
+
+def test_remote_api_exposes_only_saved_state_and_rejects_forged_commands(
+    tmp_path: Path,
+) -> None:
+    service = UnlockAutomationService(
+        state_path=tmp_path / "unlock.json",
+        lan_origin="http://192.168.50.10:8766",
+        remote_origin="https://academy.cit-example.ts.net",
+        site_id="citcoding-academy",
+        site_name="CIT Coding 학원",
+        clock=lambda: NOW,
+    )
+    pairing = service.create_pairing("Owner phone")
+    service.commit_pairing(pairing)
+    service.configure(
+        UnlockAutomationConfigurationRequest(enabled=False, selectedNodeIds=["plug-a"]),
+        known_node_ids=("plug-a",),
+    )
+    app = create_fabric_app(
+        database_path=tmp_path / "fabric.sqlite3",
+        clock=lambda: NOW,
+        unlock_automation_service=service,
+        allowed_hosts=("testserver", "academy.cit-example.ts.net"),
+        maintenance_interval=None,
+    )
+
+    state = remote_state_event(pairing.device_id)
+    power = remote_power_event(pairing.device_id, on=True, sequence=2)
+    forged = remote_power_event(pairing.device_id, on=False, sequence=3)
+    with TestClient(app) as client:
+        state_response = client.post(
+            "/api/v1/fabric/remote-plugs/state",
+            headers={
+                "X-CIT-Remote-Signature": sign_remote_state_event(state, pairing.secret),
+                "Host": "academy.cit-example.ts.net",
+            },
+            json=state.model_dump(mode="json"),
+        )
+        power_response = client.post(
+            "/api/v1/fabric/remote-plugs/power",
+            headers={
+                "X-CIT-Remote-Signature": sign_remote_power_event(power, pairing.secret),
+            },
+            json=power.model_dump(mode="json"),
+        )
+        forged_response = client.post(
+            "/api/v1/fabric/remote-plugs/power",
+            headers={"X-CIT-Remote-Signature": "0" * 64},
+            json=forged.model_dump(mode="json"),
+        )
+        extra_target_response = client.post(
+            "/api/v1/fabric/remote-plugs/power",
+            headers={"X-CIT-Remote-Signature": sign_remote_power_event(forged, pairing.secret)},
+            json={**forged.model_dump(mode="json"), "nodeIds": ["plug-b"]},
+        )
+        hidden_health = client.get(
+            "/api/v1/fabric/healthz",
+            headers={"Host": "academy.cit-example.ts.net"},
+        )
+
+    assert state_response.status_code == 200, state_response.text
+    assert state_response.json() == {
+        "schemaVersion": "1.0",
+        "siteId": "citcoding-academy",
+        "displayName": "CIT Coding 학원",
+        "generatedAt": "2026-09-10T05:00:00Z",
+        "plugs": [
+            {
+                "nodeId": "plug-a",
+                "displayName": "plug-a",
+                "available": False,
+            }
+        ],
+    }
+    assert power_response.status_code == 200
+    assert power_response.json()["accepted"] is False
+    assert power_response.json()["on"] is True
+    assert forged_response.status_code == 401
+    assert forged_response.json()["code"] == "UNLOCK_AUTOMATION_SIGNATURE_INVALID"
+    assert extra_target_response.status_code == 422
+    assert hidden_health.status_code == 404
+    assert hidden_health.json() == {"code": "NOT_FOUND", "message": "Not found"}
+
+
+def test_remote_only_gateway_can_pair_without_a_lan_listener(tmp_path: Path) -> None:
+    apk = tmp_path / "companion.apk"
+    apk.write_bytes(b"APK")
+    service = UnlockAutomationService(
+        state_path=tmp_path / "unlock.json",
+        lan_origin=None,
+        remote_origin="https://home.example.ts.net",
+        site_id="home",
+        site_name="Home",
+        companion_apk_path=apk,
+        clock=lambda: NOW,
+    )
+
+    pairing = service.create_pairing("Owner phone")
+    encoded = pairing.provisioning_uri.rsplit("/", maxsplit=1)[1]
+    document = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+
+    assert service.can_install_and_pair() is True
+    assert document["origin"] == ""
+    assert document["remoteOrigin"] == "https://home.example.ts.net"
+
+
+@pytest.mark.parametrize(
+    "origin",
+    (
+        "http://academy.example.ts.net",
+        "https://academy.example.ts.net/path",
+        "https://academy.example.ts.net?token=secret",
+        "https://academy..example.ts.net",
+        "https://-academy.example.ts.net",
+        "https://example.com",
+    ),
+)
+def test_remote_origin_rejects_non_tailscale_or_ambiguous_urls(
+    tmp_path: Path,
+    origin: str,
+) -> None:
+    with pytest.raises(ValueError, match="exact Tailscale HTTPS origin"):
+        UnlockAutomationService(
+            state_path=tmp_path / "unlock.json",
+            lan_origin="http://192.168.50.10:8766",
+            remote_origin=origin,
+            clock=lambda: NOW,
+        )
+
+
+@pytest.mark.asyncio
 async def test_unlock_power_uses_an_armed_session_and_exact_configured_plugs() -> None:
     dispatched: list[FabricResolvedCommand] = []
 
@@ -319,14 +671,29 @@ async def test_unlock_power_uses_an_armed_session_and_exact_configured_plugs() -
             str(uuid4()),
             clock=lambda: NOW,
         )
+        off_result = await set_configured_smart_plugs(
+            fabric,
+            ("plug-a", "plug-b"),
+            "android-0123456789abcdef",
+            str(uuid4()),
+            False,
+            clock=lambda: NOW,
+        )
         [session] = fabric.list_sessions()
 
     assert result.acceptedCount == 2
+    assert off_result.acceptedCount == 2
+    assert off_result.on is False
     assert session.state.value == "active"
     assert session.armed is True
     assert session.createdBy == "android-0123456789abcdef"
     assert {command.targetNodeId for command in dispatched} == {"plug-a", "plug-b"}
-    assert all(command.parameters.model_dump(mode="json") == {"on": True} for command in dispatched)
+    assert all(
+        command.parameters.model_dump(mode="json") == {"on": True} for command in dispatched[:2]
+    )
+    assert all(
+        command.parameters.model_dump(mode="json") == {"on": False} for command in dispatched[2:]
+    )
     assert all(command.priority.value == "lesson_automation" for command in dispatched)
 
 
@@ -367,10 +734,22 @@ async def test_unlock_power_fails_closed_when_any_configured_plug_is_missing() -
             str(uuid4()),
             clock=lambda: NOW,
         )
+        off_result = await set_configured_smart_plugs(
+            fabric,
+            ("plug-a", "plug-missing"),
+            "android-0123456789abcdef",
+            str(uuid4()),
+            False,
+            clock=lambda: NOW,
+        )
 
     assert result.acceptedCount == 0
     assert result.failedNodeIds == ["plug-missing"]
-    assert dispatched == []
+    assert off_result.acceptedCount == 1
+    assert off_result.failedNodeIds == ["plug-missing"]
+    assert off_result.on is False
+    assert len(dispatched) == 1
+    assert dispatched[0].parameters.model_dump(mode="json") == {"on": False}
 
 
 @pytest.mark.parametrize(
@@ -525,3 +904,51 @@ def test_unlock_automation_administration_pairs_once_without_exposing_secret(
     )
     assert "?" not in provisioning
     assert "&" not in provisioning
+
+
+def test_remote_only_administration_pairs_without_lan_enrollment(tmp_path: Path) -> None:
+    apk = tmp_path / "control-tower.apk"
+    apk.write_bytes(b"PK\x03\x04test-apk")
+    adb = PairingAdb()
+    android = AndroidControllerService(
+        port=8766,
+        adb_path="adb-test",
+        run_process=adb,
+        monitor_interval=None,
+        clock=lambda: NOW,
+    )
+    unlock = UnlockAutomationService(
+        state_path=tmp_path / "unlock.json",
+        lan_origin=None,
+        remote_origin="https://academy.example.ts.net",
+        site_id="citcoding-academy",
+        site_name="CIT Coding 학원",
+        companion_apk_path=apk,
+        clock=lambda: NOW,
+    )
+    app = create_fabric_app(
+        database_path=tmp_path / "fabric.sqlite3",
+        clock=lambda: NOW,
+        fabric_bootstrap_identities=(admin_identity(),),
+        android_controller_service=android,
+        unlock_automation_service=unlock,
+        maintenance_interval=None,
+    )
+
+    with TestClient(app, client=("127.0.0.1", 50000)) as client:
+        paired = client.post(
+            "/api/v1/fabric/unlock-automation/companion/pair-usb",
+            headers=ADMIN_HEADERS,
+            json={"displayName": "Owner phone"},
+        )
+
+    assert paired.status_code == 200, paired.text
+    assert paired.json()["snapshot"]["remoteAccess"]["siteId"] == "citcoding-academy"
+    assert not any(command[-4:] == ("shell", "cmd", "wifi", "status") for command in adb.commands)
+    provisioning = next(
+        command[-1] for command in adb.commands if command[-1].startswith("cit-control-tower://")
+    )
+    encoded = provisioning.rsplit("/", maxsplit=1)[1]
+    document = json.loads(base64.urlsafe_b64decode(encoded + "=" * (-len(encoded) % 4)))
+    assert document["origin"] == ""
+    assert document["remoteOrigin"] == "https://academy.example.ts.net"

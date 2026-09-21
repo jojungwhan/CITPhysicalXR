@@ -23,7 +23,10 @@ import org.json.JSONObject;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -32,14 +35,14 @@ public final class MainActivity extends Activity {
     private TextView pairingStatus;
     private TextView serviceStatus;
     private TextView lastStatus;
-    private Button toggleButton;
+    private LinearLayout siteControls;
     private Button addToggleWidgetButton;
     private Button addLauncherWidgetButton;
     private Button cameraUploadButton;
     private Button startButton;
     private Button stopButton;
-    private final ExecutorService controlExecutor = Executors.newSingleThreadExecutor();
-    private boolean toggleBusy;
+    private final ExecutorService controlExecutor = Executors.newFixedThreadPool(2);
+    private final Set<String> busySites = new HashSet<>();
     private String launchMessage = "";
 
     @Override
@@ -103,23 +106,9 @@ public final class MainActivity extends Activity {
         manualControlHelp.setPadding(0, dp(6), 0, dp(4));
         content.addView(manualControlHelp, matchWrap());
 
-        toggleButton = button(getString(R.string.toggle_plugs));
-        toggleButton.setTextSize(18);
-        toggleButton.setTextColor(Color.WHITE);
-        toggleButton.setMinHeight(dp(72));
-        toggleButton.setBackgroundTintList(
-                ColorStateList.valueOf(getColor(R.color.cit_green))
-        );
-        toggleButton.setCompoundDrawablesRelativeWithIntrinsicBounds(
-                R.drawable.ic_power_toggle,
-                0,
-                0,
-                0
-        );
-        toggleButton.setCompoundDrawableTintList(ColorStateList.valueOf(Color.WHITE));
-        toggleButton.setCompoundDrawablePadding(dp(10));
-        toggleButton.setOnClickListener(view -> toggleConfiguredSmartPlugs());
-        content.addView(toggleButton, buttonLayout());
+        siteControls = new LinearLayout(this);
+        siteControls.setOrientation(LinearLayout.VERTICAL);
+        content.addView(siteControls, matchWrap());
 
         TextView cameraUploadTitle = text(getString(R.string.camera_upload_title), 18, true);
         cameraUploadTitle.setPadding(0, dp(24), 0, 0);
@@ -146,7 +135,7 @@ public final class MainActivity extends Activity {
         startButton.setOnClickListener(view -> {
             CompanionPreferences.Configuration configuration = CompanionPreferences.load(this);
             KeyguardManager keyguard = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
-            if (!configuration.isValid()) {
+            if (!configuration.isValid() || !configuration.hasLocalControl()) {
                 launchMessage = getString(R.string.not_paired);
             } else if (keyguard == null || !keyguard.isDeviceSecure()) {
                 launchMessage = getString(R.string.secure_lock_required);
@@ -199,24 +188,31 @@ public final class MainActivity extends Activity {
             launchMessage = getString(R.string.pairing_invalid);
             return;
         }
-        CompanionPreferences.Configuration existing = CompanionPreferences.load(this);
         if (!incoming.isValid()) {
             launchMessage = getString(R.string.pairing_invalid);
             return;
         }
-        if (existing.isValid() && !existing.sameIdentity(incoming)) {
-            launchMessage = getString(R.string.pairing_conflict);
+        try {
+            CompanionPreferences.savePairing(this, incoming);
+        } catch (RuntimeException error) {
+            launchMessage = getString(R.string.pairing_invalid);
             return;
         }
-        CompanionPreferences.savePairing(this, incoming);
         SmartPlugWidgetProvider.refreshAll(this);
         KeyguardManager keyguard = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
         if (keyguard == null || !keyguard.isDeviceSecure()) {
             CompanionPreferences.setLocalEnabled(this, false);
+            stopService(new Intent(this, UnlockMonitorService.class));
             launchMessage = getString(R.string.secure_lock_required);
             return;
         }
-        UnlockMonitorService.start(this);
+        CompanionPreferences.Configuration primary = CompanionPreferences.load(this);
+        if (primary.hasLocalControl() && CompanionPreferences.isLocalEnabled(this)) {
+            UnlockMonitorService.start(this);
+        } else if (!primary.hasLocalControl()) {
+            CompanionPreferences.setLocalEnabled(this, false);
+            stopService(new Intent(this, UnlockMonitorService.class));
+        }
         launchMessage = getString(R.string.pairing_complete);
     }
 
@@ -239,14 +235,37 @@ public final class MainActivity extends Activity {
                 return null;
             }
             JSONObject payload = new JSONObject(new String(decoded, StandardCharsets.UTF_8));
-            if (payload.length() != 4) {
+            Set<String> legacyFields = Set.of("origin", "deviceId", "secret", "name");
+            Set<String> remoteFields = Set.of(
+                    "schemaVersion",
+                    "origin",
+                    "remoteOrigin",
+                    "deviceId",
+                    "secret",
+                    "name",
+                    "siteId",
+                    "siteName"
+            );
+            if (hasExactly(payload, legacyFields)) {
+                return new CompanionPreferences.Configuration(
+                        requiredString(payload, "origin"),
+                        requiredString(payload, "deviceId"),
+                        requiredString(payload, "secret"),
+                        requiredString(payload, "name")
+                );
+            }
+            if (!hasExactly(payload, remoteFields)
+                    || !"2.0".equals(requiredString(payload, "schemaVersion"))) {
                 return null;
             }
             return new CompanionPreferences.Configuration(
-                    payload.optString("origin", ""),
-                    payload.optString("deviceId", ""),
-                    payload.optString("secret", ""),
-                    payload.optString("name", "")
+                    requiredString(payload, "origin"),
+                    requiredString(payload, "remoteOrigin"),
+                    requiredString(payload, "deviceId"),
+                    requiredString(payload, "secret"),
+                    requiredString(payload, "name"),
+                    requiredString(payload, "siteId"),
+                    requiredString(payload, "siteName")
             );
         } catch (Exception ignored) {
             return null;
@@ -258,11 +277,18 @@ public final class MainActivity extends Activity {
             return;
         }
         CompanionPreferences.Configuration configuration = CompanionPreferences.load(this);
-        boolean paired = configuration.isValid();
-        boolean enabled = paired && CompanionPreferences.isLocalEnabled(this);
+        List<CompanionPreferences.Configuration> configurations =
+                CompanionPreferences.loadAll(this);
+        boolean paired = !configurations.isEmpty() && configuration.isValid();
+        boolean localAvailable = paired && configuration.hasLocalControl();
+        boolean enabled = localAvailable && CompanionPreferences.isLocalEnabled(this);
         pairingStatus.setText(
                 paired
-                        ? getString(R.string.paired_with, configuration.origin)
+                        ? getResources().getQuantityString(
+                                R.plurals.paired_sites,
+                                configurations.size(),
+                                configurations.size()
+                        )
                         : getString(R.string.not_paired)
         );
         serviceStatus.setText(
@@ -275,15 +301,21 @@ public final class MainActivity extends Activity {
         lastStatus.setVisibility(
                 launchMessage.isEmpty() && recent.isEmpty() ? TextView.GONE : TextView.VISIBLE
         );
-        startButton.setEnabled(paired && !enabled);
+        startButton.setEnabled(localAvailable && !enabled);
         stopButton.setEnabled(enabled);
-        toggleButton.setEnabled(paired && !toggleBusy);
-        cameraUploadButton.setEnabled(paired);
+        cameraUploadButton.setEnabled(localAvailable);
         addToggleWidgetButton.setEnabled(paired);
         addLauncherWidgetButton.setEnabled(true);
+        refreshSiteControls(configurations);
     }
 
     private void startCameraUpload() {
+        CompanionPreferences.Configuration configuration = CompanionPreferences.load(this);
+        if (!configuration.isValid() || !configuration.hasLocalControl()) {
+            launchMessage = getString(R.string.local_automation_unavailable);
+            refresh();
+            return;
+        }
         if (!hasCameraMediaPermission()) {
             requestCameraMediaPermission();
             launchMessage = getString(R.string.camera_upload_permission);
@@ -406,54 +438,189 @@ public final class MainActivity extends Activity {
         refresh();
     }
 
-    private void toggleConfiguredSmartPlugs() {
-        if (toggleBusy) {
+    private void setSitePower(
+            CompanionPreferences.Configuration configuration,
+            boolean on
+    ) {
+        if (busySites.contains(configuration.deviceId)) {
             return;
         }
-        CompanionPreferences.Configuration configuration = CompanionPreferences.load(this);
         if (!configuration.isValid()) {
             launchMessage = getString(R.string.not_paired);
             refresh();
             return;
         }
-        toggleBusy = true;
-        launchMessage = getString(R.string.toggle_sending);
+        KeyguardManager keyguard = (KeyguardManager) getSystemService(KEYGUARD_SERVICE);
+        if (keyguard == null || !keyguard.isDeviceSecure()) {
+            launchMessage = getString(R.string.secure_lock_required);
+            refresh();
+            return;
+        }
+        busySites.add(configuration.deviceId);
+        launchMessage = getString(
+                on ? R.string.power_on_sending : R.string.power_off_sending,
+                configuration.siteName
+        );
         refresh();
         controlExecutor.execute(() -> {
-            UnlockClient.Result result;
-            try {
-                result = UnlockClient.toggle(this, configuration);
-            } catch (RuntimeException error) {
-                String message = error.getMessage();
-                result = new UnlockClient.Result(
-                        false,
-                        "failed",
-                        null,
-                        message == null || message.isBlank()
-                                ? error.getClass().getSimpleName()
-                                : message
-                );
-            }
-            UnlockClient.Result completed = result;
+            RemotePlugClient.PowerResult completed =
+                    RemotePlugClient.setPower(this, configuration, on);
             runOnUiThread(() -> {
                 if (isDestroyed()) {
                     return;
                 }
-                if (completed.accepted && Boolean.TRUE.equals(completed.on)) {
-                    launchMessage = getString(R.string.toggle_on_succeeded);
-                } else if (completed.accepted && Boolean.FALSE.equals(completed.on)) {
-                    launchMessage = getString(R.string.toggle_off_succeeded);
+                if (completed.accepted) {
+                    launchMessage = getString(
+                            completed.on
+                                    ? R.string.power_on_succeeded
+                                    : R.string.power_off_succeeded,
+                            configuration.siteName
+                    );
                 } else {
                     launchMessage = getString(
-                            R.string.toggle_failed_detail,
+                            R.string.power_failed_detail,
+                            configuration.siteName,
                             completed.message
                     );
                 }
-                CompanionPreferences.setLastStatus(this, launchMessage);
-                toggleBusy = false;
+                CompanionPreferences.setLastStatus(this, configuration, launchMessage);
+                busySites.remove(configuration.deviceId);
                 refresh();
             });
         });
+    }
+
+    private void refreshSiteState(CompanionPreferences.Configuration configuration) {
+        if (busySites.contains(configuration.deviceId)) {
+            return;
+        }
+        busySites.add(configuration.deviceId);
+        launchMessage = getString(R.string.power_state_sending, configuration.siteName);
+        refresh();
+        controlExecutor.execute(() -> {
+            RemotePlugClient.StateResult completed =
+                    RemotePlugClient.readState(this, configuration);
+            runOnUiThread(() -> {
+                if (isDestroyed()) {
+                    return;
+                }
+                if (!completed.accepted) {
+                    launchMessage = getString(
+                            R.string.power_failed_detail,
+                            configuration.siteName,
+                            completed.message
+                    );
+                } else if (completed.available == 0) {
+                    launchMessage = getString(
+                            R.string.power_state_unavailable,
+                            configuration.siteName,
+                            String.valueOf(completed.total)
+                    );
+                } else {
+                    launchMessage = getString(
+                            R.string.power_state_result,
+                            configuration.siteName,
+                            String.valueOf(completed.available),
+                            String.valueOf(completed.total),
+                            completed.allOn == null
+                                    ? getString(R.string.power_state_unknown)
+                                    : Boolean.TRUE.equals(completed.allOn)
+                                            ? getString(R.string.power_state_on)
+                                            : getString(R.string.power_state_off_or_mixed)
+                    );
+                }
+                CompanionPreferences.setLastStatus(this, configuration, launchMessage);
+                busySites.remove(configuration.deviceId);
+                refresh();
+            });
+        });
+    }
+
+    private void refreshSiteControls(
+            List<CompanionPreferences.Configuration> configurations
+    ) {
+        siteControls.removeAllViews();
+        for (CompanionPreferences.Configuration configuration : configurations) {
+            LinearLayout card = new LinearLayout(this);
+            card.setOrientation(LinearLayout.VERTICAL);
+            card.setPadding(dp(12), dp(10), dp(12), dp(10));
+
+            TextView name = text(configuration.siteName, 17, true);
+            card.addView(name, matchWrap());
+
+            TextView route = text(
+                    configuration.hasRemoteControl()
+                            ? getString(R.string.site_remote_ready)
+                            : getString(R.string.site_local_only),
+                    13,
+                    false
+            );
+            route.setTextColor(Color.DKGRAY);
+            card.addView(route, matchWrap());
+
+            String status = CompanionPreferences.lastStatus(this, configuration);
+            if (!status.isEmpty()) {
+                TextView siteStatus = text(status, 13, false);
+                siteStatus.setPadding(0, dp(4), 0, 0);
+                card.addView(siteStatus, matchWrap());
+            }
+
+            LinearLayout actions = new LinearLayout(this);
+            actions.setOrientation(LinearLayout.HORIZONTAL);
+            boolean busy = busySites.contains(configuration.deviceId);
+
+            Button on = button(getString(R.string.power_on));
+            on.setEnabled(!busy);
+            on.setBackgroundTintList(ColorStateList.valueOf(getColor(R.color.cit_green)));
+            on.setOnClickListener(view -> setSitePower(configuration, true));
+            actions.addView(on, weightedButton());
+
+            Button off = button(getString(R.string.power_off));
+            off.setEnabled(!busy);
+            off.setOnClickListener(view -> setSitePower(configuration, false));
+            actions.addView(off, weightedButton());
+
+            Button state = button(getString(R.string.power_refresh));
+            state.setEnabled(!busy);
+            state.setOnClickListener(view -> refreshSiteState(configuration));
+            actions.addView(state, weightedButton());
+            card.addView(actions, matchWrap());
+
+            Button remove = button(getString(R.string.remove_site, configuration.siteName));
+            remove.setEnabled(!busy);
+            remove.setOnClickListener(view -> {
+                CompanionPreferences.removePairing(this, configuration.deviceId);
+                if (!CompanionPreferences.isLocalEnabled(this)) {
+                    stopService(new Intent(this, UnlockMonitorService.class));
+                }
+                SmartPlugWidgetProvider.refreshAll(this);
+                launchMessage = getString(R.string.site_removed, configuration.siteName);
+                refresh();
+            });
+            card.addView(remove, buttonLayout());
+            siteControls.addView(card, buttonLayout());
+        }
+    }
+
+    private static boolean hasExactly(JSONObject payload, Set<String> expected) {
+        if (payload.length() != expected.size()) {
+            return false;
+        }
+        Iterator<String> keys = payload.keys();
+        while (keys.hasNext()) {
+            if (!expected.contains(keys.next())) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static String requiredString(JSONObject payload, String key) throws Exception {
+        Object value = payload.get(key);
+        if (!(value instanceof String)) {
+            throw new IllegalArgumentException("Pairing values must be strings");
+        }
+        return (String) value;
     }
 
     private void requestNotificationPermission() {
@@ -492,6 +659,16 @@ public final class MainActivity extends Activity {
     private LinearLayout.LayoutParams buttonLayout() {
         LinearLayout.LayoutParams params = matchWrap();
         params.topMargin = dp(8);
+        return params;
+    }
+
+    private LinearLayout.LayoutParams weightedButton() {
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                0,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+                1.0f
+        );
+        params.setMarginEnd(dp(4));
         return params;
     }
 

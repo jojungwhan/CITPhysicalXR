@@ -551,12 +551,20 @@ export interface FabricUnlockAutomationLastResult {
   message: string;
 }
 
+export interface FabricRemotePlugAccess {
+  siteId: string;
+  displayName: string;
+  origin: string;
+}
+
 export interface FabricUnlockAutomationSnapshot {
   schemaVersion: "1.0";
   enabled: boolean;
   selectedNodeIds: string[];
   cooldownSeconds: number;
   companion?: FabricUnlockAutomationCompanion;
+  companions?: FabricUnlockAutomationCompanion[];
+  remoteAccess?: FabricRemotePlugAccess;
   lastResult?: FabricUnlockAutomationLastResult;
   operations: {
     manage: boolean;
@@ -607,10 +615,17 @@ export class FabricClient {
   #credential: string | undefined;
 
   constructor(
-    baseUrl = "",
+    baseUrl: string | undefined = undefined,
     fetchImplementation: typeof fetch = globalThis.fetch.bind(globalThis),
+    pageLocation: Pick<Location, "pathname"> = typeof globalThis.location ===
+    "undefined"
+      ? { pathname: "/" }
+      : globalThis.location,
   ) {
-    this.#baseUrl = baseUrl.replace(/\/$/, "");
+    this.#baseUrl = (baseUrl ?? fabricPageBasePath(pageLocation)).replace(
+      /\/$/,
+      "",
+    );
     this.#fetch = fetchImplementation;
   }
 
@@ -1380,6 +1395,14 @@ export class FabricClient {
     return body as ResponseBody;
   }
 }
+
+export const fabricPageBasePath = ({
+  pathname,
+}: Pick<Location, "pathname">) => {
+  const normalized = pathname.replace(/\/+$/, "");
+  // /fabric is the console route, not part of the runtime's hosting prefix.
+  return normalized.replace(/\/(?:fabric|index\.html)$/, "");
+};
 
 const numericHeader = (value: string | null): number | undefined => {
   if (value === null) return undefined;

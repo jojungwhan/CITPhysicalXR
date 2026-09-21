@@ -38,8 +38,10 @@ final class CameraUploadCoordinator {
             try {
                 CompanionPreferences.Configuration configuration =
                         CompanionPreferences.load(applicationContext);
-                if (!configuration.isValid()) {
-                    throw new IllegalStateException("Control Tower is not paired");
+                if (!configuration.isValid() || !configuration.hasLocalControl()) {
+                    throw new IllegalStateException(
+                            "The primary Control Tower site has no local camera route"
+                    );
                 }
                 result = CameraFtpClient.uploadSonyMedia(
                         applicationContext,

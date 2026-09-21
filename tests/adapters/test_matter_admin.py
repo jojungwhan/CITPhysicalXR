@@ -92,6 +92,18 @@ def test_commissioning_stops_immediately_when_no_bluetooth_or_network_device_exi
     assert "Bluetooth LE adapter" in str(caught.value)
 
 
+def test_linux_controller_owned_bluetooth_is_reported_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def unsupported_host() -> str:
+        return "unsupported_host"
+
+    client = type("Client", (), {"server_info": {"bluetooth_enabled": True}})()
+    monkeypatch.setattr(admin, "_local_bluetooth_status", unsupported_host)
+
+    assert asyncio.run(admin._controller_bluetooth_status(client)) == "ready"
+
+
 def test_commissioning_cli_emits_one_redacted_machine_readable_error(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],

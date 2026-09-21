@@ -56,6 +56,7 @@ $secretRoot = Join-Path $StateRoot "secrets"
 $logRoot = Join-Path $StateRoot "logs"
 $activationRoot = Join-Path $StateRoot "active"
 $statePath = Join-Path $StateRoot "state.json"
+$migrationPath = Join-Path $StateRoot "controller-migration.json"
 $setupCodeRegistryPath = Join-Path $secretRoot "known-setup-codes.dpapi"
 $bootstrapSecretPath = Join-Path $SharedFabricRoot "secrets\fabric-bootstrap.dpapi"
 $fabricOrigin = "http://127.0.0.1:$FabricPort"
@@ -898,6 +899,12 @@ function Start-Adapters([hashtable]$State, [string]$Bootstrap) {
 }
 
 function Show-Status([hashtable]$State) {
+  if (Test-Path -LiteralPath $migrationPath) {
+    $migration = Get-Content -LiteralPath $migrationPath -Raw | ConvertFrom-Json
+    Write-Host "Matter control migrated to: $($migration.gatewayHost)"
+    Write-Host "Phone endpoint: $($migration.gatewayOrigin)"
+    return
+  }
   Write-Host "Matter controller: $(if (Test-MatterHealth) { 'ready on loopback' } else { 'offline' })"
   Write-Host "Matter storage: $controllerStorage"
   if (Test-MatterHealth) {
@@ -933,6 +940,11 @@ function Show-Status([hashtable]$State) {
   Write-Host "Running Fabric adapters: $runningAdapterCount"
   Write-Host "Offline Fabric adapter records: $($adapterCount - $runningAdapterCount)"
   Write-Host "No proprietary vendor account, API, cloud, device ID, or local key is used by this path."
+}
+
+if ((Test-Path -LiteralPath $migrationPath) -and $Mode -notin @("Status", "Stop")) {
+  $migration = Get-Content -LiteralPath $migrationPath -Raw | ConvertFrom-Json
+  throw "Matter control moved to $($migration.gatewayHost). Use the paired phone controls. Starting this archived controller would duplicate the gateway's Matter identity."
 }
 
 New-Item -ItemType Directory -Path $StateRoot, $controllerStorage, $secretRoot, $logRoot, $activationRoot -Force | Out-Null

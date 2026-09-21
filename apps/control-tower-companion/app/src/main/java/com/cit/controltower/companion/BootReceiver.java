@@ -13,7 +13,9 @@ public final class BootReceiver extends BroadcastReceiver {
             return;
         }
         CompanionPreferences.Configuration configuration = CompanionPreferences.load(context);
-        if (configuration.isValid() && CompanionPreferences.isLocalEnabled(context)) {
+        if (configuration.isValid()
+                && configuration.hasLocalControl()
+                && CompanionPreferences.isLocalEnabled(context)) {
             UnlockMonitorService.start(context);
         }
     }

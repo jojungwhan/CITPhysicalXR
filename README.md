@@ -118,6 +118,14 @@ on only the exact Matter plugs separately saved and enabled by the local
 operator. Missed events are never queued. See
 `docs/operations/unified-fabric-console.md`.
 
+For owner-only plug control away from the LAN, companion 2.0 can hold separate
+CIT and Home pairings and send explicit ON/OFF/status requests over private
+Tailscale HTTPS. Each site keeps its own always-on local Matter gateway; only a
+fixed, signed two-route API is shared, never the Studio or general Fabric API.
+Commands are not queued or retried. The existing academy Linux host can be the
+CIT gateway, while home requires a second always-on Linux device. See
+`docs/operations/remote-smart-plug-sites.md`.
+
 Source-checkout maintainers install the Desktop and Start menu shortcut once
 with `pnpm hardware:install-button:windows`. This is installation work, not a
 tutor startup step. Component-level PowerShell commands remain documented only
@@ -192,7 +200,9 @@ device ID, or local key.
 
 The plug must actually run Matter firmware; branding alone is not enough. See
 `docs/operations/matter-smart-plug-windows.md` for installation, real-hardware
-testing, and moving the setup to another Windows computer.
+testing, and moving the setup to another Windows computer. See
+`docs/operations/remote-smart-plug-sites.md` for the separately bounded Linux
+gateway and Android Wi-Fi/5G path.
 
 ## Protected Creality 3D-printer workflow
 

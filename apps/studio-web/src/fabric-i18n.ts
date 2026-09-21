@@ -35,17 +35,22 @@ const EN = {
   "settings.unlockAutomationHelp":
     "A paired Android phone sends one signed event after a genuine secure-screen unlock. Control Tower then turns on only the Matter plugs saved below.",
   "settings.unlockAutomationOffline":
-    "The phone and this PC must be on the same local Wi-Fi. Missed events are not queued or retried, and no cloud service is used.",
+    "Unlock automation itself requires the phone and this PC on the same local Wi-Fi. Missed events are not queued or retried. Explicit plug controls may use the configured private remote route.",
   "settings.unlockPhone": "Paired phone",
   "settings.unlockNotPaired": "Not paired",
   "settings.unlockConfiguredPlugs": "Saved unlock targets",
   "settings.unlockPlugCount": "{count} plug(s)",
+  "settings.remotePlugControl": "Phone plug control",
+  "settings.remotePlugLocalOnly": "Local Wi-Fi only",
+  "settings.remotePlugHelp":
+    "The companion can send explicit ON or OFF commands to this site over private Tailscale HTTPS on Wi-Fi or 5G. Unlock events and camera sync remain local-Wi-Fi only.",
   "settings.unlockToggle": "Turn on saved plugs when this phone unlocks",
   "settings.unlockSaveSelection": "Save currently checked plugs",
   "settings.unlockInstallPair": "Install and pair companion",
   "settings.unlockRemovePhone": "Unpair phone",
+  "settings.unlockRemovePhones": "Unpair all phones",
   "settings.unlockInstallHelp":
-    "USB is required only for the one-time app install and pairing. When pairing completes, disconnect USB; unlock events travel over local Wi-Fi.",
+    "USB is required only for each site's one-time app install and additive pairing. Disconnect USB afterward. Explicit plug controls use the displayed route; unlock events remain local-Wi-Fi only.",
   "settings.unlockLast.succeeded":
     "Last unlock: {accepted} of {count} saved plugs accepted the turn-on command.",
   "settings.unlockLast.failed":
@@ -1478,17 +1483,22 @@ const KO: Record<FabricMessageKey, string> = {
   "settings.unlockAutomationHelp":
     "페어링한 Android 휴대전화가 보안 화면이 실제로 잠금 해제될 때 서명된 이벤트 한 번을 보냅니다. Control Tower는 아래에 저장한 Matter 플러그만 켭니다.",
   "settings.unlockAutomationOffline":
-    "휴대전화와 이 PC가 같은 로컬 Wi-Fi에 있어야 합니다. 놓친 이벤트는 저장하거나 재시도하지 않으며 클라우드를 사용하지 않습니다.",
+    "잠금 해제 자동화 자체는 휴대전화와 이 PC가 같은 로컬 Wi-Fi에 있어야 합니다. 놓친 이벤트는 저장하거나 재시도하지 않습니다. 명확한 플러그 제어는 설정된 비공개 원격 경로를 사용할 수 있습니다.",
   "settings.unlockPhone": "페어링한 휴대전화",
   "settings.unlockNotPaired": "페어링 안 됨",
   "settings.unlockConfiguredPlugs": "저장된 잠금 해제 대상",
   "settings.unlockPlugCount": "플러그 {count}개",
+  "settings.remotePlugControl": "휴대전화 플러그 제어",
+  "settings.remotePlugLocalOnly": "로컬 Wi-Fi 전용",
+  "settings.remotePlugHelp":
+    "컴패니언은 Wi-Fi 또는 5G에서 비공개 Tailscale HTTPS를 통해 이 장소에 명확한 켜기/끄기 명령을 보낼 수 있습니다. 잠금 해제 이벤트와 카메라 동기화는 로컬 Wi-Fi에서만 작동합니다.",
   "settings.unlockToggle": "이 휴대전화 잠금 해제 시 저장된 플러그 켜기",
   "settings.unlockSaveSelection": "현재 체크한 플러그 저장",
   "settings.unlockInstallPair": "컴패니언 설치 및 페어링",
   "settings.unlockRemovePhone": "휴대전화 페어링 해제",
+  "settings.unlockRemovePhones": "모든 휴대전화 페어링 해제",
   "settings.unlockInstallHelp":
-    "USB는 앱을 한 번 설치하고 페어링할 때만 필요합니다. 페어링이 끝나면 USB를 분리하세요. 이후 잠금 해제 이벤트는 로컬 Wi-Fi로 전달됩니다.",
+    "USB는 장소별 최초 앱 설치와 추가 페어링에만 필요합니다. 이후 USB를 분리하세요. 명확한 플러그 제어는 표시된 경로를 사용하며 잠금 해제 이벤트는 로컬 Wi-Fi 전용입니다.",
   "settings.unlockLast.succeeded":
     "최근 잠금 해제: 저장된 플러그 {count}개 중 {accepted}개의 켜기 명령을 수락했습니다.",
   "settings.unlockLast.failed":

@@ -299,7 +299,10 @@ export function FabricQuickControls({
                 <div className="fabric-settings-field">
                   <span>{t("settings.unlockPhone")}</span>
                   <strong>
-                    {unlockAutomation?.companion?.displayName ??
+                    {unlockAutomation?.companions
+                      ?.map((phone) => phone.displayName)
+                      .join(", ") ||
+                      unlockAutomation?.companion?.displayName ||
                       t("settings.unlockNotPaired")}
                   </strong>
                 </div>
@@ -311,6 +314,16 @@ export function FabricQuickControls({
                     })}
                   </strong>
                 </div>
+                <div className="fabric-settings-field">
+                  <span>{t("settings.remotePlugControl")}</span>
+                  <strong>
+                    {unlockAutomation?.remoteAccess?.displayName ??
+                      t("settings.remotePlugLocalOnly")}
+                  </strong>
+                </div>
+                {unlockAutomation?.remoteAccess !== undefined && (
+                  <p>{t("settings.remotePlugHelp")}</p>
+                )}
                 <label className="fabric-unlock-toggle">
                   <input
                     type="checkbox"
@@ -346,7 +359,8 @@ export function FabricQuickControls({
                   >
                     {t("settings.unlockSaveSelection")}
                   </button>
-                  {unlockAutomation?.companion === undefined ? (
+                  {(unlockAutomation?.companion === undefined ||
+                    unlockAutomation?.remoteAccess !== undefined) && (
                     <button
                       type="button"
                       disabled={
@@ -357,7 +371,8 @@ export function FabricQuickControls({
                     >
                       {t("settings.unlockInstallPair")}
                     </button>
-                  ) : (
+                  )}
+                  {unlockAutomation?.companion !== undefined && (
                     <button
                       type="button"
                       disabled={
@@ -365,7 +380,11 @@ export function FabricQuickControls({
                       }
                       onClick={() => void onRemoveUnlockCompanion()}
                     >
-                      {t("settings.unlockRemovePhone")}
+                      {t(
+                        (unlockAutomation.companions?.length ?? 0) > 1
+                          ? "settings.unlockRemovePhones"
+                          : "settings.unlockRemovePhone",
+                      )}
                     </button>
                   )}
                 </div>

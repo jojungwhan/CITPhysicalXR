@@ -43,6 +43,7 @@ import {
   type StoredFabricEvent,
   type StoredFabricLifecycle,
 } from "./fabric-client.js";
+import { browserRandomUuid } from "./browser-random-uuid.js";
 import {
   canRunFabricDiscoveryConnection,
   discoveryLinkLabel,
@@ -1652,14 +1653,14 @@ export function FabricConsole() {
           !["stopped", "emergency_stopped", "failed"].includes(session.state)
         ) {
           if (session.state === "active") {
-            const correlationId = crypto.randomUUID();
+            const correlationId = browserRandomUuid();
             const groundBindings = session.roleBindings.filter((binding) =>
               /^ground_output_[1-8]$/.test(binding.role),
             );
             await Promise.allSettled(
               groundBindings.map((binding, index) =>
                 client.submitCommand({
-                  messageId: crypto.randomUUID(),
+                  messageId: browserRandomUuid(),
                   schemaVersion: "1.0",
                   messageType: "command.requested",
                   action: SPHERO_STOP_CAPABILITY,
@@ -1756,7 +1757,7 @@ export function FabricConsole() {
       if (commands.length === 0) {
         throw new Error(t("error.noSynchronizedMotors"));
       }
-      const correlationId = crypto.randomUUID();
+      const correlationId = browserRandomUuid();
       const results = await Promise.allSettled(
         commands.map((command, index) => {
           const session =
@@ -1765,7 +1766,7 @@ export function FabricConsole() {
             return Promise.reject(new Error("Missing bounded control session"));
           }
           return client.submitCommand({
-            messageId: crypto.randomUUID(),
+            messageId: browserRandomUuid(),
             schemaVersion: "1.0",
             messageType: "command.requested",
             action: command.action,
@@ -2334,7 +2335,7 @@ export function FabricConsole() {
           t("error.assignRole", { role: fabricRoleText(role, t).name }),
         );
       }
-      const correlationId = crypto.randomUUID();
+      const correlationId = browserRandomUuid();
       const priority: FabricCommandPriority =
         principal?.roles.some((roleName) =>
           ["administrator", "instructor"].includes(roleName),
@@ -2342,7 +2343,7 @@ export function FabricConsole() {
           ? "instructor_override"
           : "lesson_automation";
       const result = await client.submitCommand({
-        messageId: crypto.randomUUID(),
+        messageId: browserRandomUuid(),
         schemaVersion: "1.0",
         messageType: "command.requested",
         action,
@@ -2394,7 +2395,7 @@ export function FabricConsole() {
         if (on) {
           controlSession = await prepareDirectControlSession(controlSession);
         }
-        const correlationId = crypto.randomUUID();
+        const correlationId = browserRandomUuid();
         const priority: FabricCommandPriority =
           principal?.roles.some((roleName) =>
             ["administrator", "instructor"].includes(roleName),
@@ -2403,7 +2404,7 @@ export function FabricConsole() {
             : "lesson_automation";
         const submit = (role: string, index: number) =>
           client.submitCommand({
-            messageId: crypto.randomUUID(),
+            messageId: browserRandomUuid(),
             schemaVersion: "1.0",
             messageType: "command.requested",
             action: POWER_SET_CAPABILITY,
@@ -2478,11 +2479,11 @@ export function FabricConsole() {
       if (!isSafeState) {
         controlSession = await prepareDirectControlSession(controlSession);
       }
-      const correlationId = crypto.randomUUID();
+      const correlationId = browserRandomUuid();
       const emergency = action === FLIGHT_EMERGENCY_STOP_CAPABILITY;
       if (emergency) updateSafetyConfirmation(false);
       const result = await client.submitCommand({
-        messageId: crypto.randomUUID(),
+        messageId: browserRandomUuid(),
         schemaVersion: "1.0",
         messageType: "command.requested",
         action,
@@ -2516,9 +2517,9 @@ export function FabricConsole() {
         action === WONDER_STOP_CAPABILITY
           ? selectedSession
           : await prepareDirectControlSession(selectedSession);
-      const correlationId = crypto.randomUUID();
+      const correlationId = browserRandomUuid();
       const result = await client.submitCommand({
-        messageId: crypto.randomUUID(),
+        messageId: browserRandomUuid(),
         schemaVersion: "1.0",
         messageType: "command.requested",
         action,
@@ -2548,9 +2549,9 @@ export function FabricConsole() {
       if (action !== SPHERO_STOP_CAPABILITY) {
         controlSession = await prepareDirectControlSession(controlSession);
       }
-      const correlationId = crypto.randomUUID();
+      const correlationId = browserRandomUuid();
       const result = await client.submitCommand({
-        messageId: crypto.randomUUID(),
+        messageId: browserRandomUuid(),
         schemaVersion: "1.0",
         messageType: "command.requested",
         action,
@@ -2574,9 +2575,9 @@ export function FabricConsole() {
       if (brainDemoBinding === undefined || brainDemoController === undefined)
         throw new Error(t("error.brainController"));
       const controlSession = await prepareDirectControlSession(selectedSession);
-      const correlationId = crypto.randomUUID();
+      const correlationId = browserRandomUuid();
       const result = await client.submitCommand({
-        messageId: crypto.randomUUID(),
+        messageId: browserRandomUuid(),
         schemaVersion: "1.0",
         messageType: "command.requested",
         action: BRAIN_DEMO_ARM_CAPABILITY,
@@ -2600,9 +2601,9 @@ export function FabricConsole() {
         throw new Error(t("error.monitoringSession"));
       if (brainDemoBinding === undefined || brainDemoController === undefined)
         throw new Error(t("error.brainController"));
-      const correlationId = crypto.randomUUID();
+      const correlationId = browserRandomUuid();
       const result = await client.submitCommand({
-        messageId: crypto.randomUUID(),
+        messageId: browserRandomUuid(),
         schemaVersion: "1.0",
         messageType: "command.requested",
         action: BRAIN_DEMO_STOP_CAPABILITY,
@@ -2631,9 +2632,9 @@ export function FabricConsole() {
         throw new Error(t("error.fleetController"));
       const controlSession =
         await prepareDirectControlSession(fleetControlSession);
-      const correlationId = crypto.randomUUID();
+      const correlationId = browserRandomUuid();
       const result = await client.submitCommand({
-        messageId: crypto.randomUUID(),
+        messageId: browserRandomUuid(),
         schemaVersion: "1.0",
         messageType: "command.requested",
         action: FLEET_SEQUENCE_ARM_CAPABILITY,
@@ -2661,9 +2662,9 @@ export function FabricConsole() {
         fleetSequenceController === undefined
       )
         throw new Error(t("error.fleetController"));
-      const correlationId = crypto.randomUUID();
+      const correlationId = browserRandomUuid();
       const result = await client.submitCommand({
-        messageId: crypto.randomUUID(),
+        messageId: browserRandomUuid(),
         schemaVersion: "1.0",
         messageType: "command.requested",
         action: FLEET_SEQUENCE_START_CAPABILITY,
@@ -2697,9 +2698,9 @@ export function FabricConsole() {
         throw new Error(t("error.fleetController"));
       const controlSession =
         await prepareDirectControlSession(fleetControlSession);
-      const armCorrelationId = crypto.randomUUID();
+      const armCorrelationId = browserRandomUuid();
       const armResult = await client.submitCommand({
-        messageId: crypto.randomUUID(),
+        messageId: browserRandomUuid(),
         schemaVersion: "1.0",
         messageType: "command.requested",
         action: FLEET_SEQUENCE_ARM_CAPABILITY,
@@ -2718,9 +2719,9 @@ export function FabricConsole() {
       if (armStage !== "SUCCEEDED") {
         throw new Error(commandResultNotice(t("fleet.arm"), armStage, t));
       }
-      const startCorrelationId = crypto.randomUUID();
+      const startCorrelationId = browserRandomUuid();
       const startResult = await client.submitCommand({
-        messageId: crypto.randomUUID(),
+        messageId: browserRandomUuid(),
         schemaVersion: "1.0",
         messageType: "command.requested",
         action: FLEET_SEQUENCE_START_CAPABILITY,
@@ -2752,9 +2753,9 @@ export function FabricConsole() {
         fleetSequenceController === undefined
       )
         throw new Error(t("error.fleetController"));
-      const correlationId = crypto.randomUUID();
+      const correlationId = browserRandomUuid();
       const result = await client.submitCommand({
-        messageId: crypto.randomUUID(),
+        messageId: browserRandomUuid(),
         schemaVersion: "1.0",
         messageType: "command.requested",
         action: FLEET_SEQUENCE_STOP_CAPABILITY,

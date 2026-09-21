@@ -385,20 +385,6 @@ class AndroidControllerService:
                 "ANDROID_COMPANION_INSTALL_FAILED",
                 "Android rejected the Control Tower Companion installation.",
             )
-        cleared = self._invoke(
-            "-s",
-            serial,
-            "shell",
-            "pm",
-            "clear",
-            "com.cit.controltower.companion",
-            timeout=15.0,
-        )
-        if cleared.returncode != 0 or "success" not in cleared.stdout.casefold():
-            raise AndroidControllerError(
-                "ANDROID_COMPANION_RESET_FAILED",
-                "The companion was installed, but its previous pairing could not be cleared.",
-            )
         launched = self._invoke(
             "-s",
             serial,

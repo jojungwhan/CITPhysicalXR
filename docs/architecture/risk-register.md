@@ -43,6 +43,7 @@ Status: active. Likelihood and impact use Low/Medium/High.
 | R-041 | Dash/Dot firmware or Windows BLE behavior differs from the attributed protocol reference                   | Medium     | High     | Exact-name/opaque-ID selection, optional isolated Bleak process, strict model capabilities, adapter bounds, 350 ms deadman, no caught write failures, simulation-first UI                                                                    | Two-robot Windows HIL including disconnect/deadman and every advertised command            |
 | R-042 | Unofficial spherov2 BOLT protocol or Windows BLE behavior differs from installed firmware                  | Medium     | High     | Exact `SB-XXXX`/opaque-ID selection, isolated optional process, pinned source and modern Bleak bridge, device-response validation, explicit LED commands, 0.20 m/s bound, 750 ms deadman, simulation-first UI, explicit HIL-pending metadata | Two-BOLT Windows HIL covering aim, roll, LED, sensors, duplicate, disconnect, and shutdown |
 | R-043 | A portable installer leaks site credentials/state or installs source different from the displayed revision | Low        | Critical | Explicit source allowlist and secret/state exclusions; clean-revision gate; authenticated audited download; startup/browser/payload SHA-256 checks; versioned non-overwriting target; site-name-only template                                | Clean-machine install, archive inspection, tamper tests, and second-computer handoff       |
+| R-044 | Remote plug access exposes broader physical control or replays a delayed action                            | Low        | Critical | Tailnet-only Serve subtree, owner-to-tag TCP 443 grant, remote-Host route denial, per-site HMAC/domain/timestamp/sequence, explicit ON/OFF, fixed local selection, no queue/retry, scoped adapter credential                                 | Two-site 5G HIL, negative tailnet policy test, route scan, outage/replay fault injection   |
 
 ## Open assumptions requiring owner or hardware evidence
 
@@ -54,8 +55,9 @@ Status: active. Likelihood and impact use Low/Medium/High.
 - Which BOLT firmware revisions accept the pinned spherov2 command/sensor set
   through Bleak 3.0.2 and satisfy the local stop timing on classroom surfaces.
 - Whether both ordered Tapo P110M units and their regional firmware commission
-  through the Windows Bluetooth path, expose Matter 1.3 electrical telemetry,
-  and reach off after adapter/Fabric/network loss.
+  through the Windows or Linux Bluetooth path, expose Matter 1.3 electrical
+  telemetry, reach off after adapter/Fabric/network loss, and remain bounded in
+  a two-site 5G test.
 - Exact G2 production plugin network and background-execution limits.
 - Exact Meta Ray-Ban features available through the deployed Android/vendor stack.
 - A GitHub Packages identity with `read:packages` is still required to compile
