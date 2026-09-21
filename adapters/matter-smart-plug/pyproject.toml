@@ -18,6 +18,8 @@ dependencies = [
 [project.scripts]
 cit-matter-smart-plug = "cit_matter_smart_plug.__main__:main"
 cit-matter-admin = "cit_matter_smart_plug.admin:main"
+cit-matter-gateway = "cit_matter_smart_plug.gateway:main"
+cit-matter-setup = "cit_matter_smart_plug.interactive_admin:main"
 
 [tool.uv.sources]
 cit-integration-sdk = { workspace = true }

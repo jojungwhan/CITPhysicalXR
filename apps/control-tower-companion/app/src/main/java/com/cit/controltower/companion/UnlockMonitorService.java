@@ -83,7 +83,9 @@ public final class UnlockMonitorService extends Service {
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         CompanionPreferences.Configuration configuration = CompanionPreferences.load(this);
-        if (!CompanionPreferences.isLocalEnabled(this) || !configuration.isValid()) {
+        if (!CompanionPreferences.isLocalEnabled(this)
+                || !configuration.isValid()
+                || !configuration.hasLocalControl()) {
             stopSelf();
             return START_NOT_STICKY;
         }
@@ -109,7 +111,9 @@ public final class UnlockMonitorService extends Service {
 
     private void handleUnlock() {
         CompanionPreferences.Configuration configuration = CompanionPreferences.load(this);
-        if (!CompanionPreferences.isLocalEnabled(this) || !configuration.isValid()) {
+        if (!CompanionPreferences.isLocalEnabled(this)
+                || !configuration.isValid()
+                || !configuration.hasLocalControl()) {
             return;
         }
         if (!hasWifiTransport()) {
@@ -147,6 +151,7 @@ public final class UnlockMonitorService extends Service {
         CompanionPreferences.Configuration configuration = CompanionPreferences.load(this);
         if (!CompanionPreferences.isLocalEnabled(this)
                 || !configuration.isValid()
+                || !configuration.hasLocalControl()
                 || !CameraUploadCoordinator.hasMediaPermission(this)
                 || !hasWifiTransport()) {
             return;

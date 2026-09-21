@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 
 import { createProject } from "@citxr/project-format";
 
+import { browserRandomUuid } from "../browser-random-uuid.js";
 import type { Translate } from "../i18n.js";
 import type { ProjectSummaryView, RuntimeClient } from "../runtime-client.js";
 
@@ -37,7 +38,7 @@ export function ProjectsView({
     run(async () => {
       const now = new Date().toISOString();
       const project = createProject({
-        projectId: crypto.randomUUID(),
+        projectId: browserRandomUuid(),
         name: `Project ${projects.length + 1}`,
         now,
       });

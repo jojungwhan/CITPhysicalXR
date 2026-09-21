@@ -63,7 +63,7 @@ async def _run(arguments: argparse.Namespace) -> dict[str, object]:
     await client.connect()
     try:
         if arguments.operation == "inventory":
-            return _inventory(client, await _local_bluetooth_status())
+            return _inventory(client, await _controller_bluetooth_status(client))
         if arguments.operation == "discover":
             devices = await client.discover_commissionable_devices()
             return {
@@ -101,7 +101,7 @@ async def _run(arguments: argparse.Namespace) -> dict[str, object]:
                 "MATTER_SETUP_CODE_INVALID",
                 "The entered Matter setup code is not a valid manual or QR setup code.",
             ) from error
-        bluetooth_status = await _local_bluetooth_status()
+        bluetooth_status = await _controller_bluetooth_status(client)
         if bluetooth_status != "ready":
             on_network_devices = await client.discover_commissionable_devices()
             if not on_network_devices:
@@ -165,6 +165,14 @@ async def _local_bluetooth_status() -> BluetoothStatus:
     except (OSError, RuntimeError):
         return "unavailable"
     return "ready"
+
+
+async def _controller_bluetooth_status(client: MatterServerClient) -> BluetoothStatus:
+    status = await _local_bluetooth_status()
+    if status == "unsupported_host" and client.server_info.get("bluetooth_enabled") is True:
+        # On Linux, the pinned Matter server owns the selected HCI adapter directly.
+        return "ready"
+    return status
 
 
 def _bluetooth_error(status: BluetoothStatus) -> MatterAdminError:

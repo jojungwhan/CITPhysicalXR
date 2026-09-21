@@ -19,18 +19,26 @@ final class UnlockClient {
     private UnlockClient() {
     }
 
-    static synchronized Result send(
+    static Result send(
             Context context,
             CompanionPreferences.Configuration configuration
     ) {
-        return sendRequest(configuration, CompanionPreferences.nextSequence(context), false);
+        return PhoneRequestCoordinator.run(configuration.deviceId, () -> sendRequest(
+                configuration,
+                CompanionPreferences.nextSequence(context, configuration),
+                false
+        ));
     }
 
-    static synchronized Result toggle(
+    static Result toggle(
             Context context,
             CompanionPreferences.Configuration configuration
     ) {
-        return sendRequest(configuration, CompanionPreferences.nextSequence(context), true);
+        return PhoneRequestCoordinator.run(configuration.deviceId, () -> sendRequest(
+                configuration,
+                CompanionPreferences.nextSequence(context, configuration),
+                true
+        ));
     }
 
     private static Result sendRequest(

@@ -86,6 +86,13 @@ adapter; standard Matter 1.3 electrical telemetry is advertised only when the
 endpoint actually exposes it. Retired proprietary-LAN plug adapters are not
 part of the runtime.
 
+An optional per-site Linux gateway now keeps that same Matter boundary local
+while exposing only signed explicit plug state/ON/OFF requests through a
+tailnet-only Tailscale Serve mount. One companion can retain independent CIT
+and home identities. The remote Host is denied every non-plug route, callers
+cannot supply node IDs, and requests are never queued. The Studio, generic
+Fabric credentials, robots, printers, cameras, and unlock events remain local.
+
 The same console now has a separate ephemeral media plane and semantic sensor
 projection. Camera publishers replace one bounded in-memory JPEG/PNG; the page
 shows a latest-frame wall and can run local, tutor-triggered YOLO-World analysis

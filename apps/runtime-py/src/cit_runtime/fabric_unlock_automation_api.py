@@ -170,21 +170,23 @@ def install_fabric_unlock_automation_api(
                 "UNLOCK_AUTOMATION_APK_UNAVAILABLE",
                 "Build the Control Tower Companion APK before pairing the phone.",
             )
-        if lan_access is None or not lan_access.enabled or service.lan_origin is None:
+        local_pairing = service.lan_origin is not None
+        if local_pairing and (lan_access is None or not lan_access.enabled):
             raise UnlockAutomationError(
                 "UNLOCK_AUTOMATION_LAN_UNAVAILABLE",
                 "Enable local Wi-Fi access before pairing the phone.",
             )
         try:
-            wifi_identity = await android_controller.wifi_identity()
-            candidate = service.create_pairing(body.displayName or wifi_identity.display_name)
+            wifi_identity = await android_controller.wifi_identity() if local_pairing else None
+            candidate = service.create_pairing(body.displayName)
             await android_controller.install_unlock_companion(
                 apk_path,
                 candidate.provisioning_uri,
             )
         except AndroidControllerError as error:
             raise UnlockAutomationError(error.code, str(error)) from error
-        lan_access.add_device(wifi_identity.display_name, wifi_identity.mac_address)
+        if wifi_identity is not None and lan_access is not None:
+            lan_access.add_device(wifi_identity.display_name, wifi_identity.mac_address)
         service.commit_pairing(candidate)
         _audit(
             get_repository(),
@@ -195,14 +197,14 @@ def install_fabric_unlock_automation_api(
             details={
                 "deviceId": candidate.device_id,
                 "transport": "one_time_usb_install",
-                "runtimeTransport": "local_wifi",
+                "runtimeTransport": "local_wifi" if local_pairing else "private_tailnet",
             },
         )
         return UnlockAutomationActionResult(
             accepted=True,
             message=(
                 "Control Tower Companion is paired. USB can now be disconnected; "
-                "enable the selected plugs separately."
+                "save the selected plugs separately."
             ),
             snapshot=await snapshot(),
         )
@@ -226,7 +228,7 @@ def install_fabric_unlock_automation_api(
         )
         return UnlockAutomationActionResult(
             accepted=True,
-            message="The wireless unlock companion is unpaired and automation is disabled.",
+            message="All phone companions are unpaired and automation is disabled.",
             snapshot=await snapshot(),
         )
 

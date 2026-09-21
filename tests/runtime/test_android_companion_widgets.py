@@ -34,7 +34,10 @@ def test_android_companion_exposes_separate_toggle_and_launcher_widgets() -> Non
     launcher_provider = (
         APP_ROOT / "java/com/cit/controltower/companion/ControlTowerLauncherWidgetProvider.java"
     ).read_text(encoding="utf-8")
-    assert "UnlockClient.toggle(" in toggle_provider
+    assert "RemotePlugClient.setPower(" in toggle_provider
+    assert "ACTION_SET_POWER" in toggle_provider
+    assert "EXTRA_ON" in toggle_provider
+    assert "UnlockClient.toggle(" not in toggle_provider
     assert "PendingIntent.getBroadcast(" in toggle_provider
     assert "MainActivity.class" not in toggle_provider
     assert "PendingIntent.getActivity(" in launcher_provider

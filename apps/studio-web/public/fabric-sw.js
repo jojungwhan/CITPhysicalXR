@@ -1,12 +1,14 @@
 /* global caches, self */
 
-const CACHE_NAME = "cit-classroom-control-v1";
+const BASE_PATH = new URL(self.registration.scope).pathname.replace(/\/$/, "");
+const CACHE_NAME = `cit-classroom-control-v3:${BASE_PATH}`;
+const CONSOLE_PATH = `${BASE_PATH}/fabric`;
 const APP_SHELL = [
-  "/fabric",
-  "/fabric.webmanifest",
-  "/favicon.svg",
-  "/icons/cit-control-192.png",
-  "/icons/cit-control-512.png",
+  CONSOLE_PATH,
+  `${BASE_PATH}/fabric.webmanifest`,
+  `${BASE_PATH}/favicon.svg`,
+  `${BASE_PATH}/icons/cit-control-192.png`,
+  `${BASE_PATH}/icons/cit-control-512.png`,
 ];
 
 self.addEventListener("install", (event) => {
@@ -40,31 +42,38 @@ self.addEventListener("fetch", (event) => {
   if (
     request.method !== "GET" ||
     url.origin !== self.location.origin ||
-    url.pathname.startsWith("/api/")
+    url.pathname.startsWith(`${BASE_PATH}/api/`)
   ) {
     return;
   }
 
-  if (request.mode === "navigate") {
+  if (
+    request.mode === "navigate" &&
+    url.pathname.replace(/\/$/, "") === CONSOLE_PATH
+  ) {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          const copy = response.clone();
-          void caches
-            .open(CACHE_NAME)
-            .then((cache) => cache.put("/fabric", copy));
+          if (response.ok) {
+            const copy = response.clone();
+            event.waitUntil(
+              caches
+                .open(CACHE_NAME)
+                .then((cache) => cache.put(CONSOLE_PATH, copy)),
+            );
+          }
           return response;
         })
-        .catch(() => caches.match("/fabric")),
+        .catch(() => caches.match(CONSOLE_PATH)),
     );
     return;
   }
 
   if (
-    url.pathname.startsWith("/assets/") ||
-    url.pathname.startsWith("/icons/") ||
-    url.pathname === "/favicon.svg" ||
-    url.pathname === "/fabric.webmanifest"
+    url.pathname.startsWith(`${BASE_PATH}/assets/`) ||
+    url.pathname.startsWith(`${BASE_PATH}/icons/`) ||
+    url.pathname === `${BASE_PATH}/favicon.svg` ||
+    url.pathname === `${BASE_PATH}/fabric.webmanifest`
   ) {
     event.respondWith(
       caches.match(request).then(

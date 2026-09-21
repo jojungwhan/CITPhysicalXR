@@ -1,8 +1,47 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { FabricClient } from "./fabric-client.js";
+import { FabricClient, fabricPageBasePath } from "./fabric-client.js";
 
 describe("Fabric client credentials", () => {
+  it("keeps the local /fabric route on the root API", () => {
+    expect(fabricPageBasePath({ pathname: "/fabric" })).toBe("");
+  });
+
+  it("keeps the hosting prefix when requesting the Fabric API", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        new Response(JSON.stringify({ identityId: "instructor-a" })),
+      );
+    const client = new FabricClient(undefined, fetchMock, {
+      pathname: "/citxr/fabric/",
+    });
+    client.setCredential("cit-instructor-" + "a".repeat(40));
+    await client.whoAmI();
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/citxr/api/v1/fabric/auth/whoami",
+    );
+  });
+
+  it("uses the page subpath when the console is hosted behind a URL prefix", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      new Response(JSON.stringify({ status: "ok" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+    const client = new FabricClient(undefined, fetchMock, {
+      pathname: "/citxr/index.html",
+    });
+    client.setCredential("cit-instructor-" + "a".repeat(40));
+
+    await client.whoAmI();
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/citxr/api/v1/fabric/auth/whoami",
+    );
+  });
+
   it("keeps the credential out of URLs and sends it only as a bearer header", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
       new Response(

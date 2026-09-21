@@ -156,10 +156,9 @@ async def test_android_controller_installs_and_provisions_wireless_companion_onc
     await service.install_unlock_companion(apk, pairing_uri)
 
     install = next(command for command in adb.commands if "install" in command)
-    clear = next(command for command in adb.commands if "pm" in command and "clear" in command)
     launch = next(command for command in adb.commands if pairing_uri in command)
     assert install[-3:] == ("install", "-r", str(apk.resolve()))
-    assert clear[-3:] == ("pm", "clear", "com.cit.controltower.companion")
+    assert not any("clear" in command for command in adb.commands)
     assert launch[-1] == pairing_uri
     assert "com.cit.controltower.companion/.MainActivity" in launch
 

@@ -8,6 +8,8 @@ import javax.crypto.spec.SecretKeySpec;
 final class UnlockProtocol {
     private static final String UNLOCK_DOMAIN = "cit-control-tower-unlock-v1";
     private static final String TOGGLE_DOMAIN = "cit-control-tower-toggle-v1";
+    private static final String REMOTE_POWER_DOMAIN = "cit-control-tower-remote-power-v1";
+    private static final String REMOTE_STATE_DOMAIN = "cit-control-tower-remote-state-v1";
 
     private UnlockProtocol() {
     }
@@ -28,6 +30,26 @@ final class UnlockProtocol {
             long occurredAtEpochMs
     ) {
         return canonical(TOGGLE_DOMAIN, deviceId, eventId, sequence, occurredAtEpochMs);
+    }
+
+    static String remoteStateCanonical(
+            String deviceId,
+            String eventId,
+            long sequence,
+            long occurredAtEpochMs
+    ) {
+        return canonical(REMOTE_STATE_DOMAIN, deviceId, eventId, sequence, occurredAtEpochMs);
+    }
+
+    static String remotePowerCanonical(
+            String deviceId,
+            String eventId,
+            long sequence,
+            long occurredAtEpochMs,
+            boolean on
+    ) {
+        return canonical(REMOTE_POWER_DOMAIN, deviceId, eventId, sequence, occurredAtEpochMs)
+                + "\n" + (on ? "1" : "0");
     }
 
     private static String canonical(
@@ -64,6 +86,33 @@ final class UnlockProtocol {
         return signature(
                 secret,
                 toggleCanonical(deviceId, eventId, sequence, occurredAtEpochMs)
+        );
+    }
+
+    static String remoteStateSignature(
+            String secret,
+            String deviceId,
+            String eventId,
+            long sequence,
+            long occurredAtEpochMs
+    ) throws Exception {
+        return signature(
+                secret,
+                remoteStateCanonical(deviceId, eventId, sequence, occurredAtEpochMs)
+        );
+    }
+
+    static String remotePowerSignature(
+            String secret,
+            String deviceId,
+            String eventId,
+            long sequence,
+            long occurredAtEpochMs,
+            boolean on
+    ) throws Exception {
+        return signature(
+                secret,
+                remotePowerCanonical(deviceId, eventId, sequence, occurredAtEpochMs, on)
         );
     }
 

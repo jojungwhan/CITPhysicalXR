@@ -14,13 +14,15 @@ export async function registerFabricPwa(
   serviceWorker: ServiceWorkerRegistrar | undefined = navigator.serviceWorker,
   origin = window.location.origin,
 ): Promise<void> {
-  if (
-    serviceWorker === undefined ||
-    !location.pathname.replace(/\/$/, "").endsWith("/fabric")
-  ) {
+  const pathname = location.pathname.replace(/\/+$/, "");
+  if (serviceWorker === undefined || !pathname.endsWith("/fabric")) {
     return;
   }
-  await serviceWorker.register(new URL("/fabric-sw.js", origin).toString(), {
-    scope: "/",
-  });
+  const basePath = pathname.slice(0, -"/fabric".length);
+  await serviceWorker.register(
+    new URL(`${basePath}/fabric-sw.js`, origin).toString(),
+    {
+      scope: `${basePath}/`,
+    },
+  );
 }

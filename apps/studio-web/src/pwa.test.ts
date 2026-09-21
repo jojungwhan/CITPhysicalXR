@@ -17,6 +17,25 @@ describe("Fabric Android PWA registration", () => {
     });
   });
 
+  it("keeps a prefixed hosted console on the same prefix", async () => {
+    const register = vi
+      .fn()
+      .mockResolvedValue({ scope: "https://cit.test/citxr/" });
+
+    await registerFabricPwa(
+      { pathname: "/citxr/fabric" },
+      { register },
+      "https://cit.test",
+    );
+
+    expect(register).toHaveBeenCalledWith(
+      "https://cit.test/citxr/fabric-sw.js",
+      {
+        scope: "/citxr/",
+      },
+    );
+  });
+
   it("does not install a device-control worker on unrelated Studio routes", async () => {
     const register = vi.fn();
 
@@ -26,6 +45,16 @@ describe("Fabric Android PWA registration", () => {
       "https://cit.test",
     );
 
+    expect(register).not.toHaveBeenCalled();
+  });
+
+  it("does not install a Fabric worker on the separate Classroom app", async () => {
+    const register = vi.fn();
+    await registerFabricPwa(
+      { pathname: "/citxr/index.html" },
+      { register },
+      "https://cit.test",
+    );
     expect(register).not.toHaveBeenCalled();
   });
 });

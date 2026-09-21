@@ -8,8 +8,10 @@ import hashlib
 import hmac
 import ipaddress
 import json
+import os
 import re
 import secrets
+import tempfile
 import threading
 from collections.abc import Awaitable, Callable, Iterable, Mapping
 from dataclasses import dataclass, field
@@ -38,9 +40,13 @@ from .fabric_camera_ftp import CameraFtpCredentials, derive_camera_ftp_password
 
 _UNLOCK_SIGNING_DOMAIN = "cit-control-tower-unlock-v1"
 _TOGGLE_SIGNING_DOMAIN = "cit-control-tower-toggle-v1"
+_REMOTE_POWER_SIGNING_DOMAIN = "cit-control-tower-remote-power-v1"
+_REMOTE_STATE_SIGNING_DOMAIN = "cit-control-tower-remote-state-v1"
 _SIGNATURE = re.compile(r"^[0-9a-fA-F]{64}$")
 _NODE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+_SITE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _DEVICE_ID = re.compile(r"^android-[a-f0-9]{16}$")
+_TAILSCALE_HOST = re.compile(r"^(?=.{1,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+ts\.net$")
 _PRIVATE_NETWORKS = tuple(
     ipaddress.ip_network(value) for value in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
 )
@@ -92,6 +98,14 @@ class UnlockAutomationOperations(BaseModel):
     installAndPair: bool
 
 
+class RemotePlugAccessSnapshot(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    siteId: str
+    displayName: str
+    origin: str
+
+
 class UnlockAutomationSnapshot(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -100,6 +114,8 @@ class UnlockAutomationSnapshot(BaseModel):
     selectedNodeIds: list[str]
     cooldownSeconds: int
     companion: UnlockAutomationCompanion | None = None
+    companions: list[UnlockAutomationCompanion] = Field(default_factory=list, max_length=8)
+    remoteAccess: RemotePlugAccessSnapshot | None = None
     lastResult: UnlockAutomationLastResult | None = None
     operations: UnlockAutomationOperations
 
@@ -180,6 +196,49 @@ class ToggleEventResult(BaseModel):
     message: str
 
 
+class RemotePlugPowerRequest(UnlockEventRequest):
+    """One explicit desired-state request from a paired companion."""
+
+    on: bool
+
+
+class RemotePlugStateRequest(UnlockEventRequest):
+    """One authenticated request for the saved plug group's current state."""
+
+
+class RemotePlugState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    nodeId: str
+    displayName: str = Field(min_length=1, max_length=160)
+    available: bool
+    on: bool | None = None
+
+
+class RemotePlugSiteState(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schemaVersion: Literal["1.0"] = "1.0"
+    siteId: str
+    displayName: str
+    generatedAt: datetime
+    plugs: list[RemotePlugState] = Field(max_length=8)
+
+
+class RemotePlugPowerResult(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schemaVersion: Literal["1.0"] = "1.0"
+    siteId: str
+    displayName: str
+    accepted: bool
+    outcome: Literal["succeeded", "failed"]
+    requestedCount: int = Field(ge=0, le=8)
+    acceptedCount: int = Field(ge=0, le=8)
+    on: bool
+    message: str = Field(min_length=1, max_length=300)
+
+
 class UnlockPowerResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -209,6 +268,7 @@ class _StoredUnlockAutomation(BaseModel):
     selectedNodeIds: list[str] = Field(default_factory=list, max_length=8)
     cooldownSeconds: int = Field(default=_DEFAULT_COOLDOWN_SECONDS, ge=5, le=300)
     companion: _StoredCompanion | None = None
+    remoteCompanions: list[_StoredCompanion] = Field(default_factory=list, max_length=7)
     lastAcceptedAt: datetime | None = None
     lastResult: UnlockAutomationLastResult | None = None
 
@@ -224,21 +284,28 @@ class UnlockPairingCandidate:
 
 UnlockCommandRunner = Callable[[tuple[str, ...], str, str], Awaitable[UnlockPowerResult]]
 ToggleCommandRunner = Callable[[tuple[str, ...], str, str], Awaitable[UnlockPowerResult]]
+RemotePowerCommandRunner = Callable[[tuple[str, ...], str, str, bool], Awaitable[UnlockPowerResult]]
 
 
 class UnlockAutomationService:
-    """Persist one paired phone and accept non-replayable signed unlock events."""
+    """Persist a primary phone and independent remote-only plug-control pairings."""
 
     def __init__(
         self,
         *,
         state_path: str | Path,
         lan_origin: str | None,
+        remote_origin: str | None = None,
+        site_id: str = "local-site",
+        site_name: str = "Control Tower",
         companion_apk_path: str | Path | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self._state_path = Path(state_path).resolve()
         self._lan_origin = _validated_lan_origin(lan_origin)
+        self._remote_origin = _validated_remote_origin(remote_origin)
+        self._site_id = _validated_site_id(site_id)
+        self._site_name = _validated_site_name(site_name)
         self._companion_apk_path = (
             Path(companion_apk_path).resolve() if companion_apk_path is not None else None
         )
@@ -252,20 +319,49 @@ class UnlockAutomationService:
         return self._lan_origin
 
     @property
+    def remote_origin(self) -> str | None:
+        return self._remote_origin
+
+    @property
+    def site_id(self) -> str:
+        return self._site_id
+
+    @property
+    def site_name(self) -> str:
+        return self._site_name
+
+    @property
     def companion_apk_path(self) -> Path | None:
         return self._companion_apk_path
 
     def can_install_and_pair(self) -> bool:
         return (
-            self._lan_origin is not None
+            (self._lan_origin is not None or self._remote_origin is not None)
             and self._companion_apk_path is not None
             and self._companion_apk_path.is_file()
             and self._companion_apk_path.suffix.casefold() == ".apk"
+            and len(self._paired_companions()) < 8
         )
 
     def has_companion(self) -> bool:
         with self._state_lock:
             return self._state.companion is not None
+
+    def _paired_companions(self) -> tuple[_StoredCompanion, ...]:
+        primary = (self._state.companion,) if self._state.companion is not None else ()
+        return (*primary, *self._state.remoteCompanions)
+
+    def _require_pairing_capacity(self) -> None:
+        if self._state.companion is not None and self._remote_origin is None:
+            raise UnlockAutomationError(
+                "UNLOCK_AUTOMATION_PHONE_ALREADY_PAIRED",
+                "Unpair the current Android companion before pairing another phone.",
+            )
+        if len(self._paired_companions()) >= 8:
+            raise UnlockAutomationError(
+                "UNLOCK_AUTOMATION_PHONE_LIMIT",
+                "A gateway supports at most eight paired phones.",
+            )
 
     def camera_ftp_credentials(self) -> CameraFtpCredentials | None:
         """Return protocol-separated FTP credentials for the paired phone."""
@@ -302,6 +398,24 @@ class UnlockAutomationService:
                 selectedNodeIds=list(self._state.selectedNodeIds),
                 cooldownSeconds=self._state.cooldownSeconds,
                 companion=public_companion,
+                companions=[
+                    UnlockAutomationCompanion(
+                        deviceId=phone.deviceId,
+                        displayName=phone.displayName,
+                        pairedAt=phone.pairedAt,
+                        lastSeenAt=phone.lastSeenAt,
+                    )
+                    for phone in self._paired_companions()
+                ],
+                remoteAccess=(
+                    RemotePlugAccessSnapshot(
+                        siteId=self._site_id,
+                        displayName=self._site_name,
+                        origin=self._remote_origin,
+                    )
+                    if self._remote_origin is not None
+                    else None
+                ),
                 lastResult=(
                     self._state.lastResult.model_copy(deep=True)
                     if self._state.lastResult is not None
@@ -314,29 +428,41 @@ class UnlockAutomationService:
             )
 
     def create_pairing(self, display_name: str) -> UnlockPairingCandidate:
-        if self._lan_origin is None:
+        if self._lan_origin is None and self._remote_origin is None:
             raise UnlockAutomationError(
                 "UNLOCK_AUTOMATION_LAN_UNAVAILABLE",
-                "Enable the Control Tower local-network address before pairing the phone.",
+                "Enable a local-network or private remote address before pairing the phone.",
             )
-        if self.has_companion():
-            raise UnlockAutomationError(
-                "UNLOCK_AUTOMATION_PHONE_ALREADY_PAIRED",
-                "Unpair the current Android companion before pairing another phone.",
-            )
+        with self._state_lock:
+            self._require_pairing_capacity()
+            additional_phone = self._state.companion is not None
         normalized_name = UnlockAutomationPairRequest(displayName=display_name).displayName
         device_id = f"android-{secrets.token_hex(8)}"
         secret = secrets.token_urlsafe(32)
         paired_at = _aware_utc(self._clock())
+        pairing_document: dict[str, object]
+        if self._remote_origin is None:
+            pairing_document = {
+                "origin": self._lan_origin,
+                "deviceId": device_id,
+                "secret": secret,
+                "name": normalized_name,
+            }
+        else:
+            pairing_document = {
+                "schemaVersion": "2.0",
+                "origin": "" if additional_phone else (self._lan_origin or ""),
+                "remoteOrigin": self._remote_origin,
+                "deviceId": device_id,
+                "secret": secret,
+                "name": normalized_name,
+                "siteId": self._site_id,
+                "siteName": self._site_name,
+            }
         provisioning_payload = (
             base64.urlsafe_b64encode(
                 json.dumps(
-                    {
-                        "origin": self._lan_origin,
-                        "deviceId": device_id,
-                        "secret": secret,
-                        "name": normalized_name,
-                    },
+                    pairing_document,
                     ensure_ascii=False,
                     separators=(",", ":"),
                 ).encode("utf-8")
@@ -354,15 +480,24 @@ class UnlockAutomationService:
 
     def commit_pairing(self, candidate: UnlockPairingCandidate) -> UnlockAutomationSnapshot:
         with self._state_lock:
-            self._state.companion = _StoredCompanion(
+            self._require_pairing_capacity()
+            if any(phone.deviceId == candidate.device_id for phone in self._paired_companions()):
+                raise UnlockAutomationError(
+                    "UNLOCK_AUTOMATION_PHONE_ALREADY_PAIRED", "This phone is already paired."
+                )
+            companion = _StoredCompanion(
                 deviceId=candidate.device_id,
                 displayName=candidate.display_name,
                 secret=candidate.secret,
                 pairedAt=candidate.paired_at,
             )
-            self._state.enabled = False
-            self._state.lastAcceptedAt = None
-            self._state.lastResult = None
+            if self._state.companion is None:
+                self._state.companion = companion
+                self._state.enabled = False
+                self._state.lastAcceptedAt = None
+                self._state.lastResult = None
+            else:
+                self._state.remoteCompanions.append(companion)
             self._save()
         return self.snapshot(can_manage=True, can_install_and_pair=self.can_install_and_pair())
 
@@ -370,6 +505,7 @@ class UnlockAutomationService:
         with self._state_lock:
             self._state.enabled = False
             self._state.companion = None
+            self._state.remoteCompanions = []
             self._state.lastAcceptedAt = None
             self._state.lastResult = None
             self._save()
@@ -525,28 +661,106 @@ class UnlockAutomationService:
                 message=power.message,
             )
 
+    def authenticate_remote_state(
+        self,
+        event: RemotePlugStateRequest,
+        signature: str,
+    ) -> tuple[str, ...]:
+        """Authenticate a fresh read without granting a general Fabric credential."""
+
+        _, selected_node_ids, _, _ = self._authenticate_and_record_event(
+            event,
+            signature,
+            signing_domain=_REMOTE_STATE_SIGNING_DOMAIN,
+            at=_aware_utc(self._clock()),
+        )
+        return selected_node_ids
+
+    async def accept_remote_power(
+        self,
+        event: RemotePlugPowerRequest,
+        signature: str,
+        command_runner: RemotePowerCommandRunner,
+    ) -> RemotePlugPowerResult:
+        """Authenticate and apply one explicit desired state to the saved group."""
+
+        async with self._event_lock:
+            _, selected_node_ids, _, _ = self._authenticate_and_record_event(
+                event,
+                signature,
+                signing_domain=_REMOTE_POWER_SIGNING_DOMAIN,
+                signed_payload=signed_remote_power_payload(event),
+                at=_aware_utc(self._clock()),
+            )
+            if not selected_node_ids:
+                return RemotePlugPowerResult(
+                    siteId=self._site_id,
+                    displayName=self._site_name,
+                    accepted=False,
+                    outcome="failed",
+                    requestedCount=0,
+                    acceptedCount=0,
+                    on=event.on,
+                    message="No Matter smart plugs are saved for phone control at this site.",
+                )
+            try:
+                power = await command_runner(
+                    selected_node_ids,
+                    event.deviceId,
+                    str(event.eventId),
+                    event.on,
+                )
+            except Exception:
+                return RemotePlugPowerResult(
+                    siteId=self._site_id,
+                    displayName=self._site_name,
+                    accepted=False,
+                    outcome="failed",
+                    requestedCount=len(selected_node_ids),
+                    acceptedCount=0,
+                    on=event.on,
+                    message="Control Tower could not prepare the remote smart-plug command.",
+                )
+            succeeded = power.acceptedCount == power.requestedCount and power.requestedCount > 0
+            return RemotePlugPowerResult(
+                siteId=self._site_id,
+                displayName=self._site_name,
+                accepted=succeeded,
+                outcome="succeeded" if succeeded else "failed",
+                requestedCount=power.requestedCount,
+                acceptedCount=power.acceptedCount,
+                on=event.on,
+                message=power.message,
+            )
+
     def _authenticate_and_record_event(
         self,
         event: UnlockEventRequest,
         signature: str,
         *,
         signing_domain: str,
+        signed_payload: bytes | None = None,
         at: datetime,
     ) -> tuple[bool, tuple[str, ...], datetime | None, int]:
         with self._state_lock:
             companion = self._state.companion
+            if signing_domain in (_REMOTE_POWER_SIGNING_DOMAIN, _REMOTE_STATE_SIGNING_DOMAIN):
+                companion = next(
+                    (
+                        phone
+                        for phone in self._paired_companions()
+                        if phone.deviceId == event.deviceId
+                    ),
+                    None,
+                )
             if companion is None or companion.deviceId != event.deviceId:
                 raise UnlockAutomationError(
                     "UNLOCK_AUTOMATION_DEVICE_DENIED",
                     "This phone is not paired for Control Tower automation.",
                     status_code=401,
                 )
-            if not _valid_signature(
-                event,
-                signature,
-                companion.secret,
-                signing_domain=signing_domain,
-            ):
+            payload = signed_payload or _signed_phone_payload(signing_domain, event)
+            if not _valid_signature(payload, signature, companion.secret):
                 raise UnlockAutomationError(
                     "UNLOCK_AUTOMATION_SIGNATURE_INVALID",
                     "The phone event signature is invalid.",
@@ -615,17 +829,25 @@ class UnlockAutomationService:
             ) from error
 
     def _save(self) -> None:
-        self._state_path.parent.mkdir(parents=True, exist_ok=True)
-        temporary_path = self._state_path.with_suffix(self._state_path.suffix + ".tmp")
+        self._state_path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        temporary_path: Path | None = None
         try:
-            temporary_path.write_text(
-                self._state.model_dump_json(indent=2) + "\n",
-                encoding="utf-8",
+            descriptor, raw_path = tempfile.mkstemp(
+                prefix=f".{self._state_path.name}.",
+                suffix=".tmp",
+                dir=self._state_path.parent,
             )
+            temporary_path = Path(raw_path)
+            with os.fdopen(descriptor, "w", encoding="utf-8", newline="\n") as handle:
+                handle.write(self._state.model_dump_json(indent=2) + "\n")
+                handle.flush()
+                os.fsync(handle.fileno())
             temporary_path.replace(self._state_path)
+            self._state_path.chmod(0o600)
         except OSError as error:
             try:
-                temporary_path.unlink(missing_ok=True)
+                if temporary_path is not None:
+                    temporary_path.unlink(missing_ok=True)
             except OSError:
                 pass
             raise UnlockAutomationError(
@@ -658,6 +880,33 @@ def sign_toggle_event(event: ToggleEventRequest, secret: str) -> str:
     return hmac.new(
         secret.encode("ascii"),
         signed_toggle_payload(event),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def signed_remote_state_payload(event: RemotePlugStateRequest) -> bytes:
+    return _signed_phone_payload(_REMOTE_STATE_SIGNING_DOMAIN, event)
+
+
+def sign_remote_state_event(event: RemotePlugStateRequest, secret: str) -> str:
+    return hmac.new(
+        secret.encode("ascii"),
+        signed_remote_state_payload(event),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def signed_remote_power_payload(event: RemotePlugPowerRequest) -> bytes:
+    desired_state = "1" if event.on else "0"
+    return _signed_phone_payload(_REMOTE_POWER_SIGNING_DOMAIN, event) + (
+        f"\n{desired_state}".encode("ascii")
+    )
+
+
+def sign_remote_power_event(event: RemotePlugPowerRequest, secret: str) -> str:
+    return hmac.new(
+        secret.encode("ascii"),
+        signed_remote_power_payload(event),
         hashlib.sha256,
     ).hexdigest()
 
@@ -718,6 +967,63 @@ async def toggle_configured_smart_plugs(
     )
 
 
+async def set_configured_smart_plugs(
+    fabric: InteractionFabric,
+    node_ids: tuple[str, ...],
+    actor_id: str,
+    event_id: str,
+    on: bool,
+    *,
+    clock: Callable[[], datetime] | None = None,
+) -> UnlockPowerResult:
+    """Set an exact saved group to an explicit state for remote phone control."""
+
+    return await _set_configured_smart_plugs(
+        fabric,
+        node_ids,
+        actor_id,
+        event_id,
+        requested_on=on,
+        idempotency_scope="phone-remote-power",
+        clock=clock,
+    )
+
+
+def configured_smart_plug_state(
+    fabric: InteractionFabric,
+    node_ids: tuple[str, ...],
+    *,
+    site_id: str,
+    site_name: str,
+    at: datetime,
+) -> RemotePlugSiteState:
+    """Return only the state of the exact locally approved phone-control group."""
+
+    nodes_by_id = {node.nodeId: node for node in fabric.list_nodes()}
+    plugs: list[RemotePlugState] = []
+    for node_id in node_ids:
+        node = nodes_by_id.get(node_id)
+        available = (
+            node is not None
+            and _is_smart_plug_node(node)
+            and node.connectionState is FabricNodeConnectionState.connected
+        )
+        plugs.append(
+            RemotePlugState(
+                nodeId=node_id,
+                displayName=node.displayName if node is not None else node_id,
+                available=available,
+                on=_reported_power_state(node) if available and node is not None else None,
+            )
+        )
+    return RemotePlugSiteState(
+        siteId=_validated_site_id(site_id),
+        displayName=_validated_site_name(site_name),
+        generatedAt=_aware_utc(at),
+        plugs=plugs,
+    )
+
+
 async def _set_configured_smart_plugs(
     fabric: InteractionFabric,
     node_ids: tuple[str, ...],
@@ -745,7 +1051,7 @@ async def _set_configured_smart_plugs(
         or not _is_smart_plug_node(node)
         or node.connectionState is not FabricNodeConnectionState.connected
     ]
-    if unavailable:
+    if unavailable and requested_on is not False:
         return UnlockPowerResult(
             requestedCount=len(node_ids),
             acceptedCount=0,
@@ -754,7 +1060,17 @@ async def _set_configured_smart_plugs(
                 "At least one configured Matter smart plug is not connected; none were switched."
             ),
         )
-    exact_nodes = [node for node in nodes if node is not None]
+    unavailable_set = frozenset(unavailable)
+    actionable_node_ids = tuple(node_id for node_id in node_ids if node_id not in unavailable_set)
+    exact_nodes = [nodes_by_id[node_id] for node_id in actionable_node_ids]
+    if not exact_nodes:
+        return UnlockPowerResult(
+            requestedCount=len(node_ids),
+            acceptedCount=0,
+            failedNodeIds=list(node_ids),
+            on=requested_on,
+            message="No configured Matter smart plugs were connected; none could be switched off.",
+        )
     scopes = {(node.siteId, node.roomId) for node in exact_nodes}
     if len(scopes) != 1:
         return UnlockPowerResult(
@@ -781,7 +1097,7 @@ async def _set_configured_smart_plugs(
 
     session = _preferred_automation_session(
         fabric,
-        node_ids,
+        actionable_node_ids,
         nodes_by_id,
         actor_id=actor_id,
     )
@@ -818,11 +1134,14 @@ async def _set_configured_smart_plugs(
         )
         return node_id, await fabric.submit_command(request)
 
-    submitted = await asyncio.gather(*(submit(node_id) for node_id in node_ids))
-    failed = [
+    submitted = await asyncio.gather(*(submit(node_id) for node_id in actionable_node_ids))
+    command_failed = {
         node_id
         for node_id, lifecycle in submitted
         if not lifecycle or lifecycle[-1].stage in _FAILED_COMMAND_STAGES
+    }
+    failed = [
+        node_id for node_id in node_ids if node_id in command_failed or node_id in unavailable_set
     ]
     accepted_count = len(node_ids) - len(failed)
     return UnlockPowerResult(
@@ -834,7 +1153,12 @@ async def _set_configured_smart_plugs(
             f"Turn-{'on' if desired_on else 'off'} was accepted for "
             f"{accepted_count} configured Matter smart plugs."
             if not failed
-            else "Control Tower rejected at least one configured Matter smart-plug command."
+            else (
+                f"Turn-off was accepted for {accepted_count} of {len(node_ids)} configured "
+                "Matter smart plugs; verify the unavailable or rejected plugs."
+                if desired_on is False and accepted_count > 0
+                else "Control Tower rejected at least one configured Matter smart-plug command."
+            )
         ),
     )
 
@@ -848,18 +1172,12 @@ def _reported_power_state(node: IntegrationNode) -> bool | None:
     return on if isinstance(on, bool) else None
 
 
-def _valid_signature(
-    event: UnlockEventRequest,
-    signature: str,
-    secret: str,
-    *,
-    signing_domain: str,
-) -> bool:
+def _valid_signature(payload: bytes, signature: str, secret: str) -> bool:
     if _SIGNATURE.fullmatch(signature) is None:
         return False
     expected = hmac.new(
         secret.encode("ascii"),
-        _signed_phone_payload(signing_domain, event),
+        payload,
         hashlib.sha256,
     ).hexdigest()
     return hmac.compare_digest(expected, signature.casefold())
@@ -1004,6 +1322,46 @@ def _validated_lan_origin(value: str | None) -> str | None:
     ):
         raise ValueError("Unlock automation requires an exact private IPv4 LAN origin")
     return f"{parsed.scheme}://{address}:{port}"
+
+
+def _validated_remote_origin(value: str | None) -> str | None:
+    if value is None:
+        return None
+    parsed = urlsplit(value)
+    try:
+        port = parsed.port
+    except ValueError as error:
+        raise ValueError("Remote plug access requires an exact Tailscale HTTPS origin") from error
+    hostname = (parsed.hostname or "").casefold()
+    if (
+        parsed.scheme != "https"
+        or _TAILSCALE_HOST.fullmatch(hostname) is None
+        or port not in {None, 443}
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.path not in {"", "/"}
+        or parsed.query
+        or parsed.fragment
+    ):
+        raise ValueError("Remote plug access requires an exact Tailscale HTTPS origin")
+    return f"https://{hostname}"
+
+
+def _validated_site_id(value: str) -> str:
+    if _SITE_ID.fullmatch(value) is None:
+        raise ValueError("Remote plug site ID is invalid")
+    return value
+
+
+def _validated_site_name(value: str) -> str:
+    normalized = " ".join(value.split())
+    if (
+        not 1 <= len(normalized) <= 80
+        or normalized != value.strip()
+        or any(ord(character) < 32 or ord(character) == 127 for character in normalized)
+    ):
+        raise ValueError("Remote plug site name must contain 1 to 80 printable characters")
+    return normalized
 
 
 def _aware_utc(value: datetime) -> datetime:
