@@ -45,7 +45,7 @@ _REMOTE_STATE_SIGNING_DOMAIN = "cit-control-tower-remote-state-v1"
 _SIGNATURE = re.compile(r"^[0-9a-fA-F]{64}$")
 _NODE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _SITE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
-_DEVICE_ID = re.compile(r"^android-[a-f0-9]{16}$")
+_DEVICE_ID = re.compile(r"^(?:android|desktop)-[a-f0-9]{16}$")
 _TAILSCALE_HOST = re.compile(r"^(?=.{1,253}\Z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+ts\.net$")
 _PRIVATE_NETWORKS = tuple(
     ipaddress.ip_network(value) for value in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
@@ -200,6 +200,14 @@ class RemotePlugPowerRequest(UnlockEventRequest):
     """One explicit desired-state request from a paired companion."""
 
     on: bool
+    selectedNodeIds: list[str] | None = Field(default=None, min_length=1, max_length=8)
+
+    @field_validator("selectedNodeIds")
+    @classmethod
+    def validate_selection(cls, value: list[str] | None) -> list[str] | None:
+        if value is not None:
+            UnlockAutomationConfigurationRequest.validate_node_ids(value)
+        return value
 
 
 class RemotePlugStateRequest(UnlockEventRequest):
@@ -427,7 +435,13 @@ class UnlockAutomationService:
                 ),
             )
 
-    def create_pairing(self, display_name: str) -> UnlockPairingCandidate:
+    def create_pairing(
+        self, display_name: str, *, device_kind: Literal["android", "desktop"] = "android"
+    ) -> UnlockPairingCandidate:
+        if device_kind == "desktop" and self._remote_origin is None:
+            raise UnlockAutomationError(
+                "REMOTE_PLUG_GATEWAY_REQUIRED", "Desktop pairing requires a private remote gateway."
+            )
         if self._lan_origin is None and self._remote_origin is None:
             raise UnlockAutomationError(
                 "UNLOCK_AUTOMATION_LAN_UNAVAILABLE",
@@ -437,7 +451,7 @@ class UnlockAutomationService:
             self._require_pairing_capacity()
             additional_phone = self._state.companion is not None
         normalized_name = UnlockAutomationPairRequest(displayName=display_name).displayName
-        device_id = f"android-{secrets.token_hex(8)}"
+        device_id = f"{device_kind}-{secrets.token_hex(8)}"
         secret = secrets.token_urlsafe(32)
         paired_at = _aware_utc(self._clock())
         pairing_document: dict[str, object]
@@ -692,6 +706,14 @@ class UnlockAutomationService:
                 signed_payload=signed_remote_power_payload(event),
                 at=_aware_utc(self._clock()),
             )
+            if event.selectedNodeIds is not None:
+                if not set(event.selectedNodeIds).issubset(selected_node_ids):
+                    raise UnlockAutomationError(
+                        "REMOTE_PLUG_SELECTION_DENIED",
+                        "Only plugs saved for remote control can be selected.",
+                        status_code=403,
+                    )
+                selected_node_ids = tuple(event.selectedNodeIds)
             if not selected_node_ids:
                 return RemotePlugPowerResult(
                     siteId=self._site_id,
@@ -742,6 +764,15 @@ class UnlockAutomationService:
         signed_payload: bytes | None = None,
         at: datetime,
     ) -> tuple[bool, tuple[str, ...], datetime | None, int]:
+        if event.deviceId.startswith("desktop-") and signing_domain not in (
+            _REMOTE_POWER_SIGNING_DOMAIN,
+            _REMOTE_STATE_SIGNING_DOMAIN,
+        ):
+            raise UnlockAutomationError(
+                "REMOTE_PLUG_ONLY",
+                "Desktop pairings can only access remote plug controls.",
+                status_code=403,
+            )
         with self._state_lock:
             companion = self._state.companion
             if signing_domain in (_REMOTE_POWER_SIGNING_DOMAIN, _REMOTE_STATE_SIGNING_DOMAIN):
@@ -898,9 +929,14 @@ def sign_remote_state_event(event: RemotePlugStateRequest, secret: str) -> str:
 
 def signed_remote_power_payload(event: RemotePlugPowerRequest) -> bytes:
     desired_state = "1" if event.on else "0"
-    return _signed_phone_payload(_REMOTE_POWER_SIGNING_DOMAIN, event) + (
+    payload = _signed_phone_payload(_REMOTE_POWER_SIGNING_DOMAIN, event) + (
         f"\n{desired_state}".encode("ascii")
     )
+    if event.selectedNodeIds is not None:
+        payload += b"\nselected-node-ids-v1\n" + json.dumps(
+            sorted(event.selectedNodeIds), separators=(",", ":")
+        ).encode("ascii")
+    return payload
 
 
 def sign_remote_power_event(event: RemotePlugPowerRequest, secret: str) -> str:

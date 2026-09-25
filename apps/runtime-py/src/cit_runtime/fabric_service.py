@@ -56,6 +56,8 @@ from .fabric_media import (
     configured_vision_detector,
 )
 from .fabric_media_api import install_fabric_media_api
+from .fabric_plug_gateway_api import install_plug_gateway_api
+from .fabric_plug_gateways import PlugGatewayService, configured_plug_gateways
 from .fabric_printer import (
     CrealityPrinterService,
     configured_creality_printer,
@@ -152,6 +154,7 @@ def create_fabric_app(
     lan_access_policy: LanMacAccessPolicy | None = None,
     unlock_automation_service: UnlockAutomationService | None = None,
     camera_ftp_server: CameraFtpServer | None = None,
+    plug_gateway_service: PlugGatewayService | None = None,
 ) -> FastAPI:
     """Create one independently authenticated Interaction Fabric process."""
 
@@ -203,6 +206,9 @@ def create_fabric_app(
         else None
     )
     configured_camera_ftp = camera_ftp_server
+    configured_gateways = plug_gateway_service or PlugGatewayService(
+        [], Path("gateway-sequences.sqlite3")
+    )
 
     repository: SQLiteFabricRepository | None = None
     fabric: InteractionFabric | None = None
@@ -278,12 +284,19 @@ def create_fabric_app(
                 stopped_sessions.append(session.sessionId)
         external = await active_connections().stop_nodes(reason="instructor_emergency_stop")
         failed_nodes = list(external["failed"])
+        stopped_gateways, failed_gateways = (
+            await configured_gateways.stop_all() if allow_physical_fabric else ([], [])
+        )
         return {
-            "status": "partial" if failed_sessions or failed_nodes else "completed",
+            "status": "partial"
+            if failed_sessions or failed_nodes or failed_gateways
+            else "completed",
             "stoppedSessionIds": stopped_sessions,
             "failedSessionIds": failed_sessions,
             "stoppedNodeIds": list(external["stopped"]),
             "failedNodeIds": failed_nodes,
+            "stoppedGatewayIds": stopped_gateways,
+            "failedGatewayIds": failed_gateways,
             "legacy": {"status": "not_configured"},
         }
 
@@ -570,6 +583,15 @@ def create_fabric_app(
             state_reader=read_remote_smart_plug_state,
             command_runner=run_remote_smart_plug_power,
         )
+
+    install_plug_gateway_api(
+        app,
+        service=configured_gateways,
+        get_auth=active_auth,
+        get_repository=active_repository,
+        clock=wall_clock,
+        allow_physical=allow_physical_fabric,
+    )
 
     @app.get("/api/v1/fabric/healthz")
     async def health() -> dict[str, str | bool | None]:
@@ -897,4 +919,8 @@ def create_persistent_fabric_app() -> FastAPI:
         lan_access_policy=lan_access,
         unlock_automation_service=unlock_automation,
         camera_ftp_server=camera_ftp,
+        plug_gateway_service=configured_plug_gateways(
+            os.environ.get("CITXR_PLUG_GATEWAYS", "[]"),
+            data_directory / "gateway-sequences.sqlite3",
+        ),
     )

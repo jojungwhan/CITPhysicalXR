@@ -2927,6 +2927,21 @@ main.fabric-main {
   letter-spacing: 0;
 }
 
+.fabric-gateway-plug-row {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+}
+
+.fabric-gateway-plug-row .fabric-plug-identity small {
+  display: block;
+}
+
+@media (min-width: 700px) {
+  .fabric-gateway-plug-row .fabric-plug-remote-actions {
+    grid-column: auto;
+    min-width: 180px;
+  }
+}
+
 .fabric-power-toggle {
   min-width: 5.5rem;
   min-height: 30px;

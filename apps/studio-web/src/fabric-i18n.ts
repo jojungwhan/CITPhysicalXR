@@ -12,6 +12,21 @@ import type {
 import type { Locale } from "./i18n.js";
 
 const EN = {
+  "gateway.title": "Gateway smart plugs",
+  "gateway.stateUnknown": "Unknown",
+  "gateway.stopResult":
+    "Gateways: {stopped} accepted OFF, {failed} could not confirm OFF.",
+  "gateway.connected": "{count} of {total} plugs connected",
+  "gateway.offline": "Gateway offline",
+  "gateway.offlineHelp":
+    "Connect Tailscale on this computer and check that the gateway is running. Plug states will refresh automatically.",
+  "gateway.group": "All gateway plugs",
+  "gateway.plug": "Plug {number}",
+  "gateway.accepted": "Command accepted. Checking the latest plug states.",
+  "gateway.partial":
+    "Some plugs did not accept the command. Check their current states.",
+  "gateway.unknownResult":
+    "The command result is unknown. Check the refreshed plug states before trying again.",
   "language.label": "Interface language",
   "language.ko": "한국어",
   "language.en": "English",
@@ -1462,6 +1477,21 @@ export type FabricMessageKey = keyof typeof EN;
 
 const KO: Record<FabricMessageKey, string> = {
   ...EN,
+  "gateway.title": "게이트웨이 스마트 플러그",
+  "gateway.stateUnknown": "상태 미확인",
+  "gateway.stopResult":
+    "게이트웨이: {stopped}곳 끄기 접수, {failed}곳 끄기 확인 불가.",
+  "gateway.connected": "플러그 {total}개 중 {count}개 연결됨",
+  "gateway.offline": "게이트웨이 연결 끊김",
+  "gateway.offlineHelp":
+    "이 컴퓨터의 Tailscale 연결과 게이트웨이 실행 상태를 확인하세요. 플러그 상태는 자동으로 새로 고침됩니다.",
+  "gateway.group": "게이트웨이 플러그 전체",
+  "gateway.plug": "플러그 {number}",
+  "gateway.accepted": "명령이 접수되었습니다. 최신 플러그 상태를 확인합니다.",
+  "gateway.partial":
+    "일부 플러그가 명령을 처리하지 못했습니다. 현재 상태를 확인하세요.",
+  "gateway.unknownResult":
+    "명령 결과를 확인할 수 없습니다. 다시 시도하기 전에 새로 고침된 플러그 상태를 확인하세요.",
   "language.label": "화면 언어",
   "document.title": "CIT Control Tower",
   "common.moreInfo": "자세히",

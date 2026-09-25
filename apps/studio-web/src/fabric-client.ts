@@ -8,6 +8,28 @@ import type {
   InteractionSession,
 } from "@citxr/protocol";
 
+export interface FabricPlugGateway {
+  siteId: string;
+  displayName: string;
+  connected: boolean;
+  canControl: boolean;
+  generatedAt: string | null;
+  message: string | null;
+  plugs: {
+    nodeId: string;
+    displayName: string;
+    available: boolean;
+    on?: boolean | null;
+  }[];
+}
+
+export interface FabricGatewayPowerResult {
+  accepted: boolean;
+  requestedCount: number;
+  acceptedCount: number;
+  message: string;
+}
+
 export interface FabricPrincipal {
   identityId: string;
   actorType: string;
@@ -44,6 +66,8 @@ export interface FabricStopAllResult {
   failedSessionIds: string[];
   stoppedNodeIds: string[];
   failedNodeIds: string[];
+  stoppedGatewayIds?: string[];
+  failedGatewayIds?: string[];
   legacy: unknown;
 }
 
@@ -645,6 +669,24 @@ export class FabricClient {
 
   whoAmI(): Promise<FabricPrincipal> {
     return this.#request("/api/v1/fabric/auth/whoami");
+  }
+
+  listPlugGateways(): Promise<FabricPlugGateway[]> {
+    return this.#request("/api/v1/fabric/plug-gateways");
+  }
+
+  setGatewayPlugPower(
+    siteId: string,
+    selectedNodeIds: string[],
+    on: boolean,
+  ): Promise<FabricGatewayPowerResult> {
+    return this.#request(
+      `/api/v1/fabric/plug-gateways/${encodeURIComponent(siteId)}/power`,
+      {
+        method: "POST",
+        body: JSON.stringify({ selectedNodeIds, on }),
+      },
+    );
   }
 
   async connectWithConsoleTicket(

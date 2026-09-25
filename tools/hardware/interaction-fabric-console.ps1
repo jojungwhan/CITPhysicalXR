@@ -621,6 +621,10 @@ function Start-Fabric([hashtable]$State, [string]$Credential) {
   if ($mediaIngressOrigin) {
     $processEnvironment.CITXR_MEDIA_INGRESS_ORIGIN = $mediaIngressOrigin
   }
+  $gatewaySecretPath = Join-Path $secretRoot "plug-gateways.dpapi"
+  if (Test-Path -LiteralPath $gatewaySecretPath -PathType Leaf) {
+    $processEnvironment.CITXR_PLUG_GATEWAYS = Read-ProtectedSecret $gatewaySecretPath
+  }
   if ($Brain2DevicesRoot) {
     $processEnvironment.CITXR_BRAIN2DEVICES_ROOT = $Brain2DevicesRoot
   }
