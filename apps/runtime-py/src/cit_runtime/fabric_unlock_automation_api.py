@@ -81,6 +81,36 @@ def install_fabric_unlock_automation_api(
 
     local_manager_dependency = Depends(local_manager)
 
+    @app.post("/api/v1/fabric/unlock-automation/desktop-pairings", status_code=201)
+    async def pair_desktop(
+        body: UnlockAutomationPairRequest,
+        principal: FabricPrincipal = local_manager_dependency,
+    ) -> dict[str, str]:
+        get_auth().require(principal, "fabric.auth.issue")
+        if any((principal.site_id, principal.room_id, principal.session_id)):
+            raise UnlockAutomationError(
+                "DESKTOP_PAIRING_SCOPE_DENIED",
+                "An unscoped local administrator is required.",
+                status_code=403,
+            )
+        candidate = service.create_pairing(body.displayName, device_kind="desktop")
+        service.commit_pairing(candidate)
+        _audit(
+            get_repository(),
+            principal.identity_id,
+            clock(),
+            action="fabric.plug_gateway.pair_desktop",
+            outcome="succeeded",
+            details={"deviceId": candidate.device_id, "displayName": candidate.display_name},
+        )
+        return {
+            "siteId": service.site_id,
+            "displayName": service.site_name,
+            "origin": service.remote_origin or "",
+            "deviceId": candidate.device_id,
+            "secret": candidate.secret,
+        }
+
     async def snapshot() -> UnlockAutomationSnapshot:
         android_ready = False
         if android_controller is not None:

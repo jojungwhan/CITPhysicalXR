@@ -166,6 +166,7 @@ import {
 } from "./FabricDiscoveryActions.js";
 import { FabricFleetSequencePanel } from "./FabricFleetSequencePanel.js";
 import { FabricG2Guide } from "./FabricG2Guide.js";
+import { FabricGatewayPlugs } from "./FabricGatewayPlugs.js";
 import { FabricInfoDisclosure } from "./FabricInfoDisclosure.js";
 import { FabricInstallationPanel } from "./FabricInstallationPanel.js";
 import { FabricLegoSetup } from "./FabricLegoSetup.js";
@@ -1905,7 +1906,16 @@ export function FabricConsole() {
           status: result.status,
           sessions: result.stoppedSessionIds.length,
           nodes: result.stoppedNodeIds.length,
-        }),
+        }) +
+          ((result.stoppedGatewayIds?.length ?? 0) +
+            (result.failedGatewayIds?.length ?? 0) >
+          0
+            ? " " +
+              t("gateway.stopResult", {
+                stopped: result.stoppedGatewayIds?.length ?? 0,
+                failed: result.failedGatewayIds?.length ?? 0,
+              })
+            : ""),
       );
     });
 
@@ -3192,6 +3202,14 @@ export function FabricConsole() {
           <div className="fabric-error" role="alert">
             {error}
           </div>
+        )}
+
+        {principal !== null && (
+          <FabricGatewayPlugs
+            client={client}
+            canSubmit={canSubmitCommands}
+            t={t}
+          />
         )}
 
         {isAndroidController && (
