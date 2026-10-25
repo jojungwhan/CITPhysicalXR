@@ -199,6 +199,11 @@ UMask=0077
 ExecStart="${runtime_python}" -m cit_matter_smart_plug.gateway
 Restart=on-failure
 RestartSec=5
+# Exit status 75 is the gateway asking for a restart after a plug became
+# available (RESTART_EXIT_STATUS in gateway.py). Treat it as a clean exit that
+# still restarts, so the journal does not record a failure for it.
+SuccessExitStatus=75
+RestartForceExitStatus=75
 TimeoutStopSec=20
 KillMode=mixed
 NoNewPrivileges=true

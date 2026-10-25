@@ -24,6 +24,15 @@ _SENSITIVE_PARENT_VARIABLES = {
     "CITXR_MATTER_ADAPTER_TOKEN",
 }
 _INVENTORY_REFRESH_SECONDS = 30.0
+# Exit status for a deliberate supervised restart (a plug became available, so the
+# adapter set must be rebuilt). The unit lists it in SuccessExitStatus= and
+# RestartForceExitStatus=, so systemd restarts the gateway without recording a
+# failure. A crash stays exit status 1 and is still a failure.
+RESTART_EXIT_STATUS = 75
+
+
+class SupervisedRestartRequested(RuntimeError):
+    """The gateway must restart to attach a plug that became available."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,7 +174,7 @@ async def run_gateway(configuration: GatewayConfiguration) -> None:
         if stop_waiter in done:
             pass
         elif inventory_waiter in done:
-            raise RuntimeError(
+            raise SupervisedRestartRequested(
                 "A newly available Matter plug was found; restarting supervised adapters"
             )
         else:
@@ -297,6 +306,9 @@ def main() -> None:
         asyncio.run(run_gateway(GatewayConfiguration.from_environment()))
     except KeyboardInterrupt:
         return
+    except SupervisedRestartRequested as request:
+        LOGGER.info("%s; exiting with status %s", request, RESTART_EXIT_STATUS)
+        raise SystemExit(RESTART_EXIT_STATUS) from None
 
 
 if __name__ == "__main__":
