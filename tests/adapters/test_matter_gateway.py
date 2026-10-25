@@ -135,3 +135,35 @@ async def test_gateway_notices_a_recovered_unmanaged_plug(
         frozenset(),
         interval_seconds=0,
     )
+
+
+def test_main_exits_with_restart_status_when_a_plug_becomes_available(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async def run_gateway(_configuration: GatewayConfiguration) -> None:
+        raise gateway.SupervisedRestartRequested("restart requested")
+
+    monkeypatch.setattr(gateway, "run_gateway", run_gateway)
+    monkeypatch.setattr(
+        GatewayConfiguration, "from_environment", classmethod(lambda cls: configuration(tmp_path))
+    )
+
+    with pytest.raises(SystemExit) as raised:
+        gateway.main()
+
+    assert raised.value.code == gateway.RESTART_EXIT_STATUS == 75
+
+
+def test_main_does_not_hide_an_unexpected_adapter_exit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    async def run_gateway(_configuration: GatewayConfiguration) -> None:
+        raise RuntimeError("Matter adapter matter-13-ep1 exited unexpectedly with status 1")
+
+    monkeypatch.setattr(gateway, "run_gateway", run_gateway)
+    monkeypatch.setattr(
+        GatewayConfiguration, "from_environment", classmethod(lambda cls: configuration(tmp_path))
+    )
+
+    with pytest.raises(RuntimeError, match="exited unexpectedly"):
+        gateway.main()

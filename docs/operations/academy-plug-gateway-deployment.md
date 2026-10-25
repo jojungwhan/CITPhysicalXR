@@ -38,6 +38,14 @@ the original Windows copy becomes stale as the live gateway operates.
 Manual ON/OFF control is enabled. Phone-unlock automation is disabled on this
 remote gateway. Service startup and shutdown put managed plugs in the OFF state.
 
+When a commissioned plug becomes available later (powered back on, or newly
+commissioned), the gateway exits with status 75 so systemd restarts it with the
+plug attached. The unit lists 75 in `SuccessExitStatus=` and
+`RestartForceExitStatus=`; the journal shows "Deactivated successfully" followed
+by a scheduled restart, not "Failed with result 'exit-code'". Any other exit is a
+real failure. Changing the installed unit needs `systemctl --user daemon-reload`;
+changing `gateway.py` needs a service restart, which switches the plugs OFF.
+
 Validation: both the Z Flip4 and Galaxy Note10 sent ON and OFF, and each reported
 all four plugs ON after ON. The Z Flip4 also successfully requested status with
 Wi-Fi disabled. Direct Matter reads after OFF confirmed all four outlets OFF.
